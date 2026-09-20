@@ -274,7 +274,7 @@ jobs:
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:publish
 
       - name: Publish the rolling flake to FlakeHub
-        uses: DeterminateSystems/flakehub-push@2ca953b09ca13532271987be2887bbd33b99980f # main, Node.js 24 (post-v6)
+        uses: DeterminateSystems/flakehub-push@e001ee821cdb763ef120c01f1048bfb2f938bb9c # main, Node.js 24 (post-v6)
         with:
           visibility: public
           name: closure-labs/maestro
