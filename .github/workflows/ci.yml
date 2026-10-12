@@ -43,6 +43,7 @@ jobs:
     timeout-minutes: 45
     permissions:
       actions: read
+      attestations: read
       contents: read
     outputs:
       plan: ${{ steps.plan.outputs.plan }}
@@ -93,6 +94,7 @@ jobs:
     timeout-minutes: 165
     permissions:
       actions: read
+      attestations: read
       contents: read
     steps:
       - name: Checkout
