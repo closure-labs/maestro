@@ -11,15 +11,18 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  actions: write
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   enqueue:
+    if: github.ref == 'refs/heads/main'
     name: Validate and enqueue trusted updates
     runs-on: ubuntu-24.04
     timeout-minutes: 180
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
     steps:
       - name: Checkout trusted automation
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

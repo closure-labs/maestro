@@ -36,66 +36,28 @@ artifact_available() {
 }
 
 run_is_trusted() {
-  local run_id=$1
-  local known_event=${2:-}
-  local run_event=$known_event
-  local head_repository=
-  if [[ -z "$run_event" ]]; then
-    IFS=$'\t' read -r run_event head_repository < <(
-      gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" --jq '[.event, (.head_repository.full_name // "")] | @tsv'
-    )
-  fi
-  case "$run_event" in
-    pull_request)
-      if [[ -z "$head_repository" ]]; then
-        head_repository=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" --jq '.head_repository.full_name // empty')
-      fi
-      [[ "$head_repository" == "$GITHUB_REPOSITORY" ]]
-      ;;
-    push|schedule|workflow_dispatch) ;;
-    *) return 1 ;;
-  esac
+  maestro-ci-trusted-run "$1" "${2:-}" >/dev/null
 }
 
 verify_evidence_artifact() {
   local evidence_dir=$1
   local expected_run_id=$2
   local state_file="$evidence_dir/maestro-qualification-state.json"
+  maestro-ci-verify-state "$state_file" "$expected_run_id" || return 1
+  maestro-ci-verify-inventory "$evidence_dir" "$(jq -er .artifact_source_commit "$state_file")" evidence || return 1
   jq -e --arg evidence_input "$evidence_input" --argjson evidence_run_id "$expected_run_id" '
-      .schema_version == 5 and
-      .evidence_input == $evidence_input and
-      .evidence_run_id == $evidence_run_id
-    ' "$state_file" >/dev/null || return 1
-  (
-    cd "$evidence_dir"
-    sha256sum --check --strict maestro-system.spdx.json.sha256 >/dev/null &&
-      sha256sum --check --strict maestro-system.cdx.json.sha256 >/dev/null &&
-      sha256sum --check --strict xen-orchestra-supply.assertion.json.sha256 >/dev/null &&
-      sha256sum --check --strict xen-orchestra-supply.spdx.json.sha256 >/dev/null &&
-      sha256sum --check --strict xen-orchestra-supply.cdx.json.sha256 >/dev/null
-  ) || return 1
-  jq -e '.spdxVersion | type == "string"' "$evidence_dir/maestro-system.spdx.json" >/dev/null &&
-    jq -e '.bomFormat == "CycloneDX"' "$evidence_dir/maestro-system.cdx.json" >/dev/null &&
-    jq -e '.schemaVersion == 1' "$evidence_dir/xen-orchestra-supply.assertion.json" >/dev/null
+    .evidence_input == $evidence_input and .evidence_run_id == $evidence_run_id
+  ' "$state_file" >/dev/null
 }
 
 if [[ "$allow_reuse" == true && "$force_build" != true ]]; then
-  while IFS=$'\t' read -r run_id run_event; do
+  while read -r run_id; do
     [[ "$run_id" =~ ^[0-9]+$ ]] || continue
-    run_is_trusted "$run_id" "$run_event" || continue
+    run_is_trusted "$run_id" || continue
 
     state_dir=$(mktemp -d "${runner_temp}/maestro-state.XXXXXX")
     if ! gh run download "$run_id" --repo "$GITHUB_REPOSITORY" --name maestro-qualification-state --dir "$state_dir" >/dev/null 2>&1 ||
-      ! jq -e '
-        .schema_version == 5 and
-        (.artifact_run_id | type == "number") and
-        (.media_run_id | type == "number") and
-        (.evidence_run_id | type == "number") and
-        (.media_input | type == "string") and
-        (.evidence_input | type == "string") and
-        (.artifact_source_commit | type == "string") and
-        (.media_source_commit | type == "string")
-      ' "$state_dir/maestro-qualification-state.json" >/dev/null; then
+      ! maestro-ci-verify-state "$state_dir/maestro-qualification-state.json" "$run_id" >/dev/null 2>&1; then
       rm -rf -- "$state_dir"
       continue
     fi
@@ -103,6 +65,13 @@ if [[ "$allow_reuse" == true && "$force_build" != true ]]; then
     state_file="$state_dir/maestro-qualification-state.json"
     candidate_artifact_run_id=$(jq -r .artifact_run_id "$state_file")
     candidate_evidence_run_id=$(jq -r .evidence_run_id "$state_file")
+    candidate_media_run_id=$(jq -r .media_run_id "$state_file")
+    if ! run_is_trusted "$candidate_artifact_run_id" "$(jq -r .artifact_source_commit "$state_file")" ||
+      ! run_is_trusted "$candidate_media_run_id" "$(jq -r .media_source_commit "$state_file")" ||
+      ! run_is_trusted "$candidate_evidence_run_id"; then
+      rm -rf -- "$state_dir"
+      continue
+    fi
     candidate_media_matches=false
     candidate_evidence_matches=false
 
@@ -111,7 +80,7 @@ if [[ "$allow_reuse" == true && "$force_build" != true ]]; then
       candidate_media_matches=true
       if [[ -z "$media_candidate_run_id" ]]; then
         media_candidate_run_id=$candidate_artifact_run_id
-        media_candidate_source_commit=$(jq -r .media_source_commit "$state_file")
+        media_candidate_source_commit=$(jq -r .artifact_source_commit "$state_file")
       fi
     fi
 
@@ -143,7 +112,7 @@ if [[ "$allow_reuse" == true && "$force_build" != true ]]; then
     fi
     rm -rf -- "$state_dir"
   done < <(
-    gh run list --repo "$GITHUB_REPOSITORY" --workflow "$workflow" --status completed --limit 100 --json databaseId,event --jq '.[] | [.databaseId, .event] | @tsv'
+    gh run list --repo "$GITHUB_REPOSITORY" --workflow "$workflow" --branch main --status success --limit 100 --json databaseId --jq '.[].databaseId'
   )
 fi
 
@@ -159,6 +128,8 @@ if [[ "$mode" == qualify-media ]]; then
 fi
 
 jq -n --arg mode "$mode" --arg media_input "$media_input" --arg evidence_input "$evidence_input" --arg source_commit "$GITHUB_SHA" --arg artifact_source_commit "$artifact_source_commit" --arg media_source_commit "$media_source_commit" --arg producer_event "$producer_event" --argjson artifact_run_id "$artifact_run_id" --argjson media_run_id "$media_run_id" --argjson evidence_run_id "$state_evidence_run_id" '{schema_version:5,mode:$mode,media_input:$media_input,evidence_input:$evidence_input,source_commit:$source_commit,artifact_source_commit:$artifact_source_commit,media_source_commit:$media_source_commit,producer_event:$producer_event,artifact_run_id:$artifact_run_id,media_run_id:$media_run_id,evidence_run_id:$evidence_run_id}' >maestro-qualification-state.json
+
+maestro-ci-validate-state maestro-qualification-state.json
 
 if [[ -n ${GITHUB_OUTPUT:-} ]]; then
   {

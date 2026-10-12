@@ -45,6 +45,12 @@ in {
           export MAESTRO_CI_RELEASE_SPLIT=${lib.getExe packages.maestro-ci-release-stage}
           export MAESTRO_CI_RELEASE_VERSION=${lib.getExe packages.maestro-ci-release-version}
           export MAESTRO_CI_TRUSTED_UPDATE=${lib.getExe packages.maestro-ci-trusted-update}
+          export MAESTRO_CI_VALIDATE_STATE=${lib.getExe packages.maestro-ci-validate-state}
+          export MAESTRO_CI_TRUSTED_RUN=${lib.getExe packages.maestro-ci-trusted-run}
+          export MAESTRO_CI_VERIFY_INVENTORY=${lib.getExe packages.maestro-ci-verify-inventory}
+          export MAESTRO_CI_DOWNLOAD_INSTALLER=${lib.getExe packages.maestro-ci-download-installer}
+          export MAESTRO_CI_SECURITY_SCAN=${lib.getExe packages.maestro-ci-security-scan}
+          export MAESTRO_CI_SECURITY_VERDICT=${lib.getExe packages.maestro-ci-security-verdict}
           export MAESTRO_SYSTEM_ROOT="$PWD"
           mkdir -p "$HOME"
           ${command}
@@ -74,7 +80,7 @@ in {
             jq -e '
               (.validation.schemaVersion == 2) and
               (.validation.name == "maestro-validation") and
-              (.validation.targets | length == 16) and
+              (.validation.targets | length == 18) and
               (.media.schemaVersion == 2) and
               (.media.name == "maestro-media-qualification") and
               (.media.targets | length == 1) and
@@ -135,7 +141,7 @@ in {
           )
           if yq -r '.jobs[].steps[]?.run // ""' .github/workflows/*.yml |
             grep -v '^---$' |
-            grep -Ev "^$|^bash nix/automation/verdict\\.sh$|^nix run --accept-flake-config \.#devenv -- tasks run --option 'packages:pkgs!' [']['] ci:repository-audit$|^nix run --accept-flake-config \.#devenv -- tasks run --mode single --option 'packages:pkgs!' [']['] [a-z0-9:_-]+$"; then
+            grep -Ev "^$|^nix run --accept-flake-config \.#devenv -- tasks run --option 'packages:pkgs!' [']['] ci:repository-audit$|^nix run --accept-flake-config \.#devenv -- tasks run --mode single --option 'packages:pkgs!' [']['] [a-z0-9:_-]+$"; then
             printf 'Workflow command bypasses the declared devenv task graph.\n' >&2
             exit 1
           fi
@@ -153,7 +159,9 @@ in {
           cd ${inputs.self}
           for task in \
             ci:route ci:classify ci:repository-audit ci:qualification:resolve \
-            ci:qualification:assemble ci:qualification:boot-media ci:publish ci:verdict automation:queue \
+            ci:qualification:assemble ci:qualification:boot-media ci:qualification:sign-check \
+            ci:security:scan ci:security:latest ci:security:policy-drift ci:packer:validate \
+            ci:publish ci:verdict automation:queue \
             automation:fix-hashes \
             automation:update-locks automation:validate-locks automation:open-lock-update-pr \
             release:prepare release:dispatch release:inventory release:verify \
@@ -213,6 +221,17 @@ in {
         '';
       };
 
+      security-fixtures = mkSourceCheck {
+        name = "security-fixtures";
+        command = "bash ./tests/security-contracts.sh && bash ./tests/security-scan.sh";
+        nativeBuildInputs = fixtureInputs ++ [pkgs.openssh];
+      };
+
+      packer-policy = mkSourceCheck {
+        name = "packer-policy";
+        command = "${lib.getExe packages.maestro-ci-packer-validate}";
+      };
+
       qualification-input-fixtures = mkSourceCheck {
         name = "qualification-input-fixtures";
         command = "bash ./tests/qualification-inputs.sh";
@@ -250,7 +269,7 @@ in {
       operator-fixtures = mkSourceCheck {
         name = "operator-fixtures";
         command = "MAESTRO_SKIP_EVAL=1 bash ./tests/run.sh";
-        nativeBuildInputs = fixtureInputs ++ [pkgs.yq-go];
+        nativeBuildInputs = fixtureInputs ++ [pkgs.yq-go pkgs.openssh pkgs.gh];
       };
 
       repository-policy = import ../../nix/checks/repository-policy.nix {
@@ -301,6 +320,19 @@ in {
       assert builtins.elem pkgs.cloud-init appliance.environment.systemPackages;
       assert builtins.elem "cloud-config.service" appliance.systemd.services.sshd.after;
       assert appliance.services.openssh.settings.AllowUsers == ["maestro"];
+      assert appliance.services.openssh.settings.PermitRootLogin == "no";
+      assert !appliance.services.openssh.settings.PasswordAuthentication;
+      assert !appliance.services.openssh.settings.KbdInteractiveAuthentication;
+      assert appliance.users.users.xo.isSystemUser;
+      assert appliance.users.users.xo.shell == "${pkgs.shadow}/bin/nologin";
+      assert appliance.services.redis.servers.xo.settings.port == 0;
+      assert appliance.services.redis.servers.xo.unixSocketPerm == 770;
+      assert appliance.systemd.services.xo-server.serviceConfig.User == "xo";
+      assert appliance.systemd.services.xo-server.serviceConfig.ProtectHome;
+      assert appliance.systemd.services.xo-server.serviceConfig.ProtectSystem == "full";
+      assert appliance.systemd.services.xo-server.serviceConfig.AmbientCapabilities == ["CAP_NET_BIND_SERVICE"];
+      assert appliance.systemd.services.xo-server.serviceConfig.EnvironmentFile == [];
+      assert lib.all (rule: !(builtins.elem "xo" rule.users) || lib.all (command: lib.hasSuffix "/bin/xo-storage-helper" command.command) rule.commands) appliance.security.sudo.extraRules;
       assert appliance.networking.firewall.allowedTCPPorts == [22 80 443];
       assert appliance.determinate.enable;
       assert appliance.home-manager.users.maestro.programs.git.enable;

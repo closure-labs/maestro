@@ -97,7 +97,7 @@ decision and protected-main publication state. Every downstream job and the
 required verdict consume that exact plan. An exact unexpired match reuses the
 artifact. A media-only match downloads the already-booted ISO and regenerates
 its evidence. An evidence-only match realizes and boots new media, then
-downloads verified evidence from a trusted same-repository run with an
+downloads verified evidence from a successful protected-main run with an
 unexpired artifact and matching state. With neither identity available, the
 same job generates new evidence after the boot test. Pull
 requests, merge groups, and pushes fetch full history for path classification,
@@ -107,9 +107,9 @@ missing, unavailable, or non-ancestral SHAs require qualification. The router
 and required verdict share a strict schema-v3 JSON route contract.
 
 At deployment time, `deploy-template` downloads the newest successful `main`
-artifact to a temporary directory, verifies its SHA-256 checksum and state
-pointer, and gives it to Packer. The source flake remains pinned independently
-through `flake.lock`.
+artifact to a temporary directory, verifies state v5, all inventory checksums, protected-main producers, provenance,
+and the bound SPDX SBOM, and gives it to Packer. The installer checks out the
+pointer's exact `source_commit`; it never follows a moving branch during install.
 
 This means the default installer may briefly lag a newer checkout while CI is
 running. Use `INSTALLER_SOURCE=build` for the current checkout or
@@ -138,7 +138,7 @@ Credential-bearing configuration is kept in the runtime Secretspec contract.
   waits for that SHA's CI, and only then enables protected-branch auto-merge.
 - Successful installer builds publish the `0.2` rolling FlakeHub release. The
   dedicated release workflow selects a semantic version through a protected
-  pull request, verifies both builder attestations, fills a draft GitHub
+  pull request, verifies the complete signed builder inventory and rescans vulnerabilities, fills a draft GitHub
   release, publishes the versioned flake, and makes the GitHub release
   immutable. Rolling and versioned publication wait in the same non-canceling
   queue so they do not build identical outputs concurrently. The next
@@ -156,3 +156,23 @@ See the [Packer reference](../packer/README.md) for the installer build and
 template-sealing contract.
 
 [Back to documentation](index.md)
+
+## Security maintenance
+
+PR and merge-group builders have read-only permissions. A separate job signs
+only qualified protected-main push, schedule, or dispatch runs. The required
+verdict runs the declared `ci:verdict` task and requires dependency scans and
+protected-main signing when applicable. Publication failures remain visible
+without becoming a merge requirement.
+
+Weekly security maintenance rescans the latest verified inventory and detects
+GitHub policy drift. Scanners and vulnerability databases run at execution time,
+not in pure Nix derivations. See [Security policy](../SECURITY.md) for baseline
+review, enforcement, and expiring exceptions. Configure the optional repository
+secret `GITHUB_POLICY_READ_TOKEN` as a repository-scoped fine-grained token with
+Administration and Contents **read** access; it is used only by the separate
+policy job. No policy drift task changes GitHub settings.
+
+The solo operator owns manual release dispatch and reviews workflow/action
+updates. Queue recovery accepts only version, synchronized Nix lockfile, and
+Cargo dependency changes. Hash repair remains a maintainer-invoked task.

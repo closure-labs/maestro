@@ -156,3 +156,20 @@ printf 'operator\nsecret\n' \
 grep -Fq -- '-n /nix/store/test/bin/xo-storage-helper mount-cifs-with-credentials' "$sudo_log"
 grep -Fxq 'operator' "$sudo_stdin"
 grep -Fxq 'secret' "$sudo_stdin"
+
+# Unknown flags, alternate mount modes, repeated selectors, and extra operands
+# must never reach a privileged binary.
+for arguments in \
+  'mount --bind -t nfs server:/export /var/lib/xo/mounts/test' \
+  'mount -t nfs -t nfs4 server:/export /var/lib/xo/mounts/test' \
+  'mount -t nfs -o rw -o ro server:/export /var/lib/xo/mounts/test' \
+  'mount -t nfs -o remount server:/export /var/lib/xo/mounts/test' \
+  'mount -t nfs server:/export /etc /var/lib/xo/mounts/test' \
+  'umount -a /var/lib/xo/mounts/test' \
+  'findmnt --tab-file /etc/passwd -T /var/lib/xo/mounts/test'; do
+  read -r -a parsed <<<"$arguments"
+  if run_helper "${parsed[@]}" >/dev/null 2>&1; then
+    echo "Storage helper accepted unsafe arguments: $arguments" >&2
+    exit 1
+  fi
+done

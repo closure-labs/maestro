@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Maestro qualification state v5",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "mode", "media_input", "evidence_input", "source_commit", "artifact_source_commit", "media_source_commit", "producer_event", "artifact_run_id", "media_run_id", "evidence_run_id"],
+  "properties": {
+    "schema_version": {"const": 5},
+    "mode": {"enum": ["reuse", "refresh-evidence", "qualify-media-reuse-evidence", "qualify-media"]},
+    "media_input": {"$ref": "#/$defs/fingerprint"},
+    "evidence_input": {"$ref": "#/$defs/fingerprint"},
+    "source_commit": {"$ref": "#/$defs/commit"},
+    "artifact_source_commit": {"$ref": "#/$defs/commit"},
+    "media_source_commit": {"$ref": "#/$defs/commit"},
+    "producer_event": {"enum": ["push", "schedule", "workflow_dispatch", "pull_request", "merge_group"]},
+    "artifact_run_id": {"$ref": "#/$defs/run"},
+    "media_run_id": {"$ref": "#/$defs/run"},
+    "evidence_run_id": {"$ref": "#/$defs/run"}
+  },
+  "$defs": {
+    "fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "run": {"type": "integer", "minimum": 1}
+  }
+}

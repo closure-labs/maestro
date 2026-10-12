@@ -6,8 +6,6 @@ set -euo pipefail
 readonly INSTALL_ROOT=/mnt
 readonly DEFAULT_REPO_URL=https://github.com/closure-labs/maestro.git
 readonly DEFAULT_BRANCH=main
-# shellcheck disable=SC2016
-readonly PACKER_PASSWORD_HASH='$6$maestropacker$cWN5T4ysgTquwJsxxFc/iF6rrl8MgYdDV6X4UV8t.MS5ATbQC4aYMsuXkKWsCH9AEBsGEzuEciGpFb6ylMgdU0'
 
 usage() {
   cat <<'EOF'
@@ -19,7 +17,9 @@ Options:
   --disk DEVICE        target disk; auto-detected when exactly one exists
   --repo-url URL       Maestro repository URL
   --branch NAME        repository branch to install
+  --revision SHA       immutable repository commit (required)
   --operator-key FILE  required SSH public key file for maestro
+  --bootstrap-key FILE temporary Packer public key, removed at sealing
   --timezone ZONE      appliance timezone
   --git-name NAME      operator Git author name
   --git-email EMAIL    operator Git author email
@@ -41,6 +41,8 @@ target_disk=
 repo_url=$DEFAULT_REPO_URL
 branch=$DEFAULT_BRANCH
 operator_key_file=
+bootstrap_key_file=
+revision=
 timezone=America/Chicago
 git_name="Maestro Admin"
 git_email=maestro@maestro
@@ -66,6 +68,16 @@ while [[ "$#" -gt 0 ]]; do
     --operator-key)
       require_argument "$@"
       operator_key_file=$2
+      shift 2
+      ;;
+    --bootstrap-key)
+      require_argument "$@"
+      bootstrap_key_file=$2
+      shift 2
+      ;;
+    --revision)
+      require_argument "$@"
+      revision=$2
       shift 2
       ;;
     --timezone)
@@ -100,6 +112,7 @@ done
 [[ "$(id -u)" -eq 0 ]] || die "must run as root"
 [[ "$confirmed" -eq 1 ]] || die "refusing to erase a disk without --yes"
 [[ -r "$operator_key_file" ]] || die "operator public key is required"
+[[ $revision =~ ^[0-9a-f]{40}$ ]] || die "--revision requires an immutable full commit SHA"
 
 mapfile -t operator_keys < <(
   sed -nE '/^(ssh-|ecdsa-|sk-)[^[:space:]]+[[:space:]]+[^[:space:]]+/p' \
@@ -107,6 +120,14 @@ mapfile -t operator_keys < <(
 )
 [[ "${#operator_keys[@]}" -eq 1 ]] \
   || die "operator key file must contain exactly one valid public key"
+ssh-keygen -l -f "$operator_key_file" >/dev/null || die "operator key is invalid"
+bootstrap_key=
+if [[ -n $bootstrap_key_file ]]; then
+  [[ -f $bootstrap_key_file && ! -L $bootstrap_key_file ]] || die "bootstrap key must be a regular file"
+  ssh-keygen -l -f "$bootstrap_key_file" >/dev/null || die "bootstrap key is invalid"
+  bootstrap_key=$(awk 'NF >= 2 {print $1 " " $2}' "$bootstrap_key_file")
+  [[ $bootstrap_key =~ ^ssh-ed25519[[:space:]][A-Za-z0-9+/=]+$ ]] || die "bootstrap key must be one Ed25519 key"
+fi
 
 if [[ -z "$target_disk" ]]; then
   mapfile -t install_disks < <(
@@ -134,6 +155,19 @@ case "$target_disk" in
     root_partition="${target_disk}2"
     ;;
 esac
+
+# Fetch and validate source before any destructive disk operation.
+source_checkout=$(mktemp -d "${TMPDIR:-/tmp}/maestro-source.XXXXXX")
+packer_module_tmp=
+cleanup() {
+  [[ -z $source_checkout ]] || rm -rf -- "$source_checkout"
+  [[ -z $packer_module_tmp ]] || rm -f -- "$packer_module_tmp"
+}
+trap cleanup EXIT
+git clone --branch "$branch" --single-branch "$repo_url" "$source_checkout"
+git -C "$source_checkout" fetch --no-tags origin "$revision"
+git -C "$source_checkout" checkout --detach "$revision"
+[[ $(git -C "$source_checkout" rev-parse HEAD) == "$revision" ]] || die "source revision verification failed"
 
 printf 'Installing Maestro from %s (%s) onto %s\n' \
   "$repo_url" "$branch" "$target_disk"
@@ -176,7 +210,8 @@ mount -o fmask=0077,dmask=0077 "$efi_partition" "$INSTALL_ROOT/boot"
 
 repo_dir="$INSTALL_ROOT/home/maestro/maestro"
 install -d -m 0755 "$(dirname "$repo_dir")"
-git clone --branch "$branch" --single-branch "$repo_url" "$repo_dir"
+mv -- "$source_checkout" "$repo_dir"
+source_checkout=
 
 export MAESTRO_SYSTEM_ROOT="$repo_dir"
 # The checkout does not exist on the live ISO when ShellCheck runs.
@@ -197,21 +232,20 @@ install -m 0644 \
   "$INSTALL_ROOT/etc/nixos/hardware-configuration.nix" \
   "$MAESTRO_HARDWARE_FILE"
 
-# The installed system keeps Packer's temporary password only long enough for
-# the communicator to reconnect after the first reboot. The sealing
-# provisioner restores the tracked empty module and switches once more.
-packer_module_tmp="$(mktemp "$repo_dir/host/.packer.XXXXXX")"
-trap 'rm -f -- "${packer_module_tmp:-}"' EXIT
-cat >"$packer_module_tmp" <<EOF
+# Preserve only the temporary public build key across the first reboot.
+# The sealing provisioner restores the tracked empty module.
+if [[ -n $bootstrap_key ]]; then
+  packer_module_tmp="$(mktemp "$repo_dir/host/.packer.XXXXXX")"
+  cat >"$packer_module_tmp" <<EOF
 # SPDX-License-Identifier: Apache-2.0
 {lib, ...}: {
-  users.users.maestro.hashedPassword = lib.mkForce "$PACKER_PASSWORD_HASH";
-  services.openssh.settings.PasswordAuthentication = lib.mkForce true;
+  users.users.maestro.openssh.authorizedKeys.keys = lib.mkAfter [ "$bootstrap_key" ];
 }
 EOF
-chmod 0644 "$packer_module_tmp"
-mv -f "$packer_module_tmp" "$repo_dir/host/packer.nix"
+  chmod 0644 "$packer_module_tmp"
+  mv -f "$packer_module_tmp" "$repo_dir/host/packer.nix"
 packer_module_tmp=
+fi
 
 nixos-install \
   --root "$INSTALL_ROOT" \

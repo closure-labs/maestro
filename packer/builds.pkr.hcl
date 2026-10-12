@@ -11,6 +11,7 @@ build {
     environment_vars = [
       "MAESTRO_REPO_URL=${var.repo_url}",
       "MAESTRO_REPO_BRANCH=${var.repo_branch}",
+      "MAESTRO_REPO_REVISION=${var.repo_revision}",
     ]
     script            = "${path.root}/scripts/install-template.sh"
     expect_disconnect = true

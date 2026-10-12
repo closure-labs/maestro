@@ -38,6 +38,7 @@ packer/*.pkrvars.json
 /xen-orchestra-supply.cdx.json.sha256
 /xen-orchestra-supply.spdx.json
 /xen-orchestra-supply.spdx.json.sha256
+/security-report/
 
 # Editor/IDE
 .vscode/

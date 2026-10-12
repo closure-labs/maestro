@@ -65,24 +65,48 @@ reuse_plan='{"schema_version":3,"qualification":{"required":true,"mode":"reuse",
 evidence_plan='{"schema_version":3,"qualification":{"required":true,"mode":"refresh-evidence","artifact_run_id":42,"media_run_id":41,"evidence_run_id":42,"media_input":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","evidence_input":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"publish_required":false}'
 media_reuse_plan='{"schema_version":3,"qualification":{"required":true,"mode":"qualify-media-reuse-evidence","artifact_run_id":42,"media_run_id":42,"evidence_run_id":40,"media_input":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","evidence_input":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"publish_required":false}'
 media_plan='{"schema_version":3,"qualification":{"required":true,"mode":"qualify-media","artifact_run_id":42,"media_run_id":42,"evidence_run_id":42,"media_input":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","evidence_input":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"publish_required":false}'
-env ROUTE_RESULT=success CI_PLAN="$skip_plan" \
+env ROUTE_RESULT=success SECURITY_RESULT=skipped CI_PLAN="$skip_plan" \
   QUALIFICATION_RESULT=skipped "$MAESTRO_CI_VERDICT"
-env ROUTE_RESULT=success CI_PLAN="$reuse_plan" \
+env ROUTE_RESULT=success SECURITY_RESULT=success CI_PLAN="$reuse_plan" \
   QUALIFICATION_RESULT=skipped "$MAESTRO_CI_VERDICT"
-env ROUTE_RESULT=success CI_PLAN="$evidence_plan" \
+env ROUTE_RESULT=success SECURITY_RESULT=success CI_PLAN="$evidence_plan" \
   QUALIFICATION_RESULT=success "$MAESTRO_CI_VERDICT"
-env ROUTE_RESULT=success CI_PLAN="$media_reuse_plan" \
+env ROUTE_RESULT=success SECURITY_RESULT=success CI_PLAN="$media_reuse_plan" \
   QUALIFICATION_RESULT=success "$MAESTRO_CI_VERDICT"
-env ROUTE_RESULT=success CI_PLAN="$media_plan" \
+env ROUTE_RESULT=success SECURITY_RESULT=success CI_PLAN="$media_plan" \
   QUALIFICATION_RESULT=success "$MAESTRO_CI_VERDICT"
+# Event boundaries: branch qualification never needs signing; protected-main
+# qualification requires it, and all required scans must complete successfully.
+for event in pull_request merge_group push schedule workflow_dispatch; do
+  ref=refs/heads/main
+  signing=success
+  case $event in
+    pull_request) ref=refs/pull/1/merge; signing=skipped ;;
+    merge_group) ref=refs/heads/gh-readonly-queue/main/pr-1; signing=skipped ;;
+  esac
+  env ROUTE_RESULT=success CI_PLAN="$media_plan" QUALIFICATION_RESULT=success \
+    SECURITY_RESULT=success SIGNING_RESULT="$signing" GITHUB_EVENT_NAME="$event" GITHUB_REF="$ref" \
+    "$MAESTRO_CI_VERDICT"
+  if env ROUTE_RESULT=success CI_PLAN="$media_plan" QUALIFICATION_RESULT=success \
+    SECURITY_RESULT=failure SIGNING_RESULT="$signing" GITHUB_EVENT_NAME="$event" GITHUB_REF="$ref" \
+    "$MAESTRO_CI_VERDICT" >/dev/null 2>&1; then
+    echo 'CI verdict accepted a failed dependency scan.' >&2; exit 1
+  fi
+  if [[ $signing == success ]] && env ROUTE_RESULT=success CI_PLAN="$media_plan" QUALIFICATION_RESULT=success \
+    SECURITY_RESULT=success SIGNING_RESULT=skipped GITHUB_EVENT_NAME="$event" GITHUB_REF="$ref" \
+    "$MAESTRO_CI_VERDICT" >/dev/null 2>&1; then
+    echo 'Protected-main verdict accepted missing signing.' >&2; exit 1
+  fi
+done
+
 invalid_publish_plan='{"schema_version":3,"qualification":{"required":false,"mode":"skip","artifact_run_id":null,"media_run_id":null,"evidence_run_id":null,"media_input":null,"evidence_input":null},"publish_required":true}'
-if env ROUTE_RESULT=success CI_PLAN="$invalid_publish_plan" \
+if env ROUTE_RESULT=success SECURITY_RESULT=success CI_PLAN="$invalid_publish_plan" \
   QUALIFICATION_RESULT=skipped "$MAESTRO_CI_VERDICT" >/dev/null 2>&1; then
   printf 'CI verdict accepted publication without an installer lifecycle.\n' >&2
   exit 1
 fi
 invalid_media_input_plan='{"schema_version":3,"qualification":{"required":true,"mode":"reuse","artifact_run_id":42,"media_run_id":41,"evidence_run_id":40,"media_input":"not-a-digest","evidence_input":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"publish_required":false}'
-if env ROUTE_RESULT=success CI_PLAN="$invalid_media_input_plan" \
+if env ROUTE_RESULT=success SECURITY_RESULT=success CI_PLAN="$invalid_media_input_plan" \
   QUALIFICATION_RESULT=skipped "$MAESTRO_CI_VERDICT" >/dev/null 2>&1; then
   printf 'CI verdict accepted an invalid media input.\n' >&2
   exit 1
@@ -93,12 +117,12 @@ if env ROUTE_RESULT=failure CI_PLAN="$skip_plan" \
   exit 1
 fi
 unknown_mode_plan=$(jq -c '.qualification.mode = "future-mode"' <<<"$skip_plan")
-if env ROUTE_RESULT=success CI_PLAN="$unknown_mode_plan" \
+if env ROUTE_RESULT=success SECURITY_RESULT=success CI_PLAN="$unknown_mode_plan" \
   QUALIFICATION_RESULT=skipped "$MAESTRO_CI_VERDICT" >/dev/null 2>&1; then
   printf 'CI verdict accepted an unknown qualification mode.\n' >&2
   exit 1
 fi
-if env ROUTE_RESULT=success CI_PLAN='{"schema_version":3' \
+if env ROUTE_RESULT=success SECURITY_RESULT=success CI_PLAN='{"schema_version":3' \
   QUALIFICATION_RESULT=skipped "$MAESTRO_CI_VERDICT" >/dev/null 2>&1; then
   printf 'CI verdict accepted malformed route JSON.\n' >&2
   exit 1
@@ -149,7 +173,7 @@ cat >"$qualification_bin/gh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 if [[ "$1 $2" == "run list" ]]; then
-  jq -r '[77, .event] | @tsv' "${FAKE_QUALIFICATION_ARTIFACTS:?}/77/metadata.json"
+  jq -r '.id' "${FAKE_QUALIFICATION_ARTIFACTS:?}/77/metadata.json"
   exit 0
 fi
 if [[ "$1 $2" == "run download" ]]; then
@@ -180,15 +204,18 @@ if [[ "$1" == api && "$2" == */artifacts ]]; then
   exit 0
 fi
 if [[ "$1" == api && "$2" == */actions/runs/* ]]; then
-  run_id=${2##*/}
-  if [[ "$*" == *'head_repository.full_name // empty'* ]]; then
-    jq -r '.head_repository // empty' "${FAKE_QUALIFICATION_ARTIFACTS:?}/$run_id/metadata.json"
-  else
-    jq -r '[.event, (.head_repository // "")] | @tsv' \
-      "${FAKE_QUALIFICATION_ARTIFACTS:?}/$run_id/metadata.json"
-  fi
+  cat "${FAKE_QUALIFICATION_ARTIFACTS:?}/${2##*/}/metadata.json"
   exit 0
 fi
+if [[ "$1" == api && "$2" == */branches/main ]]; then
+  printf '%s\n' '{"protected":true,"commit":{"sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}'
+  exit 0
+fi
+if [[ "$1" == api && "$2" == */compare/* ]]; then
+  printf '%s\n' '{"merge_base_commit":{"sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}'
+  exit 0
+fi
+if [[ "$1 $2" == 'attestation verify' ]]; then exit 0; fi
 exit 1
 EOF
 sed -i "1c#!${BASH}" "$qualification_bin/nix" "$qualification_bin/gh"
@@ -208,7 +235,7 @@ reset_qualification_artifacts() {
     "$qualification_artifacts/77/maestro-qualification-state" \
     "$qualification_artifacts/77/maestro-installer" \
     "$qualification_artifacts/77/maestro-evidence"
-  printf '%s\n' '{"event":"push","head_repository":"example/maestro"}' \
+  printf '%s\n' '{"id":77,"event":"push","head_repository":{"full_name":"example/maestro"},"status":"completed","conclusion":"success","head_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","head_branch":"main","path":".github/workflows/ci.yml"}'  \
     >"$qualification_artifacts/77/metadata.json"
   jq -n --arg media_input "$baseline_media" --arg evidence_input "$baseline_evidence" '
     {
@@ -216,9 +243,9 @@ reset_qualification_artifacts() {
       mode:"qualify-media",
       media_input:$media_input,
       evidence_input:$evidence_input,
-      source_commit:"old-source",
-      artifact_source_commit:"old-source",
-      media_source_commit:"old-source",
+      source_commit:"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      artifact_source_commit:"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      media_source_commit:"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       producer_event:"push",
       artifact_run_id:77,
       media_run_id:77,
@@ -260,7 +287,7 @@ resolve_mode() {
       GITHUB_OUTPUT="$output" \
       GITHUB_REPOSITORY=example/maestro \
       GITHUB_RUN_ID=99 \
-      GITHUB_SHA=current-source \
+      GITHUB_SHA=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
       "$MAESTRO_CI_RESOLVE_QUALIFICATION" >/dev/null
   )
   sed -n 's/^mode=//p' "$output"
@@ -439,6 +466,8 @@ trusted_env=(
   EXPECTED_TITLE='Trusted update'
   EXPECTED_AUTHOR='release-bot'
   DEFAULT_BRANCH=main
+  EXPECTED_CHANGE_KIND=version
+  EXPECTED_VERSION=1.2.3
   FAKE_MERGE_LOG="$temporary/merge.log"
 )
 env PATH="$temporary/bin:$PATH" "${trusted_env[@]}" \
@@ -512,6 +541,14 @@ if env PATH="$temporary/bin:$PATH" FAKE_FILES=$'flake.lock\nREADME.md' \
   "${lock_env[@]}" "$MAESTRO_CI_TRUSTED_UPDATE" >/dev/null 2>&1; then
   printf 'Trusted lock update accepted a non-lockfile change.\n' >&2
   exit 1
+fi
+
+cargo_env=("${trusted_env[@]}" EXPECTED_CHANGE_KIND=cargo)
+env PATH="$temporary/bin:$PATH" FAKE_FILES=$'pkgs/maestro-menu/Cargo.toml\npkgs/maestro-menu/Cargo.lock' \
+  "${cargo_env[@]}" "$MAESTRO_CI_TRUSTED_UPDATE"
+if env PATH="$temporary/bin:$PATH" FAKE_FILES=$'pkgs/maestro-menu/Cargo.lock\n.github/workflows/ci.yml' \
+  "${cargo_env[@]}" "$MAESTRO_CI_TRUSTED_UPDATE" >/dev/null 2>&1; then
+  echo 'Trusted Cargo update accepted a workflow change.' >&2; exit 1
 fi
 
 "$MAESTRO_CI_LOCK_VALIDATE"

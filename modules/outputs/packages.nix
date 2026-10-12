@@ -17,7 +17,9 @@ in {
       planRunner = inputs.xen-orchestra-ce.packages.${system}.flake-plan-runner;
       maestroctl = pkgs.callPackage ../../pkgs/maestroctl/package.nix {};
       maestroMenu = pkgs.callPackage ../../pkgs/maestro-menu/package.nix {};
-      automationCommands = import ../../nix/automation {inherit pkgs planRunner;};
+      automationCommands = import ../../nix/automation {
+        inherit pkgs planRunner packerXenserver;
+      };
       automationPackages =
         lib.mapAttrs' (
           name: package: lib.nameValuePair "maestro-ci-${name}" package
@@ -31,6 +33,7 @@ in {
       bootstrap = pkgs.callPackage ../../pkgs/maestro-bootstrap/package.nix {};
       templateTools = pkgs.callPackage ../../pkgs/maestro-template-tools/package.nix {
         inherit packerXenserver;
+        qualificationValidation = [automationCommands.download-installer];
       };
       applianceToplevel = inputs.self.nixosConfigurations.maestro.config.system.build.toplevel;
       installerSystem = inputs.nixpkgs.lib.nixosSystem {

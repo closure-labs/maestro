@@ -99,6 +99,18 @@ sudo /home/maestro/maestro/packer/scripts/verify-clone.sh
 The check requires a NoCloud datasource, new machine and SSH identities,
 key-only SSH, healthy Redis/XO services, and a responding HTTPS endpoint.
 
-The known `maestro`/`maestro` password exists only in the live installer and the
-temporary Packer override. The sealing step locks it before the native template
-is finalized.
+The installer and template use key-only SSH throughout. Each build creates a
+private Ed25519 key in a protected temporary directory on the builder. Packer
+enrolls its public key through the VM console; the private key never enters the
+guest or the Nix store. The temporary public key survives the first reboot and
+is removed by sealing. The operator key remains authorized. The VM console is
+a trusted administrative channel; an installer without enrollment has no remote
+SSH access.
+
+GitHub-backed builds require signed qualification state v5 and the complete
+verified installer inventory from successful protected-main CI. Unsigned or
+older state requires fresh qualification; there is no silent local fallback.
+Packer installs the selected state's exact commit. Local/build media remain
+explicit choices and resolve `REPO_BRANCH` once, or accept `REPO_REVISION`.
+Direct `install-maestro` calls require `--revision SHA`; Packer supplies this
+and the optional `--bootstrap-key FILE` automatically.

@@ -7,19 +7,24 @@
   lib,
   nix,
   packerXenserver,
+  openssh,
+  qualificationValidation,
   writeShellApplication,
 }: let
   buildTemplate = writeShellApplication {
     name = "maestro-build-template";
-    runtimeInputs = [
-      coreutils
-      gawk
-      gh
-      git
-      jq
-      nix
-      packerXenserver
-    ];
+    runtimeInputs =
+      [
+        coreutils
+        gawk
+        gh
+        git
+        jq
+        nix
+        packerXenserver
+        openssh
+      ]
+      ++ qualificationValidation;
     text = builtins.readFile ../../packer/build.sh;
     meta = {
       description = "Build a native Maestro XCP-ng template with Packer";

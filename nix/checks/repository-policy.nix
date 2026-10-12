@@ -61,20 +61,15 @@
     in {
       ok =
         builtins.all
-        (line:
-          builtins.match
-          "[[:space:]]*run: bash nix/automation/verdict\\.sh[[:space:]]*"
-          line
-          != null
-          || (lib.hasInfix "--option 'packages:pkgs!' ''" line
-            && (builtins.match
-              "[[:space:]]*run: nix run --accept-flake-config \\.#devenv -- tasks run .*ci:repository-audit[[:space:]]*"
-              line
-              != null
-              || builtins.match
-              "[[:space:]]*run: nix run --accept-flake-config \\.#devenv -- tasks run --mode single .* [a-z0-9:_-]+[[:space:]]*"
-              line
-              != null)))
+        (line: (lib.hasInfix "--option 'packages:pkgs!' ''" line
+          && (builtins.match
+            "[[:space:]]*run: nix run --accept-flake-config \\.#devenv -- tasks run .*ci:repository-audit[[:space:]]*"
+            line
+            != null
+            || builtins.match
+            "[[:space:]]*run: nix run --accept-flake-config \\.#devenv -- tasks run --mode single .* [a-z0-9:_-]+[[:space:]]*"
+            line
+            != null)))
         runLines;
       message = ".github/workflows/${workflow} must run declared devenv tasks with the development package set disabled";
     })

@@ -36,15 +36,17 @@ source "xenserver-iso" "maestro" {
   disk_size       = var.disk_size_mb
   network_names   = var.network_names
 
-  boot_wait       = "10s"
-  boot_command    = ["<enter>"]
+  boot_wait = "10s"
+  boot_command = [
+    "<enter><wait60>",
+    "sudo maestro-enroll-bootstrap-key ${var.bootstrap_public_key_b64}<enter>",
+  ]
   install_timeout = var.install_timeout
   ip_getter       = "tools"
 
-  # This credential exists only in the live installer and temporary Packer
-  # host override. The final provisioner restores key-only SSH before sealing.
+  # Only the public key enters the console; the private key stays on the builder.
   ssh_username           = "maestro"
-  ssh_password           = "maestro"
+  ssh_private_key_file   = var.bootstrap_private_key_file
   ssh_wait_timeout       = var.ssh_wait_timeout
   ssh_handshake_attempts = var.ssh_handshake_attempts
 

@@ -59,10 +59,15 @@ in {
 
     "ci:qualification:resolve".exec = runFlakePackage "maestro-ci-resolve-qualification" "";
     "ci:qualification:assemble".exec = runFlakePackage "maestro-ci-qualification-assets" "";
+    "ci:qualification:sign-check".exec = runFlakePackage "maestro-ci-sign-check" "";
     "ci:qualification:boot-media".exec = runFlakePackage "maestro-ci-boot-media" ''
       "''${INSTALLER_ISO:-result-installer/iso/maestro-installer.iso}"
     '';
     "ci:publish".exec = runFlakePackage "maestro-ci-publish" "";
+    "ci:security:scan".exec = runFlakePackage "maestro-ci-security-scan" "";
+    "ci:security:latest".exec = runFlakePackage "maestro-ci-security-latest" "";
+    "ci:security:policy-drift".exec = runFlakePackage "maestro-ci-policy-drift" "";
+    "ci:packer:validate".exec = runFlakePackage "maestro-ci-packer-validate" "";
     "ci:verdict".exec = runFlakePackage "maestro-ci-verdict" "";
 
     "automation:queue".exec = runFlakePackage "maestro-ci-queue" "";

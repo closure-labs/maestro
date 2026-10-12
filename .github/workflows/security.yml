@@ -1,0 +1,58 @@
+# SPDX-License-Identifier: Apache-2.0
+name: Security maintenance
+
+on:
+  schedule:
+    - cron: "41 8 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-maintenance
+  cancel-in-progress: false
+
+jobs:
+  dependencies:
+    name: Rescan latest trusted inventories
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Nix
+        uses: ./.github/actions/setup-nix
+      - name: Verify and scan latest inventories
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:security:latest
+      - name: Upload findings
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: maestro-weekly-security-report
+          path: security-report
+          if-no-files-found: error
+          retention-days: 30
+
+  policy:
+    name: Detect GitHub security policy drift
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Nix
+        uses: ./.github/actions/setup-nix
+      - name: Read repository security settings
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_POLICY_READ_TOKEN }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:security:policy-drift
