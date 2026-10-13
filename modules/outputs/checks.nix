@@ -127,7 +127,7 @@ in {
                 ;;
             esac
             case "$action" in
-              ./* | actions/checkout@* | actions/upload-artifact@* | actions/download-artifact@* | actions/attest@* | DeterminateSystems/determinate-nix-action@* | DeterminateSystems/flakehub-push@*) ;;
+              ./* | actions/checkout@* | actions/upload-artifact@* | actions/download-artifact@* | actions/attest@* | actions/create-github-app-token@* | DeterminateSystems/determinate-nix-action@* | DeterminateSystems/flakehub-push@*) ;;
               *)
                 printf 'Action is not an approved GitHub-platform boundary: %s\n' "$action" >&2
                 exit 1

@@ -174,14 +174,14 @@ yq -e '
 # Security settings access uses only a short-lived token for this repository.
 # Keep the GitHub repository expression literal.
 # shellcheck disable=SC2016
-yq -e '
-  .jobs.policy.steps[] | select(.id == "policy-token") |
-  .with."permission-administration" == "read" and
-  .with."permission-contents" == "read" and
-  .with.repositories == "${{ github.event.repository.name }}" and
-  .with."skip-token-revoke" == null and
-  ([.with | to_entries[] | select(.key | startswith("permission-")) | .value] | all_c(. == "read"))
-' "$TEST_ROOT/.github/workflows/security.yml" >/dev/null \
+yq -o=json '.jobs.policy.steps[] | select(.id == "policy-token") | .with' \
+  "$TEST_ROOT/.github/workflows/security.yml" | jq -e '
+  ."permission-administration" == "read" and
+  ."permission-contents" == "read" and
+  .repositories == "${{ github.event.repository.name }}" and
+  ."skip-token-revoke" == null and
+  ([to_entries[] | select(.key | startswith("permission-")) | .value] | all(. == "read"))
+' >/dev/null \
   || fail "security policy token is not repository-scoped and read-only"
 grep -Fq 'determinate-nixd fix hashes --auto-apply' \
   "$TEST_ROOT/nix/automation/fix-hashes.sh" \
