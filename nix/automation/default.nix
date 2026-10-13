@@ -68,6 +68,10 @@
             ssh = appliance.services.openssh.settings;
             xoPackage = appliance.maestro.xo.package.outPath;
             xoUser = appliance.maestro.xo.user;
+            fileRestore = {
+              inherit (appliance.maestro.xo.fileRestore) enable;
+              helper = appliance.systemd.services.xo-server.environment.XO_FILE_RESTORE_HELPER;
+            };
             storage = {
               inherit (appliance.maestro.xo.storage) enableNFS enableCIFS enableVHD mountsDir;
             };

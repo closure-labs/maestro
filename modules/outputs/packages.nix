@@ -67,6 +67,7 @@ in {
           deploy-template = templateTools.deploy;
           maestroctl = maestroctl;
           maestro-menu = maestroMenu;
+          maestro-file-restore = pkgs.callPackage ../../pkgs/maestro-file-restore/package.nix {inherit pkgs;};
         }
         // automationPackages
       )

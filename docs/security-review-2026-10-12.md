@@ -133,31 +133,40 @@ the booted VM and disposable XCP-ng acceptance gates.
 
 The follow-up branch implements versioned Nix/npm inventories, exact component
 fingerprints, expiring source-bound decisions, scanner coverage probes, a
-patched-source Determinate integration, terminal Vim selection, a headless
-image-tooling closure removal, and root-owned sticky mount ancestors. VHD tools run
+patched-source Determinate integration, terminal Vim selection, an isolated
+file-restore backend, and root-owned sticky mount ancestors. VHD tools run
 as XO. New VM tests exercise actual NFS/CIFS/VHD operations, listener and SSH
 policy, and concurrent mount-name replacement. Evidence fingerprints include
 the inventory and normalization code, so older evidence cannot satisfy a
 changed contract. The original scanner ledger remains historical evidence;
 new decision records require a fresh scan of the new closure.
 
-The pinned XO source `5999d53e0b6172820567a1caee67da798e5a673f`
-contains no libguestfs/guestfish references in its installed JavaScript and
-package manifests. The inspected `_fileRestore.mjs`, `@vates/fuse-vhd`, and
-server restore mixins use FUSE/VHD and Linux loop/mount tooling. Maestro also
-has no libguestfs caller. Consequently the implementation removes the unused
-libguestfs package and library path rather than rebuilding its QEMU chain.
-Guest-file restore still requires its own acceptance evidence, including its
-privilege requirements; the VHD helper test alone does not qualify it.
+The pinned XO source `5999d53e0b6172820567a1caee67da798e5a673f` uses
+host loop, device-mapper and LVM tools for guest file restore. Those calls need
+root while Maestro runs XO unprivileged. Following the operator's explicit
+choice, the implementation adds a helper protocol for partition discovery,
+file listing and ZIP/TGZ streams. Maestro supplies a read-only libguestfs RPC
+backend: guest paths never become host mount paths or download destinations.
+The helper rejects traversal, symlink selections and special files; it limits
+work to one 512 MiB, one-CPU appliance with a 15-minute timeout. An explicitly
+disabled or unavailable helper fails closed. Guest tools and the kernel are
+built from the locked Nix source tree and retained in the source-bound inventory.
+Headless QEMU excludes GUI/audio/SPICE/Capstone support; libvirt is disabled.
+This follows [libguestfs security guidance](https://libguestfs.org/guestfs-security.1.html)
+for untrusted images: specify the raw format, keep drives read-only, and avoid
+host-kernel filesystem mounts.
 
-[XO dependency and inventory PR #81](https://github.com/closure-labs/xo-nixpkg/pull/81)
-refreshes the independent runtime tree and its supply documents. The draft
-consumer temporarily pins that branch for runner validation. Return its URL
-to `main` and refresh the lock only after package checks and the existing
-cache publication gate pass; qualification still requires the published
-upstream output. Full Maestro runner validation, updated findings,
-source-bound decision records, and enforcement activation remain acceptance
-work; fixture success alone does not establish those gates.
+[XO dependency/inventory PR #81](https://github.com/closure-labs/xo-nixpkg/pull/81)
+is merged and its cache publication passed. The new
+[restore hook PR #82](https://github.com/closure-labs/xo-nixpkg/pull/82) is staged
+for runner validation. Return the consumer URL to `main` and refresh only that
+lock input after its checks, merge queue and cache publication succeed.
+Booted fixtures cover real raw/partition/LVM images, listings, both archive
+formats, unchanged backing hashes and absence of new host mounts/loop devices.
+Installed XO API integration is checked separately. These tests are pending;
+local protocol fixtures alone do not establish file-restore acceptance.
+Fresh closure findings, exact disposition records and enforcement activation
+also remain acceptance work.
 
 The disposable lab target is `192.168.98.233`, with disk SR `NFS Trainer` and
 ISO SR `ISO Training`. The latest read-only API preflight reported 34.5 GiB

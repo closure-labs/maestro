@@ -18,9 +18,13 @@ correspond to published GitHub tags.
   unscored advisories also require review.
 - Build Determinate's same pinned source through its public component interface
   against patched appliance libraries. Select patched terminal Vim from the
-  XO runtime snapshot. Remove the unused libguestfs/QEMU chain after checking
-  the pinned XO restore implementation, and use specific hostname tools in
+  XO runtime snapshot, and use specific hostname tools in
   operator wrappers.
+- Route guest file restore through an unprivileged, read-only libguestfs RPC
+  helper and a source-built appliance with a headless x86 QEMU. Keep partition,
+  LVM, file listing and ZIP/TGZ downloads inside the guest kernel. Bound concurrent
+  work and runtime; reject traversal, links and special files; fail closed when
+  the backend is disabled or unavailable.
 - Protect mount directory names with root ownership and sticky permissions,
   claim them through descriptor-based validation, and run VHD parsing/FUSE
   mounting as XO. Add booted storage, TLS, SSH and pathname-boundary tests.

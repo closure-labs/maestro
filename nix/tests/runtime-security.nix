@@ -3,8 +3,10 @@
   inputs,
   appliance,
 }: let
+  inherit (pkgs) lib;
   xoPackage = appliance.maestro.xo.package;
   node = inputs.xen-orchestra-ce.inputs.nixpkgs.legacyPackages.x86_64-linux.nodejs_22;
+  restore = appliance.maestro.xo.internal.fileRestorePackage;
 in
   pkgs.testers.runNixOSTest {
     name = "maestro-runtime-security";
@@ -38,6 +40,8 @@ in
         environment.etc."maestro-mount-guard.py".source = ../../modules/_nixos/xo/mount-guard.py;
         environment.etc."maestro-mount-race.py".source = ../../tests/xo-mount-race.py;
         environment.etc."maestro-sudo-path".text = "${config.maestro.xo.internal.sudoWrapper}/bin/sudo";
+        environment.etc."maestro-file-restore-guest.py".source = ../../tests/file-restore-guest.py;
+        environment.etc."maestro-file-restore-xo.mjs".source = ../../tests/file-restore-xo.mjs;
       };
       storage = {...}: {
         virtualisation.memorySize = 512;
@@ -64,8 +68,6 @@ in
       };
     };
     testScript = ''
-      import json
-
       start_all()
       storage.wait_for_unit("nfs-server.service")
       storage.wait_for_unit("samba-smbd.service")
@@ -117,6 +119,11 @@ in
       maestro.fail("runuser -u maestro -- head -c 11 /var/lib/xo/mounts/vhd/vhdi1")
       maestro.succeed("test $(ps -o uid= -C vhdimount | xargs) = $(id -u xo)")
       maestro.succeed(invoke + " umount /var/lib/xo/mounts/vhd")
+
+      # Fixture creation and parsing run as XO in a disposable guest kernel.
+      restore_env = "LIBGUESTFS_PATH=${restore.appliance} LIBGUESTFS_BACKEND=direct LIBGUESTFS_BACKEND_SETTINGS=force_tcg LIBGUESTFS_HV=${restore.qemu}/bin/qemu-system-x86_64 PYTHONPATH=${restore.guestfs}/${pkgs.python3.sitePackages} TMPDIR=/var/lib/xo/tmp"
+      maestro.succeed("runuser -u xo -- env " + restore_env + " ${pkgs.python3}/bin/python /etc/maestro-file-restore-guest.py ${lib.getExe restore} /var/lib/xo/data/restore-fixtures", timeout=1800)
+      maestro.succeed("runuser -u xo -- env " + restore_env + " XO_FILE_RESTORE_HELPER=${lib.getExe restore} ${node}/bin/node /etc/maestro-file-restore-xo.mjs ${xoPackage}/libexec/xen-orchestra /var/lib/xo/data/restore-fixtures/partition.img", timeout=600)
 
       # Claimed directory names stay protected even when a helper canonicalizes
       # them after validation. XO retains write access to storage contents.

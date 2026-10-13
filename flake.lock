@@ -628,16 +628,16 @@
         "xo-stable": "xo-stable"
       },
       "locked": {
-        "lastModified": 1791863110,
-        "narHash": "sha256-/s4khSQcHSTXau+NrEKKh79zyub6KQ+2HRZ+5Yr/gno=",
-        "ref": "refs/heads/security/runtime-inventory",
-        "rev": "746d573a8210efd828a93ae91227f84949d5e3e8",
-        "revCount": 233,
+        "lastModified": 1791868565,
+        "narHash": "sha256-9q6ltuVg3E3LFRlQuDa8h8Ib9PqRgcM39JxXd4Xm8ns=",
+        "ref": "refs/heads/security/isolated-file-restore",
+        "rev": "79199064dd1df8421268d541b7e1fd74bf36bbe1",
+        "revCount": 235,
         "type": "git",
         "url": "https://github.com/closure-labs/xo-nixpkg.git"
       },
       "original": {
-        "ref": "refs/heads/security/runtime-inventory",
+        "ref": "refs/heads/security/isolated-file-restore",
         "type": "git",
         "url": "https://github.com/closure-labs/xo-nixpkg.git"
       }

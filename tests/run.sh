@@ -455,17 +455,16 @@ grep -Fq '"growpart"' "$TEST_ROOT/modules/_nixos/xcp-ng.nix" \
 grep -Fq '"resizefs"' "$TEST_ROOT/modules/_nixos/xcp-ng.nix" \
   || fail "installed appliance does not resize the grown root filesystem"
 
-# Installed systems keep all public appliance/build caches and avoid requesting
-# Determinate's uncached manual output.
+# Installed systems keep all public caches and select the patched runtime only.
 grep -Fq '"https://install.determinate.systems"' \
   "$TEST_ROOT/modules/_nixos/platform.nix" \
   || fail "installed system omits the Determinate bootstrap cache"
 grep -Fq '"https://nixoa.cachix.org"' \
   "$TEST_ROOT/modules/_nixos/platform.nix" \
   || fail "installed system omits the Maestro Cachix cache"
-grep -Fq 'paths = [upstreamDeterminateNix.out]' \
+grep -Fq 'paths = [patchedDeterminateNix.out]' \
   "$TEST_ROOT/modules/_nixos/platform.nix" \
-  || fail "installed system does not isolate the cached Determinate runtime output"
+  || fail "installed system does not isolate the patched Determinate runtime output"
 
 if MAESTRO_SYSTEM_ROOT="$TEST_ROOT" bash -c '
   source "$MAESTRO_SYSTEM_ROOT/scripts/lib/common.sh"

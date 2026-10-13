@@ -223,7 +223,7 @@ in {
 
       security-fixtures = mkSourceCheck {
         name = "security-fixtures";
-        command = "PYTHONDONTWRITEBYTECODE=1 python3 ./tests/security-inventory.py && bash ./tests/policy-drift.sh && bash ./tests/security-contracts.sh && bash ./tests/security-scan.sh";
+        command = "PYTHONDONTWRITEBYTECODE=1 python3 ./tests/security-inventory.py && PYTHONDONTWRITEBYTECODE=1 python3 ./tests/file-restore.py && bash ./tests/policy-drift.sh && bash ./tests/security-contracts.sh && bash ./tests/security-scan.sh";
         nativeBuildInputs = fixtureInputs ++ [pkgs.openssh pkgs.python3];
       };
 
@@ -293,6 +293,8 @@ in {
       assert builtins.length xoConfigFragments.http.http.listen == 2;
       assert xoConfigFragments.web.http.mounts."/v6" == "${appliance.maestro.xo.home}/xen-orchestra/@xen-orchestra/web/dist";
       assert appliance.systemd.services.xo-server.environment.TMPDIR == appliance.maestro.xo.tempDir;
+      assert appliance.maestro.xo.fileRestore.enable;
+      assert appliance.systemd.services.xo-server.environment.XO_FILE_RESTORE_HELPER == lib.getExe appliance.maestro.xo.internal.fileRestorePackage;
       assert appliance.maestro.xo.storage.libvhdiPackage == inputs.xen-orchestra-ce.packages.x86_64-linux.libvhdi;
       assert appliance.programs.fuse.userAllowOther;
       assert builtins.elem "fuse" appliance.users.users.${appliance.maestro.xo.user}.extraGroups;

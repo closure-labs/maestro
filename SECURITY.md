@@ -13,6 +13,13 @@ credentials before exposing the appliance beyond the build network. Automatic
 TLS certificates are self-signed; distribute their fingerprint or configure a
 trusted certificate through typed `maestro.xo` options.
 
+Guest file restore uses a read-only libguestfs appliance as XO. Guest filesystem
+and LVM parsing stays in that disposable kernel; files are downloaded through
+RPC into private pipes, with no host mounts or guest-named host output files.
+The helper rejects traversal, selected symlinks and special files, admits one
+request at a time, and enforces a 15-minute deadline. A disabled or unavailable
+backend fails closed.
+
 Only successful protected-main CI artifacts may enter release or GitHub-backed
 template deployment. Consumers check state v5, checksums, immutable source
 commits, producer identity, provenance, and the bound SBOM. Select local/build

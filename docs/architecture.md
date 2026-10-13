@@ -150,3 +150,15 @@ short-lived, root-readable credential file.
   `inputs.xen-orchestra-ce.packages.x86_64-linux.latest`
 
 [Back to documentation](index.md)
+
+Guest file restore uses `maestro.xo.fileRestore.enable` (enabled by default).
+XO sends partition/list/archive requests to a trusted absolute helper. The
+helper runs as XO, opens the raw FUSE disk read-only with an explicit raw format,
+and uses libguestfs RPC inside a source-built appliance. No guest filesystem or
+LVM metadata reaches the host kernel. QEMU is headless, networking is disabled,
+and each request gets one CPU and 512 MiB; a lock admits one request at a time
+and a 15-minute deadline bounds it. Files stream through private pipes into
+ZIP/TGZ archives; guest paths never name host output files. Traversal, selected
+symlinks and special files are rejected. Client disconnect terminates the
+helper before releasing its raw VHD view. Disabling the feature makes restore
+fail closed instead of restoring the legacy host mount path.
