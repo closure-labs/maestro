@@ -57,6 +57,9 @@ in {
       assetPolicy = builtins.hashString "sha256" (builtins.concatStringsSep "\n" [
         (builtins.hashFile "sha256" ../../nix/automation/qualification-assets.sh)
         (builtins.hashFile "sha256" ../../nix/automation/default.nix)
+        (builtins.hashFile "sha256" ../../nix/automation/security-inventory.py)
+        (builtins.hashFile "sha256" ../../nix/automation/security-inventory.sh)
+        (builtins.hashFile "sha256" ../../nix/automation/security-normalize.py)
         (builtins.hashFile "sha256" ../../.github/workflows/ci.yml)
         (builtins.toJSON definitions.evidence)
       ]);

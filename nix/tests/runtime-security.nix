@@ -36,6 +36,7 @@ in
         virtualisation.memorySize = 1536;
         environment.systemPackages = [pkgs.procps pkgs.iproute2 pkgs.curl];
         environment.etc."maestro-mount-guard.py".source = ../../modules/_nixos/xo/mount-guard.py;
+        environment.etc."maestro-mount-race.py".source = ../../tests/xo-mount-race.py;
         environment.etc."maestro-sudo-path".text = "${config.maestro.xo.internal.sudoWrapper}/bin/sudo";
       };
       storage = {...}: {
@@ -89,6 +90,7 @@ in
       maestro.succeed("runuser -u xo -- sh -c 'echo restored-data > /var/lib/xo/mounts/nfs/roundtrip'")
       storage.succeed("grep -Fx restored-data /srv/fixture/roundtrip")
       maestro.succeed(invoke + " umount /var/lib/xo/mounts/nfs")
+      maestro.succeed("${pkgs.python3}/bin/python /etc/maestro-mount-race.py " + sudo)
       maestro.succeed("runuser -u xo -- env USER=guest PASSWD=fixture " + sudo + " mount -t cifs -o guest //storage/fixture /var/lib/xo/mounts/cifs")
       maestro.succeed("runuser -u xo -- cat /var/lib/xo/mounts/cifs/roundtrip | grep -Fx restored-data")
       maestro.succeed(invoke + " umount /var/lib/xo/mounts/cifs")

@@ -19,6 +19,35 @@ def properties(component):
     return {p["name"]: p["value"] for p in component.get("properties", [])}
 
 
+def attributes(derivation):
+    env = derivation.get("env", {})
+    return {**env, **json.loads(env.get("__json", "{}"))}
+
+
+def patches(derivation):
+    value = attributes(derivation).get("patches", [])
+    return shlex.split(value) if isinstance(value, str) else value
+
+
+def realize_patch_inputs(derivations):
+    # Substituting a runtime closure does not fetch its build-time patches.
+    # Resolve only missing patch outputs, never entire package build inputs.
+    missing = {str(p) for drv in derivations.values() for p in patches(drv) if not Path(p).is_file()}
+    if not missing:
+        return
+    inputs = sorted({p for drv in derivations.values() for p in drv.get("inputDrvs", {})})
+    producers = {}
+    for start in range(0, len(inputs), 64):
+        records = json.loads(subprocess.check_output(["nix", "derivation", "show", *inputs[start:start + 64]]))
+        for path, record in records.items():
+            for output, info in record["outputs"].items():
+                if info.get("path") in missing:
+                    producers[info["path"]] = path + "^" + output
+    if missing - producers.keys():
+        raise ValueError("missing immutable patch producer metadata")
+    subprocess.run(["nix", "build", "--no-link", *sorted(set(producers.values()))], check=True)
+
+
 def enrich(system, supply, context, derivations):
     if system.get("bomFormat") != "CycloneDX" or not system.get("components"):
         raise ValueError("system inventory is empty or invalid")
@@ -32,8 +61,7 @@ def enrich(system, supply, context, derivations):
         drv = props.get("nix:drv_path")
         if not drv or drv not in derivations:
             raise ValueError(f"missing derivation metadata: {component.get('bom-ref')}")
-        env = derivations[drv].get("env", {})
-        attrs = {**env, **json.loads(env.get("__json", "{}"))}
+        attrs = attributes(derivations[drv])
         name, version = attrs.get("pname"), attrs.get("version")
         if not (name and version):
             # Legacy derivations expose the formal name instead of pname/version.
@@ -57,10 +85,7 @@ def enrich(system, supply, context, derivations):
         else:
             component["type"] = "file"
             component.pop("cpe", None)
-        patches = attrs.get("patches", [])
-        if isinstance(patches, str):
-            patches = shlex.split(patches)
-        patch_records = [{"path": str(p), "sha256": hashlib.sha256(Path(p).read_bytes()).hexdigest()} for p in patches]
+        patch_records = [{"path": str(p), "sha256": hashlib.sha256(Path(p).read_bytes()).hexdigest()} for p in patches(derivations[drv])]
         component.setdefault("properties", []).extend([
             {"name": "maestro:derivation", "value": drv},
             {"name": "maestro:source", "value": json.dumps(attrs.get("src"), sort_keys=True)},
@@ -103,6 +128,7 @@ def main():
     derivations = {}
     for start in range(0, len(drvs), 64):
         derivations.update(json.loads(subprocess.check_output(["nix", "derivation", "show", *drvs[start:start + 64]])))
+    realize_patch_inputs(derivations)
     result = enrich(system, json.loads(supply_path.read_text()), json.loads(context_path.read_text()), derivations)
     system_path.write_text(json.dumps(result, sort_keys=True, indent=2) + "\n")
 

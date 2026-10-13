@@ -21,9 +21,10 @@ has yet been demonstrated exploitable on a running Maestro appliance.
 There are plausible client, image-parser, and operator attack surfaces that
 require remediation or more specific runtime evidence.
 
-This is a review and implementation plan. It does not change package pins,
-runtime configuration, the vulnerability baseline, or the report-only policy.
-Repository defaults were inspected; no deployed appliance was accessed.
+The original review inspected repository defaults and scanner artifacts.
+Implementation now changes inventory and decision contracts, runtime packages,
+and storage-helper boundaries. The policy remains in report mode until the
+acceptance gates below pass.
 Absence of a configured feature is provisional until tested against the
 evaluated system and the operator's actual deployment.
 
@@ -124,9 +125,35 @@ Do not add a monolithic dispatcher or evaluate runtime credentials in Nix.
 Keep source caches and the existing XO/libvhdi cache trust contract.
 
 Local work is limited to source review, small metadata downloads, JSON/schema
-checks and `jj` checkpoints. This review downloaded the small scanner/evidence
-reports and package definitions only; it performed no local builds, installed
-no new toolchain, and fetched no installer or vulnerability database. Package
-changes require the native devenv/Nix toolchain on the runners. A real XCP-ng
-acceptance target and actual management CIDRs remain operator deployment
-inputs; repository-source inspection cannot substitute for them.
+checks and `jj` checkpoints. Package changes require the native devenv/Nix
+toolchain on the runners. Repository-source inspection cannot substitute for
+the booted VM and disposable XCP-ng acceptance gates.
+
+## Implementation status
+
+The follow-up branch implements versioned Nix/npm inventories, exact component
+fingerprints, expiring source-bound decisions, scanner coverage probes, a
+patched-source Determinate integration, terminal Vim selection, a headless
+image-tooling dependency, and root-owned sticky mount ancestors. VHD tools run
+as XO. New VM tests exercise actual NFS/CIFS/VHD operations, listener and SSH
+policy, and concurrent mount-name replacement. Evidence fingerprints include
+the inventory and normalization code, so older evidence cannot satisfy a
+changed contract. The original scanner ledger remains historical evidence;
+new decision records require a fresh scan of the new closure.
+
+[XO dependency and inventory PR #81](https://github.com/closure-labs/xo-nixpkg/pull/81)
+refreshes the independent runtime tree and its supply documents. Maestro must
+consume that revision only after its package checks and existing cache
+publication gate pass. Full Maestro runner validation, updated findings,
+source-bound decision records, and enforcement activation remain acceptance
+work; fixture success alone does not establish those gates.
+
+The disposable lab target is `192.168.98.233`, with disk SR `NFS Trainer` and
+ISO SR `ISO Training`. The latest read-only API preflight reported 34.5 GiB
+free in both SRs and 20.6 GiB free host memory. Recheck capacity before each
+allocation and perform acceptance sequentially. Credentials resolve at
+runtime through the SecretOps `XCP_HOSTPASSWORD` value or
+`XCP_PASSWORD_PASS_ENTRY=/VatesTrainingLab/hostpassword`; passwords are removed
+from Nix and Packer initialization subprocess environments and passed only to
+the Packer build. Management CIDRs are still unspecified, so network
+restrictions await that operator input and a tested recovery path.

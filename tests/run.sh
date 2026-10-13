@@ -571,6 +571,7 @@ EOF
 cat >"$temporary/bin/nix" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
+[[ ! ${PKR_VAR_remote_password+x} && ! ${XCP_HOSTPASSWORD+x} && ! ${xcp_password+x} ]]
 printf '%s\n' "$@" >"$FAKE_NIX_ARGS"
 printf '%s\n' "$FAKE_INSTALLER_RESULT"
 EOF
@@ -579,6 +580,8 @@ cat >"$temporary/bin/packer" <<'EOF'
 set -euo pipefail
 printf '%s\n' "$@" >"$FAKE_PACKER_ARGS"
 if [[ $1 == build ]]; then
+  [[ ${PKR_VAR_remote_password:-} == fixture-password ]]
+  [[ ! ${XCP_HOSTPASSWORD+x} && ! ${xcp_password+x} ]]
   for argument in "$@"; do
     if [[ $argument == bootstrap_private_key_file=* ]]; then
       key=${argument#*=}
@@ -586,11 +589,14 @@ if [[ $1 == build ]]; then
       printf '%s\n' "$key" >"$FAKE_BOOTSTRAP_PATH"
     fi
   done
+else
+  [[ ! ${PKR_VAR_remote_password+x} && ! ${XCP_HOSTPASSWORD+x} && ! ${xcp_password+x} ]]
 fi
 EOF
 sed -i "1c#!${BASH}" "$temporary/bin/maestro-ci-download-installer" "$temporary/bin/nix" "$temporary/bin/packer"
 chmod +x "$temporary/bin/maestro-ci-download-installer" "$temporary/bin/nix" "$temporary/bin/packer"
 PATH="$temporary/bin:$PATH" \
+  PKR_VAR_remote_password=fixture-password \
   FAKE_BOOTSTRAP_PATH="$temporary/bootstrap.path" \
   FAKE_PACKER_ARGS="$temporary/packer.args" \
   PACKER_BIN="$temporary/bin/packer" \
@@ -604,6 +610,7 @@ grep -Fxq 'repo_revision=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' "$temporary/p
 [[ ! -e $(cat "$temporary/bootstrap.path") ]] || fail "Packer retained its private bootstrap key"
 
 FAKE_INSTALLER_RESULT="$temporary/fake-result" \
+  XCP_HOSTPASSWORD=fixture-password \
   FAKE_NIX_ARGS="$temporary/nix.args" \
   FAKE_BOOTSTRAP_PATH="$temporary/bootstrap.path" \
   FAKE_PACKER_ARGS="$temporary/packer.args" \
