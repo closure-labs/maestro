@@ -45,6 +45,8 @@ execute explicit `maestro-ci-*` leaf packages. No umbrella automation app or
 dispatcher sits between the task graph and those Nix derivations. Workflows
 retain GitHub security
 boundaries—permissions, OIDC, artifacts, attestations, Cachix, and FlakeHub.
+The organization audit App requests repository-scoped Administration read
+access; the policy endpoints do not require Contents permission.
 The work router combines source classification and immutable artifact reuse
 into one versioned JSON plan consumed by later jobs and the required verdict.
 A Nix policy declares which source paths affect the immutable installer

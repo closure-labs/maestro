@@ -59,8 +59,9 @@ Options:
   --configure-only        save settings without deploying
   -h, --help              show this help
 
-The XCP-ng password is never written to disk. Set PKR_VAR_remote_password for
-unattended use; otherwise the script requests it without echo.
+The XCP-ng password is never written to disk. Supply XCP_HOSTPASSWORD through
+SecretOps, set XCP_PASSWORD_PASS_ENTRY for runtime password-store lookup, or
+set PKR_VAR_remote_password; otherwise the script requests it without echo.
 EOF
 }
 

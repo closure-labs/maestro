@@ -175,3 +175,9 @@ checks ran. The flake's devenv app now realizes the same pinned coreutils via
 its outer Nix wrapper to provide those source inputs on a cold runner. This
 workaround still needs runner confirmation; no signature or source checks
 were relaxed.
+
+The protected-main policy-only smoke test failed to mint its App token. The
+installed `cl-sec-audit` App grants Administration and Metadata read access;
+the workflow additionally requested unavailable Contents read access. That
+unneeded request is removed. The policy read itself still needs confirmation
+after this correction reaches protected main.
