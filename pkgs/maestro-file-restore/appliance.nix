@@ -5,7 +5,7 @@
   inherit (pkgs) lib;
   kernel = pkgs.linux;
   modules = pkgs.makeModulesClosure {
-    inherit kernel;
+    kernel = lib.getOutput "modules" kernel;
     # Virtio/storage drivers need no hardware firmware blobs.
     firmware = pkgs.runCommand "maestro-restore-firmware" {} "mkdir -p $out/lib/firmware";
     rootModules = ["virtio_pci" "virtio_blk" "virtio_scsi" "virtio_console" "sd_mod" "ext4" "xfs" "btrfs" "vfat" "dm_mod" "fuse"];
