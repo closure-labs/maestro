@@ -68,6 +68,7 @@
           normalizerDigest = builtins.hashFile "sha256" ./security-normalize.py;
           runtime = {
             inherit (appliance.networking.firewall) allowedTCPPorts allowedUDPPorts;
+            managementCIDRs = appliance.maestro.operator.managementCIDRs;
             ssh = appliance.services.openssh.settings;
             xoPackage = builtins.unsafeDiscardStringContext appliance.maestro.xo.package.outPath;
             xoUser = appliance.maestro.xo.user;

@@ -13,6 +13,11 @@ credentials before exposing the appliance beyond the build network. Automatic
 TLS certificates are self-signed; distribute their fingerprint or configure a
 trusted certificate through typed `maestro.xo` options.
 
+The operator's approved management range is `192.168.0.0/16`, declared through
+`maestro.operator.managementCIDRs`. SSH and XO HTTP/HTTPS accept new connections
+only from that IPv4 range; IPv6 management ingress stays closed. Installer SSH
+uses the same range and per-build key enrollment through the VM console.
+
 Guest file restore uses a read-only libguestfs appliance as XO. Guest filesystem
 and LVM parsing stays in that disposable kernel; files are downloaded through
 RPC into private pipes, with no host mounts or guest-named host output files.

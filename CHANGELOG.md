@@ -11,6 +11,9 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Restrict appliance SSH/XO and installer SSH ingress to the operator-approved
+  `192.168.0.0/16` management range through typed operator policy. Verify allowed
+  and rejected client ranges in the booted runtime test.
 - Generate source-bound security inventory v2 with complete installed XO npm
   identities, exact Nix derivations, patch hashes and runtime context. Prove
   native/npm scanner coverage and reject incomplete inventories. Replace

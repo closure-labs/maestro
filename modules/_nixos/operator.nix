@@ -24,6 +24,7 @@
     repoRootDefault = cfg.repoDir;
   };
 in {
+  imports = [./operator-network.nix];
   options.maestro.operator = {
     username = mkOption {
       type = types.str;
@@ -114,7 +115,7 @@ in {
           {
             openssh = {
               enable = true;
-              openFirewall = true;
+              openFirewall = false;
               settings = {
                 PermitRootLogin = "no";
                 PasswordAuthentication = false;

@@ -5,6 +5,7 @@
   lib,
   modulesPath,
   maestroMenu,
+  managementCIDRs,
   pkgs,
   xenOrchestraCe,
   ...
@@ -62,7 +63,8 @@ in {
   ];
 
   networking.hostName = "maestro-installer";
-  networking.firewall.allowedTCPPorts = [22];
+  networking.firewall.allowedTCPPorts = lib.mkForce [];
+  networking.firewall.extraCommands = lib.concatMapStringsSep "\n" (cidr: "iptables -A nixos-fw -s ${lib.escapeShellArg cidr} -p tcp --dport 22 -j nixos-fw-accept") managementCIDRs;
 
   boot.kernelParams = [
     "console=tty0"
@@ -89,7 +91,7 @@ in {
 
   services.openssh = {
     enable = true;
-    openFirewall = true;
+    openFirewall = false;
     settings = {
       AllowUsers = ["maestro"];
       KbdInteractiveAuthentication = false;

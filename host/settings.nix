@@ -8,12 +8,8 @@
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
-  networking.firewall.allowedTCPPorts = [
-    80
-    443
-  ];
-
   maestro.operator = {
+    managementCIDRs = ["192.168.0.0/16"];
     repoDir = "/home/maestro/maestro";
     gitName = "Maestro Admin";
     gitEmail = "maestro@maestro";

@@ -162,4 +162,11 @@ helper before releasing its raw VHD view. Disabling the feature makes restore
 fail closed instead of restoring the legacy host mount path.
 The manual host partition-mount API is disabled while isolated restore is configured.
 
+Management access uses typed `maestro.operator.managementCIDRs`, with the
+operator-approved `192.168.0.0/16` range in `host/settings.nix`. Appliance SSH
+and XO HTTP/HTTPS, plus installer SSH, accept that IPv4 range. Management ports
+are absent from global allow lists, and IPv6 management ingress remains closed.
+The VM console and per-build key enrollment provide the installation recovery
+path; new deployments qualify that path in the disposable lab.
+
 [Back to documentation](index.md)

@@ -44,6 +44,7 @@ in {
         modules = [../../installer];
         specialArgs = {
           inherit applianceToplevel maestroMenu xenOrchestraCe;
+          managementCIDRs = inputs.self.nixosConfigurations.maestro.config.maestro.operator.managementCIDRs;
         };
       };
       installerIso = assert builtins.elem applianceToplevel installerSystem.config.isoImage.storeContents;

@@ -335,7 +335,9 @@ in {
       assert appliance.systemd.services.xo-server.serviceConfig.AmbientCapabilities == ["CAP_NET_BIND_SERVICE"];
       assert appliance.systemd.services.xo-server.serviceConfig.EnvironmentFile == [];
       assert lib.all (rule: !(builtins.elem "xo" rule.users) || lib.all (command: lib.hasSuffix "/bin/xo-storage-helper" command.command) rule.commands) appliance.security.sudo.extraRules;
-      assert appliance.networking.firewall.allowedTCPPorts == [22 80 443];
+      assert appliance.networking.firewall.allowedTCPPorts == [];
+      assert appliance.maestro.operator.managementCIDRs == ["192.168.0.0/16"];
+      assert !appliance.services.openssh.openFirewall;
       assert appliance.networking.firewall.allowedUDPPorts == [];
       assert !appliance.services.avahi.enable;
       assert !appliance.services.samba.enable;
