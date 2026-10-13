@@ -14,6 +14,9 @@ correspond to published GitHub tags.
 - Require qualification-state v5 and successful protected-main producer runs
   across CI reuse, releases, and template deployment. Verify the complete signed
   inventory and compare the bound SPDX predicate with the downloaded SBOM.
+- Advance only the XO input to the published 6.9.1 revision while preserving
+  the other refreshed pins. Check prerequisite caches before building installer
+  media so missing upstream publications fail promptly.
 - Separate read-only qualification from protected-main signing and publication;
   run the required verdict through its declared devenv task. Retire privileged
   PR hash repair and restrict automatic update queueing to dependency/version

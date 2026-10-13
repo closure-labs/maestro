@@ -21,6 +21,14 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Check publication prerequisites before spending runner time building media.
+nix config show substituters
+nix config show trusted-public-keys
+determinate_out=$(nix eval --accept-flake-config --raw .#nixosConfigurations.maestro.config.nix.package.upstream.outPath)
+nix path-info --store https://install.determinate.systems "$determinate_out"
+xo_out=$(nix eval --accept-flake-config --raw .#packages.x86_64-linux.xen-orchestra-ce.outPath)
+nix path-info --store https://xen-orchestra-ce.cachix.org "$xo_out"
+
 case "$QUALIFICATION_MODE" in
   qualify-media|qualify-media-reuse-evidence)
     media_manifest=$(mktemp "${runner_temp}/maestro-media-plan.XXXXXX")
@@ -40,13 +48,6 @@ case "$QUALIFICATION_MODE" in
     exit 1
     ;;
 esac
-
-nix config show substituters
-nix config show trusted-public-keys
-determinate_out=$(nix eval --accept-flake-config --raw .#nixosConfigurations.maestro.config.nix.package.upstream.outPath)
-nix path-info --store https://install.determinate.systems "$determinate_out"
-xo_out=$(nix eval --accept-flake-config --raw .#packages.x86_64-linux.xen-orchestra-ce.outPath)
-nix path-info --store https://xen-orchestra-ce.cachix.org "$xo_out"
 
 manifest=$(mktemp "${runner_temp}/maestro-plan.XXXXXX")
 flake-plan-runner --flake "path:$repo_root" --plan lib.ciPlans.x86_64-linux.evidence --manifest "$manifest"
