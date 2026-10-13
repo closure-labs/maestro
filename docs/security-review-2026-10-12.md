@@ -159,9 +159,11 @@ host-kernel filesystem mounts.
 
 [XO dependency/inventory PR #81](https://github.com/closure-labs/xo-nixpkg/pull/81)
 is merged and its cache publication passed. The new
-[restore hook PR #82](https://github.com/closure-labs/xo-nixpkg/pull/82) is staged
-for runner validation. Return the consumer URL to `main` and refresh only that
-lock input after its checks, merge queue and cache publication succeed.
+[restore hook PR #82](https://github.com/closure-labs/xo-nixpkg/pull/82) passed
+validation and the merge queue, and merged as `07f9135b01627341aa62ddb1014f2f8c72a4b59c`.
+[Protected-main publication](https://github.com/closure-labs/xo-nixpkg/actions/runs/38358261835)
+passed. Maestro now consumes that revision from `main`; other refreshed inputs
+and synchronized development pins are preserved.
 Booted fixtures cover real raw/partition/LVM images, listings, both archive
 formats, unchanged backing hashes and absence of new host mounts/loop devices.
 Installed XO API integration is checked separately. These tests are pending;
@@ -170,8 +172,9 @@ Fresh closure findings, exact disposition records and enforcement activation
 also remain acceptance work.
 
 The disposable lab target is `192.168.98.233`, with disk SR `NFS Trainer` and
-ISO SR `ISO Training`. The latest read-only API preflight reported 34.5 GiB
-free in both SRs and 20.6 GiB free host memory. Recheck capacity before each
+ISO SR `ISO Training`. The October 13 read-only API preflight reported 157.7 GiB
+free in both SRs and no existing acceptance VMs. The earlier host-memory
+preflight reported 20.6 GiB free. Recheck capacity before each
 allocation and perform acceptance sequentially. Credentials resolve at
 runtime through the SecretOps `XCP_HOSTPASSWORD` value or
 `XCP_PASSWORD_PASS_ENTRY=/VatesTrainingLab/hostpassword`; passwords are removed

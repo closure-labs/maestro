@@ -30,6 +30,8 @@
       pkgs.gnugrep
       pkgs.gnused
       pkgs.findutils
+      # guestfsd resets PATH to /bin:/sbin and calls udevadm itself.
+      pkgs.systemd
     ];
     pathsToLink = ["/bin" "/sbin"];
     ignoreCollisions = true;

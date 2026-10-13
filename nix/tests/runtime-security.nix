@@ -47,7 +47,7 @@ in
       };
       storage = {...}: {
         virtualisation.memorySize = 512;
-        environment.systemPackages = [pkgs.netcat-openbsd pkgs.iproute2];
+        environment.systemPackages = [pkgs.netcat-openbsd pkgs.iproute2 pkgs.iputils];
         services.nfs.server.enable = true;
         services.nfs.server.exports = "/srv/fixture *(rw,sync,no_subtree_check,no_root_squash,insecure)";
         services.samba = {
@@ -78,15 +78,19 @@ in
       maestro.wait_for_unit("xo-server.service")
       maestro.wait_for_unit("sshd.service")
       maestro.wait_for_open_port(443)
-      maestro.succeed("curl -kf --max-time 15 https://localhost/ >/dev/null")
+      # XO opens its listener before mounting the web application.
+      maestro.wait_until_succeeds("curl -kfsS --max-time 15 https://localhost/ >/dev/null", timeout=240)
       for port in (22, 80, 443):
           storage.succeed(f"nc -4 -z -w 3 maestro {port}")
       maestro.succeed("ip address add 172.18.0.1/24 dev eth1")
       storage.succeed("ip address add 172.18.0.2/24 dev eth1")
+      storage.succeed("ping -4 -c 1 -W 2 -I 172.18.0.2 172.18.0.1")
       for port in (22, 80, 443):
           storage.fail(f"nc -z -w 2 -s 172.18.0.2 172.18.0.1 {port}")
       maestro.succeed("ip -6 address add fd42:99::1/64 dev eth1")
       storage.succeed("ip -6 address add fd42:99::2/64 dev eth1")
+      # Wait for DAD and prove routing before interpreting refused TCP access.
+      storage.wait_until_succeeds("ping -6 -c 1 -W 2 -I fd42:99::2 fd42:99::1")
       for port in (22, 80, 443):
           storage.fail(f"nc -6 -z -w 2 -s fd42:99::2 fd42:99::1 {port}")
       maestro.succeed("test $(systemctl show xo-server -p User --value) = xo")
