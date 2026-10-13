@@ -58,7 +58,10 @@
         context = pkgs.writeText "maestro-security-context.json" (builtins.toJSON {
           schemaVersion = 2;
           platform = pkgs.stdenv.hostPlatform.system;
-          system = appliance.system.build.toplevel.outPath;
+          # Exact metadata identity, not an implicit build dependency. Native
+          # task loading must not build the appliance before cache preflight;
+          # the qualification plan materializes these outputs explicitly.
+          system = builtins.unsafeDiscardStringContext appliance.system.build.toplevel.outPath;
           lockDigest = builtins.hashFile "sha256" lockFile;
           inherit packageSourceRoots;
           inventoryDigest = builtins.hashFile "sha256" ./security-inventory.py;
@@ -66,11 +69,11 @@
           runtime = {
             inherit (appliance.networking.firewall) allowedTCPPorts allowedUDPPorts;
             ssh = appliance.services.openssh.settings;
-            xoPackage = appliance.maestro.xo.package.outPath;
+            xoPackage = builtins.unsafeDiscardStringContext appliance.maestro.xo.package.outPath;
             xoUser = appliance.maestro.xo.user;
             fileRestore = {
               inherit (appliance.maestro.xo.fileRestore) enable;
-              helper = appliance.systemd.services.xo-server.environment.XO_FILE_RESTORE_HELPER;
+              helper = builtins.unsafeDiscardStringContext appliance.systemd.services.xo-server.environment.XO_FILE_RESTORE_HELPER;
             };
             storage = {
               inherit (appliance.maestro.xo.storage) enableNFS enableCIFS enableVHD mountsDir;
