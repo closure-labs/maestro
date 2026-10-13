@@ -166,8 +166,14 @@ passed. Maestro now consumes that revision from `main`; other refreshed inputs
 and synchronized development pins are preserved.
 Booted fixtures cover real raw/partition/LVM images, listings, both archive
 formats, unchanged backing hashes and absence of new host mounts/loop devices.
-Installed XO API integration is checked separately. These tests are pending;
-local protocol fixtures alone do not establish file-restore acceptance.
+Installed XO API integration is checked separately. The native appliance boot,
+partition creation and filesystem checks passed in
+[runner validation](https://github.com/closure-labs/maestro/actions/runs/38361196518).
+The next run passed XO readiness, allowed/rejected IPv4 and rejected IPv6
+management checks, then exposed an SSH test using the package's compiled
+configuration path. Tests and Packer verification now explicitly select the
+same `/etc/ssh/sshd_config` used by the service. Storage and end-to-end restore
+acceptance remain pending; local protocol fixtures do not establish them.
 Fresh closure findings, exact disposition records and enforcement activation
 also remain acceptance work.
 

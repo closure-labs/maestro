@@ -98,18 +98,21 @@
       }
     ];
   };
-  closure = pkgs.closureInfo {rootPaths = [init tools modules pkgs.systemd guestfs.guestfsd];};
+  closure = pkgs.closureInfo {rootPaths = [init tools modules pkgs.systemd pkgs.lvm2 guestfs.guestfsd];};
 in
   pkgs.runCommand "maestro-restore-appliance" {
     nativeBuildInputs = [pkgs.e2fsprogs];
     passthru = {inherit kernel guestfs;};
   } ''
-    mkdir -p rootfs/nix/store rootfs/etc rootfs/proc rootfs/sys rootfs/dev rootfs/run rootfs/tmp rootfs/sysroot rootfs/lib $out/nix-support
+    mkdir -p rootfs/nix/store rootfs/etc/udev rootfs/proc rootfs/sys rootfs/dev rootfs/run rootfs/tmp rootfs/sysroot rootfs/lib $out/nix-support
     while IFS= read -r path; do cp -a "$path" rootfs/nix/store/; done < ${closure}/store-paths
     ln -s ${init} rootfs/init
     ln -s ${tools}/bin rootfs/bin
     ln -s ${tools}/sbin rootfs/sbin
     ln -s ${modules}/lib/modules rootfs/lib/modules
+    # LVM enables udev synchronization; its device-mapper rules must be
+    # visible to the guest udev daemon when logical volumes are activated.
+    ln -s ${pkgs.lvm2}/lib/udev/rules.d rootfs/etc/udev/rules.d
     ln -s /proc/mounts rootfs/etc/mtab
     printf 'root:x:0:0:root:/root:/bin/bash\n' > rootfs/etc/passwd
     printf 'root:x:0:\n' > rootfs/etc/group

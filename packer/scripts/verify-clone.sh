@@ -36,7 +36,7 @@ for key_type in ed25519 rsa; do
   ssh-keygen -l -f "/etc/ssh/ssh_host_${key_type}_key.pub" >/dev/null
 done
 
-sshd -t
+sshd -t -f /etc/ssh/sshd_config
 assert_sshd_directive /etc/ssh/sshd_config PasswordAuthentication no
 assert_sshd_directive /etc/ssh/sshd_config PermitRootLogin no
 test -s /home/maestro/.ssh/authorized_keys

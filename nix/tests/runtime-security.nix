@@ -96,9 +96,11 @@ in
       maestro.succeed("test $(systemctl show xo-server -p User --value) = xo")
       maestro.succeed("test $(stat -c %a /run/redis-xo/redis.sock) = 770")
       maestro.fail("ss -H -lnt | grep -E ':(6379|23|5900|5353) '")
-      maestro.succeed("sshd -T | grep -Fx 'permitrootlogin no'")
-      maestro.succeed("sshd -T | grep -Fx 'passwordauthentication no'")
-      maestro.succeed("sshd -T | grep -Fx 'allowusers maestro'")
+      # Match ExecStart's explicit configuration path, not OpenSSH's compiled
+      # package defaults under /nix/store.
+      maestro.succeed("sshd -T -f /etc/ssh/sshd_config | grep -Fx 'permitrootlogin no'")
+      maestro.succeed("sshd -T -f /etc/ssh/sshd_config | grep -Fx 'passwordauthentication no'")
+      maestro.succeed("sshd -T -f /etc/ssh/sshd_config | grep -Fx 'allowusers maestro'")
       maestro.succeed("test $(stat -c %u /var/lib/xo) = 0; test $(stat -c %u /var/lib/xo/mounts) = 0")
       maestro.succeed("systemctl restart xo-server.service")
       maestro.wait_for_unit("xo-server.service")
