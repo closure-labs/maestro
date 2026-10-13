@@ -164,7 +164,7 @@ fi
 yq -e '
   .jobs.qualification.permissions.contents == "read" and
   .jobs.qualification.permissions."id-token" == null and
-  .jobs.qualification.permissions.attestations == null and
+  .jobs.qualification.permissions.attestations == "read" and
   .jobs."fix-hashes" == null and
   .jobs.signing.permissions."id-token" == "write" and
   (.jobs.signing.if | contains("refs/heads/main")) and
