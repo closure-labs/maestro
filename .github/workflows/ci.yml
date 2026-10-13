@@ -43,6 +43,7 @@ jobs:
     timeout-minutes: 45
     permissions:
       actions: read
+      attestations: read
       contents: read
     outputs:
       plan: ${{ steps.plan.outputs.plan }}
@@ -85,38 +86,6 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-  fix-hashes:
-    name: Repair Dependabot Nix hashes
-    needs: route
-    if: >-
-      always() &&
-      needs.route.result == 'failure' &&
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.user.login == 'dependabot[bot]' &&
-      github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout trusted hash-fixer automation
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          ref: ${{ github.event.pull_request.base.sha }}
-
-      - name: Set up Nix
-        uses: ./.github/actions/setup-nix
-
-      - name: Repair and push tracked Nix hashes
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
-          PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' automation:fix-hashes
-
   qualification:
     name: Qualify installer media and evidence
     needs: route
@@ -125,10 +94,8 @@ jobs:
     timeout-minutes: 165
     permissions:
       actions: read
-      artifact-metadata: write
-      attestations: write
+      attestations: read
       contents: read
-      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -158,8 +125,10 @@ jobs:
 
       - name: Assemble qualified media and evidence
         env:
+          EXPECTED_MEDIA_INPUT: ${{ fromJSON(needs.route.outputs.plan).qualification.media_input }}
           EXPECTED_EVIDENCE_INPUT: ${{ fromJSON(needs.route.outputs.plan).qualification.evidence_input }}
           EXPECTED_EVIDENCE_RUN_ID: ${{ fromJSON(needs.route.outputs.plan).qualification.evidence_run_id }}
+          GH_TOKEN: ${{ github.token }}
           QUALIFICATION_MODE: ${{ fromJSON(needs.route.outputs.plan).qualification.mode }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:qualification:assemble
 
@@ -178,19 +147,6 @@ jobs:
           path: ${{ runner.temp }}/qemu-boot.log
           if-no-files-found: ignore
           retention-days: 14
-
-      - name: Attest installer provenance
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
-        with:
-          subject-path: result-installer/iso/maestro-installer.iso
-
-      - name: Bind the SPDX SBOM to the installer
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
-        with:
-          subject-path: result-installer/iso/maestro-installer.iso
-          sbom-path: maestro-system.spdx.json
 
       - name: Download immutable qualification state
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -239,14 +195,126 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
+  security:
+    name: Scan qualified dependency inventories
+    needs: [route, qualification]
+    if: >-
+      always() && needs.route.result == 'success' &&
+      fromJSON(needs.route.outputs.plan).qualification.required &&
+      (needs.qualification.result == 'success' || needs.qualification.result == 'skipped')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Nix
+        uses: ./.github/actions/setup-nix
+
+      - name: Download qualification inventory
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          github-token: ${{ github.token }}
+          name: maestro-installer
+          path: candidate
+          run-id: ${{ fromJSON(needs.route.outputs.plan).qualification.artifact_run_id }}
+
+      - name: Scan current vulnerability databases
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:security:scan
+
+      - name: Upload security findings
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: maestro-security-report
+          path: security-report
+          if-no-files-found: error
+          retention-days: 30
+
+  signing:
+    name: Sign protected-main qualification
+    needs: [route, qualification, security]
+    if: >-
+      always() && needs.route.result == 'success' && needs.security.result == 'success' &&
+      github.ref == 'refs/heads/main' &&
+      contains(fromJSON('["push","schedule","workflow_dispatch"]'), github.event_name) &&
+      fromJSON(needs.route.outputs.plan).qualification.required &&
+      (needs.qualification.result == 'success' || needs.qualification.result == 'skipped')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+      artifact-metadata: write
+      attestations: write
+      id-token: write
+    steps:
+      - name: Checkout protected source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Nix
+        uses: ./.github/actions/setup-nix
+
+      - name: Download inventory to sign
+        if: fromJSON(needs.route.outputs.plan).qualification.mode != 'reuse'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: maestro-installer
+          path: .
+
+      - name: Download current qualification pointer
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: maestro-qualification-state
+          path: .
+
+      - name: Validate protected source before signing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:qualification:sign-check
+
+      - name: Attest immutable qualification pointer
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: maestro-qualification-state.json
+
+      - name: Attest complete installer inventory
+        if: fromJSON(needs.route.outputs.plan).qualification.mode != 'reuse'
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            result-installer/iso/maestro-installer.iso
+            maestro-system.spdx.json
+            maestro-system.cdx.json
+            xen-orchestra-supply.assertion.json
+            xen-orchestra-supply.spdx.json
+            xen-orchestra-supply.cdx.json
+
+      - name: Bind the SPDX SBOM to the installer
+        if: fromJSON(needs.route.outputs.plan).qualification.mode != 'reuse'
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: result-installer/iso/maestro-installer.iso
+          sbom-path: maestro-system.spdx.json
+
   publish:
     name: Publish reusable main outputs
     needs:
       - route
       - qualification
+      - signing
     if: >-
       always() &&
       needs.route.result == 'success' &&
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      needs.signing.result == 'success' &&
       fromJSON(needs.route.outputs.plan).publish_required &&
       (needs.qualification.result == 'success' || needs.qualification.result == 'skipped')
     runs-on: ubuntu-24.04
@@ -288,8 +356,10 @@ jobs:
     needs:
       - route
       - qualification
-    runs-on: ubuntu-slim
-    timeout-minutes: 5
+      - signing
+      - security
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -297,9 +367,14 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Set up Nix
+        uses: ./.github/actions/setup-nix
+
       - name: Enforce the conditional CI graph
         env:
+          SECURITY_RESULT: ${{ needs.security.result }}
+          SIGNING_RESULT: ${{ needs.signing.result }}
           QUALIFICATION_RESULT: ${{ needs.qualification.result }}
           CI_PLAN: ${{ needs.route.outputs.plan }}
           ROUTE_RESULT: ${{ needs.route.result }}
-        run: bash nix/automation/verdict.sh
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:verdict

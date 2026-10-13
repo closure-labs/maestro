@@ -68,7 +68,13 @@ in {
     extraServerEnv = mkOption {
       type = types.attrsOf types.str;
       default = {};
-      description = "Additional environment variables for xo-server.";
+      description = "Non-secret environment variables for xo-server. Use extraServerEnvFiles for secrets.";
+    };
+    extraServerEnvFiles = mkOption {
+      type = types.listOf types.str;
+      default = [];
+      example = ["/run/secrets/xo.env"];
+      description = "Absolute runtime environment filenames for XO secrets. File contents must never be passed through Nix evaluation.";
     };
     redis = {
       maxmemory = mkOption {

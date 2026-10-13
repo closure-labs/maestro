@@ -29,7 +29,7 @@
       export MAESTRO_XO_DATA_DIR=${lib.escapeShellArg cfg.dataDir}
       export MAESTRO_XO_TEMP_DIR=${lib.escapeShellArg cfg.tempDir}
       export MAESTRO_XO_USER=${lib.escapeShellArg cfg.user}
-      export MAESTRO_XO_CREDENTIALS_DIR=/run/xo-server/cifs-credentials
+      export MAESTRO_XO_CREDENTIALS_DIR=/run/maestro-xo-cifs-credentials
       export MAESTRO_XO_ALLOWED_MOUNT_TYPES=${lib.escapeShellArg (lib.concatStringsSep " " allowedMountTypes)}
       export MAESTRO_XO_ENABLE_CIFS=${lib.boolToString storage.enableCIFS}
       export MAESTRO_XO_ENABLE_VHD=${lib.boolToString storage.enableVHD}
@@ -82,6 +82,7 @@ in {
     systemd.tmpfiles.rules =
       [
         "d ${storage.mountsDir} 0750 ${cfg.user} ${cfg.group} - -"
+        "d /run/maestro-xo-cifs-credentials 0700 root root - -"
       ]
       ++ lib.optionals storage.enableNFS [
         "d /var/lib/nfs 0755 root root - -"

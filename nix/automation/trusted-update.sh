@@ -13,7 +13,7 @@ set -euo pipefail
 
 ci_workflow=${CI_WORKFLOW:-ci.yml}
 wait_for_merge=${WAIT_FOR_MERGE:-false}
-expected_change_kind=${EXPECTED_CHANGE_KIND:-any}
+expected_change_kind=${EXPECTED_CHANGE_KIND:?EXPECTED_CHANGE_KIND must be explicitly allowlisted}
 ci_poll_interval=${CI_POLL_INTERVAL:-5}
 
 read_pr() {
@@ -42,10 +42,7 @@ validate_changes() {
   local -a changed_files
 
   case "$expected_change_kind" in
-    any)
-      return
-      ;;
-    flake-lock | version)
+    cargo | flake-lock | version)
       mapfile -t changed_files < <(
         gh api --paginate \
           "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files?per_page=100" \
@@ -57,6 +54,17 @@ validate_changes() {
       return 1
       ;;
   esac
+
+  if [[ "$expected_change_kind" == cargo ]]; then
+    [[ ${#changed_files[@]} -ge 1 && ${#changed_files[@]} -le 2 ]]
+    for changed_file in "${changed_files[@]}"; do
+      case "$changed_file" in
+        pkgs/maestro-menu/Cargo.toml | pkgs/maestro-menu/Cargo.lock) ;;
+        *) return 1 ;;
+      esac
+    done
+    return
+  fi
 
   if [[ "$expected_change_kind" == flake-lock ]]; then
     [[ ${#changed_files[@]} -ge 1 && ${#changed_files[@]} -le 2 ]]
@@ -149,6 +157,12 @@ done
 [[ -n "$run_id" ]] || {
   printf 'Could not locate pull-request CI for trusted update %s.\n' "$PR_NUMBER" >&2
   exit 1
+}
+pr=$(read_pr)
+validate_pr "$pr"
+validate_changes "$pr"
+[[ $(jq -er .headRefOid <<<"$pr") == "$head_sha" ]] || {
+  echo 'Trusted update head changed while locating CI; retry validation.' >&2; exit 1;
 }
 gh pr merge \
   --repo "$GITHUB_REPOSITORY" \

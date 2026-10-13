@@ -183,6 +183,7 @@ in {
         };
 
       serviceConfig = {
+        EnvironmentFile = cfg.extraServerEnvFiles;
         User = cfg.user;
         Group = cfg.group;
         WorkingDirectory = "${cfg.package}/libexec/xen-orchestra";
@@ -227,6 +228,10 @@ in {
     };
 
     assertions = [
+      {
+        assertion = lib.all (path: lib.hasPrefix "/" path && !(lib.hasPrefix "/nix/store/" path)) cfg.extraServerEnvFiles;
+        message = "maestro.xo.extraServerEnvFiles must be absolute runtime filenames outside the Nix store.";
+      }
       {
         assertion = cfg.package != null;
         message = "maestro.xo.package must be configured.";

@@ -32,6 +32,9 @@ export MAESTRO_SYSTEM_ROOT=$repo
 # shellcheck source=scripts/lib/common.sh
 source "$repo/scripts/lib/common.sh"
 
+bootstrap_key=$(sed -nE 's/.*lib.mkAfter \[ "(ssh-ed25519 [A-Za-z0-9+/=]+)" \].*/\1/p' "$repo/host/packer.nix")
+[[ -n $bootstrap_key ]] || { echo 'Missing temporary build key before sealing.' >&2; exit 1; }
+
 canonical_module="$(mktemp "$repo/host/.packer-canonical.XXXXXX")"
 cleanup() {
   rm -f -- "${canonical_module:-}"
@@ -48,6 +51,12 @@ nixos-rebuild --accept-flake-config switch --flake "path:$repo#maestro"
 sshd -t
 assert_sshd_directive /etc/ssh/sshd_config PasswordAuthentication no
 assert_sshd_directive /etc/ssh/sshd_config PermitRootLogin no
+# Neither the bootstrap authorization nor enrollment files may survive sealing.
+rm -rf -- /run/maestro-bootstrap
+if grep -RFq -- "$bootstrap_key" /etc/ssh/authorized_keys.d; then
+  echo 'Bootstrap key survived sealing.' >&2
+  exit 1
+fi
 passwd --lock maestro
 case "$(getent shadow maestro | cut -d: -f2)" in
   '!'*|'*'*) ;;

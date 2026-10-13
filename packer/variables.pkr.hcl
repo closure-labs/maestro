@@ -154,3 +154,27 @@ variable "ssh_handshake_attempts" {
   description = "Maximum SSH handshake attempts during installation."
   default     = 10000
 }
+
+variable "repo_revision" {
+  type        = string
+  description = "Immutable source commit resolved and verified by the template builder."
+  validation {
+    condition     = can(regex("^[0-9a-f]{40}$", var.repo_revision))
+    error_message = "The repository revision must be a full commit SHA."
+  }
+}
+
+variable "bootstrap_private_key_file" {
+  type        = string
+  description = "Temporary private SSH key on the builder; never copied to the guest."
+  sensitive   = true
+}
+
+variable "bootstrap_public_key_b64" {
+  type        = string
+  description = "Base64 public bootstrap key enrolled through the trusted VM console."
+  validation {
+    condition     = can(regex("^[A-Za-z0-9+/=]+$", var.bootstrap_public_key_b64))
+    error_message = "The bootstrap public key must contain only base64 characters."
+  }
+}

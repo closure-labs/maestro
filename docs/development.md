@@ -132,12 +132,13 @@ below GitHub's per-file size limit. The measured installer moved from 2.491 GB
 to 2.892 GB (about 16%); qualification enforces a 3.0 GB ISO budget.
 GitHub Actions resets Nix's base substituter to `cache.nixos.org`; the flake's
 public Cachix `extra-substituters` are then applied normally. The required
-verdict runs directly from the repository with runner-provided `jq`, validates
-the complete schema-v3 route contract, and does not install Nix.
+verdict runs the packaged `ci:verdict` task through Nix/devenv, validates the
+schema-v3 route contract, and checks required scanning and protected-main
+signing results.
 Deployment templates, metadata, menus, and CLI packages remain covered by the
 repository audit and protected-main publication without being redundantly
 realized during installer qualification. Reusable evidence is accepted only
-from a trusted same-repository run while its artifact is unexpired, its state
+from a successful protected-main run while its artifact is unexpired, its state
 matches the exact appliance closure identity, and all retained checksums pass.
 Forks may not contribute reusable evidence. The scheduled forced run still
 performs a complete media qualification before artifact expiry.

@@ -38,7 +38,7 @@ while IFS= read -r -d '' source_file; do
   [[ -z $unexpected ]] || fail "legacy identity remains in $relative_path: $unexpected"
 done < <(
   find "$TEST_ROOT" \
-    \( -path "$TEST_ROOT/.git" -o -path "$TEST_ROOT/.jj" -o -path "$TEST_ROOT/.devenv" \) -prune \
+    \( -path "$TEST_ROOT/.git" -o -path "$TEST_ROOT/.jj" -o -path "$TEST_ROOT/.devenv" -o -path "$TEST_ROOT/pkgs/maestro-menu/target" \) -prune \
     -o -type f -print0
 )
 
@@ -160,18 +160,29 @@ if grep -Fq 'cachix/cachix-action@' \
   "$TEST_ROOT/.github/actions/setup-nix/action.yml"; then
   fail "shared setup implicitly publishes runner outputs"
 fi
-setup_steps=$(grep -Fc 'uses: ./.github/actions/setup-nix' \
-  "$TEST_ROOT/.github/workflows/ci.yml")
-assert_eq "$setup_steps" 4
-# shellcheck disable=SC2016
+# PR and merge-group execution stays read-only; only protected-main signing has OIDC.
 yq -e '
-  .jobs."fix-hashes".permissions.contents == "write" and
-  (.jobs."fix-hashes".if | contains("dependabot[bot]")) and
-  (.jobs."fix-hashes".if | contains("head.repo.full_name == github.repository")) and
-  (.jobs."fix-hashes".steps[0].with.ref == "${{ github.event.pull_request.base.sha }}") and
-  (.jobs."fix-hashes".steps[0].with."persist-credentials" == false)
+  .jobs.qualification.permissions.contents == "read" and
+  .jobs.qualification.permissions."id-token" == null and
+  .jobs.qualification.permissions.attestations == "read" and
+  .jobs."fix-hashes" == null and
+  .jobs.signing.permissions."id-token" == "write" and
+  (.jobs.signing.if | contains("refs/heads/main")) and
+  (.jobs.signing.if | contains("push"))
 ' "$TEST_ROOT/.github/workflows/ci.yml" >/dev/null \
-  || fail "Dependabot hash repair is not constrained to trusted base automation"
+  || fail "qualification mixes untrusted builds with privileged signing"
+# Security settings access uses only a short-lived token for this repository.
+# Keep the GitHub repository expression literal.
+# shellcheck disable=SC2016
+yq -o=json '.jobs.policy.steps[] | select(.id == "policy-token") | .with' \
+  "$TEST_ROOT/.github/workflows/security.yml" | jq -e '
+  ."permission-administration" == "read" and
+  ."permission-contents" == "read" and
+  .repositories == "${{ github.event.repository.name }}" and
+  ."skip-token-revoke" == null and
+  ([to_entries[] | select(.key | startswith("permission-")) | .value] | all(. == "read"))
+' >/dev/null \
+  || fail "security policy token is not repository-scoped and read-only"
 grep -Fq 'determinate-nixd fix hashes --auto-apply' \
   "$TEST_ROOT/nix/automation/fix-hashes.sh" \
   || fail "packaged hash fixer does not invoke Determinate Nix"
@@ -195,16 +206,15 @@ grep -Fq 'sudo systemctl restart nix-daemon.service' \
 grep -Fq '[[ $substituters != *cache.flakehub.com* ]]' \
   "$TEST_ROOT/.github/actions/setup-nix/action.yml" \
   || fail "shared CI setup does not reject the authenticated FlakeHub cache"
-grep -Fq 'bash nix/automation/verdict.sh' \
+grep -Fq "'' ci:verdict" \
   "$TEST_ROOT/.github/workflows/ci.yml" \
-  || fail "required CI verdict does not use its repository-owned shell gate"
-if yq -e '.jobs.verdict.steps[] | select(.uses == "./.github/actions/setup-nix")' \
-  "$TEST_ROOT/.github/workflows/ci.yml" >/dev/null; then
-  fail "required CI verdict still installs Nix"
-fi
-yq -e '.jobs.verdict.timeout-minutes <= 5' \
+  || fail "required CI verdict does not use its declared task"
+yq -e '.jobs.verdict.steps[] | select(.uses == "./.github/actions/setup-nix")' \
   "$TEST_ROOT/.github/workflows/ci.yml" >/dev/null \
-  || fail "required CI verdict is not bounded as a lightweight job"
+  || fail "required verdict must bootstrap its declared Nix task"
+yq -e '.jobs.verdict.timeout-minutes <= 20' "$TEST_ROOT/.github/workflows/ci.yml" >/dev/null \
+  || fail "required verdict timeout is not bounded"
+
 grep -Fq "fetch-depth: \${{ contains(fromJSON('[\"pull_request\",\"push\",\"merge_group\"]'), github.event_name) && '0' || '1' }}" \
   "$TEST_ROOT/.github/workflows/ci.yml" \
   || fail "route checkout does not limit full history to path-classifying events"
@@ -311,9 +321,9 @@ grep -Fq 'DeterminateSystems/flakehub-push@2ca953b09ca13532271987be2887bbd33b999
 grep -Fq 'rolling-minor: 2' \
   "$TEST_ROOT/.github/workflows/ci.yml" \
   || fail "rolling FlakeHub publication does not avoid the legacy version line"
-grep -Fq -- '--status completed' \
+grep -Fq -- '--status success' \
   "$TEST_ROOT/nix/automation/qualification-resolve.sh" \
-  || fail "installer state cannot recover verified artifacts from late failures"
+  || fail "installer state must accept only successful producers"
 grep -Fq 'name: Required CI verdict' "$TEST_ROOT/.github/workflows/ci.yml" \
   || fail "consolidated CI does not expose a stable verdict"
 grep -Fq 'sbom-path: maestro-system.spdx.json' "$TEST_ROOT/.github/workflows/ci.yml" \
@@ -382,13 +392,13 @@ grep -Fq 'candidate-state/maestro-qualification-state.json' \
   || fail "release workflow does not resolve the immutable build state"
 # The variable reference must remain literal in the workflow source.
 # shellcheck disable=SC2016
-grep -Fq 'gh attestation verify "$installer"' \
+grep -Fq 'maestro-ci-verify-inventory candidate "$ARTIFACT_SOURCE_COMMIT"' \
   "$TEST_ROOT/nix/automation/release-manager.sh" \
   || fail "release workflow does not verify builder attestations"
 # The variable reference must remain literal in the workflow source.
 # shellcheck disable=SC2016
 grep -Fq -- '--signer-workflow "$signer_workflow"' \
-  "$TEST_ROOT/nix/automation/release-manager.sh" \
+  "$TEST_ROOT/nix/automation/verify-inventory.sh" \
   || fail "release verification does not constrain the signer workflow"
 grep -Fq 'sbom-path: candidate/maestro-system.spdx.json' \
   "$TEST_ROOT/.github/workflows/release.yml" \
@@ -435,9 +445,9 @@ grep -Fq 'automation/weekly-flake-input-refresh' \
   || fail "trusted flake updates are not eligible for the automation queue"
 # shellcheck disable=SC2016
 yq -e '
-  .permissions.actions == "write" and
-  .permissions.contents == "write" and
-  .permissions."pull-requests" == "write"
+  .jobs.enqueue.permissions.actions == "write" and
+  .jobs.enqueue.permissions.contents == "write" and
+  .jobs.enqueue.permissions."pull-requests" == "write"
 ' "$TEST_ROOT/.github/workflows/queue-automation.yml" >/dev/null \
   || fail "trusted update validation lacks required dispatch and merge permissions"
 grep -Fq '"growpart"' "$TEST_ROOT/modules/_nixos/xcp-ng.nix" \
@@ -547,99 +557,63 @@ grep -Fxq -- "-var-file=$temporary/packer.pkrvars.json" \
 expected_roots="$(printf '%s\n%s' "$TEST_ROOT" "$TEST_ROOT/packer")"
 assert_eq "$(cat "$temporary/build-template.roots")" "$expected_roots"
 
-# The default Packer build downloads the newest successful, checksum-verified
-# GitHub artifact and does not duplicate the large ISO into the checkout.
-mkdir -p \
-  "$temporary/fake-result/iso" \
-  "$temporary/fake-artifact/result-installer/iso" \
-  "$temporary/fake-state" \
-  "$temporary/bin"
+# Exercise the downloaded-media handoff independently of the shared verifier
+# (the verifier's rejection cases live in security-contracts.sh).
+mkdir -p "$temporary/fake-result/iso"
 printf 'fake installer image\n' >"$temporary/fake-result/iso/maestro-installer.iso"
-cp \
-  "$temporary/fake-result/iso/maestro-installer.iso" \
-  "$temporary/fake-artifact/result-installer/iso/maestro-installer.iso"
-(
-  cd "$temporary/fake-artifact"
-  sha256sum \
-    result-installer/iso/maestro-installer.iso \
-    >maestro-installer.iso.sha256
-)
-printf '%s\n' \
-  '{"schema_version":4,"mode":"qualify-media","media_input":"fixture-media","evidence_input":"fixture-evidence","source_commit":"fixture-source","artifact_source_commit":"fixture-source","media_source_commit":"fixture-source","producer_event":"push","artifact_run_id":12345,"media_run_id":12345,"evidence_run_id":12345}' \
-  >"$temporary/fake-state/maestro-qualification-state.json"
-cp "$temporary/fake-state/maestro-qualification-state.json" \
-  "$temporary/fake-artifact/maestro-qualification-state.json"
-# The variable references belong in the generated fake, not this test shell.
-# shellcheck disable=SC2016
-printf '%s\n' \
-  "#!$(command -v bash)" \
-  'printf "%s\n" "$*" >>"$FAKE_GH_ARGS"' \
-  'if [[ "$1 $2" == "run list" ]]; then printf "12345\n"; exit 0; fi' \
-  'if [[ "$1 $2" == "run download" ]]; then' \
-  '  artifact_name=' \
-  '  artifact_dir=' \
-  '  while [[ "$#" -gt 0 ]]; do' \
-  '    case "$1" in' \
-  '      --name) artifact_name=$2; shift 2 ;;' \
-  '      --dir) artifact_dir=$2; shift 2 ;;' \
-  '      *) shift ;;' \
-  '    esac' \
-  '  done' \
-  '  if [[ "$artifact_name" == "maestro-qualification-state" ]]; then' \
-  '    cp -R "$FAKE_STATE_DIR/." "$artifact_dir/"' \
-  '  else' \
-  '    cp -R "$FAKE_ARTIFACT_DIR/." "$artifact_dir/"' \
-  '  fi' \
-  '  exit 0' \
-  'fi' \
-  'exit 1' \
-  >"$temporary/bin/gh"
-# The variable reference belongs in the generated fake, not this test shell.
-# shellcheck disable=SC2016
-printf '%s\n' \
-  "#!$(command -v bash)" \
-  'printf "%s\n" "$@" >"$FAKE_NIX_ARGS"' \
-  'printf "%s\n" "$FAKE_INSTALLER_RESULT"' \
-  >"$temporary/bin/nix"
-# The variable references belong in the generated fake, not this test shell.
-# shellcheck disable=SC2016
-printf '%s\n' \
-  "#!$(command -v bash)" \
-  'printf "%s\n" "$@" >"$FAKE_PACKER_ARGS"' \
-  >"$temporary/bin/packer"
-chmod +x "$temporary/bin/gh" "$temporary/bin/nix" "$temporary/bin/packer"
-FAKE_ARTIFACT_DIR="$temporary/fake-artifact" \
-  FAKE_STATE_DIR="$temporary/fake-state" \
-  FAKE_GH_ARGS="$temporary/gh.args" \
+cat >"$temporary/bin/maestro-ci-download-installer" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+mkdir -p "$1/result-installer/iso"
+printf 'fake installer image\n' >"$1/result-installer/iso/maestro-installer.iso"
+printf '%s\n' '{"source_commit":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}' >"$1/selected-state.json"
+EOF
+cat >"$temporary/bin/nix" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$@" >"$FAKE_NIX_ARGS"
+printf '%s\n' "$FAKE_INSTALLER_RESULT"
+EOF
+cat >"$temporary/bin/packer" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$@" >"$FAKE_PACKER_ARGS"
+if [[ $1 == build ]]; then
+  for argument in "$@"; do
+    if [[ $argument == bootstrap_private_key_file=* ]]; then
+      key=${argument#*=}
+      [[ -f $key && $(stat -c %a "$key") == 600 ]]
+      printf '%s\n' "$key" >"$FAKE_BOOTSTRAP_PATH"
+    fi
+  done
+fi
+EOF
+sed -i "1c#!${BASH}" "$temporary/bin/maestro-ci-download-installer" "$temporary/bin/nix" "$temporary/bin/packer"
+chmod +x "$temporary/bin/maestro-ci-download-installer" "$temporary/bin/nix" "$temporary/bin/packer"
+PATH="$temporary/bin:$PATH" \
+  FAKE_BOOTSTRAP_PATH="$temporary/bootstrap.path" \
   FAKE_PACKER_ARGS="$temporary/packer.args" \
-  GH_BIN="$temporary/bin/gh" \
   PACKER_BIN="$temporary/bin/packer" \
   OPERATOR_PUBLIC_KEY_FILE="$temporary/operator.pub" \
   TMPDIR="$temporary" \
   bash "$TEST_ROOT/packer/build.sh"
-grep -Eq '^iso_url=.*/maestro-installer\.iso$' \
-  "$temporary/packer.args" \
+grep -Eq '^iso_url=.*/maestro-installer\.iso$' "$temporary/packer.args" \
   || fail "Packer build did not use the downloaded GitHub artifact"
-grep -Fq -- '--workflow ci.yml' "$temporary/gh.args" \
-  || fail "artifact lookup did not select the installer workflow"
-grep -Fq -- '--name maestro-installer' "$temporary/gh.args" \
-  || fail "artifact download did not select the installer artifact"
-[[ ! -e "$temporary/output/maestro-installer.iso" ]] \
-  || fail "Packer build duplicated the installer ISO into the checkout"
+grep -Fxq 'repo_revision=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' "$temporary/packer.args" \
+  || fail "Packer did not pin the qualified source revision"
+[[ ! -e $(cat "$temporary/bootstrap.path") ]] || fail "Packer retained its private bootstrap key"
 
-# A local Nix build remains an explicit fallback and also passes its store
-# artifact directly to Packer.
 FAKE_INSTALLER_RESULT="$temporary/fake-result" \
   FAKE_NIX_ARGS="$temporary/nix.args" \
+  FAKE_BOOTSTRAP_PATH="$temporary/bootstrap.path" \
   FAKE_PACKER_ARGS="$temporary/packer.args" \
   NIX_BIN="$temporary/bin/nix" \
   PACKER_BIN="$temporary/bin/packer" \
   OPERATOR_PUBLIC_KEY_FILE="$temporary/operator.pub" \
   INSTALLER_SOURCE=build \
+  REPO_REVISION=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
   bash "$TEST_ROOT/packer/build.sh"
-grep -Fxq \
-  "iso_url=$temporary/fake-result/iso/maestro-installer.iso" \
-  "$temporary/packer.args" \
+grep -Fxq "iso_url=$temporary/fake-result/iso/maestro-installer.iso" "$temporary/packer.args" \
   || fail "Packer build did not use the installer directly from the Nix store"
 grep -Fxq -- '--accept-flake-config' "$temporary/nix.args" \
   || fail "installer substitution does not accept the flake cache configuration"
@@ -685,6 +659,9 @@ grep -Fq 'd /var/lib/maestro 0755 root root' \
 grep -Fq 'd /var/lib/nfs/sm.bak 0755 root root' \
   "$TEST_ROOT/modules/_nixos/xo/storage.nix" \
   || fail "NFS notification state is not created before first boot"
+grep -Fq 'd /run/maestro-xo-cifs-credentials 0700 root root' \
+  "$TEST_ROOT/modules/_nixos/xo/storage.nix" \
+  || fail "CIFS credential directory must have a root-owned parent"
 grep -q 'org\.freedesktop\.hostname1\.set-hostname' \
   "$TEST_ROOT/modules/_nixos/platform.nix" \
   || fail "platform does not authorize DHCP hostname adoption"

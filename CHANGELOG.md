@@ -7,6 +7,38 @@ project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 version 1.1.0. Earlier development records are preserved below and may not
 correspond to published GitHub tags.
 
+## [Unreleased]
+
+### Changed
+
+- Require qualification-state v5 and successful protected-main producer runs
+  across CI reuse, releases, and template deployment. Verify the complete signed
+  inventory and compare the bound SPDX predicate with the downloaded SBOM.
+- Refresh all declared flake and native toolchain inputs, including Determinate
+  Nix 3.23.1, the current stable Nixpkgs snapshot, and published XO 6.9.1.
+  Check prerequisite caches before building installer media so missing upstream
+  publications fail promptly.
+- Separate read-only qualification from protected-main signing and publication;
+  run the required verdict through its declared devenv task. Retire privileged
+  PR hash repair and restrict automatic update queueing to dependency/version
+  paths, leaving workflow/action updates to operator review.
+- Replace fixed installer passwords with per-build Ed25519 public-key enrollment
+  through the VM console. Pin installed source to an immutable commit; direct
+  installation now requires `--revision`, with optional `--bootstrap-key`.
+- Add runtime `maestro.xo.extraServerEnvFiles`, stricter storage-helper parsing,
+  and SSH, service identity, Valkey, capability, and sudo assertions.
+  Keep temporary CIFS credentials beneath a root-owned runtime directory.
+  Reject storage paths whose configured roots have been redirected by symlinks.
+- Add dependency scans, release rescanning, weekly security maintenance, and a
+  read-only GitHub policy drift task. Vulnerability gating starts in report mode;
+  reviewed baselines and expiring exceptions control later enforcement.
+  Use the organization security audit App to mint temporary read-only policy
+  tokens, with a policy-only maintenance dispatch for credential checks.
+
+### Fixed
+
+- Synchronize the Packer consumer and fixtures with qualification-state v5.
+
 ## [2.0.0] - 2026-08-23
 
 ### Changed

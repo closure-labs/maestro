@@ -267,6 +267,8 @@ if [[ -z "$build_template" ]]; then
     build_template=$SCRIPT_DIR/build.sh
   fi
 fi
+REPO_URL="$repo_url" \
+REPO_BRANCH="$repo_branch" \
 PKR_VAR_remote_password="$remote_password" \
 OPERATOR_PUBLIC_KEY_FILE="$operator_key" \
 MAESTRO_SYSTEM_ROOT="$REPO_ROOT" \

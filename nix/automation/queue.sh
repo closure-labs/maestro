@@ -23,7 +23,7 @@ jq -c \
   ' <<<"$pull_requests" |
 while IFS= read -r pull_request; do
   export PR_NUMBER EXPECTED_BRANCH EXPECTED_TITLE EXPECTED_AUTHOR
-  export EXPECTED_CHANGE_KIND=any
+  export EXPECTED_CHANGE_KIND=cargo
   unset EXPECTED_VERSION || true
   PR_NUMBER=$(jq -er .number <<<"$pull_request")
   EXPECTED_BRANCH=$(jq -er .branch <<<"$pull_request")
@@ -31,6 +31,7 @@ while IFS= read -r pull_request; do
   rest_author=$(jq -er .rest_author <<<"$pull_request")
 
   if [[ "$rest_author" == 'dependabot[bot]' ]]; then
+    [[ $EXPECTED_BRANCH == dependabot/cargo/pkgs/maestro-menu/* ]] || continue
     EXPECTED_AUTHOR=dependabot
   elif [[ "$rest_author" == 'github-actions[bot]' ]]; then
     EXPECTED_AUTHOR=github-actions

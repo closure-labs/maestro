@@ -29,10 +29,10 @@ OPERATOR_PUBLIC_KEY_FILE=${OPERATOR_PUBLIC_KEY_FILE:-${HOME:-}/.ssh/id_ed25519.p
 INSTALLER_ISO=${INSTALLER_ISO:-}
 INSTALLER_SOURCE=${INSTALLER_SOURCE:-github}
 GITHUB_REPOSITORY=${GITHUB_REPOSITORY:-closure-labs/maestro}
-GITHUB_WORKFLOW=${GITHUB_WORKFLOW:-ci.yml}
-GITHUB_BRANCH=${GITHUB_BRANCH:-main}
-GITHUB_ARTIFACT_NAME=${GITHUB_ARTIFACT_NAME:-maestro-installer}
-GITHUB_STATE_ARTIFACT_NAME=${GITHUB_STATE_ARTIFACT_NAME:-maestro-qualification-state}
+export GITHUB_REPOSITORY
+REPO_URL=${REPO_URL:-https://github.com/closure-labs/maestro.git}
+REPO_BRANCH=${REPO_BRANCH:-main}
+REPO_REVISION=${REPO_REVISION:-}
 
 if [[ ${BUILD_INSTALLER+x} ]]; then
   case "$BUILD_INSTALLER" in
@@ -69,8 +69,10 @@ command -v "$PACKER_BIN" >/dev/null 2>&1 || {
 artifact_dir=
 cleanup() {
   [[ -z "$artifact_dir" ]] || rm -rf -- "$artifact_dir"
+  [[ -z ${bootstrap_dir:-} ]] || rm -rf -- "$bootstrap_dir"
 }
-trap cleanup EXIT HUP INT TERM
+trap cleanup EXIT
+trap 'exit 130' HUP INT TERM
 
 case "$INSTALLER_SOURCE" in
   github)
@@ -78,76 +80,18 @@ case "$INSTALLER_SOURCE" in
       printf 'GitHub CLI executable not found: %s\n' "$GH_BIN" >&2
       exit 1
     }
-    mapfile -t run_ids < <(
-      "$GH_BIN" run list \
-        --repo "$GITHUB_REPOSITORY" \
-        --workflow "$GITHUB_WORKFLOW" \
-        --branch "$GITHUB_BRANCH" \
-        --status success \
-        --limit 20 \
-        --json databaseId \
-        --jq '.[].databaseId'
-    )
-    [[ ${#run_ids[@]} -gt 0 ]] || {
-      printf 'No successful Maestro installer workflow run was found.\n' >&2
-      exit 1
+    artifact_dir=$(mktemp -d "${TMPDIR:-/tmp}/maestro-installer.XXXXXX")
+    rmdir "$artifact_dir"
+    GH_BIN="$GH_BIN" maestro-ci-download-installer "$artifact_dir"
+    installer_iso="$artifact_dir/result-installer/iso/maestro-installer.iso"
+    qualified_revision=$("$JQ_BIN" -er .source_commit "$artifact_dir/selected-state.json")
+    [[ -z "$REPO_REVISION" || $REPO_REVISION == "$qualified_revision" ]] || {
+      echo 'Requested revision differs from qualified installer state.' >&2; exit 1;
     }
-    for run_id in "${run_ids[@]}"; do
-      [[ "$run_id" =~ ^[0-9]+$ ]] || continue
-      artifact_run_id=$run_id
-      expected_media_input=
-      state_dir=$(mktemp -d "${TMPDIR:-/tmp}/maestro-state.XXXXXX")
-      if "$GH_BIN" run download "$run_id" \
-        --repo "$GITHUB_REPOSITORY" \
-        --name "$GITHUB_STATE_ARTIFACT_NAME" \
-        --dir "$state_dir" >/dev/null 2>&1; then
-        command -v "$JQ_BIN" >/dev/null 2>&1 || {
-          printf 'jq is required to verify installer artifact state.\n' >&2
-          exit 1
-        }
-        if ! "$JQ_BIN" -e \
-          '.schema_version == 4 and (.artifact_run_id | type == "number") and (.media_input | type == "string") and (.evidence_run_id | type == "number")' \
-          "$state_dir/maestro-qualification-state.json" >/dev/null; then
-          rm -rf -- "$state_dir"
-          continue
-        fi
-        artifact_run_id=$("$JQ_BIN" -r .artifact_run_id \
-          "$state_dir/maestro-qualification-state.json")
-        expected_media_input=$("$JQ_BIN" -r .media_input \
-          "$state_dir/maestro-qualification-state.json")
-      fi
-      rm -rf -- "$state_dir"
-
-      candidate_dir=$(mktemp -d "${TMPDIR:-/tmp}/maestro-installer.XXXXXX")
-      if "$GH_BIN" run download "$artifact_run_id" \
-        --repo "$GITHUB_REPOSITORY" \
-        --name "$GITHUB_ARTIFACT_NAME" \
-        --dir "$candidate_dir" >/dev/null 2>&1 &&
-        (
-          cd "$candidate_dir"
-          sha256sum --check --strict maestro-installer.iso.sha256
-        ); then
-        # jq variables are intentionally protected from the shell.
-        # shellcheck disable=SC2016
-        if [[ -n "$expected_media_input" ]] &&
-          ! "$JQ_BIN" -e \
-            --arg media_input "$expected_media_input" \
-            --argjson artifact_run_id "$artifact_run_id" \
-            '.schema_version == 4 and .media_input == $media_input and .artifact_run_id == $artifact_run_id and (.evidence_run_id | type == "number")' \
-            "$candidate_dir/maestro-qualification-state.json" >/dev/null; then
-          rm -rf -- "$candidate_dir"
-          continue
-        fi
-        artifact_dir=$candidate_dir
-        installer_iso="$artifact_dir/result-installer/iso/maestro-installer.iso"
-        break
-      fi
-      rm -rf -- "$candidate_dir"
-    done
-    [[ -n "$artifact_dir" ]] || {
-      printf 'No valid immutable Maestro installer artifact was found.\n' >&2
-      exit 1
+    [[ $REPO_URL == "https://github.com/$GITHUB_REPOSITORY.git" ]] || {
+      echo 'Qualified installer repository differs from installation repository.' >&2; exit 1;
     }
+    REPO_REVISION=$qualified_revision
     ;;
   build)
     command -v "$NIX_BIN" >/dev/null 2>&1 || {
@@ -172,6 +116,19 @@ case "$INSTALLER_SOURCE" in
     ;;
 esac
 
+# Resolve a moving branch once, before the VM can erase a disk.
+if [[ -z "$REPO_REVISION" ]]; then
+  REPO_REVISION=$(git ls-remote --exit-code "$REPO_URL" "refs/heads/$REPO_BRANCH" | awk '{print $1}')
+fi
+[[ $REPO_REVISION =~ ^[0-9a-f]{40}$ ]] || {
+  echo 'Installation requires one immutable 40-character source revision.' >&2; exit 1;
+}
+
+bootstrap_dir=$(mktemp -d "${TMPDIR:-/tmp}/maestro-bootstrap.XXXXXX")
+chmod 0700 "$bootstrap_dir"
+ssh-keygen -q -t ed25519 -N '' -C maestro-packer-bootstrap -f "$bootstrap_dir/key"
+bootstrap_public_key_b64=$(base64 -w0 "$bootstrap_dir/key.pub")
+
 [[ -s "$installer_iso" ]] || {
   printf 'Installer ISO does not exist or is empty: %s\n' "$installer_iso" >&2
   exit 1
@@ -185,8 +142,12 @@ cd "$PACKER_ROOT"
 "$PACKER_BIN" init .
 "$PACKER_BIN" build \
   -parallel-builds=1 \
+  "$@" \
   -var "iso_url=$installer_iso" \
   -var "iso_checksum=sha256:$installer_sha256" \
   -var "operator_public_key_file=$operator_key" \
-  "$@" \
+  -var "bootstrap_private_key_file=$bootstrap_dir/key" \
+  -var "bootstrap_public_key_b64=$bootstrap_public_key_b64" \
+  -var "repo_revision=$REPO_REVISION" \
+  -var "repo_url=$REPO_URL" \
   .

@@ -98,3 +98,12 @@ NoCloud can install clone-specific SSH keys, adopt a DHCP hostname, and grow
 the existing root partition and filesystem when a cloned disk is larger.
 
 [Back to documentation](index.md)
+
+## Runtime XO secrets
+
+`maestro.xo.extraServerEnv` is for non-secret values because Nix renders them
+into the system closure. Use `maestro.xo.extraServerEnvFiles =
+[ "/run/secrets/xo.env" ];` for runtime systemd environment files. The option
+accepts absolute filename strings outside `/nix/store`; provision file contents
+separately, restrict their permissions, and never use a Nix path literal or
+`builtins.readFile` for a secret. Missing configured files prevent XO startup.

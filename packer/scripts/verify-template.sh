@@ -88,12 +88,12 @@ test -d /home/maestro/maestro/.git
 test -s /home/maestro/maestro/host/hardware-configuration.nix
 grep -Fq 'networking.hostName = "maestro";' \
   /home/maestro/maestro/host/settings.nix
-grep -Fq 'PasswordAuthentication = lib.mkForce true;' \
+grep -Fq 'authorizedKeys.keys = lib.mkAfter' \
   /home/maestro/maestro/host/packer.nix
 
 sshd -t
 assert_sshd_directive /etc/ssh/sshd_config PermitRootLogin no
-assert_sshd_directive /etc/ssh/sshd_config PasswordAuthentication yes
+assert_sshd_directive /etc/ssh/sshd_config PasswordAuthentication no
 assert_sshd_directive /etc/ssh/sshd_config AllowUsers maestro
 
 test "$(redis-cli -s /run/redis-xo/redis.sock --raw PING)" = PONG

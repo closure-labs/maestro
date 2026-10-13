@@ -21,12 +21,24 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Check publication prerequisites before spending runner time building media.
+nix config show substituters
+nix config show trusted-public-keys
+determinate_out=$(nix eval --accept-flake-config --raw .#nixosConfigurations.maestro.config.nix.package.upstream.outPath)
+nix path-info --store https://install.determinate.systems "$determinate_out"
+xo_out=$(nix eval --accept-flake-config --raw .#packages.x86_64-linux.xen-orchestra-ce.outPath)
+nix path-info --store https://xen-orchestra-ce.cachix.org "$xo_out"
+
 case "$QUALIFICATION_MODE" in
   qualify-media|qualify-media-reuse-evidence)
     media_manifest=$(mktemp "${runner_temp}/maestro-media-plan.XXXXXX")
     flake-plan-runner --flake "path:$repo_root" --plan lib.ciPlans.x86_64-linux.media --manifest "$media_manifest"
     ;;
   refresh-evidence)
+    : "${GH_TOKEN:?GH_TOKEN is required to verify reused media}"
+    reused_sha=$(jq -er .artifact_source_commit reused-media/maestro-qualification-state.json)
+    maestro-ci-verify-inventory reused-media "$reused_sha"
+    [[ $(jq -er .media_input reused-media/maestro-qualification-state.json) == "${EXPECTED_MEDIA_INPUT:?}" ]]
     reused_installer=reused-media/result-installer
     [[ -f "$reused_installer/iso/maestro-installer.iso" ]]
     mv "$reused_installer" result-installer
@@ -36,13 +48,6 @@ case "$QUALIFICATION_MODE" in
     exit 1
     ;;
 esac
-
-nix config show substituters
-nix config show trusted-public-keys
-determinate_out=$(nix eval --accept-flake-config --raw .#nixosConfigurations.maestro.config.nix.package.upstream.outPath)
-nix path-info --store https://install.determinate.systems "$determinate_out"
-xo_out=$(nix eval --accept-flake-config --raw .#packages.x86_64-linux.xen-orchestra-ce.outPath)
-nix path-info --store https://xen-orchestra-ce.cachix.org "$xo_out"
 
 manifest=$(mktemp "${runner_temp}/maestro-plan.XXXXXX")
 flake-plan-runner --flake "path:$repo_root" --plan lib.ciPlans.x86_64-linux.evidence --manifest "$manifest"
@@ -55,6 +60,8 @@ xo_supply_out=$(jq -er '.results[] | select(.name == "xen-orchestra-supply-prote
 if [[ "$QUALIFICATION_MODE" == qualify-media-reuse-evidence ]]; then
   : "${EXPECTED_EVIDENCE_INPUT:?EXPECTED_EVIDENCE_INPUT must identify reused evidence}"
   : "${EXPECTED_EVIDENCE_RUN_ID:?EXPECTED_EVIDENCE_RUN_ID must identify reused evidence}"
+  maestro-ci-verify-state reused-evidence/maestro-qualification-state.json "$EXPECTED_EVIDENCE_RUN_ID"
+  maestro-ci-verify-inventory reused-evidence "$(jq -er .artifact_source_commit reused-evidence/maestro-qualification-state.json)" evidence
   jq -e --arg evidence_input "$EXPECTED_EVIDENCE_INPUT" --argjson evidence_run_id "$EXPECTED_EVIDENCE_RUN_ID" '
       .schema_version == 5 and
       .evidence_input == $evidence_input and

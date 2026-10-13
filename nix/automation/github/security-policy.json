@@ -1,0 +1,23 @@
+{
+  "secret_scanning": "enabled",
+  "secret_scanning_push_protection": "enabled",
+  "private_vulnerability_reporting": true,
+  "actions": {
+    "allowed_actions": "selected",
+    "sha_pinning_required": true,
+    "default_workflow_permissions": "read"
+  },
+  "selected_actions": {
+    "github_owned_allowed": true,
+    "verified_allowed": false,
+    "patterns_allowed": [
+      "DeterminateSystems/determinate-nix-action@*",
+      "DeterminateSystems/nix-installer-action@33c9ab3ef95cd57c164d9d6eb1f9a46338538d41",
+      "DeterminateSystems/flakehub-push@*"
+    ]
+  },
+  "release_environment": {
+    "protected_branches": true,
+    "custom_branch_policies": false
+  }
+}

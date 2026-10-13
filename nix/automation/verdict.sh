@@ -6,9 +6,7 @@ set -euo pipefail
 test "${ROUTE_RESULT:?}" = success
 : "${CI_PLAN:?CI_PLAN must contain the route decision JSON output}"
 
-# Keep the required verdict runnable on GitHub's slim image. This is the
-# schema-v3 contract enforced by qualification-plan.schema.json, expressed in
-# runner-provided jq so this final gate does not bootstrap Nix and devenv.
+# Enforce the schema-v3 conditional graph through the declared ci:verdict task.
 jq -e '
   type == "object" and
   (keys | sort) == ["publish_required", "qualification", "schema_version"] and
@@ -59,3 +57,16 @@ case "$mode" in
     exit 1
     ;;
 esac
+
+# Only protected-main runs require signing. Other events must never sign.
+if [[ ${GITHUB_REF:-} == refs/heads/main && ${GITHUB_EVENT_NAME:-} =~ ^(push|schedule|workflow_dispatch)$ && $mode != skip ]]; then
+  [[ ${SIGNING_RESULT:?} == success ]]
+else
+  [[ ${SIGNING_RESULT:-skipped} == skipped ]]
+fi
+
+if [[ $mode == skip ]]; then
+  [[ ${SECURITY_RESULT:?} == skipped ]]
+else
+  [[ ${SECURITY_RESULT:?} == success ]]
+fi

@@ -1,5 +1,6 @@
 {
   planRunner,
+  packerXenserver,
   pkgs,
 }: let
   mkCommand = {
@@ -48,6 +49,81 @@
   };
 
   commands = {
+    packer-validate = mkCommand {
+      name = "packer-validate";
+      runtimeInputs = commonInputs ++ [packerXenserver pkgs.openssh];
+      source = ./packer-validate.sh;
+    };
+    security-verdict = mkCommand {
+      name = "security-verdict";
+      runtimeInputs = commonInputs;
+      source = ./security-verdict.sh;
+    };
+    security-scan = mkCommand {
+      name = "security-scan";
+      prefix = ''
+        MAESTRO_SECURITY_POLICY="''${MAESTRO_SYSTEM_ROOT:-$PWD}/nix/automation/security-policy.json"
+        export MAESTRO_SECURITY_POLICY
+      '';
+      runtimeInputs =
+        commonInputs
+        ++ [
+          pkgs.grype
+          pkgs.cargo-audit
+          commands.security-verdict
+          (pkgs.python3.withPackages (pythonPackages: [pythonPackages.cvss]))
+        ];
+      source = ./security-scan.sh;
+    };
+    security-latest = mkCommand {
+      name = "security-latest";
+      runtimeInputs = commonInputs ++ [commands.download-installer commands.security-scan];
+      source = ./security-latest.sh;
+    };
+    policy-drift = mkCommand {
+      name = "policy-drift";
+      prefix = ''
+        MAESTRO_GITHUB_SECURITY_POLICY=${./github/security-policy.json}
+        MAESTRO_MAIN_RULESET=${./github/main-ruleset.json}
+        export MAESTRO_GITHUB_SECURITY_POLICY MAESTRO_MAIN_RULESET
+      '';
+      runtimeInputs = commonInputs;
+      source = ./policy-drift.sh;
+    };
+    download-installer = mkCommand {
+      name = "download-installer";
+      runtimeInputs = commonInputs ++ [commands.verify-state commands.verify-inventory];
+      source = ./download-installer.sh;
+    };
+    sign-check = mkCommand {
+      name = "sign-check";
+      runtimeInputs = commonInputs ++ [commands.validate-state];
+      source = ./sign-check.sh;
+    };
+    validate-state = mkCommand {
+      name = "validate-state";
+      prefix = ''
+        MAESTRO_QUALIFICATION_STATE_SCHEMA=${./qualification-state.schema.json}
+        export MAESTRO_QUALIFICATION_STATE_SCHEMA
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.check-jsonschema];
+      source = ./validate-state.sh;
+    };
+    trusted-run = mkCommand {
+      name = "trusted-run";
+      runtimeInputs = commonInputs;
+      source = ./trusted-run.sh;
+    };
+    verify-state = mkCommand {
+      name = "verify-state";
+      runtimeInputs = commonInputs ++ [commands.validate-state commands.trusted-run];
+      source = ./verify-state.sh;
+    };
+    verify-inventory = mkCommand {
+      name = "verify-inventory";
+      runtimeInputs = commonInputs ++ [commands.validate-state commands.trusted-run];
+      source = ./verify-inventory.sh;
+    };
     boot-media = mkCommand {
       name = "boot-media";
       runtimeInputs = commonInputs ++ [pkgs.qemu_kvm];
@@ -59,7 +135,7 @@
         MAESTRO_SPDX_SCHEMA="''${MAESTRO_SPDX_SCHEMA:-${spdxSchema}}"
         export MAESTRO_SPDX_SCHEMA
       '';
-      runtimeInputs = commonInputs ++ [pkgs.check-jsonschema planRunner];
+      runtimeInputs = commonInputs ++ [pkgs.check-jsonschema planRunner commands.validate-state commands.verify-inventory commands.verify-state];
       source = ./qualification-assets.sh;
     };
     qualification-inputs = mkCommand {
@@ -134,6 +210,9 @@
           commands.release-stage
           commands.release-version
           commands.trusted-update
+          commands.validate-state
+          commands.verify-inventory
+          commands.trusted-run
         ];
       source = ./release-manager.sh;
     };
@@ -154,7 +233,7 @@
     };
     resolve-qualification = mkCommand {
       name = "resolve-qualification";
-      runtimeInputs = commonInputs ++ [commands.qualification-inputs];
+      runtimeInputs = commonInputs ++ [commands.qualification-inputs commands.validate-state commands.trusted-run commands.verify-state commands.verify-inventory];
       source = ./qualification-resolve.sh;
     };
     trusted-update = mkCommand {

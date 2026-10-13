@@ -129,6 +129,7 @@ dispatch() {
 
 inventory() {
   : "${SOURCE_SHA:?}"
+  maestro-ci-validate-state candidate-state/maestro-qualification-state.json
   expected_inputs=$(maestro-ci-qualification-inputs)
   expected_media_input=$(jq -er .media_input <<<"$expected_inputs")
   expected_evidence_input=$(jq -er .evidence_input <<<"$expected_inputs")
@@ -146,25 +147,10 @@ inventory() {
 
 verify() {
   : "${ARTIFACT_RUN_ID:?}" "${ARTIFACT_SOURCE_COMMIT:?}" "${MEDIA_INPUT:?}" "${EVIDENCE_INPUT:?}" "${GITHUB_REPOSITORY:?}"
-  (cd candidate && sha256sum --check --strict maestro-installer.iso.sha256 \
-    && sha256sum --check --strict maestro-system.spdx.json.sha256 \
-    && sha256sum --check --strict maestro-system.cdx.json.sha256 \
-    && sha256sum --check --strict xen-orchestra-supply.assertion.json.sha256 \
-    && sha256sum --check --strict xen-orchestra-supply.spdx.json.sha256 \
-    && sha256sum --check --strict xen-orchestra-supply.cdx.json.sha256)
-  jq -e --arg media_input "$MEDIA_INPUT" --arg evidence_input "$EVIDENCE_INPUT" \
-    --arg artifact_source_commit "$ARTIFACT_SOURCE_COMMIT" \
-    --argjson artifact_run_id "$ARTIFACT_RUN_ID" \
-    '.schema_version == 5 and .media_input == $media_input and .evidence_input == $evidence_input and .artifact_source_commit == $artifact_source_commit and .artifact_run_id == $artifact_run_id and (.evidence_run_id | type == "number")' \
+  maestro-ci-verify-inventory candidate "$ARTIFACT_SOURCE_COMMIT"
+  jq -e --arg media "$MEDIA_INPUT" --arg evidence "$EVIDENCE_INPUT" --argjson run "$ARTIFACT_RUN_ID" \
+    '.media_input == $media and .evidence_input == $evidence and .artifact_run_id == $run' \
     candidate/maestro-qualification-state.json >/dev/null
-  installer=candidate/result-installer/iso/maestro-installer.iso
-  signer_workflow="${GITHUB_REPOSITORY}/.github/workflows/ci.yml"
-  gh attestation verify "$installer" --repo "$GITHUB_REPOSITORY" --signer-workflow "$signer_workflow" \
-    --source-digest "$ARTIFACT_SOURCE_COMMIT" --deny-self-hosted-runners
-  spdx_version=$(jq -er .spdxVersion candidate/maestro-system.spdx.json)
-  gh attestation verify "$installer" --repo "$GITHUB_REPOSITORY" --signer-workflow "$signer_workflow" \
-    --source-digest "$ARTIFACT_SOURCE_COMMIT" \
-    --predicate-type "https://spdx.dev/Document/v${spdx_version#SPDX-}" --deny-self-hosted-runners
 }
 
 stage() {
