@@ -177,7 +177,7 @@ yq -e '
 yq -o=json '.jobs.policy.steps[] | select(.id == "policy-token") | .with' \
   "$TEST_ROOT/.github/workflows/security.yml" | jq -e '
   ."permission-administration" == "read" and
-  ."permission-contents" == "read" and
+  ."permission-contents" == null and
   .repositories == "${{ github.event.repository.name }}" and
   ."skip-token-revoke" == null and
   ([to_entries[] | select(.key | startswith("permission-")) | .value] | all(. == "read"))
