@@ -19,7 +19,7 @@ for component in maestro-system xen-orchestra-supply; do
   jq -e '.bomFormat == "CycloneDX" and (.components | type == "array")' "$sbom" >/dev/null
   grype "sbom:$sbom" -o json >"$output/$component.grype.json"
   jq -e '.matches | type == "array"' "$output/$component.grype.json" >/dev/null
-  jq '[.matches[] | {advisory:.vulnerability.id,component:.artifact.name,version:.artifact.version,severity:.vulnerability.severity,scanner:"grype"}]' \
+  jq '[.matches[] | {advisory:.vulnerability.id,component:.artifact.name,version:.artifact.version,severity:(.vulnerability.severity | ascii_downcase),scanner:"grype"}]' \
     "$output/$component.grype.json" >"$work/$component.findings.json"
 done
 audit_status=0

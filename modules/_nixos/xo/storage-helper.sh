@@ -12,9 +12,12 @@ set -euo pipefail
 : "${MAESTRO_XO_ENABLE_CIFS:=false}"
 : "${MAESTRO_XO_ENABLE_VHD:=false}"
 
-mounts_dir="$(realpath -m -- "$MAESTRO_XO_MOUNTS_DIR")"
-data_dir="$(realpath -m -- "$MAESTRO_XO_DATA_DIR")"
-temp_dir="$(realpath -m -- "$MAESTRO_XO_TEMP_DIR")"
+# Keep policy roots lexical. Resolving an XO-writable root symlink here would
+# let the service turn /etc (or another foreign directory) into an allowed root.
+# Candidate paths below still resolve symlinks before containment checks.
+mounts_dir="$(realpath -ms -- "$MAESTRO_XO_MOUNTS_DIR")"
+data_dir="$(realpath -ms -- "$MAESTRO_XO_DATA_DIR")"
+temp_dir="$(realpath -ms -- "$MAESTRO_XO_TEMP_DIR")"
 credentials_dir="$MAESTRO_XO_CREDENTIALS_DIR"
 credentials_file=""
 

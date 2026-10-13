@@ -24,6 +24,7 @@ correspond to published GitHub tags.
 - Add runtime `maestro.xo.extraServerEnvFiles`, stricter storage-helper parsing,
   and SSH, service identity, Valkey, capability, and sudo assertions.
   Keep temporary CIFS credentials beneath a root-owned runtime directory.
+  Reject storage paths whose configured roots have been redirected by symlinks.
 - Add dependency scans, release rescanning, weekly security maintenance, and a
   read-only GitHub policy drift task. Vulnerability gating starts in report mode;
   reviewed baselines and expiring exceptions control later enforcement.

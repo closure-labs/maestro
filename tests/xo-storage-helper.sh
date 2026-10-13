@@ -173,3 +173,20 @@ for arguments in \
     exit 1
   fi
 done
+
+# A service-owned symlink must never redefine a configured policy root.
+ln -s /etc "$temporary/redirected-mounts"
+if env PATH="$fake_bin:$PATH" \
+  FAKE_MOUNT_LOG="$mount_log" \
+  MAESTRO_XO_MOUNTS_DIR="$temporary/redirected-mounts" \
+  MAESTRO_XO_DATA_DIR=/var/lib/xo/data \
+  MAESTRO_XO_TEMP_DIR=/var/lib/xo/tmp \
+  MAESTRO_XO_USER=operator \
+  MAESTRO_XO_CREDENTIALS_DIR="$temporary/credentials" \
+  MAESTRO_XO_ALLOWED_MOUNT_TYPES='nfs nfs4 cifs' \
+  MAESTRO_XO_ENABLE_CIFS=true \
+  MAESTRO_XO_ENABLE_VHD=true \
+  bash "$helper" mount -t nfs server:/export "$temporary/redirected-mounts/test" >/dev/null 2>&1; then
+  echo 'Storage helper accepted a redirected configured mount root.' >&2
+  exit 1
+fi
