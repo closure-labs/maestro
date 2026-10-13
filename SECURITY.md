@@ -18,14 +18,22 @@ template deployment. Consumers check state v5, checksums, immutable source
 commits, producer identity, provenance, and the bound SBOM. Select local/build
 media explicitly when working on unpublished changes.
 
-Vulnerability scans start in report mode. The operator reviews findings and
-records accepted high/critical findings in `nix/automation/security-policy.json`
-before changing `mode` to `enforce`. Baseline entries identify advisory,
-component, version, severity, owner, and reason. New high/critical findings then
-block required scans. Missing severity requires manual triage and is not a
-claim of safety. Expiring exceptions include advisory, component, version,
-owner, reason, `created`, and `expires` (UTC dates), with a maximum of 30 days.
-Database and scanner errors fail the scan in both modes.
+Vulnerability scans remain in report mode until complete Nix/npm inventories,
+runtime remediation, and appliance acceptance pass. Policy schema v2 in
+`nix/automation/security-policy.json` contains `dispositions` and `exceptions`;
+permanent version-only baselines are rejected. Each record identifies the
+advisory, component, version, severity, and exact `identity` from the fresh
+finding, plus an owner, reason, HTTPS evidence, and `created`/`expires` dates.
+Dispositions also declare `kind` as `fixed` or `not_affected`. All records expire
+within 30 days. Derivation, patches, system configuration, installed manifests,
+or scanner changes invalidate the identity and require renewed review.
+
+Enforcement blocks unresolved high, critical, and unscored findings. Scanner
+coverage probes must detect known vulnerable Nix and npm components; missing
+inventory, scanner/database failures, malformed decisions, and expired records
+fail in both modes. Raw scanner reports retain their original severity and
+matches alongside reviewed decisions. No general package-wide exemption is
+permitted.
 
 Workflow/action updates require operator review. Automatic queueing is limited
 to narrowly validated version, Nix lockfile, and Cargo dependency changes. Use

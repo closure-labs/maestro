@@ -81,6 +81,10 @@ in
       maestro.succeed("sshd -T | grep -Fx 'passwordauthentication no'")
       maestro.succeed("sshd -T | grep -Fx 'allowusers maestro'")
       maestro.succeed("test $(stat -c %u /var/lib/xo) = 0; test $(stat -c %u /var/lib/xo/mounts) = 0")
+      maestro.succeed("systemctl restart xo-server.service")
+      maestro.wait_for_unit("xo-server.service")
+      maestro.wait_for_open_port(443)
+      maestro.succeed("test $(stat -c %u /var/lib/xo) = 0; test $(stat -c %u /var/lib/xo/mounts) = 0")
       maestro.succeed("${node}/bin/node -p process.versions.openssl | grep '^3\\.6\\.5'")
 
       sudo = maestro.succeed("cat /etc/maestro-sudo-path").strip()

@@ -167,12 +167,14 @@ without becoming a merge requirement.
 
 Weekly security maintenance rescans the latest verified inventory and detects
 GitHub policy drift. Scanners and vulnerability databases run at execution time,
-not in pure Nix derivations. See [Security policy](../SECURITY.md) for baseline
+not in pure Nix derivations. See [Security policy](../SECURITY.md) for source-bound
 review, enforcement, and expiring exceptions. The policy job uses organization
 variable `SECAUDIT_CLIENTID` and secret `SECAUDIT_PEM` to mint a short-lived
-GitHub App token scoped to this repository, with Administration and Contents
+GitHub App token scoped to this repository, with Administration
 **read** access. The pinned token action revokes it after the job. These inputs
 are declared in Secretspec and stay outside Nix evaluation and derivations.
+When REST redacts bypass actors, the reader verifies the exact ruleset's
+GraphQL actor count; absent or inaccessible evidence still fails the check.
 Dispatch security maintenance with `policy_only=true` to test the credentials
 and settings without downloading inventories. No policy drift task changes
 GitHub settings.

@@ -182,6 +182,13 @@ the workflow additionally requested unavailable Contents read access. That
 unneeded request is removed. The policy read itself still needs confirmation
 after this correction reaches protected main.
 
+The corrected branch probe successfully minted the read-only token and read
+policy settings. REST then omitted `bypass_actors`, as documented by GitHub
+for callers without write access. The maintainer's read confirmed zero actors
+and matching rules. The reader now attempts the exact ruleset's GraphQL
+connection count when REST redacts actor details, and rejects missing counts
+or API errors. The App's access to that count still needs a runner probe.
+
 An obsolete PR run's unconditional `always()` verdict resisted cancellation
 and held the workflow concurrency slot. Job conditions now use `!cancelled()`
 so failures still run the required verdict and superseded runs can stop. The

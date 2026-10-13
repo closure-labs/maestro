@@ -24,6 +24,14 @@ maestro
 The flake exports one concrete appliance configuration and one operator-side
 template builder.
 
+XO's home and mount ancestors are root-owned and sticky, with group write
+access for the XO account. A focused descriptor-based guard claims directory
+names before root mounts, so XO cannot rename a validated ancestor. Final
+mountpoints are root-owned and group-writable without a sticky bit, as required
+by unprivileged FUSE. VHD parsing and mounting run as XO; NFS/CIFS use the
+validated root helper. Explicit tmpfiles rules own this layout, avoiding
+systemd state-directory ownership changes on service restart.
+
 The native XCP-ng template builder runs on the operator workstation.
 `packages.x86_64-linux.installer-iso` evaluates a small live installer, while
 `nix run --accept-flake-config .#deploy-template` realizes Packer and its

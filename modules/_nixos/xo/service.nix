@@ -68,7 +68,9 @@ in {
     users.users.${cfg.user} = {
       isSystemUser = true;
       description = "Xen Orchestra service account";
-      createHome = true;
+      # Explicit tmpfiles rules own the home; user activation otherwise chowns
+      # it back to XO on every switch, defeating protected mount ancestors.
+      createHome = false;
       group = cfg.group;
       home = cfg.home;
       shell = "${pkgs.shadow}/bin/nologin";
@@ -185,7 +187,8 @@ in {
         User = cfg.user;
         Group = cfg.group;
         WorkingDirectory = "${cfg.package}/libexec/xen-orchestra";
-        StateDirectory = "xo";
+        # tmpfiles owns the protected home/mount ancestors. StateDirectory=xo
+        # would recursively give those root-owned names back to the service.
         CacheDirectory = "xo";
         LogsDirectory = "xo";
         RuntimeDirectory = "xo xo-server";

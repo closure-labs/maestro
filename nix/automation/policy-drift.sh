@@ -31,8 +31,24 @@ rule_id=$(jq -er --slurpfile expected "$MAESTRO_MAIN_RULESET" '
   select(length == 1) | .[0].id
 ' <<<"$rulesets")
 ruleset=$(gh api "repos/$GITHUB_REPOSITORY/rulesets/$rule_id")
+# REST hides actor details from read-only integrations. Require an explicit
+# empty REST list or the GraphQL connection's authoritative count for this
+# exact ruleset; never turn a missing/redacted field into an empty list.
+if jq -e 'has("bypass_actors")' <<<"$ruleset" >/dev/null; then
+  jq -e '.bypass_actors == []' <<<"$ruleset" >/dev/null
+else
+  rule_node=$(jq -er .node_id <<<"$ruleset")
+  # GraphQL variables stay literal in the query.
+  # shellcheck disable=SC2016
+  bypass=$(gh api graphql -f id="$rule_node" -f 'query=query($id:ID!){node(id:$id){... on RepositoryRuleset{databaseId bypassActors(first:1){totalCount}}}}')
+  jq -e --argjson rule_id "$rule_id" '
+    (.errors // [] | length) == 0 and
+    .data.node.databaseId == $rule_id and
+    .data.node.bypassActors.totalCount == 0
+  ' <<<"$bypass" >/dev/null
+fi
 jq -e --slurpfile expected "$MAESTRO_MAIN_RULESET" '
-  .enforcement == "active" and .target == "branch" and .bypass_actors == [] and
+  .enforcement == "active" and .target == "branch" and
   (.conditions.ref_name.include | index("~DEFAULT_BRANCH")) != null and
   (.conditions.ref_name.exclude | length) == 0 and
   (.rules | contains($expected[0].rules))

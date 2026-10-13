@@ -58,6 +58,7 @@
         context = pkgs.writeText "maestro-security-context.json" (builtins.toJSON {
           schemaVersion = 2;
           platform = pkgs.stdenv.hostPlatform.system;
+          system = appliance.system.build.toplevel.outPath;
           lockDigest = builtins.hashFile "sha256" lockFile;
           inherit packageSourceRoots;
           inventoryDigest = builtins.hashFile "sha256" ./security-inventory.py;
