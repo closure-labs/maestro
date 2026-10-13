@@ -4,6 +4,7 @@
   pkgs,
   appliance,
   lockFile,
+  packageSourceRoots,
 }: let
   mkCommand = {
     name,
@@ -58,6 +59,7 @@
           schemaVersion = 2;
           platform = pkgs.stdenv.hostPlatform.system;
           lockDigest = builtins.hashFile "sha256" lockFile;
+          inherit packageSourceRoots;
           inventoryDigest = builtins.hashFile "sha256" ./security-inventory.py;
           normalizerDigest = builtins.hashFile "sha256" ./security-normalize.py;
           runtime = {

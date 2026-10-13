@@ -14,7 +14,6 @@
     then pkgs.valkey-compat
     else pkgs.valkey;
   storageEnabled = cfg.storage.enableNFS || cfg.storage.enableCIFS || cfg.storage.enableVHD;
-  imageGuestfs = import ../../../nix/pkgs/guestfs.nix {inherit pkgs;};
   expectedListeners =
     [{port = 80;}]
     ++ optionals cfg.tls.enable [
@@ -104,7 +103,6 @@ in {
         pkgs.openssl
         pkgs.fuse
         pkgs.lvm2
-        imageGuestfs
         pkgs.ntfs3g
         pkgs.git
         pkgs.valkey
@@ -178,7 +176,6 @@ in {
           NODE_ENV = "production";
           LD_LIBRARY_PATH = lib.makeLibraryPath [
             pkgs.fuse
-            imageGuestfs
             pkgs.stdenv.cc.cc.lib
           ];
         };

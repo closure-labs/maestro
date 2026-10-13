@@ -25,8 +25,14 @@ added to `nixosConfigurations.maestro`.
 
 The helper saves non-secret pool settings to the ignored
 `packer/local.pkrvars.json`. It never writes the XCP-ng password. Set
-`PKR_VAR_remote_password` for non-interactive use; otherwise the helper prompts
-without echo.
+`XCP_HOSTPASSWORD` through the SecretOps runtime profile, or set
+`XCP_PASSWORD_PASS_ENTRY` to a password-store entry that the deployer resolves
+after configuration. `PKR_VAR_remote_password` remains supported; otherwise
+the helper prompts without echo. These values are declared in
+`secretspec.toml`. The builder removes password variables before preparing
+the installer or running Packer initialization and injects the password only
+into the Packer build process. Never put passwords in variable files or Nix
+configuration.
 
 The lower-level builder is also a first-class app. It consumes an existing
 Packer variable file without running the interactive configuration step:

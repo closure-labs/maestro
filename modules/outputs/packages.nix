@@ -21,6 +21,7 @@ in {
         inherit pkgs planRunner packerXenserver;
         appliance = inputs.self.nixosConfigurations.maestro.config;
         lockFile = ../../flake.lock;
+        packageSourceRoots = [inputs.nixpkgs.outPath inputs.xen-orchestra-ce.inputs.nixpkgs.outPath];
       };
       automationPackages =
         lib.mapAttrs' (

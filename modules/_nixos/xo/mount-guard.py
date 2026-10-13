@@ -45,7 +45,11 @@ def claim(root, target, group):
                         require(index == len(target_parts) - 1, "mount target crosses a remote filesystem")
                     else:
                         os.fchown(child, 0, group)
-                        os.fchmod(child, 0o1770)
+                        # Sticky parents protect this root-owned entry. The
+                        # final directory must be non-sticky: fusermount3
+                        # rejects a sticky mountpoint owned by another UID.
+                        mode = 0o770 if index == len(target_parts) - 1 else 0o1770
+                        os.fchmod(child, mode)
                 else:
                     protected(child)
                 current = os.stat(part, dir_fd=fd, follow_symlinks=False)

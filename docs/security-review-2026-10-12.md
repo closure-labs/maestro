@@ -134,12 +134,21 @@ the booted VM and disposable XCP-ng acceptance gates.
 The follow-up branch implements versioned Nix/npm inventories, exact component
 fingerprints, expiring source-bound decisions, scanner coverage probes, a
 patched-source Determinate integration, terminal Vim selection, a headless
-image-tooling dependency, and root-owned sticky mount ancestors. VHD tools run
+image-tooling closure removal, and root-owned sticky mount ancestors. VHD tools run
 as XO. New VM tests exercise actual NFS/CIFS/VHD operations, listener and SSH
 policy, and concurrent mount-name replacement. Evidence fingerprints include
 the inventory and normalization code, so older evidence cannot satisfy a
 changed contract. The original scanner ledger remains historical evidence;
 new decision records require a fresh scan of the new closure.
+
+The pinned XO source `5999d53e0b6172820567a1caee67da798e5a673f`
+contains no libguestfs/guestfish references in its installed JavaScript and
+package manifests. The inspected `_fileRestore.mjs`, `@vates/fuse-vhd`, and
+server restore mixins use FUSE/VHD and Linux loop/mount tooling. Maestro also
+has no libguestfs caller. Consequently the implementation removes the unused
+libguestfs package and library path rather than rebuilding its QEMU chain.
+Guest-file restore still requires its own acceptance evidence, including its
+privilege requirements; the VHD helper test alone does not qualify it.
 
 [XO dependency and inventory PR #81](https://github.com/closure-labs/xo-nixpkg/pull/81)
 refreshes the independent runtime tree and its supply documents. Maestro must

@@ -3,6 +3,7 @@
 """Enrich the runtime SBOM using exact derivations, never guessed versions."""
 import hashlib
 import json
+import os
 from pathlib import Path
 import shlex
 import re
@@ -29,10 +30,28 @@ def patches(derivation):
     return shlex.split(value) if isinstance(value, str) else value
 
 
-def realize_patch_inputs(derivations):
+def realize_patch_inputs(derivations, source_roots):
     # Substituting a runtime closure does not fetch its build-time patches.
     # Resolve only missing patch outputs, never entire package build inputs.
     missing = {str(p) for drv in derivations.values() for p in patches(drv) if not Path(p).is_file()}
+    if not missing:
+        return
+    # Literal Nixpkgs patches are inputSrcs, not derivation outputs. Recreate
+    # their exact store paths from the locked source and verify Nix's identity.
+    names = {Path(p).name[33:] for p in missing}
+    candidates = {name: [] for name in names}
+    for root in source_roots:
+        for directory, _, files in os.walk(root):
+            for name in names.intersection(files):
+                candidates[name].append(Path(directory) / name)
+    for patch in sorted(missing):
+        name = Path(patch).name[33:]
+        for candidate in sorted(candidates[name]):
+            if candidate.is_file():
+                added = subprocess.check_output(["nix", "store", "add-file", "--name", name, str(candidate)], text=True).strip()
+                if added == patch:
+                    missing.remove(patch)
+                    break
     if not missing:
         return
     inputs = sorted({p for drv in derivations.values() for p in drv.get("inputDrvs", {})})
@@ -128,8 +147,9 @@ def main():
     derivations = {}
     for start in range(0, len(drvs), 64):
         derivations.update(json.loads(subprocess.check_output(["nix", "derivation", "show", *drvs[start:start + 64]])))
-    realize_patch_inputs(derivations)
-    result = enrich(system, json.loads(supply_path.read_text()), json.loads(context_path.read_text()), derivations)
+    context = json.loads(context_path.read_text())
+    realize_patch_inputs(derivations, context["packageSourceRoots"])
+    result = enrich(system, json.loads(supply_path.read_text()), context, derivations)
     system_path.write_text(json.dumps(result, sort_keys=True, indent=2) + "\n")
 
 
