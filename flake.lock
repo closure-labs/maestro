@@ -552,11 +552,11 @@
     },
     "nixpkgs_6": {
       "locked": {
-        "lastModified": 1787900134,
-        "narHash": "sha256-VYXO0XZlgj06dxJZRhrD3WoSsvq/c7+/Akyoa22pefw=",
+        "lastModified": 1791734076,
+        "narHash": "sha256-i5qk1kLiit98rRbh1AXmWBNT9QXC/y4l5Wk/u5EdpDQ=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c",
+        "rev": "7fd4004d0511991fff3a0524856a9be09e28c5f0",
         "type": "github"
       },
       "original": {
@@ -628,16 +628,16 @@
         "xo-stable": "xo-stable"
       },
       "locked": {
-        "lastModified": 1791834388,
-        "narHash": "sha256-nLemDnVEGUm2xYclXvnt6G1pPMsxAt0ZDaE2M/Jw6Ng=",
-        "ref": "refs/heads/main",
-        "rev": "6666bfc23ff685b56e3e1e57aa53d565c2b3f872",
-        "revCount": 232,
+        "lastModified": 1791863110,
+        "narHash": "sha256-/s4khSQcHSTXau+NrEKKh79zyub6KQ+2HRZ+5Yr/gno=",
+        "ref": "refs/heads/security/runtime-inventory",
+        "rev": "746d573a8210efd828a93ae91227f84949d5e3e8",
+        "revCount": 233,
         "type": "git",
         "url": "https://github.com/closure-labs/xo-nixpkg.git"
       },
       "original": {
-        "ref": "refs/heads/main",
+        "ref": "refs/heads/security/runtime-inventory",
         "type": "git",
         "url": "https://github.com/closure-labs/xo-nixpkg.git"
       }

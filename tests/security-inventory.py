@@ -43,12 +43,14 @@ with tempfile.TemporaryDirectory() as temporary:
                            "matchDetails": [{"type": "cpe-match"}]} for ref in ["patched.drv", "unpatched.drv"]]}
     findings = normalizer.normalize(report, result, {"version": "fixture"})
     assert len(findings) == 2 and findings[0]["identity"] != findings[1]["identity"]
-    accepted = {k: findings[0][k] for k in verdict.KEYS}
+    patched = next(f for f in findings if f["binding"]["derivation"] == "patched.drv")
+    unpatched = next(f for f in findings if f["binding"]["derivation"] == "unpatched.drv")
+    accepted = {k: patched[k] for k in verdict.KEYS}
     accepted.update(kind="fixed", owner="operator", reason="verified patch", evidence=["https://example.invalid/commit"], created="2026-10-12", expires="2026-10-30")
     policy = {"schema_version": 2, "mode": "enforce", "dispositions": [accepted], "exceptions": []}
     today = date(2026, 10, 12)
-    assert verdict.evaluate(findings, policy, today) == [findings[1]]
-    assert not verdict.evaluate([findings[0]], policy, today)
+    assert verdict.evaluate(findings, policy, today) == [unpatched]
+    assert not verdict.evaluate([patched], policy, today)
     for modification in ["patch", "context", "scanner"]:
         changed_drvs, context, scanner = deepcopy(drvs), {"platform": "x86_64-linux"}, {"version": "fixture"}
         if modification == "patch":
@@ -60,7 +62,7 @@ with tempfile.TemporaryDirectory() as temporary:
         changed = normalizer.normalize(report, inventory.enrich(deepcopy(system), supply, context, changed_drvs), scanner)
         assert len(verdict.evaluate(changed, policy, today)) == 2
     for severity in ["critical", "unknown"]:
-        assert verdict.evaluate([{**findings[0], "severity": severity}], policy, today)
+        assert verdict.evaluate([{**patched, "severity": severity}], policy, today)
     reject(lambda: verdict.evaluate(findings, policy, date(2026, 11, 1)))
     reject(lambda: verdict.evaluate(findings, {**policy, "baseline": []}, today))
     invalid = deepcopy(report)

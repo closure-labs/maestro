@@ -90,6 +90,7 @@ in
       maestro.succeed("runuser -u xo -- sh -c 'echo restored-data > /var/lib/xo/mounts/nfs/roundtrip'")
       storage.succeed("grep -Fx restored-data /srv/fixture/roundtrip")
       maestro.succeed(invoke + " umount /var/lib/xo/mounts/nfs")
+      maestro.succeed("test $(stat -c %a /var/lib/xo/mounts/nfs) = 770; test $(stat -c %a /var/lib/xo/mounts) = 1770")
       maestro.succeed("${pkgs.python3}/bin/python /etc/maestro-mount-race.py " + sudo)
       maestro.succeed("runuser -u xo -- env USER=guest PASSWD=fixture " + sudo + " mount -t cifs -o guest //storage/fixture /var/lib/xo/mounts/cifs")
       maestro.succeed("runuser -u xo -- cat /var/lib/xo/mounts/cifs/roundtrip | grep -Fx restored-data")

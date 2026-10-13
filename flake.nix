@@ -40,6 +40,7 @@
     };
     import-tree.url = "github:vic/import-tree";
     nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0";
-    xen-orchestra-ce.url = "git+https://github.com/closure-labs/xo-nixpkg.git?ref=refs/heads/main";
+    # Staged upstream remediation; return to main after PR #81's cache gate.
+    xen-orchestra-ce.url = "git+https://github.com/closure-labs/xo-nixpkg.git?ref=refs/heads/security/runtime-inventory";
   };
 }

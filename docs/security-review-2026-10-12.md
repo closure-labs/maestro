@@ -151,9 +151,11 @@ Guest-file restore still requires its own acceptance evidence, including its
 privilege requirements; the VHD helper test alone does not qualify it.
 
 [XO dependency and inventory PR #81](https://github.com/closure-labs/xo-nixpkg/pull/81)
-refreshes the independent runtime tree and its supply documents. Maestro must
-consume that revision only after its package checks and existing cache
-publication gate pass. Full Maestro runner validation, updated findings,
+refreshes the independent runtime tree and its supply documents. The draft
+consumer temporarily pins that branch for runner validation. Return its URL
+to `main` and refresh the lock only after package checks and the existing
+cache publication gate pass; qualification still requires the published
+upstream output. Full Maestro runner validation, updated findings,
 source-bound decision records, and enforcement activation remain acceptance
 work; fixture success alone does not establish those gates.
 
@@ -166,3 +168,10 @@ runtime through the SecretOps `XCP_HOSTPASSWORD` value or
 from Nix and Packer initialization subprocess environments and passed only to
 the Packer build. Management CIDRs are still unspecified, so network
 restrictions await that operator input and a tested recovery path.
+
+The first protected-main signing run and its retry failed in the native devenv
+evaluator with an unmaterialized coreutils patch store path, before the signing
+checks ran. The flake's devenv app now realizes the same pinned coreutils via
+its outer Nix wrapper to provide those source inputs on a cold runner. This
+workaround still needs runner confirmation; no signature or source checks
+were relaxed.
