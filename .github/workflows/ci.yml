@@ -199,7 +199,7 @@ jobs:
     name: Scan qualified dependency inventories
     needs: [route, qualification]
     if: >-
-      always() && needs.route.result == 'success' &&
+      !cancelled() && needs.route.result == 'success' &&
       fromJSON(needs.route.outputs.plan).qualification.required &&
       (needs.qualification.result == 'success' || needs.qualification.result == 'skipped')
     runs-on: ubuntu-24.04
@@ -240,7 +240,7 @@ jobs:
     name: Sign protected-main qualification
     needs: [route, qualification, security]
     if: >-
-      always() && needs.route.result == 'success' && needs.security.result == 'success' &&
+      !cancelled() && needs.route.result == 'success' && needs.security.result == 'success' &&
       github.ref == 'refs/heads/main' &&
       contains(fromJSON('["push","schedule","workflow_dispatch"]'), github.event_name) &&
       fromJSON(needs.route.outputs.plan).qualification.required &&
@@ -311,7 +311,7 @@ jobs:
       - qualification
       - signing
     if: >-
-      always() &&
+      !cancelled() &&
       needs.route.result == 'success' &&
       github.event_name == 'push' && github.ref == 'refs/heads/main' &&
       needs.signing.result == 'success' &&
@@ -352,7 +352,7 @@ jobs:
 
   verdict:
     name: Required CI verdict
-    if: always()
+    if: ${{ !cancelled() }}
     needs:
       - route
       - qualification

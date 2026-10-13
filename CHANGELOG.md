@@ -26,6 +26,9 @@ correspond to published GitHub tags.
   mounting as XO. Add booted storage, TLS, SSH and pathname-boundary tests.
 - Declare SecretOps XCP-ng runtime credential variables and optional pass-entry
   resolution. Remove host passwords from installer/Nix preparation subprocesses.
+- Request only the installed audit App's Administration read permission for
+  policy checks. Allow canceled CI runs to release their runner while keeping
+  failure verdicts for active runs.
 
 - Require qualification-state v5 and successful protected-main producer runs
   across CI reuse, releases, and template deployment. Verify the complete signed

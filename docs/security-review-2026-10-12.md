@@ -181,3 +181,8 @@ installed `cl-sec-audit` App grants Administration and Metadata read access;
 the workflow additionally requested unavailable Contents read access. That
 unneeded request is removed. The policy read itself still needs confirmation
 after this correction reaches protected main.
+
+An obsolete PR run's unconditional `always()` verdict resisted cancellation
+and held the workflow concurrency slot. Job conditions now use `!cancelled()`
+so failures still run the required verdict and superseded runs can stop. The
+findings upload step retains its bounded cleanup behavior.
