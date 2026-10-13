@@ -174,6 +174,10 @@ management checks, then exposed an SSH test using the package's compiled
 configuration path. Tests and Packer verification now explicitly select the
 same `/etc/ssh/sshd_config` used by the service. Storage and end-to-end restore
 acceptance remain pending; local protocol fixtures do not establish them.
+The subsequent run passed 18 of 19 targets but exposed OpenSSH 10.5's
+canonical keyword casing in `sshd -T` output. The runtime test now normalizes
+keyword casing while preserving exact policy values and account names, and
+includes the full configuration dump on an assertion failure.
 Fresh closure findings, exact disposition records and enforcement activation
 also remain acceptance work.
 

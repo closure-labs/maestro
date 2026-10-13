@@ -98,9 +98,15 @@ in
       maestro.fail("ss -H -lnt | grep -E ':(6379|23|5900|5353) '")
       # Match ExecStart's explicit configuration path, not OpenSSH's compiled
       # package defaults under /nix/store.
-      maestro.succeed("sshd -T -f /etc/ssh/sshd_config | grep -Fx 'permitrootlogin no'")
-      maestro.succeed("sshd -T -f /etc/ssh/sshd_config | grep -Fx 'passwordauthentication no'")
-      maestro.succeed("sshd -T -f /etc/ssh/sshd_config | grep -Fx 'allowusers maestro'")
+      # OpenSSH 10.5 prints canonical keyword casing (PermitRootLogin).
+      # Normalize keywords only; account names and policy values stay exact.
+      ssh_dump = maestro.succeed("sshd -T -f /etc/ssh/sshd_config")
+      ssh_settings = {}
+      for line in ssh_dump.splitlines():
+          key, _, value = line.partition(" ")
+          ssh_settings.setdefault(key.lower(), []).append(value.strip())
+      for key, expected in {"permitrootlogin": ["no"], "passwordauthentication": ["no"], "allowusers": ["maestro"]}.items():
+          assert ssh_settings.get(key) == expected, ssh_dump
       maestro.succeed("test $(stat -c %u /var/lib/xo) = 0; test $(stat -c %u /var/lib/xo/mounts) = 0")
       maestro.succeed("systemctl restart xo-server.service")
       maestro.wait_for_unit("xo-server.service")
