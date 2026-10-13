@@ -39,22 +39,31 @@ cargo audit --file "$repo_root/pkgs/maestro-menu/Cargo.lock" --db "$work/rustsec
 [[ $audit_status == 0 || $audit_status == 1 ]]
 jq -e '.vulnerabilities.list | type == "array"' "$output/cargo-audit.json" >/dev/null
 # RustSec CVSS vectors become severity through the declared Python CVSS library.
-python3 - "$output/cargo-audit.json" "$work/cargo.findings.json" "$repo_root/pkgs/maestro-menu/Cargo.lock" <<'PYTHON'
+python3 - "$output/cargo-audit.json" "$work/cargo.findings.json" "$repo_root/pkgs/maestro-menu/Cargo.lock" \
+  "$output/cargo-audit-version.txt" "$sbom" "${BASH_SOURCE[0]}" <<'PYTHON'
 import hashlib
 import json
+from pathlib import Path
 import sys
 from cvss import CVSS3, CVSS4
 with open(sys.argv[1], encoding="utf-8") as handle:
     audit = json.load(handle)
 findings = []
 lock_digest = hashlib.sha256(open(sys.argv[3], "rb").read()).hexdigest()
+scanner_version = Path(sys.argv[4]).read_text().strip()
+context = {p["name"]: p["value"] for p in json.loads(Path(sys.argv[5]).read_text())["properties"]}["maestro:runtimeContextDigest"]
+normalizer_digest = hashlib.sha256(Path(sys.argv[6]).read_bytes()).hexdigest()
 for entry in audit["vulnerabilities"]["list"]:
     vector = entry["advisory"].get("cvss")
     severity = "unknown"
     if vector:
         calculator = CVSS4(vector) if vector.startswith("CVSS:4.") else CVSS3(vector)
         severity = calculator.severities()[0].lower()
+        if severity == "none":
+            severity = "negligible"
     binding = {"lockfile": lock_digest, "scanner": "cargo-audit", "normalizer": "2",
+               "scanner_version": scanner_version, "runtime_context": context,
+               "normalizer_digest": normalizer_digest,
                "component": entry["package"]["name"], "version": entry["package"]["version"]}
     identity = hashlib.sha256(json.dumps(binding, sort_keys=True).encode()).hexdigest()
     findings.append({"advisory": entry["advisory"]["id"], "component": entry["package"]["name"],

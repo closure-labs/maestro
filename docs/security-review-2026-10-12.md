@@ -187,7 +187,9 @@ policy settings. REST then omitted `bypass_actors`, as documented by GitHub
 for callers without write access. The maintainer's read confirmed zero actors
 and matching rules. The reader now attempts the exact ruleset's GraphQL
 connection count when REST redacts actor details, and rejects missing counts
-or API errors. The App's access to that count still needs a runner probe.
+or API errors. The corrected [branch probe passed](https://github.com/closure-labs/maestro/actions/runs/38346617891),
+including token minting, the GraphQL count, all declared policy settings, and
+token revocation. Protected-main confirmation still follows rollout.
 
 An obsolete PR run's unconditional `always()` verdict resisted cancellation
 and held the workflow concurrency slot. Job conditions now use `!cancelled()`

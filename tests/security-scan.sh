@@ -31,7 +31,7 @@ EOF
 cat >"$temporary/bin/cargo" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-if [[ ${2:-} == --version ]]; then printf 'cargo-audit fixture\n'; exit 0; fi
+if [[ ${2:-} == --version ]]; then printf '%s\n' "${FAKE_AUDIT_VERSION:-cargo-audit fixture}"; exit 0; fi
 if [[ ${FAKE_AUDIT_FAILURE:-false} == true ]]; then printf '{"error":"database unavailable"}\n'; exit 1; fi
 printf '{"vulnerabilities":{"list":[{"advisory":{"id":"RUSTSEC-fixture","cvss":"CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"},"package":{"name":"crate","version":"1"}}]}}\n'
 exit 1
@@ -49,5 +49,16 @@ jq '.mode="enforce"' "$temporary/repo/nix/automation/security-policy.json" >"$te
 mv "$temporary/enforce.json" "$temporary/repo/nix/automation/security-policy.json"
 if "$MAESTRO_CI_SECURITY_SCAN" >/dev/null 2>&1; then
   echo 'Enforced scan accepted new high/critical findings.' >&2; exit 1
+fi
+# Editing decision records must not alter scanner identities. Tool changes
+# must reopen even an otherwise identical, reviewed RustSec finding.
+cp "$temporary/report/findings.json" "$temporary/original-findings.json"
+jq --arg created "$(date -u +%F)" --arg expires "$(date -u -d tomorrow +%F)" '
+  {schema_version:2,mode:"enforce",exceptions:[],dispositions:map({advisory,component,version,severity,identity,kind:"fixed",owner:"fixture",reason:"reviewed fixture",evidence:["https://example.invalid/patch"],created:$created,expires:$expires})}
+' "$temporary/original-findings.json" >"$temporary/repo/nix/automation/security-policy.json"
+"$MAESTRO_CI_SECURITY_SCAN"
+cmp "$temporary/original-findings.json" "$temporary/report/findings.json"
+if FAKE_AUDIT_VERSION='cargo-audit changed' "$MAESTRO_CI_SECURITY_SCAN" >/dev/null 2>&1; then
+  echo 'Scanner drift retained an old RustSec disposition.' >&2; exit 1
 fi
 printf 'Security scanner fixtures passed.\n'
