@@ -168,10 +168,14 @@ without becoming a merge requirement.
 Weekly security maintenance rescans the latest verified inventory and detects
 GitHub policy drift. Scanners and vulnerability databases run at execution time,
 not in pure Nix derivations. See [Security policy](../SECURITY.md) for baseline
-review, enforcement, and expiring exceptions. Configure the optional repository
-secret `GITHUB_POLICY_READ_TOKEN` as a repository-scoped fine-grained token with
-Administration and Contents **read** access; it is used only by the separate
-policy job. No policy drift task changes GitHub settings.
+review, enforcement, and expiring exceptions. The policy job uses organization
+variable `SECAUDIT_CLIENTID` and secret `SECAUDIT_PEM` to mint a short-lived
+GitHub App token scoped to this repository, with Administration and Contents
+**read** access. The pinned token action revokes it after the job. These inputs
+are declared in Secretspec and stay outside Nix evaluation and derivations.
+Dispatch security maintenance with `policy_only=true` to test the credentials
+and settings without downloading inventories. No policy drift task changes
+GitHub settings.
 
 The solo operator owns manual release dispatch and reviews workflow/action
 updates. Queue recovery accepts only version, synchronized Nix lockfile, and

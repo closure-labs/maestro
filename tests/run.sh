@@ -171,6 +171,18 @@ yq -e '
   (.jobs.signing.if | contains("push"))
 ' "$TEST_ROOT/.github/workflows/ci.yml" >/dev/null \
   || fail "qualification mixes untrusted builds with privileged signing"
+# Security settings access uses only a short-lived token for this repository.
+# Keep the GitHub repository expression literal.
+# shellcheck disable=SC2016
+yq -e '
+  .jobs.policy.steps[] | select(.id == "policy-token") |
+  .with."permission-administration" == "read" and
+  .with."permission-contents" == "read" and
+  .with.repositories == "${{ github.event.repository.name }}" and
+  .with."skip-token-revoke" == null and
+  ([.with | to_entries[] | select(.key | startswith("permission-")) | .value] | all_c(. == "read"))
+' "$TEST_ROOT/.github/workflows/security.yml" >/dev/null \
+  || fail "security policy token is not repository-scoped and read-only"
 grep -Fq 'determinate-nixd fix hashes --auto-apply' \
   "$TEST_ROOT/nix/automation/fix-hashes.sh" \
   || fail "packaged hash fixer does not invoke Determinate Nix"

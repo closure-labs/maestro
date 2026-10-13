@@ -28,6 +28,8 @@ correspond to published GitHub tags.
 - Add dependency scans, release rescanning, weekly security maintenance, and a
   read-only GitHub policy drift task. Vulnerability gating starts in report mode;
   reviewed baselines and expiring exceptions control later enforcement.
+  Use the organization security audit App to mint temporary read-only policy
+  tokens, with a policy-only maintenance dispatch for credential checks.
 
 ### Fixed
 

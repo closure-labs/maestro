@@ -5,6 +5,11 @@ on:
   schedule:
     - cron: "41 8 * * 1"
   workflow_dispatch:
+    inputs:
+      policy_only:
+        description: Check GitHub policy without rescanning inventories
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -16,6 +21,7 @@ concurrency:
 jobs:
   dependencies:
     name: Rescan latest trusted inventories
+    if: github.event_name != 'workflow_dispatch' || inputs.policy_only != true
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
@@ -53,7 +59,17 @@ jobs:
           persist-credentials: false
       - name: Set up Nix
         uses: ./.github/actions/setup-nix
+      - name: Create read-only policy token
+        id: policy-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
+        with:
+          client-id: ${{ vars.SECAUDIT_CLIENTID }}
+          private-key: ${{ secrets.SECAUDIT_PEM }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-administration: read
+          permission-contents: read
       - name: Read repository security settings
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_POLICY_READ_TOKEN }}
+          GH_TOKEN: ${{ steps.policy-token.outputs.token }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:security:policy-drift
