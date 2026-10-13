@@ -178,8 +178,28 @@ The subsequent run passed 18 of 19 targets but exposed OpenSSH 10.5's
 canonical keyword casing in `sshd -T` output. The runtime test now normalizes
 keyword casing while preserving exact policy values and account names, and
 includes the full configuration dump on an assertion failure.
+The next run passed SSH and restart/ownership checks, then exposed an older
+OpenSSL LTS dependency: the published Node 22.23.3 closure links OpenSSL 3.5.8,
+independently of Nixpkgs' OpenSSL 3.6.5 package. The
+[September advisory](https://openssl-library.org/news/secadv/20260929.txt)
+requires 3.5.9 for that series. An upstream follow-up rebuilds Node and all XO
+channels with the checksum-verified 3.5.9 source, preserving platform patches.
+Consumer runtime tests now inspect the running service executable, distinguish
+the fixed release numbers by series, and check loaded crypto-library paths.
+The consumer input must advance only after upstream validation and cache
+publication. The installed-XO archive test also waits for asynchronous child
+reaping and bounded FUSE disposal instead of assuming one event-loop turn.
 Fresh closure findings, exact disposition records and enforcement activation
 also remain acceptance work.
+
+On October 14, [upstream PR #84](https://github.com/closure-labs/xo-nixpkg/pull/84)
+merged as `e0cc9466715e51910a9f1c696f8a054d0d4de75e`. All 18 upstream
+validation targets and protected-main cache publication passed. Maestro now
+pins that published revision. The XO rolling source advances with the upstream
+lock; the other refreshed inputs remain pinned. The native development lock
+already shares the same Nixpkgs/devenv identities and needs no change for this
+XO-only update. Consumer runtime validation, fresh closure evidence, and
+disposable lab acceptance remain required before claiming remediation complete.
 
 The disposable lab target is `192.168.98.233`, with disk SR `NFS Trainer` and
 ISO SR `ISO Training`. The October 13 read-only API preflight reported 157.7 GiB

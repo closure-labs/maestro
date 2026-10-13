@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Consume the published XO runtime built against OpenSSL 3.5.9 LTS. Verify the
+  active XO process's crypto version and loaded libraries, and wait for bounded
+  isolated-restore cleanup in the installed-XO test.
+
 - Restrict appliance SSH/XO and installer SSH ingress to the operator-approved
   `192.168.0.0/16` management range through typed operator policy. Verify allowed
   and rejected client ranges in the booted runtime test.

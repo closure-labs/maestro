@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
 import { basename, dirname } from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 
 const [root, disk] = process.argv.slice(2)
 const require = createRequire(root + '/package.json')
@@ -31,8 +32,11 @@ for (const format of ['tgz', 'zip']) {
   let size = 0
   for await (const chunk of stream) size += chunk.length
   assert(size > 20)
-  await new Promise(resolve => setImmediate(resolve))
-  assert.equal(active, 0)
+  // Stream EOF precedes child reaping and asynchronous FUSE disposal. Require
+  // bounded cleanup without assuming both complete in a single event-loop turn.
+  await stream.restoreFinished
+  for (let attempt = 0; active !== 0 && attempt < 400; attempt++) await delay(25)
+  assert.equal(active, 0, 'restore disk was not disposed within 10 seconds')
 }
 console.log('installed XO listing and streamed archive APIs use the isolated helper')
 await handler.forget()

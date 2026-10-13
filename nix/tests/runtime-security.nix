@@ -5,7 +5,6 @@
 }: let
   inherit (pkgs) lib;
   xoPackage = appliance.maestro.xo.package;
-  node = inputs.xen-orchestra-ce.inputs.nixpkgs.legacyPackages.x86_64-linux.nodejs_22;
   restore = appliance.maestro.xo.internal.fileRestorePackage;
 in
   pkgs.testers.runNixOSTest {
@@ -71,6 +70,9 @@ in
       };
     };
     testScript = ''
+      import json
+      import re
+
       start_all()
       storage.wait_for_unit("nfs-server.service")
       storage.wait_for_unit("samba-smbd.service")
@@ -112,7 +114,20 @@ in
       maestro.wait_for_unit("xo-server.service")
       maestro.wait_for_open_port(443)
       maestro.succeed("test $(stat -c %u /var/lib/xo) = 0; test $(stat -c %u /var/lib/xo/mounts) = 0")
-      maestro.succeed("${node}/bin/node -p process.versions.openssl | grep '^3\\.6\\.5'")
+      xo_pid = maestro.succeed("systemctl show xo-server -p MainPID --value").strip()
+      node = maestro.succeed("readlink -f /proc/" + xo_pid + "/exe").strip()
+      assert node.startswith("/nix/store/") and node.endswith("/bin/node"), node
+      versions = json.loads(maestro.succeed(node + " -p 'JSON.stringify(process.versions)'"))
+      openssl_version = versions["openssl"]
+      match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", openssl_version)
+      assert match is not None, versions
+      series = tuple(map(int, match.groups()[:2]))
+      # September 2026 fixes have distinct release numbers in each series.
+      minimum_patch = {(3, 5): 9, (3, 6): 5}
+      assert series in minimum_patch and int(match[3]) >= minimum_patch[series], versions
+      maps = maestro.succeed("cat /proc/" + xo_pid + "/maps")
+      for library in ("crypto", "ssl"):
+          assert "-openssl-" + openssl_version + "/lib/lib" + library + ".so." in maps, maps
 
       sudo = maestro.succeed("cat /etc/maestro-sudo-path").strip()
       invoke = "runuser -u xo -- " + sudo
@@ -149,7 +164,7 @@ in
       restore_env = "LIBGUESTFS_PATH=${restore.appliance} LIBGUESTFS_BACKEND=direct LIBGUESTFS_BACKEND_SETTINGS=force_tcg LIBGUESTFS_HV=${restore.qemu}/bin/qemu-system-x86_64 PYTHONPATH=${restore.guestfs}/${pkgs.python3.sitePackages} LD_LIBRARY_PATH=${lib.makeLibraryPath [pkgs.fuse pkgs.stdenv.cc.cc.lib]} TMPDIR=/var/lib/xo/tmp"
       maestro.succeed("runuser -u xo -- env " + restore_env + " ${pkgs.python3}/bin/python /etc/maestro-file-restore-guest.py ${lib.getExe restore} /var/lib/xo/data/restore-fixtures", timeout=1800)
       maestro.succeed("runuser -u xo -- ${pkgs.qemu-utils}/bin/qemu-img convert -f raw -O vpc -o force_size=on /var/lib/xo/data/restore-fixtures/partition.img /var/lib/xo/data/restore-fixtures/partition.vhd")
-      maestro.succeed("runuser -u xo -- env " + restore_env + " XO_FILE_RESTORE_HELPER=${lib.getExe restore} ${node}/bin/node /etc/maestro-file-restore-xo.mjs ${xoPackage}/libexec/xen-orchestra /var/lib/xo/data/restore-fixtures/partition.vhd", timeout=600)
+      maestro.succeed("runuser -u xo -- env " + restore_env + " XO_FILE_RESTORE_HELPER=${lib.getExe restore} " + node + " /etc/maestro-file-restore-xo.mjs ${xoPackage}/libexec/xen-orchestra /var/lib/xo/data/restore-fixtures/partition.vhd", timeout=600)
 
       # Claimed directory names stay protected even when a helper canonicalizes
       # them after validation. XO retains write access to storage contents.
