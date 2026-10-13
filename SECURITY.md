@@ -26,7 +26,8 @@ advisory, component, version, severity, and exact `identity` from the fresh
 finding, plus an owner, reason, HTTPS evidence, and `created`/`expires` dates.
 Dispositions also declare `kind` as `fixed` or `not_affected`. All records expire
 within 30 days. Derivation, patches, system configuration, installed manifests,
-or scanner changes invalidate the identity and require renewed review.
+scanner, or advisory applicability changes invalidate the identity and require
+renewed review.
 
 Enforcement blocks unresolved high, critical, and unscored findings. Scanner
 coverage probes must detect known vulnerable Nix and npm components; missing

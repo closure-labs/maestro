@@ -204,6 +204,7 @@ in {
         CapabilityBoundingSet =
           ["CAP_NET_BIND_SERVICE"]
           ++ optionals storageEnabled [
+            "CAP_CHOWN"
             "CAP_SETUID"
             "CAP_SETGID"
             "CAP_SETPCAP"

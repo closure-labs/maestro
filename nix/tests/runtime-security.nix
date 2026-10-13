@@ -95,6 +95,12 @@ in
       storage.succeed("grep -Fx restored-data /srv/fixture/roundtrip")
       maestro.succeed(invoke + " umount /var/lib/xo/mounts/nfs")
       maestro.succeed("test $(stat -c %a /var/lib/xo/mounts/nfs) = 770; test $(stat -c %a /var/lib/xo/mounts) = 1770")
+      # Run a fresh target through the service's actual capability ceiling;
+      # an unrestricted root test would miss missing helper capabilities.
+      maestro.succeed("runuser -u xo -- mkdir /var/lib/xo/mounts/service-context")
+      ceiling = maestro.succeed("systemctl show xo-server -p CapabilityBoundingSet --value").strip()
+      maestro.succeed("systemd-run --wait --pipe --collect --uid=xo --gid=xo --property='CapabilityBoundingSet=" + ceiling + "' " + sudo + " mount -t nfs -o vers=4 storage:/srv/fixture /var/lib/xo/mounts/service-context")
+      maestro.succeed(invoke + " umount /var/lib/xo/mounts/service-context")
       maestro.succeed("${pkgs.python3}/bin/python /etc/maestro-mount-race.py " + sudo)
       maestro.succeed("runuser -u xo -- env USER=guest PASSWD=fixture " + sudo + " mount -t cifs -o guest //storage/fixture /var/lib/xo/mounts/cifs")
       maestro.succeed("runuser -u xo -- cat /var/lib/xo/mounts/cifs/roundtrip | grep -Fx restored-data")
@@ -107,6 +113,8 @@ in
       maestro.succeed(invoke + " vhdiinfo /var/lib/xo/data/disk.vhd")
       maestro.succeed(invoke + " vhdimount /var/lib/xo/data/disk.vhd /var/lib/xo/mounts/vhd")
       maestro.succeed("head -c 11 /var/lib/xo/mounts/vhd/vhdi1 | grep -Fx VHD-fixture")
+      maestro.succeed("runuser -u xo -- head -c 11 /var/lib/xo/mounts/vhd/vhdi1 | grep -Fx VHD-fixture")
+      maestro.fail("runuser -u maestro -- head -c 11 /var/lib/xo/mounts/vhd/vhdi1")
       maestro.succeed("test $(ps -o uid= -C vhdimount | xargs) = $(id -u xo)")
       maestro.succeed(invoke + " umount /var/lib/xo/mounts/vhd")
 

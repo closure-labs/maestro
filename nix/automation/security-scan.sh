@@ -64,6 +64,7 @@ for entry in audit["vulnerabilities"]["list"]:
     binding = {"lockfile": lock_digest, "scanner": "cargo-audit", "normalizer": "2",
                "scanner_version": scanner_version, "runtime_context": context,
                "normalizer_digest": normalizer_digest,
+               "advisory_digest": hashlib.sha256(json.dumps(entry["advisory"], sort_keys=True).encode()).hexdigest(),
                "component": entry["package"]["name"], "version": entry["package"]["version"]}
     identity = hashlib.sha256(json.dumps(binding, sort_keys=True).encode()).hexdigest()
     findings.append({"advisory": entry["advisory"]["id"], "component": entry["package"]["name"],

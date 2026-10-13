@@ -41,6 +41,8 @@ def normalize(report, sbom, scanner_version):
             "hashes": component.get("hashes", []), "runtime_context": context,
             "scanner": scanner_version, "normalizer": "2",
             "namespace": vulnerability["namespace"],
+            "advisory_digest": digest(vulnerability),
+            "match_digest": digest(match["matchDetails"]),
             "match_types": sorted({d["type"] for d in match["matchDetails"]}),
         }
         severity = vulnerability["severity"].lower()

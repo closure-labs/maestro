@@ -51,15 +51,19 @@ with tempfile.TemporaryDirectory() as temporary:
     today = date(2026, 10, 12)
     assert verdict.evaluate(findings, policy, today) == [unpatched]
     assert not verdict.evaluate([patched], policy, today)
-    for modification in ["patch", "context", "scanner"]:
+    for modification in ["patch", "context", "scanner", "advisory"]:
         changed_drvs, context, scanner = deepcopy(drvs), {"platform": "x86_64-linux"}, {"version": "fixture"}
+        changed_report = deepcopy(report)
         if modification == "patch":
             changed_drvs["patched.drv"]["env"]["patches"] = ""
         elif modification == "context":
             context["capability"] = "new"
-        else:
+        elif modification == "scanner":
             scanner["version"] = "changed"
-        changed = normalizer.normalize(report, inventory.enrich(deepcopy(system), supply, context, changed_drvs), scanner)
+        else:
+            for match in changed_report["matches"]:
+                match["vulnerability"]["description"] = "Revised advisory applicability"
+        changed = normalizer.normalize(changed_report, inventory.enrich(deepcopy(system), supply, context, changed_drvs), scanner)
         assert len(verdict.evaluate(changed, policy, today)) == 2
     for severity in ["critical", "unknown"]:
         assert verdict.evaluate([{**patched, "severity": severity}], policy, today)

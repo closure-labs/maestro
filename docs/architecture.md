@@ -28,7 +28,8 @@ XO's home and mount ancestors are root-owned and sticky, with group write
 access for the XO account. A focused descriptor-based guard claims directory
 names before root mounts, so XO cannot rename a validated ancestor. Final
 mountpoints are root-owned and group-writable without a sticky bit, as required
-by unprivileged FUSE. VHD parsing and mounting run as XO; NFS/CIFS use the
+by unprivileged FUSE. VHD parsing and mounting run as XO, with FUSE access
+restricted to XO and root for validated unmounts; NFS/CIFS use the
 validated root helper. Explicit tmpfiles rules own this layout, avoiding
 systemd state-directory ownership changes on service restart.
 

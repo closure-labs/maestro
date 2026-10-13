@@ -247,7 +247,7 @@ run_vhdi() {
       -f)
         [[ $command == vhdimount && $# -ge 2 && $2 == raw ]] || fail 'invalid VHD output format'
         args+=("$1" "$2"); shift 2 ;;
-      -v|-X|-e) args+=("$1"); shift ;;
+      -v|-e) args+=("$1"); shift ;;
       -*) fail "VHD flag is not allowed: $1" ;;
       *) positional+=("$1"); args+=("$1"); shift ;;
     esac
@@ -256,6 +256,9 @@ run_vhdi() {
     [ "${#positional[@]}" -eq 2 ] || fail "vhdimount requires exactly one image and target"
     validate_runtime_path "${positional[$((${#positional[@]} - 2))]}"
     validate_mount_target "${positional[$((${#positional[@]} - 1))]}"
+    # Root must inspect the FUSE mountpoint for validated unmounts. Keep image
+    # parsing as XO and allow only that owner and root to access its contents.
+    args=(-X allow_root "${args[@]}")
   else
     [ "${#positional[@]}" -eq 1 ] || fail "vhdiinfo requires exactly one image"
     validate_runtime_path "${positional[$((${#positional[@]} - 1))]}"

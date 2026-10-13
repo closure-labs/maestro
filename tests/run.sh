@@ -540,6 +540,7 @@ mkdir -p "$temporary/bin"
 # shellcheck disable=SC2016
 printf '%s\n' \
   "#!$(command -v bash)" \
+  '[[ ${PKR_VAR_remote_password:-} == fixture-password ]] || exit 2' \
   'printf "%s\n" "$@" >"$FAKE_BUILD_ARGS"' \
   'printf "%s\n%s\n" "$MAESTRO_SYSTEM_ROOT" "$MAESTRO_PACKER_ROOT" >"$FAKE_BUILD_ROOTS"' \
   >"$temporary/bin/build-template"
@@ -556,6 +557,24 @@ grep -Fxq -- "-var-file=$temporary/packer.pkrvars.json" \
   || fail "Packer deployer bypassed the packaged template builder"
 expected_roots="$(printf '%s\n%s' "$TEST_ROOT" "$TEST_ROOT/packer")"
 assert_eq "$(cat "$temporary/build-template.roots")" "$expected_roots"
+
+cat >"$temporary/bin/pass" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ $1 == show && $2 == fixture/host ]]
+printf 'fixture-password\nusername: root\n'
+EOF
+sed -i "1c#!${BASH}" "$temporary/bin/pass"
+chmod +x "$temporary/bin/pass"
+env -u PKR_VAR_remote_password -u XCP_HOSTPASSWORD \
+  PATH="$temporary/bin:$PATH" \
+  FAKE_BUILD_ARGS="$temporary/build-template.args" \
+  FAKE_BUILD_ROOTS="$temporary/build-template.roots" \
+  MAESTRO_BUILD_TEMPLATE_BIN="$temporary/bin/build-template" \
+  XCP_PASSWORD_PASS_ENTRY=fixture/host \
+  bash "$TEST_ROOT/packer/deploy-template.sh" \
+    --operator-key "$temporary/operator.pub" \
+    --config "$temporary/packer.pkrvars.json"
 
 # Exercise the downloaded-media handoff independently of the shared verifier
 # (the verifier's rejection cases live in security-contracts.sh).
