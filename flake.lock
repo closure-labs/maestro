@@ -628,11 +628,11 @@
         "xo-stable": "xo-stable"
       },
       "locked": {
-        "lastModified": 1791868565,
-        "narHash": "sha256-9q6ltuVg3E3LFRlQuDa8h8Ib9PqRgcM39JxXd4Xm8ns=",
+        "lastModified": 1791870318,
+        "narHash": "sha256-tOSQGyVW7x/EIe81rtblkUMb7qDKhFCU0QfPFDtx224=",
         "ref": "refs/heads/security/isolated-file-restore",
-        "rev": "79199064dd1df8421268d541b7e1fd74bf36bbe1",
-        "revCount": 235,
+        "rev": "ac636f99324166866f00898df93a212540336440",
+        "revCount": 236,
         "type": "git",
         "url": "https://github.com/closure-labs/xo-nixpkg.git"
       },

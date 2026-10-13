@@ -229,8 +229,11 @@ def main():
         handle.set_network(False)
         handle.set_memsize(512)
         handle.set_smp(1)
+        handle.set_append("maestro_restore_root=/dev/sdb")
+        handle.config("-sandbox", "on,obsolete=deny,elevateprivileges=deny,spawn=deny,resourcecontrol=deny")
         handle.add_drive_opts(disk, format="raw", readonly=True)
         handle.launch()
+        resource.setrlimit(resource.RLIMIT_AS, (512 * 1024**2, 512 * 1024**2))
         run(request, handle, sys.stdout.buffer)
     finally:
         handle.close()

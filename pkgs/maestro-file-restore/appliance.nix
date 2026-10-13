@@ -6,7 +6,9 @@
   kernel = pkgs.linux;
   modules = pkgs.makeModulesClosure {
     inherit kernel;
-    rootModules = ["virtio_pci" "virtio_blk" "virtio_scsi" "virtio_console" "sd_mod" "ext4" "xfs" "btrfs" "vfat" "dm_mod"];
+    # Virtio/storage drivers need no hardware firmware blobs.
+    firmware = pkgs.runCommand "maestro-restore-firmware" {} "mkdir -p $out/lib/firmware";
+    rootModules = ["virtio_pci" "virtio_blk" "virtio_scsi" "virtio_console" "sd_mod" "ext4" "xfs" "btrfs" "vfat" "dm_mod" "fuse"];
     allowMissing = false;
   };
   tools = pkgs.buildEnv {
@@ -33,16 +35,26 @@
     ignoreCollisions = true;
   };
   init = pkgs.writeShellScript "maestro-restore-appliance-init" ''
-    export PATH=${lib.makeBinPath [tools]}:${tools}/sbin
+    export PATH=${lib.makeBinPath [tools pkgs.systemd]}:${tools}/sbin
     mount -t proc proc /proc
     mount -t sysfs sysfs /sys
     mount -t devtmpfs devtmpfs /dev
-    mkdir -p /dev/pts /run /tmp /sysroot
+    mkdir -p /dev/pts /dev/shm /run /tmp /sysroot
     mount -t devpts devpts /dev/pts
+    mount -t tmpfs -o mode=1777 tmpfs /dev/shm
+    ln -s /proc/self/fd /dev/fd
     mount -t tmpfs tmpfs /run
     ${pkgs.systemd}/lib/systemd/systemd-udevd --daemon
     ${pkgs.systemd}/bin/udevadm trigger --action=add
     ${pkgs.systemd}/bin/udevadm settle
+    # Match libguestfs' appliance contract: metadata/device scanning and
+    # activation happen only inside this disposable kernel.
+    modprobe dm_mod
+    modprobe fuse
+    mkdir -p /tmp/lvm /run/lock/lvm
+    printf 'devices { use_devicesfile = 0 }\n' > /tmp/lvm/lvm.conf
+    export LVM_SYSTEM_DIR=/tmp/lvm
+    lvm pvscan --cache --activate ay
     # The only control channel is libguestfs' virtio serial RPC connection.
     ${guestfs.guestfsd}/bin/guestfsd
     ${pkgs.busybox}/bin/poweroff -f
@@ -57,16 +69,20 @@
     for driver in virtio_pci virtio_blk virtio_scsi virtio_console sd_mod ext4; do
       modprobe "$driver"
     done
+    # libguestfs attaches its trusted appliance after the raw data disks.
+    # Production always supplies one raw disk. Never search guest labels or
+    # UUIDs: a malicious image can duplicate either and supply its own /init.
+    restore_root=/dev/sdb
+    for parameter in $(cat /proc/cmdline); do
+      case "$parameter" in
+        maestro_restore_root=/dev/sd[a-z]) restore_root="''${parameter#*=}" ;;
+      esac
+    done
     for attempt in $(seq 1 100); do
-      if mount -t ext4 /dev/disk/by-label/guestfs_root /newroot 2>/dev/null; then break; fi
-      # No udev runs in this small bootstrap: resolve the label directly.
-      for disk in /dev/sd? /dev/vd?; do
-        if [ "$(blkid -s LABEL -o value "$disk" 2>/dev/null)" = guestfs_root ]; then
-          mount -t ext4 "$disk" /newroot && break 2
-        fi
-      done
+      if mount -t ext4 "$restore_root" /newroot 2>/dev/null; then break; fi
       sleep 0.1
     done
+    test -x /newroot/init || exit 1
     umount /dev /sys /proc
     exec switch_root /newroot /init
   '';
@@ -99,7 +115,7 @@ in
     bytes=$(du -sb rootfs | cut -f1)
     truncate -s "$((bytes * 2 + 67108864))" $out/root
     mkfs.ext4 -q -F -L guestfs_root -d rootfs $out/root
-    ln -s ${kernel}/${kernel.target} $out/kernel
+    ln -s ${kernel}/bzImage $out/kernel
     ln -s ${initrd}/initrd $out/initrd
     printf 'Maestro fixed appliance built entirely from locked Nix sources.\n' > $out/README.fixed
     # Keep embedded userspace in the host closure and its source-bound SBOM.

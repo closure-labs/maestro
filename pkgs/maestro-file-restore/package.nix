@@ -34,6 +34,7 @@ in
       exec 9>"''${TMPDIR:?}/maestro-file-restore.lock"
       flock --exclusive --nonblock 9 || { echo 'file restore is busy' >&2; exit 75; }
       exec timeout --signal=TERM --kill-after=10s 15m \
+        setpriv --no-new-privs --inh-caps=-all --ambient-caps=-all \
         ${python}/bin/python3 ${./restore.py} "$@"
     '';
     passthru = {inherit appliance guestfs qemu;};

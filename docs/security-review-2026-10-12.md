@@ -149,7 +149,8 @@ file listing and ZIP/TGZ streams. Maestro supplies a read-only libguestfs RPC
 backend: guest paths never become host mount paths or download destinations.
 The helper rejects traversal, symlink selections and special files; it limits
 work to one 512 MiB, one-CPU appliance with a 15-minute timeout. An explicitly
-disabled or unavailable helper fails closed. Guest tools and the kernel are
+disabled or unavailable helper fails closed. The manual host partition-mount
+API is disabled while this backend is configured. Guest tools and the kernel are
 built from the locked Nix source tree and retained in the source-bound inventory.
 Headless QEMU excludes GUI/audio/SPICE/Capstone support; libvirt is disabled.
 This follows [libguestfs security guidance](https://libguestfs.org/guestfs-security.1.html)

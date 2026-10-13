@@ -123,7 +123,8 @@ in
       # Fixture creation and parsing run as XO in a disposable guest kernel.
       restore_env = "LIBGUESTFS_PATH=${restore.appliance} LIBGUESTFS_BACKEND=direct LIBGUESTFS_BACKEND_SETTINGS=force_tcg LIBGUESTFS_HV=${restore.qemu}/bin/qemu-system-x86_64 PYTHONPATH=${restore.guestfs}/${pkgs.python3.sitePackages} TMPDIR=/var/lib/xo/tmp"
       maestro.succeed("runuser -u xo -- env " + restore_env + " ${pkgs.python3}/bin/python /etc/maestro-file-restore-guest.py ${lib.getExe restore} /var/lib/xo/data/restore-fixtures", timeout=1800)
-      maestro.succeed("runuser -u xo -- env " + restore_env + " XO_FILE_RESTORE_HELPER=${lib.getExe restore} ${node}/bin/node /etc/maestro-file-restore-xo.mjs ${xoPackage}/libexec/xen-orchestra /var/lib/xo/data/restore-fixtures/partition.img", timeout=600)
+      maestro.succeed("runuser -u xo -- ${pkgs.qemu-utils}/bin/qemu-img convert -f raw -O vpc -o force_size=on /var/lib/xo/data/restore-fixtures/partition.img /var/lib/xo/data/restore-fixtures/partition.vhd")
+      maestro.succeed("runuser -u xo -- env " + restore_env + " XO_FILE_RESTORE_HELPER=${lib.getExe restore} ${node}/bin/node /etc/maestro-file-restore-xo.mjs ${xoPackage}/libexec/xen-orchestra /var/lib/xo/data/restore-fixtures/partition.vhd", timeout=600)
 
       # Claimed directory names stay protected even when a helper canonicalizes
       # them after validation. XO retains write access to storage contents.

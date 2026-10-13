@@ -149,8 +149,6 @@ short-lived, root-readable credential file.
 - direct XO package:
   `inputs.xen-orchestra-ce.packages.x86_64-linux.latest`
 
-[Back to documentation](index.md)
-
 Guest file restore uses `maestro.xo.fileRestore.enable` (enabled by default).
 XO sends partition/list/archive requests to a trusted absolute helper. The
 helper runs as XO, opens the raw FUSE disk read-only with an explicit raw format,
@@ -162,3 +160,6 @@ ZIP/TGZ archives; guest paths never name host output files. Traversal, selected
 symlinks and special files are rejected. Client disconnect terminates the
 helper before releasing its raw VHD view. Disabling the feature makes restore
 fail closed instead of restoring the legacy host mount path.
+The manual host partition-mount API is disabled while isolated restore is configured.
+
+[Back to documentation](index.md)

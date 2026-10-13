@@ -1,5 +1,6 @@
 """Real raw/partition/LVM images, with no host filesystem mounts."""
 import hashlib
+import fcntl
 import io
 import json
 import os
@@ -7,6 +8,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tarfile
+import time
 import zipfile
 
 import guestfs
@@ -24,6 +26,8 @@ handle = guestfs.GuestFS(python_return_dict=True)
 handle.set_network(False)
 handle.set_memsize(512)
 handle.set_smp(1)
+handle.set_append("maestro_restore_root=/dev/sdd")
+handle.config("-sandbox", "on,obsolete=deny,elevateprivileges=deny,spawn=deny,resourcecontrol=deny")
 for image in images:
     handle.add_drive_opts(str(image), format="raw")
 try:
@@ -54,6 +58,37 @@ def invoke(operation, image, **options):
 
 before_mounts = Path("/proc/self/mountinfo").read_text()
 before_loops = sorted(Path("/sys/block").glob("loop*"))
+
+# Serialize actual appliance work and release the lock after cancellation.
+request = {"version": 1, "operation": "partitions", "disk": str(images[0])}
+process = subprocess.Popen([helper], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+process.stdin.write(json.dumps(request).encode())
+process.stdin.close()
+lock = Path(os.environ["TMPDIR"]) / "maestro-file-restore.lock"
+try:
+    held = False
+    for attempt in range(200):
+        if lock.exists():
+            with lock.open("rb") as descriptor:
+                try:
+                    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    held = True
+        if held:
+            break
+        assert process.poll() is None, "restore exited before acquiring its lock"
+        time.sleep(0.01)
+    assert held, "restore lock was not held"
+    result = invoke("partitions", images[0])
+    assert result.returncode == 75 and b"busy" in result.stderr
+finally:
+    process.terminate()
+    process.wait(timeout=30)
+    process.stdout.close()
+    process.stderr.close()
+with lock.open("rb") as descriptor:
+    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
 for image in images:
     before = hashlib.sha256(image.read_bytes()).hexdigest()
     result = invoke("partitions", image)
