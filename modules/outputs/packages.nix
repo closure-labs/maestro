@@ -19,6 +19,8 @@ in {
       maestroMenu = pkgs.callPackage ../../pkgs/maestro-menu/package.nix {};
       automationCommands = import ../../nix/automation {
         inherit pkgs planRunner packerXenserver;
+        appliance = inputs.self.nixosConfigurations.maestro.config;
+        lockFile = ../../flake.lock;
       };
       automationPackages =
         lib.mapAttrs' (

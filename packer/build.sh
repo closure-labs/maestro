@@ -74,6 +74,12 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' HUP INT TERM
 
+# The outer deploy command may carry a runtime password. Keep it out of every
+# Nix evaluation/build subprocess while preparing the installer.
+xcp_password=${PKR_VAR_remote_password:-${XCP_HOSTPASSWORD:-}}
+export -n xcp_password
+unset PKR_VAR_remote_password XCP_HOSTPASSWORD
+
 case "$INSTALLER_SOURCE" in
   github)
     command -v "$GH_BIN" >/dev/null 2>&1 || {
@@ -140,7 +146,7 @@ printf 'Installer ISO: %s\n' "$installer_iso"
 
 cd "$PACKER_ROOT"
 "$PACKER_BIN" init .
-"$PACKER_BIN" build \
+PKR_VAR_remote_password="$xcp_password" "$PACKER_BIN" build \
   -parallel-builds=1 \
   "$@" \
   -var "iso_url=$installer_iso" \

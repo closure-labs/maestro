@@ -11,6 +11,21 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Generate source-bound security inventory v2 with complete installed XO npm
+  identities, exact Nix derivations, patch hashes and runtime context. Prove
+  native/npm scanner coverage and reject incomplete inventories. Replace
+  permanent version-only baselines with exact, expiring policy v2 decisions;
+  unscored advisories also require review.
+- Build Determinate's same pinned source through its public component interface
+  against patched appliance libraries. Select patched terminal Vim from the
+  XO runtime snapshot and narrow guestfs/QEMU's display, audio and disassembly
+  dependencies. Use specific hostname tools in operator wrappers.
+- Protect mount directory names with root ownership and sticky permissions,
+  claim them through descriptor-based validation, and run VHD parsing/FUSE
+  mounting as XO. Add booted storage, TLS, SSH and pathname-boundary tests.
+- Declare SecretOps XCP-ng runtime credential variables and optional pass-entry
+  resolution. Remove host passwords from installer/Nix preparation subprocesses.
+
 - Require qualification-state v5 and successful protected-main producer runs
   across CI reuse, releases, and template deployment. Verify the complete signed
   inventory and compare the bound SPDX predicate with the downloaded SBOM.

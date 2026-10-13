@@ -6,7 +6,7 @@
   git,
   gnugrep,
   gnused,
-  inetutils,
+  nettools,
   iproute2,
   makeWrapper,
   nix,
@@ -20,7 +20,7 @@
     git
     gnugrep
     gnused
-    inetutils
+    nettools
     iproute2
     nix
   ];

@@ -19,6 +19,7 @@
       {"name": "configuration", "attribute": "checks.x86_64-linux.configuration"},
       {"name": "ci-plan-contract", "attribute": "checks.x86_64-linux.ci-plan-contract"},
       {"name": "security-fixtures", "attribute": "checks.x86_64-linux.security-fixtures"},
+      {"name": "runtime-security", "attribute": "checks.x86_64-linux.runtime-security"},
       {"name": "packer-policy", "attribute": "checks.x86_64-linux.packer-policy"}
     ]
   },

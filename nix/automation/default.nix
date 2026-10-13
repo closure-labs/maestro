@@ -2,6 +2,8 @@
   planRunner,
   packerXenserver,
   pkgs,
+  appliance,
+  lockFile,
 }: let
   mkCommand = {
     name,
@@ -49,6 +51,36 @@
   };
 
   commands = {
+    security-inventory = mkCommand {
+      name = "security-inventory";
+      prefix = let
+        context = pkgs.writeText "maestro-security-context.json" (builtins.toJSON {
+          schemaVersion = 2;
+          platform = pkgs.stdenv.hostPlatform.system;
+          lockDigest = builtins.hashFile "sha256" lockFile;
+          inventoryDigest = builtins.hashFile "sha256" ./security-inventory.py;
+          normalizerDigest = builtins.hashFile "sha256" ./security-normalize.py;
+          runtime = {
+            inherit (appliance.networking.firewall) allowedTCPPorts allowedUDPPorts;
+            ssh = appliance.services.openssh.settings;
+            xoPackage = appliance.maestro.xo.package.outPath;
+            xoUser = appliance.maestro.xo.user;
+            storage = {
+              inherit (appliance.maestro.xo.storage) enableNFS enableCIFS enableVHD mountsDir;
+            };
+            inherit (appliance.systemd.services.xo-server.serviceConfig) CapabilityBoundingSet AmbientCapabilities User Group;
+            sudo = appliance.security.sudo.extraRules;
+            valkey = appliance.services.redis.servers.xo.settings;
+          };
+        });
+      in ''
+        MAESTRO_SECURITY_INVENTORY_SOURCE=${./security-inventory.py}
+        MAESTRO_SECURITY_CONTEXT=${context}
+        export MAESTRO_SECURITY_INVENTORY_SOURCE MAESTRO_SECURITY_CONTEXT
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.python3];
+      source = ./security-inventory.sh;
+    };
     packer-validate = mkCommand {
       name = "packer-validate";
       runtimeInputs = commonInputs ++ [packerXenserver pkgs.openssh];
@@ -56,7 +88,11 @@
     };
     security-verdict = mkCommand {
       name = "security-verdict";
-      runtimeInputs = commonInputs;
+      prefix = ''
+        MAESTRO_SECURITY_VERDICT_SOURCE=${./security-verdict.py}
+        export MAESTRO_SECURITY_VERDICT_SOURCE
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.python3];
       source = ./security-verdict.sh;
     };
     security-scan = mkCommand {
@@ -64,6 +100,8 @@
       prefix = ''
         MAESTRO_SECURITY_POLICY="''${MAESTRO_SYSTEM_ROOT:-$PWD}/nix/automation/security-policy.json"
         export MAESTRO_SECURITY_POLICY
+        MAESTRO_SECURITY_NORMALIZE_SOURCE=${./security-normalize.py}
+        export MAESTRO_SECURITY_NORMALIZE_SOURCE
       '';
       runtimeInputs =
         commonInputs
@@ -135,7 +173,7 @@
         MAESTRO_SPDX_SCHEMA="''${MAESTRO_SPDX_SCHEMA:-${spdxSchema}}"
         export MAESTRO_SPDX_SCHEMA
       '';
-      runtimeInputs = commonInputs ++ [pkgs.check-jsonschema planRunner commands.validate-state commands.verify-inventory commands.verify-state];
+      runtimeInputs = commonInputs ++ [pkgs.check-jsonschema planRunner commands.validate-state commands.verify-inventory commands.verify-state commands.security-inventory];
       source = ./qualification-assets.sh;
     };
     qualification-inputs = mkCommand {

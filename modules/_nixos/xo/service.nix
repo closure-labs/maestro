@@ -14,6 +14,7 @@
     then pkgs.valkey-compat
     else pkgs.valkey;
   storageEnabled = cfg.storage.enableNFS || cfg.storage.enableCIFS || cfg.storage.enableVHD;
+  imageGuestfs = import ../../../nix/pkgs/guestfs.nix {inherit pkgs;};
   expectedListeners =
     [{port = 80;}]
     ++ optionals cfg.tls.enable [
@@ -103,7 +104,7 @@ in {
         pkgs.openssl
         pkgs.fuse
         pkgs.lvm2
-        pkgs.libguestfs
+        imageGuestfs
         pkgs.ntfs3g
         pkgs.git
         pkgs.valkey
@@ -112,7 +113,7 @@ in {
       ++ optionals cfg.storage.enableCIFS [pkgs.cifs-utils];
 
     systemd.tmpfiles.rules = [
-      "d ${cfg.home} 0750 ${cfg.user} ${cfg.group} - -"
+      "d ${cfg.home} 1770 root ${cfg.group} - -"
       "d ${cfg.cacheDir} 0750 ${cfg.user} ${cfg.group} - -"
       "d ${cfg.dataDir} 0750 ${cfg.user} ${cfg.group} - -"
       "d ${cfg.tempDir} 0750 ${cfg.user} ${cfg.group} - -"
@@ -177,7 +178,7 @@ in {
           NODE_ENV = "production";
           LD_LIBRARY_PATH = lib.makeLibraryPath [
             pkgs.fuse
-            pkgs.libguestfs
+            imageGuestfs
             pkgs.stdenv.cc.cc.lib
           ];
         };

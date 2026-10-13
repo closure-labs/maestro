@@ -10,6 +10,8 @@ runs:
       with:
         extra-conf: |
           substituters = https://cache.nixos.org/
+          max-jobs = 1
+          cores = 2
 
     - name: Enforce the public CI substituter baseline
       shell: bash

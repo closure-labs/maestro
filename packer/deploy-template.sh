@@ -244,7 +244,13 @@ printf 'Saved non-secret XCP-ng settings to %s\n' "$config_file"
 
 [[ "$configure_only" -eq 0 ]] || exit 0
 
-remote_password=${PKR_VAR_remote_password:-}
+remote_password=${PKR_VAR_remote_password:-${XCP_HOSTPASSWORD:-}}
+if [[ -z "$remote_password" && -n ${XCP_PASSWORD_PASS_ENTRY:-} ]]; then
+  command -v pass >/dev/null || { echo 'Password-store provider is unavailable.' >&2; exit 1; }
+  # Resolve SecretOps credentials only after configuration/Nix work is done.
+  remote_password=$(pass show "$XCP_PASSWORD_PASS_ENTRY")
+  remote_password=${remote_password%%$'\n'*}
+fi
 if [[ -z "$remote_password" ]]; then
   [[ -t 0 ]] || {
     printf 'Set PKR_VAR_remote_password for non-interactive deployment.\n' >&2

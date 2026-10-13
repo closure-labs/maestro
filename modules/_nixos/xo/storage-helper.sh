@@ -45,6 +45,9 @@ validate_mount_target() {
   path="$(canonical_path "${1:-}")"
   is_under "$mounts_dir" "$path" \
     || fail "mount target must be under $mounts_dir: $path"
+  if [[ -n ${MAESTRO_XO_MOUNT_GUARD:-} ]]; then
+    "$MAESTRO_XO_MOUNT_GUARD" "$1" "$(id -g "$MAESTRO_XO_USER")"
+  fi
 }
 
 validate_runtime_path() {
@@ -238,19 +241,29 @@ run_vhdi() {
   local -a args=() positional=()
   while [ "$#" -gt 0 ]; do
     case "$1" in
-      -*) args+=("$1"); shift ;;
+      -o)
+        [[ $command == vhdimount && $# -ge 2 && $2 =~ ^[0-9]+$ ]] || fail 'invalid VHD offset'
+        args+=("$1" "$2"); shift 2 ;;
+      -f)
+        [[ $command == vhdimount && $# -ge 2 && $2 == raw ]] || fail 'invalid VHD output format'
+        args+=("$1" "$2"); shift 2 ;;
+      -v|-X|-e) args+=("$1"); shift ;;
+      -*) fail "VHD flag is not allowed: $1" ;;
       *) positional+=("$1"); args+=("$1"); shift ;;
     esac
   done
   if [ "$command" = vhdimount ]; then
-    [ "${#positional[@]}" -ge 2 ] || fail "vhdimount requires image and target"
+    [ "${#positional[@]}" -eq 2 ] || fail "vhdimount requires exactly one image and target"
     validate_runtime_path "${positional[$((${#positional[@]} - 2))]}"
     validate_mount_target "${positional[$((${#positional[@]} - 1))]}"
   else
-    [ "${#positional[@]}" -ge 1 ] || fail "vhdiinfo requires an image"
+    [ "${#positional[@]}" -eq 1 ] || fail "vhdiinfo requires exactly one image"
     validate_runtime_path "${positional[$((${#positional[@]} - 1))]}"
   fi
-  exec "$command" "${args[@]}"
+  # Image parsing and FUSE mounting have no reason to retain root privileges.
+  # The protected mountpoint is group-writable; the declared XO account is in
+  # the fuse group. A path race in an image reader cannot grant root access.
+  exec runuser -u "$MAESTRO_XO_USER" -- "$command" "${args[@]}"
 }
 
 [ "$#" -ge 1 ] || fail "missing command"

@@ -80,7 +80,7 @@ in {
             jq -e '
               (.validation.schemaVersion == 2) and
               (.validation.name == "maestro-validation") and
-              (.validation.targets | length == 18) and
+              (.validation.targets | length == 19) and
               (.media.schemaVersion == 2) and
               (.media.name == "maestro-media-qualification") and
               (.media.targets | length == 1) and
@@ -223,8 +223,8 @@ in {
 
       security-fixtures = mkSourceCheck {
         name = "security-fixtures";
-        command = "bash ./tests/security-contracts.sh && bash ./tests/security-scan.sh";
-        nativeBuildInputs = fixtureInputs ++ [pkgs.openssh];
+        command = "PYTHONDONTWRITEBYTECODE=1 python3 ./tests/security-inventory.py && bash ./tests/security-contracts.sh && bash ./tests/security-scan.sh";
+        nativeBuildInputs = fixtureInputs ++ [pkgs.openssh pkgs.python3];
       };
 
       packer-policy = mkSourceCheck {
@@ -334,6 +334,12 @@ in {
       assert appliance.systemd.services.xo-server.serviceConfig.EnvironmentFile == [];
       assert lib.all (rule: !(builtins.elem "xo" rule.users) || lib.all (command: lib.hasSuffix "/bin/xo-storage-helper" command.command) rule.commands) appliance.security.sudo.extraRules;
       assert appliance.networking.firewall.allowedTCPPorts == [22 80 443];
+      assert appliance.networking.firewall.allowedUDPPorts == [];
+      assert !appliance.services.avahi.enable;
+      assert !appliance.services.samba.enable;
+      assert !appliance.hardware.bluetooth.enable;
+      assert !appliance.virtualisation.libvirtd.enable;
+      assert !appliance.services.nfs.server.enable;
       assert appliance.determinate.enable;
       assert appliance.home-manager.users.maestro.programs.git.enable;
       assert appliance.nix.gc.automatic;
@@ -341,6 +347,8 @@ in {
         pkgs.runCommandLocal "maestro-configuration-assertions" {} ''
           touch "$out"
         '';
+
+      runtime-security = import ../../nix/tests/runtime-security.nix {inherit pkgs inputs appliance;};
     }
   );
 }

@@ -83,6 +83,7 @@ else
   )
   mv "$sbom_work/sbom.spdx.json" maestro-system.spdx.json
   mv "$sbom_work/sbom.cdx.json" maestro-system.cdx.json
+  maestro-ci-security-inventory maestro-system.cdx.json xen-orchestra-supply.cdx.json
 
   xo_version=$(jq -er .subject.version xen-orchestra-supply.assertion.json)
   xo_document_namespace=$(jq -er .documentNamespace xen-orchestra-supply.spdx.json)

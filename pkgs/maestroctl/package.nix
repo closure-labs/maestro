@@ -8,7 +8,7 @@
   glibc,
   gnugrep,
   gnused,
-  inetutils,
+  nettools,
   iproute2,
   jq,
   nix,
@@ -30,7 +30,7 @@ writeShellApplication {
     glibc.bin
     gnugrep
     gnused
-    inetutils
+    nettools
     iproute2
     jq
     nix
