@@ -40,7 +40,6 @@
     };
     import-tree.url = "github:vic/import-tree";
     nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0";
-    # Staged restore hook; return to main after PR #82's cache gate.
-    xen-orchestra-ce.url = "git+https://github.com/closure-labs/xo-nixpkg.git?ref=refs/heads/security/isolated-file-restore";
+    xen-orchestra-ce.url = "git+https://github.com/closure-labs/xo-nixpkg.git?ref=refs/heads/main";
   };
 }

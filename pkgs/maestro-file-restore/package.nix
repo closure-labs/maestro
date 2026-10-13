@@ -11,6 +11,11 @@
   mkGuestfs = appliance:
     (pkgs.libguestfs.override {inherit qemu appliance;}).overrideAttrs (old: {
       configureFlags = old.configureFlags ++ ["--without-libvirt" "--with-default-backend=direct"];
+      preInstallCheck =
+        (old.preInstallCheck or "")
+        + ''
+          export LIBGUESTFS_DEBUG=1 LIBGUESTFS_TRACE=1
+        '';
     });
   baseGuestfs = mkGuestfs null;
   appliance = import ./appliance.nix {

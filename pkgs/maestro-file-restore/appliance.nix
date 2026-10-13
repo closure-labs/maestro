@@ -65,9 +65,8 @@
     mount -t proc proc /proc
     mount -t sysfs sysfs /sys
     mount -t devtmpfs devtmpfs /dev
-    export MODPROBE_OPTIONS="-d ${modules}"
     for driver in virtio_pci virtio_blk virtio_scsi virtio_console sd_mod ext4; do
-      modprobe "$driver"
+      ${pkgs.kmod}/bin/modprobe -d ${modules} "$driver"
     done
     # libguestfs attaches its trusted appliance after the raw data disks.
     # Production always supplies one raw disk. Never search guest labels or
@@ -82,7 +81,9 @@
       if mount -t ext4 "$restore_root" /newroot 2>/dev/null; then break; fi
       sleep 0.1
     done
-    test -x /newroot/init || exit 1
+    # /init is an absolute store symlink resolved after switch_root. Testing
+    # executability here would resolve it against the bootstrap initramfs.
+    test -L /newroot/init || exit 1
     umount /dev /sys /proc
     exec switch_root /newroot /init
   '';
