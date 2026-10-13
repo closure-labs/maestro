@@ -173,4 +173,8 @@ variable "bootstrap_private_key_file" {
 variable "bootstrap_public_key_b64" {
   type        = string
   description = "Base64 public bootstrap key enrolled through the trusted VM console."
+  validation {
+    condition     = can(regex("^[A-Za-z0-9+/=]+$", var.bootstrap_public_key_b64))
+    error_message = "bootstrap_public_key_b64 must contain only base64 characters."
+  }
 }
