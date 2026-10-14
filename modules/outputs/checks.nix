@@ -106,6 +106,7 @@ in {
         } ''
           export MAESTRO_SBOMNIX=${lib.getExe packages.sbomnix}
           bash ${../../tests/sbomnix-runtime.sh}
+          bash ${../../tests/sbomnix-lock-root.sh}
           touch "$out"
         '';
 

@@ -17,7 +17,12 @@ let
     nixVersions = pkgs.nixVersions // {nix_2_31 = ciNix;};
   };
   aligned = runtimeAligned.overrideAttrs (previous: {
-    patches = (previous.patches or []) ++ [./sbomnix-materialize-metadata.patch];
+    patches =
+      (previous.patches or [])
+      ++ [
+        ./sbomnix-materialize-metadata.patch
+        ./sbomnix-root-nixpkgs.patch
+      ];
   });
 in
   assert pkgs.lib.assertMsg (countPath oldPath pkgs.sbomnix.makeWrapperArgs == 1) "Review sbomnix's Nix runtime wrapper: expected exactly one pinned PATH entry";

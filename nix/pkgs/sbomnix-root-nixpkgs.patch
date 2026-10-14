@@ -1,0 +1,75 @@
+--- a/src/nixmeta/scanner.py
++++ b/src/nixmeta/scanner.py
+@@ -199,20 +199,50 @@
+     return False
+ 
+ 
++def _get_flake_nixpkgs_obj(meta_json):
++    """Resolve the root nixpkgs input, including root-relative follows paths."""
++    try:
++        locks = meta_json["locks"]
++        nodes = locks["nodes"]
++        root = locks["root"]
++        if not isinstance(nodes, dict) or not isinstance(root, str):
++            raise ValueError("Malformed flake lock graph")
++
++        def resolve(node_id, input_name, visited):
++            edge = (node_id, input_name)
++            if edge in visited:
++                raise ValueError("Cyclic nixpkgs follows path")
++            visited = visited | {edge}
++            node = nodes[node_id]
++            reference = node["inputs"][input_name]
++            if isinstance(reference, str) and reference:
++                if reference not in nodes or not isinstance(nodes[reference], dict):
++                    raise ValueError("Missing nixpkgs lock node")
++                return reference
++            if isinstance(reference, list) and reference:
++                current = root
++                for name in reference:
++                    if not isinstance(name, str) or not name:
++                        raise ValueError("Malformed nixpkgs follows path")
++                    current = resolve(current, name, visited)
++                return current
++            raise ValueError("Malformed nixpkgs lock reference")
++
++        nixpkgs_node = nodes[resolve(root, "nixpkgs", set())]
++        locked = nixpkgs_node["locked"]
++        if not isinstance(locked, dict) or not locked:
++            raise ValueError("Missing locked root nixpkgs metadata")
++        return locked
++    except (KeyError, TypeError, RecursionError) as error:
++        raise ValueError("Malformed root nixpkgs lock graph") from error
++
++
+ def _get_flake_nixpkgs_val(meta_json, key):
+-    """Given nixpkgs flake metadata, return the locked key"""
+-    try:
+-        return meta_json["locks"]["nodes"]["nixpkgs"]["locked"][key]
+-    except (KeyError, TypeError):
+-        return None
+-
+-
+-def _get_flake_nixpkgs_obj(meta_json):
+-    """Given nixpkgs flake metadata, return the locked nixpkgs object"""
+-    try:
+-        return meta_json["locks"]["nodes"]["nixpkgs"]["locked"]
+-    except (KeyError, TypeError):
+-        return None
++    """Return a key from the nixpkgs input selected by the lock root."""
++    value = _get_flake_nixpkgs_obj(meta_json).get(key)
++    if value is not None and (not isinstance(value, str) or not value):
++        raise ValueError("Malformed root nixpkgs lock value")
++    return value
+ 
+ 
+ def _get_nixpkgs_flakeref_github(meta_json):
+@@ -267,6 +297,8 @@
+         nixpkgs_flakeref = _get_nixpkgs_flakeref_tarball(meta_json)
+     else:
+         LOG.debug("Unsupported nixpkgs locked type: %s", _type)
++    if not nixpkgs_flakeref:
++        raise ValueError("Unsupported or incomplete root nixpkgs lock metadata")
+     return nixpkgs_flakeref
+ 
+ 

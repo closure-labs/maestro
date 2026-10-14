@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Resolve inventory metadata from the flake lock root's actual Nixpkgs input,
+  including follows paths, and reject malformed lock graphs. Restore licenses,
+  descriptions and source positions omitted by the unrelated first lock node.
+
 - Run sbomnix and its metadata scanner through the captured hosted Nix CLI,
   including `nix-store` and `nix-env`. Gate evidence qualification on a packaged
   runtime fixture and reject unexpected upstream wrapper changes. Materialize
