@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Add local `ci:cache-validation` to audit and publish the exact successful
+  validation closures to the configured Cachix cache using runtime credentials.
+  Audit manifests live under `.devenv`; hosted execution cannot publish them.
+
 - Download signed evidence without installer media for CI, weekly, and release
   vulnerability scans. `maestro-ci-download-installer DIRECTORY [evidence]`
   keeps full installer verification as its default; publication still verifies

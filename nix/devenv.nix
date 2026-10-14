@@ -45,7 +45,10 @@ in {
       ];
     };
     "ci:repository-audit:flake" = {
-      exec = runFlakePackage "maestro-ci-repository-audit" "--no-write-lock-file";
+      exec = ''
+        export MAESTRO_CI_AUDIT_MANIFEST="''${MAESTRO_CI_AUDIT_MANIFEST:-$DEVENV_STATE/maestro-validation.json}"
+        ${runFlakePackage "maestro-ci-repository-audit" "--no-write-lock-file"}
+      '';
       # Reuse is safe only for an identical checkout; every tracked source or
       # documentation change is allowed to invalidate the complete contract.
       execIfModified = ["."];
@@ -55,6 +58,13 @@ in {
         "ci:repository-audit:flake"
         "ci:repository-audit:format"
       ];
+    };
+
+    "ci:cache-validation" = {
+      after = ["ci:repository-audit"];
+      exec = runFlakePackage "maestro-ci-cache-validation" ''
+        "''${MAESTRO_CI_AUDIT_MANIFEST:-$DEVENV_STATE/maestro-validation.json}"
+      '';
     };
 
     "ci:qualification:resolve".exec = runFlakePackage "maestro-ci-resolve-qualification" "";

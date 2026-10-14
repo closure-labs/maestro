@@ -22,6 +22,11 @@ fi
 MAESTRO_SYSTEM_ROOT="$repo_root" maestro-ci-security-inventory-preflight
 nix flake check --accept-flake-config --no-build --print-build-logs \
   "$flake_ref" "$@"
+manifest_args=()
+if [[ -n ${MAESTRO_CI_AUDIT_MANIFEST:-} ]]; then
+  manifest_args=(--manifest "$MAESTRO_CI_AUDIT_MANIFEST")
+fi
 exec flake-plan-runner \
   --flake "$flake_ref" \
-  --plan "${MAESTRO_CI_VALIDATION_PLAN:-lib.ciPlans.x86_64-linux.validation}"
+  --plan "${MAESTRO_CI_VALIDATION_PLAN:-lib.ciPlans.x86_64-linux.validation}" \
+  "${manifest_args[@]}"

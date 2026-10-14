@@ -35,6 +35,7 @@ in {
           export MAESTRO_CI_BOOT_MEDIA=${lib.getExe packages.maestro-ci-boot-media}
           export MAESTRO_CI_QUALIFICATION_INPUTS=${lib.getExe packages.maestro-ci-qualification-inputs}
           export MAESTRO_CI_CLASSIFY=${lib.getExe packages.maestro-ci-classify}
+          export MAESTRO_CI_CACHE_VALIDATION=${lib.getExe packages.maestro-ci-cache-validation}
           export MAESTRO_CI_CLASSIFY_PATHS=${lib.getExe packages.maestro-ci-classify-paths}
           export MAESTRO_CI_VERDICT=${lib.getExe packages.maestro-ci-verdict}
           export MAESTRO_CI_LOCK_VALIDATE=${lib.getExe packages.maestro-ci-lock-validate}
@@ -162,7 +163,7 @@ in {
             ci:route ci:classify ci:repository-audit ci:qualification:resolve \
             ci:qualification:assemble ci:qualification:boot-media ci:qualification:sign-check \
             ci:security:scan ci:security:inventory-preflight ci:security:latest ci:security:policy-drift ci:packer:validate \
-            ci:publish ci:verdict automation:queue \
+            ci:publish ci:cache-validation ci:verdict automation:queue \
             automation:fix-hashes \
             automation:update-locks automation:validate-locks automation:open-lock-update-pr \
             release:prepare release:dispatch release:inventory release:verify \
@@ -227,6 +228,7 @@ in {
           bash ./tests/ci-helpers.sh
           bash ./tests/fix-nix-hashes.sh
           bash ./tests/ci-runtime-config.sh
+          bash ./tests/cache-validation.sh
         '';
       };
 

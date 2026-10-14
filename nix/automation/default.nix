@@ -202,6 +202,15 @@
       runtimeInputs = commonInputs;
       source = ./qualification-inputs.sh;
     };
+    cache-validation = mkCommand {
+      name = "cache-validation";
+      prefix = ''
+        MAESTRO_CI_PLAN_CONTRACT=${../ci-plans.json}
+        export MAESTRO_CI_PLAN_CONTRACT
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.cachix];
+      source = ./cache-validation.sh;
+    };
     repository-audit = mkCommand {
       name = "repository-audit";
       runtimeInputs = commonInputs ++ [planRunner commands.security-inventory-preflight];

@@ -210,6 +210,27 @@ each unique ancestry once. It validates every requested source constraint and
 returns metadata in request order. Reuse ends when the command exits; no trust
 decision persists between jobs or scans.
 
+For local validation with cache publication, run:
+
+```bash
+devenv tasks run ci:cache-validation
+```
+
+This runs the complete repository audit, records its exact output roots in
+`.devenv/maestro-validation.json`, and pushes their closures to the runtime
+`CACHIX_CACHE_NAME` (default `nixoa`). Cachix reads its existing user
+configuration or runtime `CACHIX_AUTH_TOKEN`; credentials never enter Nix
+evaluation. The cache task rejects hosted execution, failed or incomplete
+manifests, and missing store outputs. `MAESTRO_CI_AUDIT_MANIFEST` optionally
+selects another runtime manifest path for both tasks.
+
+`cachix.push` in `devenv.local.nix` observes devenv's own native builds. It does
+not reliably observe the audit's nested Nix subprocess builds; the explicit
+cache task publishes those exact completed outputs instead. After aggressive
+store cleanup, realize `.#maestro-ci-toolchain` before retrying if evaluation
+reports a missing `cabal2nix` derivation: an upstream import-from-derivation
+reference can outlive its collected producer metadata.
+
 Vulnerability findings remain in the documented report stage until fresh
 inventory, source-bound dispositions, runtime validation and disposable lab
 acceptance pass. These performance changes do not establish those prerequisites.
