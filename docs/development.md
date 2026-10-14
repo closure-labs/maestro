@@ -94,6 +94,22 @@ warn about unsupported Determinate experimental flags. The pinned sbomnix
 package deliberately retains Nix 2.31 for its older derivation-JSON parser;
 this scanner compatibility tool is distinct from the audit/build CLI.
 
+XO and its supply evidence are downloaded from the signed public
+`xen-orchestra-ce.cachix.org` cache at the exact locked output paths. A plan
+runner's "Building" target label can also mean substituting an existing
+output; the Nix download/build logs establish which occurred. Maestro publishes
+its own runtime closure to Cachix after successful protected-main qualification
+and signing. Failed PR runs do not publish new Maestro build outputs, so custom
+QEMU/appliance builds can repeat before the first successful main publication.
+Installer/evidence reuse separately requires a matching signed qualification
+state from a successful trusted producer.
+
+The security inventory parser reads both legacy flat derivation maps and Nix's
+version-4 envelope. It resolves shortened store paths, `inputs.drvs`, direct
+structured attributes and fixed outputs whose path is recorded only in the
+builder environment. Invalid records, versions and missing requested identities
+fail with an explicit error instead of producing incomplete evidence.
+
 The `maestro-ci-route` command emits one versioned JSON route plan. Focused
 qualification, protected-main publication, and the required verdict all
 consume that exact output, so downstream jobs cannot independently reinterpret

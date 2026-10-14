@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Read versioned Nix derivation JSON for security evidence, including structured
+  attributes, input derivations and fixed-output patch paths; retain support for
+  older flat responses and reject malformed or unsupported formats explicitly.
+
 - Validate hosted Nix paths and build budgets before exporting runner state
   through the shared setup helper; reject multiline environment injection.
 

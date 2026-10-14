@@ -2,8 +2,10 @@
 from copy import deepcopy
 from datetime import date
 import importlib.util
+import json
 from pathlib import Path
 import tempfile
+from unittest.mock import patch as mock_patch
 
 
 def module(name):
@@ -23,6 +25,64 @@ def reject(call):
         return
     raise AssertionError("accepted invalid security input")
 
+
+drv_path = "/nix/store/" + "a" * 32 + "-fixture.drv"
+producer_path = "/nix/store/" + "b" * 32 + "-patch.drv"
+out_path = "/nix/store/" + "c" * 32 + "-fixture"
+patch_path = "/nix/store/" + "d" * 32 + "-CVE-fixture.patch"
+legacy = {"env": {"__json": json.dumps({"pname": "openssl", "version": "3.5.9", "patches": []}), "out": out_path},
+          "outputs": {"out": {"path": out_path}}, "inputDrvs": {producer_path: ["out"]}}
+modern = {"version": 4, "env": {"out": out_path},
+          "structuredAttrs": {"pname": "openssl", "version": "3.5.9", "patches": []},
+          "outputs": {"out": {"path": Path(out_path).name}},
+          "inputs": {"drvs": {Path(producer_path).name: {"outputs": ["out"]}}, "srcs": []}}
+for document in [{drv_path: legacy}, {"version": 4, "derivations": {Path(drv_path).name: modern}}]:
+    decoded = inventory.decode_derivations(document)
+    assert list(decoded) == [drv_path]
+    record = decoded[drv_path]
+    assert inventory.attributes(record)["version"] == "3.5.9"
+    assert inventory.input_derivations(record) == [producer_path]
+    assert inventory.output_path(record, "out", record["outputs"]["out"]) == out_path
+
+for invalid in [[], {"version": 4}, {"version": 5, "derivations": {}},
+                {"version": True, "derivations": {}}, {"version": 4, "derivations": []},
+                {"version": 4, "derivations": {drv_path: legacy}},
+                {drv_path: 4}, {"../escape.drv": legacy},
+                {drv_path: {**modern, "version": 5}},
+                {drv_path: {**modern, "inputs": {}}},
+                {drv_path: {**modern, "structuredAttrs": []}},
+                {drv_path: {**modern, "outputs": {"out": 3}}},
+                {drv_path: {**legacy, "env": []}},
+                {drv_path: {**legacy, "env": {"__json": 4}}},
+                {drv_path: {"outputs": {}}},
+                {drv_path: legacy, Path(drv_path).name: modern}]:
+    reject(lambda: inventory.decode_derivations(invalid))
+reject(lambda: inventory.patches({"env": {"__json": '{"patches":42}'}}))
+reject(lambda: inventory.output_path(modern, "out", {"path": patch_path}))
+
+# Both patch producer queries and their results must accept modern JSON,
+# including fixed outputs whose specification no longer contains a path.
+for producer_output in [{"path": Path(patch_path).name}, {"method": "flat", "hash": "sha256-fixture"}]:
+    consumer = deepcopy(modern)
+    consumer["structuredAttrs"]["patches"] = [patch_path]
+    producer = {"version": 4, "env": {"out": patch_path}, "outputs": {"out": producer_output},
+                "inputs": {"drvs": {}, "srcs": []}}
+    response = json.dumps({"version": 4, "derivations": {Path(producer_path).name: producer}}).encode()
+    with mock_patch.object(inventory.subprocess, "check_output", return_value=response) as query, \
+            mock_patch.object(inventory.subprocess, "run") as build:
+        inventory.realize_patch_inputs({drv_path: consumer}, [])
+    query.assert_called_once_with(["nix", "derivation", "show", producer_path])
+    build.assert_called_once_with(["nix", "build", "--no-link", producer_path + "^out"], check=True)
+
+with mock_patch.object(inventory.subprocess, "check_output", return_value=b'{"version":4,"derivations":{}}'):
+    reject(lambda: inventory.read_derivations([drv_path]))
+
+batch_paths = [drv_path.removesuffix(".drv") + f"-{index}.drv" for index in range(67)]
+def batched_response(command):
+    return json.dumps({"version": 4, "derivations": {Path(path).name: modern for path in command[3:]}}).encode()
+with mock_patch.object(inventory.subprocess, "check_output", side_effect=batched_response) as query:
+    assert set(inventory.read_derivations(batch_paths)) == set(batch_paths)
+assert [call.args[0][3:] for call in query.call_args_list] == [batch_paths[:64], batch_paths[64:]]
 
 with tempfile.TemporaryDirectory() as temporary:
     patch = Path(temporary) / "CVE-fixture.patch"
@@ -75,4 +135,24 @@ with tempfile.TemporaryDirectory() as temporary:
     missing = deepcopy(drvs)
     del missing["patched.drv"]
     reject(lambda: inventory.enrich(deepcopy(system), supply, {}, missing))
+
+    # Exercise the complete CLI entry point, not just the envelope decoder.
+    modern_system = deepcopy(system)
+    for component in modern_system["components"]:
+        component["properties"][0]["value"] = drv_path
+    cli_record = deepcopy(modern)
+    cli_record["structuredAttrs"]["patches"] = [str(patch)]
+    response = json.dumps({"version": 4, "derivations": {Path(drv_path).name: cli_record}}).encode()
+    system_file, supply_file, context_file = [Path(temporary) / name for name in ("system.json", "supply.json", "context.json")]
+    system_file.write_text(json.dumps(modern_system))
+    supply_file.write_text(json.dumps(supply))
+    context_file.write_text(json.dumps({"packageSourceRoots": []}))
+    with mock_patch.object(inventory.sys, "argv", ["inventory", str(system_file), str(supply_file), str(context_file)]), \
+            mock_patch.object(inventory.subprocess, "check_output", return_value=response) as query:
+        inventory.main()
+    query.assert_called_once_with(["nix", "derivation", "show", drv_path])
+    enriched = json.loads(system_file.read_text())
+    assert enriched["components"][0]["purl"] == "pkg:nix/openssl@3.5.9"
+    props = inventory.properties(enriched["components"][0])
+    assert json.loads(props["maestro:patches"])[0]["path"] == str(patch)
 print("Security identity, inventory, drift, expiry and severity fixtures passed")

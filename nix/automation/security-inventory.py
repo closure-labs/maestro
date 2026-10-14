@@ -20,14 +20,106 @@ def properties(component):
     return {p["name"]: p["value"] for p in component.get("properties", [])}
 
 
+def store_path(value):
+    if not isinstance(value, str):
+        raise ValueError("invalid derivation store path")
+    name = value.removeprefix("/nix/store/")
+    if not re.fullmatch(r"[0123456789abcdfghijklmnpqrsvwxyz]{32}-[^/\s]+", name):
+        raise ValueError(f"invalid derivation store path: {value!r}")
+    return "/nix/store/" + name
+
+
+def decode_derivations(document):
+    if not isinstance(document, dict):
+        raise ValueError("derivation JSON must be an object")
+    enveloped = "derivations" in document
+    if enveloped:
+        if type(document.get("version")) is not int or document["version"] != 4:
+            raise ValueError("unsupported derivation JSON envelope version")
+        document = document["derivations"]
+    if not isinstance(document, dict):
+        raise ValueError("derivation records must be an object")
+    records = {}
+    for path, record in document.items():
+        path = store_path(path)
+        if not path.endswith(".drv") or not isinstance(record, dict):
+            raise ValueError("invalid derivation record")
+        if enveloped and record.get("version") != 4:
+            raise ValueError("version-4 envelope contains an incompatible derivation")
+        if "version" in record and (type(record["version"]) is not int or record["version"] not in (1, 2, 3, 4)):
+            raise ValueError("unsupported derivation record version")
+        if path in records:
+            raise ValueError("duplicate derivation store identity")
+        if not isinstance(record.get("env"), dict):
+            raise ValueError("missing derivation environment")
+        attributes(record)
+        input_derivations(record)
+        if not isinstance(record.get("outputs"), dict) or any(not isinstance(info, dict) for info in record["outputs"].values()):
+            raise ValueError("invalid derivation outputs")
+        records[path] = record
+    return records
+
+
+def read_derivations(paths):
+    records = {}
+    for start in range(0, len(paths), 64):
+        batch = paths[start:start + 64]
+        decoded = decode_derivations(json.loads(subprocess.check_output(["nix", "derivation", "show", *batch])))
+        if set(batch) != decoded.keys():
+            raise ValueError("derivation response does not match requested store identities")
+        records.update(decoded)
+    return records
+
+
 def attributes(derivation):
     env = derivation.get("env", {})
-    return {**env, **json.loads(env.get("__json", "{}"))}
+    if not isinstance(env, dict):
+        raise ValueError("invalid derivation environment")
+    if "structuredAttrs" in derivation:
+        structured = derivation["structuredAttrs"]
+    else:
+        encoded = env.get("__json", "{}")
+        if not isinstance(encoded, str):
+            raise ValueError("invalid encoded derivation attributes")
+        structured = json.loads(encoded)
+    if not isinstance(structured, dict):
+        raise ValueError("invalid structured derivation attributes")
+    return {**env, **structured}
+
+
+def input_derivations(derivation):
+    if derivation.get("version") == 4:
+        inputs = derivation.get("inputs")
+        if not isinstance(inputs, dict):
+            raise ValueError("missing version-4 derivation inputs")
+        drvs = inputs.get("drvs")
+    else:
+        drvs = derivation.get("inputDrvs", {})
+    if not isinstance(drvs, dict):
+        raise ValueError("invalid derivation inputs")
+    return [store_path(path) for path in drvs]
+
+
+def output_path(derivation, output, info):
+    # Version 4 omits the path from fixed-output specifications; the builder's
+    # output environment still records the exact immutable store identity.
+    path = info.get("path")
+    env_path = derivation.get("env", {}).get(output)
+    if path is not None:
+        path = store_path(path)
+    if env_path is not None:
+        env_path = store_path(env_path)
+    if path and env_path and path != env_path:
+        raise ValueError("inconsistent derivation output identity")
+    return path or env_path
 
 
 def patches(derivation):
     value = attributes(derivation).get("patches", [])
-    return shlex.split(value) if isinstance(value, str) else value
+    value = shlex.split(value) if isinstance(value, str) else value
+    if not isinstance(value, list) or any(not isinstance(path, str) or not path for path in value):
+        raise ValueError("invalid derivation patch paths")
+    return value
 
 
 def realize_patch_inputs(derivations, source_roots):
@@ -54,14 +146,15 @@ def realize_patch_inputs(derivations, source_roots):
                     break
     if not missing:
         return
-    inputs = sorted({p for drv in derivations.values() for p in drv.get("inputDrvs", {})})
+    inputs = sorted({p for drv in derivations.values() for p in input_derivations(drv)})
     producers = {}
     for start in range(0, len(inputs), 64):
-        records = json.loads(subprocess.check_output(["nix", "derivation", "show", *inputs[start:start + 64]]))
+        records = read_derivations(inputs[start:start + 64])
         for path, record in records.items():
             for output, info in record["outputs"].items():
-                if info.get("path") in missing:
-                    producers[info["path"]] = path + "^" + output
+                produced = output_path(record, output, info)
+                if produced in missing:
+                    producers[produced] = path + "^" + output
     if missing - producers.keys():
         raise ValueError("missing immutable patch producer metadata")
     subprocess.run(["nix", "build", "--no-link", *sorted(set(producers.values()))], check=True)
@@ -144,9 +237,7 @@ def main():
     system_path, supply_path, context_path = map(Path, sys.argv[1:])
     system = json.loads(system_path.read_text())
     drvs = sorted({properties(c)["nix:drv_path"] for c in system["components"]})
-    derivations = {}
-    for start in range(0, len(drvs), 64):
-        derivations.update(json.loads(subprocess.check_output(["nix", "derivation", "show", *drvs[start:start + 64]])))
+    derivations = read_derivations(drvs)
     context = json.loads(context_path.read_text())
     realize_patch_inputs(derivations, context["packageSourceRoots"])
     result = enrich(system, json.loads(supply_path.read_text()), context, derivations)
