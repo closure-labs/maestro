@@ -210,7 +210,7 @@ in {
             scripts/tui/*.sh \
             nix/automation/*.sh \
             nix/ci-nix.sh \
-            .github/actions/setup-nix/resources.sh \
+            .github/actions/setup-nix/*.sh \
             tests/*.sh
           touch "$out"
         '';

@@ -66,8 +66,17 @@ boundary. The aggregate `ci:repository-audit` task remains dependency-aware
 and has no command of its own after its declared flake and formatting checks
 finish.
 
+The `runtime-security` check boots the appliance and storage peer to verify
+network, SSH, TLS, service privileges, crypto and NFS/CIFS/VHD boundaries.
+It does not run the nested libguestfs file restore VM acceptance scripts;
+file restore unit fixtures still run through `security-fixtures`.
+
 Every hosted Nix job uses the shared Determinate setup. It records the installed
 CLI path and preserves it through packaged commands, including `nix-store`.
+The setup's export helper accepts only Determinate Nix store paths and
+positive numeric budgets before writing runner environment/path files;
+the credential access reason is a fixed literal. Injection fixtures verify
+invalid or multiline values leave those files unchanged.
 The setup writes supported overrides to `nix.custom.conf`, derives jobs/cores
 from detected CPU and RAM, reserves 8 GiB for VM tests and runner processes,
 and exports the same budget to devenv. Runners with at most 8 GiB reserve

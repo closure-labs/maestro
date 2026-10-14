@@ -219,9 +219,9 @@ for workflow in "$TEST_ROOT"/.github/workflows/*.yml; do
 done
 yq -e '.secretspec.enable == true and .secretspec.provider == "env" and .secretspec.profile == "github"' \
   "$TEST_ROOT/devenv.yaml" >/dev/null || fail "native SecretSpec configuration is missing"
-grep -Fq 'DEVENV_MAX_JOBS=%s' "$TEST_ROOT/.github/actions/setup-nix/action.yml" \
+grep -Fq 'DEVENV_MAX_JOBS=%s' "$TEST_ROOT/.github/actions/setup-nix/export-runtime.sh" \
   || fail "native devenv does not share the hosted job budget"
-grep -Fq 'DEVENV_CORES=%s' "$TEST_ROOT/.github/actions/setup-nix/action.yml" \
+grep -Fq 'DEVENV_CORES=%s' "$TEST_ROOT/.github/actions/setup-nix/export-runtime.sh" \
   || fail "native devenv does not share the hosted core budget"
 grep -Fq "'' ci:verdict" \
   "$TEST_ROOT/.github/workflows/ci.yml" \

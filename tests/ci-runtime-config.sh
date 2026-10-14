@@ -13,6 +13,24 @@ for row in '2 7168 1 2' '4 16384 2 2' '8 16384 2 2' '8 32768 4 2' '8 8192 1 3' '
 done
 if bash "$root/.github/actions/setup-nix/resources.sh" 0 8192; then exit 1; fi
 
+export GITHUB_ENV="$temporary/environment" GITHUB_PATH="$temporary/path"
+hosted_nix=/nix/store/0123456789abcdefghijklmnopqrstuv-determinate-nix-3.21.9/bin/nix
+bash "$root/.github/actions/setup-nix/export-runtime.sh" "$hosted_nix" 1 3
+expected_env=$(printf 'MAESTRO_CI_NIX_BIN=%s\nSECRETSPEC_REASON=Maestro workflow runtime credentials\nDEVENV_MAX_JOBS=1\nDEVENV_CORES=3' "$hosted_nix")
+[[ $(cat "$GITHUB_ENV") == "$expected_env" ]]
+[[ $(cat "$GITHUB_PATH") == "${hosted_nix%/*}" ]]
+for invalid in "$hosted_nix"$'\nLD_PRELOAD=/tmp/evil' /tmp/nix /nix/store/invalid/bin/nix; do
+  if bash "$root/.github/actions/setup-nix/export-runtime.sh" "$invalid" 1 3; then exit 1; fi
+done
+for invalid in 0 5 $'1\nLD_PRELOAD=/tmp/evil'; do
+  if bash "$root/.github/actions/setup-nix/export-runtime.sh" "$hosted_nix" "$invalid" 3; then exit 1; fi
+done
+for invalid in 0 -1 $'3\nLD_PRELOAD=/tmp/evil'; do
+  if bash "$root/.github/actions/setup-nix/export-runtime.sh" "$hosted_nix" 1 "$invalid"; then exit 1; fi
+done
+[[ $(cat "$GITHUB_ENV") == "$expected_env" ]]
+[[ $(cat "$GITHUB_PATH") == "${hosted_nix%/*}" ]]
+
 mkdir "$temporary/bin"
 printf '#!%s\nprintf "selected-runtime"\nprintf " <%%s>" "$@"\nprintf "\\n"\n' "$BASH" >"$temporary/bin/nix"
 chmod +x "$temporary/bin/nix"

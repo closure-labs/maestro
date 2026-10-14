@@ -11,6 +11,13 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Validate hosted Nix paths and build budgets before exporting runner state
+  through the shared setup helper; reject multiline environment injection.
+
+- Remove nested libguestfs file restore acceptance from the CI runtime VM test.
+  Keep storage, network, SSH, TLS, service privilege and crypto assertions in
+  that test, and retain file restore unit fixtures.
+
 - Size hosted Nix jobs/cores from each runner's CPU and RAM, preserve the
   setup-installed Determinate CLI through packaged audit commands, and make
   env-backed SecretSpec runtime loading explicit in devenv configuration.

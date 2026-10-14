@@ -18,9 +18,6 @@ runs:
         nix_version=$("$nix_cli" --version)
         printf 'Hosted Nix: %s (%s)\n' "$nix_version" "$nix_cli"
         [[ $nix_version == *Determinate* ]]
-        printf 'MAESTRO_CI_NIX_BIN=%s\n' "$nix_cli" >>"$GITHUB_ENV"
-        printf 'SECRETSPEC_REASON=Maestro workflow job %s runtime credentials\n' "$GITHUB_JOB" >>"$GITHUB_ENV"
-        dirname "$nix_cli" >>"$GITHUB_PATH"
         determinate-nixd auth logout
         printf 'substituters = https://cache.nixos.org/\n' |
           sudo tee -a /etc/nix/nix.custom.conf >/dev/null
@@ -28,7 +25,7 @@ runs:
         printf '%s\n' "$runner_budget" | sudo tee -a /etc/nix/nix.custom.conf >/dev/null
         max_jobs=$(awk '$1 == "max-jobs" {print $3}' <<<"$runner_budget")
         cores=$(awk '$1 == "cores" {print $3}' <<<"$runner_budget")
-        printf 'DEVENV_MAX_JOBS=%s\nDEVENV_CORES=%s\n' "$max_jobs" "$cores" >>"$GITHUB_ENV"
+        bash "$GITHUB_ACTION_PATH/export-runtime.sh" "$nix_cli" "$max_jobs" "$cores"
         sudo systemctl restart nix-daemon.service
         substituters=$(nix config show substituters)
         printf 'CI substituters: %s\n' "$substituters"
