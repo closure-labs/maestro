@@ -35,12 +35,18 @@ mkdir "$temporary/bin"
 printf '#!%s\nprintf "selected-runtime"\nprintf " <%%s>" "$@"\nprintf "\\n"\n' "$BASH" >"$temporary/bin/nix"
 chmod +x "$temporary/bin/nix"
 cp "$temporary/bin/nix" "$temporary/bin/nix-store"
+cp "$temporary/bin/nix" "$temporary/bin/nix-env"
 sed "s|@fallback@|$temporary/bin|" "$root/nix/ci-nix.sh" >"$temporary/nix"
 cp "$temporary/nix" "$temporary/nix-store"
+cp "$temporary/nix" "$temporary/nix-env"
 result=$(GITHUB_ACTIONS=true MAESTRO_CI_NIX_BIN="$temporary/bin/nix" bash "$temporary/nix" config show cores)
 [[ $result == 'selected-runtime <config> <show> <cores>' ]]
 result=$(GITHUB_ACTIONS=true MAESTRO_CI_NIX_BIN="$temporary/bin/nix" bash "$temporary/nix-store" --query --references fixture)
 [[ $result == 'selected-runtime <--query> <--references> <fixture>' ]]
+result=$(GITHUB_ACTIONS=true MAESTRO_CI_NIX_BIN="$temporary/bin/nix" bash "$temporary/nix-env" -qa --meta --json -f fixture)
+[[ $result == 'selected-runtime <-qa> <--meta> <--json> <-f> <fixture>' ]]
+rm "$temporary/bin/nix-env"
+if GITHUB_ACTIONS=true MAESTRO_CI_NIX_BIN="$temporary/bin/nix" bash "$temporary/nix-env" -qa; then exit 1; fi
 result=$(GITHUB_ACTIONS=false bash "$temporary/nix" --version)
 [[ $result == 'selected-runtime <--version>' ]]
 if GITHUB_ACTIONS=true MAESTRO_CI_NIX_BIN='' bash "$temporary/nix"; then exit 1; fi

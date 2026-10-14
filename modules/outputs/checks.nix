@@ -88,7 +88,7 @@ in {
               (.media.targets | length == 1) and
               (.evidence.schemaVersion == 2) and
               (.evidence.name == "maestro-evidence-qualification") and
-              (.evidence.targets | length == 4) and
+              (.evidence.targets | length == 5) and
               (.publish.schemaVersion == 2) and
               (.publish.name == "maestro-publish") and
               (.publish.targets | length == 7)
@@ -99,6 +99,15 @@ in {
             ! test -e ${qualificationInputs.media.source}/.github
             touch "$out"
           '';
+
+      sbomnix-runtime =
+        pkgs.runCommandLocal "maestro-sbomnix-runtime" {
+          nativeBuildInputs = fixtureInputs;
+        } ''
+          export MAESTRO_SBOMNIX=${lib.getExe packages.sbomnix}
+          bash ${../../tests/sbomnix-runtime.sh}
+          touch "$out"
+        '';
 
       eval-smoke = pkgs.runCommandLocal "maestro-eval-smoke" {} ''
         mkdir -p "$out"

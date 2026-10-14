@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 set -euo pipefail
 nix_command=${0##*/}
-case "$nix_command" in nix | nix-store) ;; *) exit 1 ;; esac
+case "$nix_command" in nix | nix-store | nix-env) ;; *) exit 1 ;; esac
 if [[ ${GITHUB_ACTIONS:-false} == true ]]; then
   nix_bin=${MAESTRO_CI_NIX_BIN:-}
   if [[ $nix_bin != /* || ! -x $nix_bin ]]; then
