@@ -1,0 +1,719 @@
+{
+  "schema_version": 1,
+  "kind": "observed-hosted-overlap-pair",
+  "benchmark_source_sha": "d40f09a4282fadf873840ce9d9545ed550cbb445",
+  "inputs": {
+    "validate_only": false,
+    "force_artifact": true,
+    "release_candidate": false
+  },
+  "input_parity": {
+    "same_media_and_evidence_inputs": true,
+    "expected_difference_fields": {
+      "artifact_run_id": [
+        38634526399,
+        38634594909
+      ],
+      "media_run_id": [
+        38634526399,
+        38634594909
+      ],
+      "evidence_run_id": [
+        38634526399,
+        38634594909
+      ]
+    }
+  },
+  "measurements": {
+    "serial": {
+      "id": 38634526399,
+      "sha": "d40f09a4282fadf873840ce9d9545ed550cbb445",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-14T20:43:52Z",
+      "queue_seconds": 4.0,
+      "active_critical_path_seconds": 1221.0,
+      "jobs_receipt_sha256": "9a99c4a4696945a34d4addfa2009204931d8f5e27cbdcbfc621fed44260fe4c1",
+      "run_receipt_sha256": "4f4a485bf5700c04826604a59fbf4945ae9d99f1c00719eef92fab1a4fce0274",
+      "jobs": [
+        {
+          "name": "Audit repository and route downstream work",
+          "id": 116094185682,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-14T20:43:56Z",
+          "completed_at": "2026-10-14T20:49:39Z",
+          "seconds": 343.0,
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Checkout",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Set up Nix",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 16.0
+            },
+            {
+              "name": "Route authoritative downstream CI work",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 144.0
+            },
+            {
+              "name": "Validate repository",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 176.0
+            },
+            {
+              "name": "Upload qualification state pointer",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Post Set up Nix",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Post Checkout",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 0.0
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 0.0
+            }
+          ]
+        },
+        {
+          "name": "Qualify installer media and evidence",
+          "id": 116096868935,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-14T20:49:41Z",
+          "completed_at": "2026-10-14T20:58:21Z",
+          "seconds": 520.0,
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 2.0
+            },
+            {
+              "name": "Checkout",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 2.0
+            },
+            {
+              "name": "Set up Nix",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 15.0
+            },
+            {
+              "name": "Download already-qualified media",
+              "status": "completed",
+              "conclusion": "skipped",
+              "seconds": 0.0
+            },
+            {
+              "name": "Download reusable supply evidence",
+              "status": "completed",
+              "conclusion": "skipped",
+              "seconds": 0.0
+            },
+            {
+              "name": "Assemble qualified media and evidence",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 437.0
+            },
+            {
+              "name": "Boot the installer ISO",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 40.0
+            },
+            {
+              "name": "Upload boot log after failure",
+              "status": "completed",
+              "conclusion": "skipped",
+              "seconds": 0.0
+            },
+            {
+              "name": "Download immutable qualification state",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Upload installer and SBOM assets",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 18.0
+            },
+            {
+              "name": "Upload reusable supply evidence",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Post Set up Nix",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 2.0
+            },
+            {
+              "name": "Post Checkout",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 0.0
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 0.0
+            }
+          ]
+        },
+        {
+          "name": "Pilot overlapping repository audit",
+          "id": 116096871111,
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-10-14T20:49:39Z",
+          "completed_at": "2026-10-14T20:49:39Z",
+          "seconds": 0,
+          "steps": []
+        },
+        {
+          "name": "Scan qualified dependency inventories",
+          "id": 116101015012,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-14T20:58:25Z",
+          "completed_at": "2026-10-14T21:02:16Z",
+          "seconds": 231.0,
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Checkout",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Set up Nix",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 18.0
+            },
+            {
+              "name": "Download qualification evidence",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 2.0
+            },
+            {
+              "name": "Scan current vulnerability databases",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 202.0
+            },
+            {
+              "name": "Upload security findings",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Post Set up Nix",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 2.0
+            },
+            {
+              "name": "Post Checkout",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 0.0
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 0.0
+            }
+          ]
+        },
+        {
+          "name": "Required CI verdict",
+          "id": 116102813047,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-14T21:02:20Z",
+          "completed_at": "2026-10-14T21:04:17Z",
+          "seconds": 117.0,
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 0.0
+            },
+            {
+              "name": "Checkout",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Set up Nix",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 18.0
+            },
+            {
+              "name": "Enforce the conditional CI graph",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 94.0
+            },
+            {
+              "name": "Post Set up Nix",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Post Checkout",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 0.0
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 0.0
+            }
+          ]
+        },
+        {
+          "name": "Sign protected-main qualification",
+          "id": 116102813644,
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-10-14T21:02:16Z",
+          "completed_at": "2026-10-14T21:02:16Z",
+          "seconds": 0,
+          "steps": []
+        },
+        {
+          "name": "Publish reusable main outputs",
+          "id": 116102816518,
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-10-14T21:02:17Z",
+          "completed_at": "2026-10-14T21:02:16Z",
+          "seconds": 0,
+          "steps": []
+        }
+      ],
+      "runner_seconds": 1211.0
+    },
+    "overlap": {
+      "id": 38634594909,
+      "sha": "d40f09a4282fadf873840ce9d9545ed550cbb445",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-14T20:44:22Z",
+      "queue_seconds": 1200.0,
+      "active_critical_path_seconds": 1144.0,
+      "jobs_receipt_sha256": "87594b0aadc8b886c14859814a5c0970d8e1657bd1004373ace0d8e24ceb623f",
+      "run_receipt_sha256": "2aafec3ae44e75ab7b407cb916b3d5a49e5e6c687387df8d2acbd5f429d46eea",
+      "jobs": [
+        {
+          "name": "Audit repository and route downstream work",
+          "id": 116103739795,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-14T21:04:22Z",
+          "completed_at": "2026-10-14T21:06:57Z",
+          "seconds": 155.0,
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 0.0
+            },
+            {
+              "name": "Checkout",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Set up Nix",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 17.0
+            },
+            {
+              "name": "Route authoritative downstream CI work",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 131.0
+            },
+            {
+              "name": "Validate repository",
+              "status": "completed",
+              "conclusion": "skipped",
+              "seconds": 0.0
+            },
+            {
+              "name": "Upload qualification state pointer",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 2.0
+            },
+            {
+              "name": "Post Set up Nix",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Post Checkout",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 0.0
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 0.0
+            }
+          ]
+        },
+        {
+          "name": "Qualify installer media and evidence",
+          "id": 116104945876,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-14T21:07:00Z",
+          "completed_at": "2026-10-14T21:17:54Z",
+          "seconds": 654.0,
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 0.0
+            },
+            {
+              "name": "Checkout",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Set up Nix",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 16.0
+            },
+            {
+              "name": "Download already-qualified media",
+              "status": "completed",
+              "conclusion": "skipped",
+              "seconds": 0.0
+            },
+            {
+              "name": "Download reusable supply evidence",
+              "status": "completed",
+              "conclusion": "skipped",
+              "seconds": 0.0
+            },
+            {
+              "name": "Assemble qualified media and evidence",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 566.0
+            },
+            {
+              "name": "Boot the installer ISO",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 49.0
+            },
+            {
+              "name": "Upload boot log after failure",
+              "status": "completed",
+              "conclusion": "skipped",
+              "seconds": 0.0
+            },
+            {
+              "name": "Download immutable qualification state",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Upload installer and SBOM assets",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 16.0
+            },
+            {
+              "name": "Upload reusable supply evidence",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Post Set up Nix",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 2.0
+            },
+            {
+              "name": "Post Checkout",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 0.0
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 0.0
+            }
+          ]
+        },
+        {
+          "name": "Pilot overlapping repository audit",
+          "id": 116104945911,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-14T21:07:00Z",
+          "completed_at": "2026-10-14T21:11:27Z",
+          "seconds": 267.0,
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 0.0
+            },
+            {
+              "name": "Checkout",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Set up Nix",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 18.0
+            },
+            {
+              "name": "Validate repository",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 245.0
+            },
+            {
+              "name": "Post Set up Nix",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Post Checkout",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 0.0
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 0.0
+            }
+          ]
+        },
+        {
+          "name": "Scan qualified dependency inventories",
+          "id": 116109930647,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-14T21:17:57Z",
+          "completed_at": "2026-10-14T21:21:44Z",
+          "seconds": 227.0,
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 7.0
+            },
+            {
+              "name": "Checkout",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Set up Nix",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 21.0
+            },
+            {
+              "name": "Download qualification evidence",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Scan current vulnerability databases",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 190.0
+            },
+            {
+              "name": "Upload security findings",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 2.0
+            },
+            {
+              "name": "Post Set up Nix",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Post Checkout",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 0.0
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 0.0
+            }
+          ]
+        },
+        {
+          "name": "Required CI verdict",
+          "id": 116111634369,
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-10-14T21:21:47Z",
+          "completed_at": "2026-10-14T21:23:26Z",
+          "seconds": 99.0,
+          "steps": [
+            {
+              "name": "Set up job",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 0.0
+            },
+            {
+              "name": "Checkout",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Set up Nix",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 15.0
+            },
+            {
+              "name": "Enforce the conditional CI graph",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 78.0
+            },
+            {
+              "name": "Post Set up Nix",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Post Checkout",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 1.0
+            },
+            {
+              "name": "Complete job",
+              "status": "completed",
+              "conclusion": "success",
+              "seconds": 0.0
+            }
+          ]
+        },
+        {
+          "name": "Publish reusable main outputs",
+          "id": 116111636392,
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-10-14T21:21:44Z",
+          "completed_at": "2026-10-14T21:21:44Z",
+          "seconds": 0,
+          "steps": []
+        },
+        {
+          "name": "Sign protected-main qualification",
+          "id": 116111636498,
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-10-14T21:21:45Z",
+          "completed_at": "2026-10-14T21:21:44Z",
+          "seconds": 0,
+          "steps": []
+        }
+      ],
+      "runner_seconds": 1402.0
+    }
+  },
+  "active_critical_path_reduction_seconds": 77,
+  "extra_summed_runner_seconds": 191,
+  "scope": "One sequential same-SHA branch pair; cache order, setup, network and shared-runner variation prevent causal attribution. Initial queue reported separately. No protected signing/publication or genuine event-driven release benchmark."
+}

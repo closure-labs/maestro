@@ -308,10 +308,11 @@ does not change the repository's deployment acceptance policy. Malformed or
 inconsistent evidence fails in either mode. The regular security scan runs this
 boundary automatically and retains the existing high/critical/unscored verdict.
 
-Validation/qualification overlap and event-driven release continuation remain
-benchmarking work: they change runner cost or orchestration and are not required
-to avoid unnecessary ISO downloads and repeated API calls. Hosted runs must
-measure the elapsed-time improvement after rollout.
+Validation/qualification overlap and event-driven release continuation are
+[opt-in orchestration pilots](ci-orchestration-pilots.md). Both default to the
+existing path. Historical DAG models are labeled separately from hosted pilot
+measurements; real branch dispatches must measure overlap before rollout, and
+release continuation must not publish a synthetic release merely to benchmark it.
 
 Deployment templates, metadata, menus, and CLI packages remain covered by the
 repository audit and protected-main publication without being redundantly

@@ -4,6 +4,11 @@ name: Release Maestro
 on:
   workflow_dispatch:
     inputs:
+      event_continuation:
+        description: Opt-in event continuation pilot; requires reviewed repository enable variable
+        required: false
+        type: boolean
+        default: false
       bump:
         description: Automatic uses conventional commits; override only when release impact differs
         required: true
@@ -14,9 +19,18 @@ on:
           - minor
           - major
         default: auto
+  workflow_call:
+    inputs:
+      release_request_run_id:
+        required: true
+        type: string
+      release_candidate_run_id:
+        required: true
+        type: string
 
 concurrency:
   group: maestro-release
+  queue: max
   cancel-in-progress: false
 
 permissions:
@@ -24,7 +38,7 @@ permissions:
 
 jobs:
   prepare:
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     name: Merge the release version through protected main
     runs-on: ubuntu-24.04
     timeout-minutes: 150
@@ -48,6 +62,13 @@ jobs:
       - name: Set up Nix
         uses: ./.github/actions/setup-nix
 
+      - name: Refuse another pending release before version mutation
+        env:
+          EVENT_CONTINUATION: ${{ inputs.event_continuation || false }}
+          MAESTRO_RELEASE_CONTINUATION_ENABLED: ${{ vars.MAESTRO_RELEASE_CONTINUATION_ENABLED || 'false' }}
+          GH_TOKEN: ${{ github.token }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:pending
+
       - name: Calculate and merge the release version
         id: version
         env:
@@ -57,16 +78,77 @@ jobs:
           REQUESTED_BUMP: ${{ inputs.bump }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:prepare
 
+      - name: Bind immutable event continuation request
+        if: inputs.event_continuation == true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAESTRO_RELEASE_CONTINUATION_ENABLED: ${{ vars.MAESTRO_RELEASE_CONTINUATION_ENABLED || 'false' }}
+          SOURCE_SHA: ${{ steps.version.outputs.source_sha }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:request
+
+      - name: Upload immutable request before dispatch
+        if: inputs.event_continuation == true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: maestro-release-request
+          path: maestro-release-request.json
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Dispatch immutable artifact resolution
         id: candidate
         env:
           SOURCE_SHA: ${{ steps.version.outputs.source_sha }}
+          EVENT_CONTINUATION: ${{ inputs.event_continuation || false }}
+          MAESTRO_RELEASE_CONTINUATION_ENABLED: ${{ vars.MAESTRO_RELEASE_CONTINUATION_ENABLED || 'false' }}
           GH_TOKEN: ${{ github.token }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:dispatch
 
+  context:
+    name: Bind authoritative release continuation context
+    needs: prepare
+    if: >-
+      !cancelled() &&
+      ((needs.prepare.result == 'success' && inputs.event_continuation != true) ||
+       (github.event_name == 'workflow_run' && github.ref == 'refs/heads/main' && inputs.release_request_run_id != ''))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      ready: ${{ inputs.release_request_run_id != '' && steps.request.outputs.ready || 'true' }}
+      already_published: ${{ steps.request.outputs.already_published || 'false' }}
+      run_id: ${{ steps.request.outputs.run_id || needs.prepare.outputs.run_id }}
+      source_sha: ${{ steps.request.outputs.source_sha || needs.prepare.outputs.source_sha }}
+      tag: ${{ steps.request.outputs.tag || needs.prepare.outputs.tag }}
+      version: ${{ steps.request.outputs.version || needs.prepare.outputs.version }}
+    steps:
+      - name: Checkout protected orchestration source
+        if: inputs.release_request_run_id != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Set up Nix
+        if: inputs.release_request_run_id != ''
+        uses: ./.github/actions/setup-nix
+      - name: Independently verify immutable request and candidate
+        id: request
+        if: inputs.release_request_run_id != ''
+        env:
+          MAESTRO_RELEASE_CONTINUATION_ENABLED: ${{ vars.MAESTRO_RELEASE_CONTINUATION_ENABLED || 'false' }}
+          RELEASE_REQUEST_RUN_ID: ${{ inputs.release_request_run_id }}
+          RELEASE_CANDIDATE_RUN_ID: ${{ inputs.release_candidate_run_id }}
+          GH_TOKEN: ${{ github.token }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:continuation
+
   security:
     name: Verify and rescan release candidate
-    needs: prepare
+    needs: context
+    if: needs.context.outputs.ready == 'true' && needs.context.outputs.already_published != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
@@ -79,7 +161,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-          ref: ${{ needs.prepare.outputs.source_sha }}
+          ref: ${{ needs.context.outputs.source_sha }}
 
       - name: Set up Nix
         uses: ./.github/actions/setup-nix
@@ -90,12 +172,12 @@ jobs:
           github-token: ${{ github.token }}
           name: maestro-qualification-state
           path: candidate-state
-          run-id: ${{ needs.prepare.outputs.run_id }}
+          run-id: ${{ needs.context.outputs.run_id }}
 
       - name: Resolve immutable installer inventory
         id: inventory
         env:
-          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+          SOURCE_SHA: ${{ needs.context.outputs.source_sha }}
           GH_TOKEN: ${{ github.token }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:inventory
 
@@ -131,7 +213,8 @@ jobs:
 
   release:
     name: Verify and publish immutable release assets
-    needs: [prepare, security]
+    needs: [context, security]
+    if: needs.context.outputs.ready == 'true' && needs.context.outputs.already_published != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment: release
@@ -151,7 +234,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-          ref: ${{ needs.prepare.outputs.source_sha }}
+          ref: ${{ needs.context.outputs.source_sha }}
 
       - name: Set up Nix
         uses: ./.github/actions/setup-nix
@@ -162,12 +245,12 @@ jobs:
           github-token: ${{ github.token }}
           name: maestro-qualification-state
           path: candidate-state
-          run-id: ${{ needs.prepare.outputs.run_id }}
+          run-id: ${{ needs.context.outputs.run_id }}
 
       - name: Resolve immutable installer inventory
         id: inventory
         env:
-          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+          SOURCE_SHA: ${{ needs.context.outputs.source_sha }}
           GH_TOKEN: ${{ github.token }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:inventory
 
@@ -194,29 +277,29 @@ jobs:
           ARTIFACT_SOURCE_COMMIT: ${{ steps.inventory.outputs.artifact_source_commit }}
           MEDIA_INPUT: ${{ steps.inventory.outputs.media_input }}
           EVIDENCE_INPUT: ${{ steps.inventory.outputs.evidence_input }}
-          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
-          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
-          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+          RELEASE_TAG: ${{ needs.context.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.context.outputs.version }}
+          SOURCE_SHA: ${{ needs.context.outputs.source_sha }}
           GH_TOKEN: ${{ github.token }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:stage
 
       - name: Create or refresh verified draft
         env:
-          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
-          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
-          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+          RELEASE_TAG: ${{ needs.context.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.context.outputs.version }}
+          SOURCE_SHA: ${{ needs.context.outputs.source_sha }}
           GH_TOKEN: ${{ github.token }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:draft
 
       - name: Attest final release filename
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-path: ${{ runner.temp }}/maestro-${{ needs.prepare.outputs.tag }}.iso
+          subject-path: ${{ runner.temp }}/maestro-${{ needs.context.outputs.tag }}.iso
 
       - name: Bind SPDX SBOM to final release filename
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-path: ${{ runner.temp }}/maestro-${{ needs.prepare.outputs.tag }}.iso
+          subject-path: ${{ runner.temp }}/maestro-${{ needs.context.outputs.tag }}.iso
           sbom-path: candidate/maestro-system.spdx.json
 
       - name: Publish versioned flake
@@ -225,22 +308,26 @@ jobs:
           visibility: public
           name: closure-labs/maestro
           rolling: false
-          tag: ${{ needs.prepare.outputs.tag }}
-          rev: ${{ needs.prepare.outputs.source_sha }}
+          tag: ${{ needs.context.outputs.tag }}
+          rev: ${{ needs.context.outputs.source_sha }}
           include-output-paths: true
 
       - name: Publish immutable GitHub release
         env:
-          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
-          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+          RELEASE_TAG: ${{ needs.context.outputs.tag }}
+          SOURCE_SHA: ${{ needs.context.outputs.source_sha }}
           GH_TOKEN: ${{ github.token }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:publish
 
   advance:
     name: Merge the next development version
     needs:
-      - prepare
+      - context
       - release
+    if: >-
+      !cancelled() && needs.context.result == 'success' && needs.context.outputs.ready == 'true' &&
+      (needs.release.result == 'success' ||
+       (needs.release.result == 'skipped' && needs.context.outputs.already_published == 'true'))
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     permissions:
@@ -263,5 +350,5 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           EXPECTED_AUTHOR: github-actions
           GH_TOKEN: ${{ github.token }}
-          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE_VERSION: ${{ needs.context.outputs.version }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:advance

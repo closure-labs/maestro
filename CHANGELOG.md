@@ -21,6 +21,11 @@ correspond to published GitHub tags.
   lazy-tree flake metadata when its source path is omitted so licenses,
   descriptions and other locked-source metadata remain in the inventories.
 
+- Add opt-in manual CI audit overlap with unchanged full-audit, scan, signing
+  and verdict gates. Add a disabled-by-default release continuation pilot with
+  an immutable expiring request journal, exact protected-main candidate checks,
+  pending-release isolation, and the existing FIFO publication queue.
+
 - Use the dedicated Maestro Cachix cache for appliance, installer, CLI, native
   devenv and CI builds. Keep XO, devenv and nix-community caches available;
   publish only to Maestro with its repository-specific runtime credential and
