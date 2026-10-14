@@ -209,11 +209,14 @@ allocation and perform acceptance sequentially. Credentials resolve at
 runtime through the SecretOps `XCP_HOSTPASSWORD` value or
 `XCP_PASSWORD_PASS_ENTRY=/VatesTrainingLab/hostpassword`; passwords are removed
 from Nix and Packer initialization subprocess environments and passed only to
-the Packer build. The operator approved `192.168.x.x`, implemented as
+the Packer build. At the time of this review, the operator approved `192.168.x.x`, implemented as
 `192.168.0.0/16` through typed `maestro.operator.managementCIDRs`. Appliance
 SSH/XO and installer SSH ingress use that range. Booted tests check allowed
 IPv4 clients, rejected IPv4 ranges and closed IPv6 management ingress. Actual
 console/key recovery remains part of disposable lab acceptance before rollout.
+The subsequent deployment policy defaults to `0.0.0.0/0` and `::/0` for initial IPv4/IPv6
+access; the [hardening guide](hardening.md) documents restoring a restricted
+management range. Runtime tests cover both initial access and restricted access.
 
 The first protected-main signing run and its retry failed in the native devenv
 evaluator with an unmaterialized coreutils patch store path, before the signing

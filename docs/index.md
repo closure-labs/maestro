@@ -16,6 +16,7 @@ Start by [launching Maestro](installation.md) or
 
 | Goal | Guide |
 |---|---|
+| Restrict management access after deployment | [Hardening](hardening.md) |
 | Add SSH keys, packages, TLS, or storage | [Common tasks](common-tasks.md) |
 | Work with host files and NixOS options | [Configuration](configuration.md) |
 | Follow a symptom to focused checks | [Troubleshooting](troubleshooting.md) |

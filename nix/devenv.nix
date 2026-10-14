@@ -111,6 +111,7 @@ in {
     "release:dispatch".exec = runFlakePackage "maestro-ci-release-manager" "dispatch";
     "release:inventory".exec = runFlakePackage "maestro-ci-release-manager" "inventory";
     "release:verify".exec = runFlakePackage "maestro-ci-release-manager" "verify";
+    "release:attestations".exec = runFlakePackage "maestro-ci-release-attestations" "";
     "release:stage".exec = runFlakePackage "maestro-ci-release-manager" "stage";
     "release:draft".exec = runFlakePackage "maestro-ci-release-manager" "draft";
     "release:publish".exec = runFlakePackage "maestro-ci-release-manager" "publish";

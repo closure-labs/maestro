@@ -41,6 +41,13 @@ media_change=$(resolve '{"media":{"installer":"/nix/store/media-b","bootPolicy":
 [[ $(jq -r .media_input <<<"$media_change") != $(jq -r .media_input <<<"$baseline") ]]
 [[ $(jq -r .evidence_input <<<"$media_change") == $(jq -r .evidence_input <<<"$baseline") ]]
 
+# The embedded appliance is an input to both media and evidence. Host policy
+# changes must invalidate the ISO, even when installer sources are unchanged.
+seed_baseline=$(resolve '{"media":{"source":"same","dependencies":{"applianceToplevel":"/nix/store/system-a"}},"evidence":{"toplevel":"/nix/store/system-a"}}')
+seed_change=$(resolve '{"media":{"source":"same","dependencies":{"applianceToplevel":"/nix/store/system-b"}},"evidence":{"toplevel":"/nix/store/system-b"}}')
+[[ $(jq -r .media_input <<<"$seed_change") != $(jq -r .media_input <<<"$seed_baseline") ]]
+[[ $(jq -r .evidence_input <<<"$seed_change") != $(jq -r .evidence_input <<<"$seed_baseline") ]]
+
 if resolve '{"media":null,"evidence":{}}' >/dev/null 2>&1; then
   printf 'Qualification input resolver accepted an invalid Nix graph.\n' >&2
   exit 1

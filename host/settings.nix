@@ -9,7 +9,8 @@
   boot.loader.efi.canTouchEfiVariables = true;
 
   maestro.operator = {
-    managementCIDRs = ["192.168.0.0/16"];
+    # Allow initial access from any IPv4 or IPv6 client; see docs/hardening.md.
+    managementCIDRs = ["0.0.0.0/0" "::/0"];
     repoDir = "/home/maestro/maestro";
     gitName = "Maestro Admin";
     gitEmail = "maestro@maestro";

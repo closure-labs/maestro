@@ -8,10 +8,15 @@ in
   pkgs.testers.runNixOSTest {
     name = "maestro-runtime-security";
     nodes = {
-      maestro = {config, ...}: {
+      maestro = {
+        config,
+        lib,
+        ...
+      }: {
         _module.args.inputs = inputs;
         imports = [../../modules/_nixos/xo ../../modules/_nixos/operator-network.nix];
         maestro.operator.managementCIDRs = appliance.maestro.operator.managementCIDRs;
+        specialisation.hardened.configuration.maestro.operator.managementCIDRs = lib.mkForce ["192.168.0.0/16" "fd42:99::2/128"];
         maestro.xo = {
           enable = true;
           package = xoPackage;
@@ -83,14 +88,23 @@ in
       maestro.succeed("ip address add 172.18.0.1/24 dev eth1")
       storage.succeed("ip address add 172.18.0.2/24 dev eth1")
       storage.succeed("ping -4 -c 1 -W 2 -I 172.18.0.2 172.18.0.1")
-      for port in (22, 80, 443):
-          storage.fail(f"nc -z -w 2 -s 172.18.0.2 172.18.0.1 {port}")
       maestro.succeed("ip -6 address add fd42:99::1/64 dev eth1")
       storage.succeed("ip -6 address add fd42:99::2/64 dev eth1")
-      # Wait for DAD and prove routing before interpreting refused TCP access.
-      storage.wait_until_succeeds("ping -6 -c 1 -W 2 -I fd42:99::2 fd42:99::1")
+      storage.succeed("ip -6 address add fd42:99::3/64 dev eth1")
+      # Prove routing before testing default access or restricted clients.
+      for source in ("fd42:99::2", "fd42:99::3"):
+          storage.wait_until_succeeds(f"ping -6 -c 1 -W 2 -I {source} fd42:99::1")
+      # Initial deployment admits IPv4 and IPv6 sources outside the lab range.
       for port in (22, 80, 443):
-          storage.fail(f"nc -6 -z -w 2 -s fd42:99::2 fd42:99::1 {port}")
+          storage.succeed(f"nc -4 -z -w 3 -s 172.18.0.2 172.18.0.1 {port}")
+          storage.succeed(f"nc -6 -z -w 3 -s fd42:99::3 fd42:99::1 {port}")
+      # Activate the documented restrictions, then verify new connections.
+      maestro.succeed("/run/current-system/specialisation/hardened/bin/switch-to-configuration test")
+      for port in (22, 80, 443):
+          storage.succeed(f"nc -4 -z -w 3 maestro {port}")
+          storage.fail(f"nc -4 -z -w 2 -s 172.18.0.2 172.18.0.1 {port}")
+          storage.succeed(f"nc -6 -z -w 3 -s fd42:99::2 fd42:99::1 {port}")
+          storage.fail(f"nc -6 -z -w 2 -s fd42:99::3 fd42:99::1 {port}")
       maestro.succeed("test $(systemctl show xo-server -p User --value) = xo")
       maestro.succeed("test $(stat -c %a /run/redis-xo/redis.sock) = 770")
       maestro.fail("ss -H -lnt | grep -E ':(6379|23|5900|5353) '")

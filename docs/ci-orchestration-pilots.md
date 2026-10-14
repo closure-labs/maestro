@@ -54,6 +54,20 @@ reusable finalizer; its context accepts continuation only from a main
 environment, final filename SBOM binding, and FIFO `maestro-publication` steps
 remain in place. No PR receives new cache or publication permissions.
 
+The final release filename receives new provenance and SPDX attestations. Before
+either FlakeHub or GitHub publication, `release:attestations` verifies its local
+checksum, protected-main source and reusable release-workflow signer digests,
+subject filename/hash, and exact SPDX predicate. Checking out the requested source
+does not change the caller's OIDC identity: if main advances and the caller or
+workflow signer no longer matches the release source, publication fails closed.
+
+The synchronous path still watches its exact CI candidate. If preparation first
+merges a VERSION update, the originating dispatch queues one fresh-main release
+dispatch with the same bump and ends without CI or publication. That new run sees
+the already-prepared version and obtains its matching OIDC identity; the old run's
+downstream jobs are skipped. Event continuation already obtains a fresh callback
+context and does not take this synchronous restart path.
+
 Every new release preparation, including the ordinary path, rejects another
 unexpired pending pilot request before touching VERSION. A failed/cancelled
 candidate or expired request permits an explicit fresh dispatch. Bounded

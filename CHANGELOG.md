@@ -9,123 +9,86 @@ correspond to published GitHub tags.
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-10-14
+
+### Breaking changes
+
+- Direct installation now requires `--revision` with a full immutable commit
+  SHA. Use the updated `deploy-template` command for the managed Packer path;
+  custom installer automation must pass the revision explicitly.
+- Installer SSH uses a per-build Ed25519 key enrolled through the VM console.
+  Fixed installer passwords are retired; custom Packer workflows must use the
+  updated key enrollment and sealing steps.
+
+### Security
+
+- Isolate guest file restore in a bounded, read-only libguestfs RPC helper.
+  Guest filesystem parsing and partition/LVM reads stay inside the isolated
+  libguestfs appliance;
+  the unprivileged host helper streams allowed files into bounded archives.
+  Unavailable backends, traversal, links and special files fail closed.
+- Run VHD parsing and FUSE mounts as XO. Protect mount roots and reject
+  redirected storage paths, with runtime privilege, SSH, TLS and storage checks.
+- Use the published XO 6.9.1 runtime with patched OpenSSL 3.5.9 LTS, patched
+  appliance libraries and terminal Vim; verify the active crypto implementation.
+- Bind native/npm findings to installed packages, immutable sources, derivations,
+  patch hashes and appliance context. Preserve raw findings and accept only
+  exact, expiring reviewed applicability decisions. npm findings remain visible
+  in report mode and are deferred to upstream; no upstream safety claim or new
+  deployment acceptance exception is introduced.
+- Require protected-main provenance, checksums, matching qualification state and
+  signed inventories for artifact reuse and release publication. Keep GitHub PR cache
+  operations read-only and resolve credentials at execution time.
+
+### Added
+
+- Add audited local validation-cache publication through SecretSpec and `pass`.
+  Successful declared outputs can be seeded to the dedicated Maestro Cachix
+  cache for subsequent local and hosted runs.
+- Add optional CI audit/qualification overlap and event-driven release
+  continuation with an immutable, expiring request. Both remain opt-in and
+  preserve the complete audit, scan, source, attestation and publication gates.
+  The observed overlap pair saved 77 seconds of active time while using 191
+  seconds more runner work; it does not establish a general speedup.
+- Add runtime XO extra environment-file configuration and optional SecretOps
+  password-store references for XCP-ng deployment credentials.
+
 ### Changed
 
-- Resolve inventory metadata from the flake lock root's actual Nixpkgs input,
-  including follows paths, and reject malformed lock graphs. Restore licenses,
-  descriptions and source positions omitted by the unrelated first lock node.
-
-- Run sbomnix and its metadata scanner through the captured hosted Nix CLI,
-  including `nix-store` and `nix-env`. Gate evidence qualification on a packaged
-  runtime fixture and reject unexpected upstream wrapper changes. Materialize
-  lazy-tree flake metadata when its source path is omitted so licenses,
-  descriptions and other locked-source metadata remain in the inventories.
-
-- Add opt-in manual CI audit overlap with unchanged full-audit, scan, signing
-  and verdict gates. Add a disabled-by-default release continuation pilot with
-  an immutable expiring request journal, exact protected-main candidate checks,
-  pending-release isolation, and the existing FIFO publication queue.
-
-- Use the dedicated Maestro Cachix cache for appliance, installer, CLI, native
-  devenv and CI builds. Keep XO, devenv and nix-community caches available;
-  publish only to Maestro with its repository-specific runtime credential and
-  public-key contract. Add SecretSpec references for workstation `pass` entries.
-- Keep local installer boot logs in a writable temporary file when the ISO is
-  built into the immutable Nix store; preserve explicit hosted log destinations.
-- Triage critical scanner matches against reviewed immutable source and runtime
-  evidence. Emit exact, expiring applicability decisions and preserve raw
-  findings; unknown attack surfaces remain visible in report mode until the
-  existing deployment acceptance gates pass. Bind installed npm manifest paths
-  in the version-3 normalizer and share the evaluator with XO supply scanning.
-
-- Add local `ci:cache-validation` to audit and publish the exact successful
-  validation closures to the configured Cachix cache using runtime credentials.
-  Audit manifests live under `.devenv`; hosted execution cannot publish them.
-
-- Download signed evidence without installer media for CI, weekly, and release
-  vulnerability scans. `maestro-ci-download-installer DIRECTORY [evidence]`
-  keeps full installer verification as its default; publication still verifies
-  the ISO and its bound SPDX inventory.
-- Batch provenance requests within one invocation, retaining exact source and
-  attestation checks while avoiding repeated producer and ancestry API reads.
-  `maestro-ci-trusted-run --batch` accepts a JSON request array on stdin.
-- Check the active Nix derivation JSON interface before repository validation
-  and media builds. Materialize literal coreutils patches in the pinned devenv
-  launcher even when its runtime is substituted. Publish the CI toolchain and
-  SBOM tooling alongside the existing protected-main cache targets.
-
-- Read versioned Nix derivation JSON for security evidence, including structured
-  attributes, input derivations and fixed-output patch paths; retain support for
-  older flat responses and reject malformed or unsupported formats explicitly.
-
-- Validate hosted Nix paths and build budgets before exporting runner state
-  through the shared setup helper; reject multiline environment injection.
-
-- Remove nested libguestfs file restore acceptance from the CI runtime VM test.
-  Keep storage, network, SSH, TLS, service privilege and crypto assertions in
-  that test, and retain file restore unit fixtures.
-
-- Size hosted Nix jobs/cores from each runner's CPU and RAM, preserve the
-  setup-installed Determinate CLI through packaged audit commands, and make
-  env-backed SecretSpec runtime loading explicit in devenv configuration.
-
-- Consume the published XO runtime built against OpenSSL 3.5.9 LTS. Verify the
-  active XO process's crypto version and loaded libraries, and wait for bounded
-  isolated-restore cleanup in the installed-XO test.
-
-- Restrict appliance SSH/XO and installer SSH ingress to the operator-approved
-  `192.168.0.0/16` management range through typed operator policy. Verify allowed
-  and rejected client ranges in the booted runtime test.
-- Generate source-bound security inventory v2 with complete installed XO npm
-  identities, exact Nix derivations, patch hashes and runtime context. Prove
-  native/npm scanner coverage and reject incomplete inventories. Replace
-  permanent version-only baselines with exact, expiring policy v2 decisions;
-  unscored advisories also require review.
-- Build Determinate's same pinned source through its public component interface
-  against patched appliance libraries. Select patched terminal Vim from the
-  XO runtime snapshot, and use specific hostname tools in
-  operator wrappers.
-- Route guest file restore through an unprivileged, read-only libguestfs RPC
-  helper and a source-built appliance with a headless x86 QEMU. Keep partition,
-  LVM, file listing and ZIP/TGZ downloads inside the guest kernel. Bound concurrent
-  work and runtime; reject traversal, links and special files; fail closed when
-  the backend is disabled or unavailable.
-- Protect mount directory names with root ownership and sticky permissions,
-  claim them through descriptor-based validation, and run VHD parsing/FUSE
-  mounting as XO. Add booted storage, TLS, SSH and pathname-boundary tests.
-- Declare SecretOps XCP-ng runtime credential variables and optional pass-entry
-  resolution. Remove host passwords from installer/Nix preparation subprocesses.
-- Request only the installed audit App's Administration read permission for
-  policy checks. Allow canceled CI runs to release their runner while keeping
-  failure verdicts for active runs.
-
-- Require qualification-state v5 and successful protected-main producer runs
-  across CI reuse, releases, and template deployment. Verify the complete signed
-  inventory and compare the bound SPDX predicate with the downloaded SBOM.
-- Refresh all declared flake and native toolchain inputs, including Determinate
-  Nix 3.23.1, the current stable Nixpkgs snapshot, and published XO 6.9.1.
-  Check prerequisite caches before building installer media so missing upstream
-  publications fail promptly.
-- Separate read-only qualification from protected-main signing and publication;
-  run the required verdict through its declared devenv task. Retire privileged
-  PR hash repair and restrict automatic update queueing to dependency/version
-  paths, leaving workflow/action updates to operator review.
-- Replace fixed installer passwords with per-build Ed25519 public-key enrollment
-  through the VM console. Pin installed source to an immutable commit; direct
-  installation now requires `--revision`, with optional `--bootstrap-key`.
-- Add runtime `maestro.xo.extraServerEnvFiles`, stricter storage-helper parsing,
-  and SSH, service identity, Valkey, capability, and sudo assertions.
-  Keep temporary CIFS credentials beneath a root-owned runtime directory.
-  Reject storage paths whose configured roots have been redirected by symlinks.
-- Add dependency scans, release rescanning, weekly security maintenance, and a
-  read-only GitHub policy drift task. Vulnerability gating starts in report mode;
-  reviewed baselines and expiring exceptions control later enforcement.
-  Use the organization security audit App to mint temporary read-only policy
-  tokens, with a policy-only maintenance dispatch for credential checks.
+- Allow appliance SSH/XO and installer SSH from all IPv4 and IPv6 clients by default
+  (`maestro.operator.managementCIDRs = ["0.0.0.0/0" "::/0"]`) for initial deployment.
+  Keep SSH key authentication enforced. Add a
+  [hardening guide](docs/hardening.md) for restricting management ranges after
+  deployment, validating new connections and recovering through the VM console.
+- Use the dedicated Maestro cache, retaining XO, devenv and nix-community public
+  cache pulls. GitHub publication uses `CACHIX_MAESTRO_AUTH_TOKEN` and the
+  `CACHIX_MAESTRO_PUBKEY` variable; public pulls need no write credential.
+- Reuse signed supply evidence independently of installer media, batch provenance
+  lookups and retain cached CI/SBOM tooling. Size build concurrency to runner CPU
+  and memory while preserving the setup-installed Determinate Nix executable.
+- Refresh pinned flake/native inputs and fail promptly when prerequisite upstream
+  cache publications are unavailable. Serialize release publication in FIFO order
+  and preserve release-candidate identity across concurrent main updates.
 
 ### Fixed
 
-- Synchronize the Packer consumer and fixtures with qualification-state v5.
+- Invalidate installer reuse when the embedded appliance closure changes, so
+  host management policy and other appliance changes reach newly qualified media.
+- Verify final release ISO provenance and its exact SPDX attestation against the
+  release source and signer before FlakeHub or GitHub publication. Reject caller
+  source drift, changed installer content and mismatched SBOM evidence.
+- Restart synchronous release orchestration after a prepared VERSION merge so
+  final signing uses the new source identity; preserve the existing CI watch path.
+- Preserve complete SBOM metadata with the captured hosted Nix CLI. Materialize
+  lazy-tree source metadata when needed, select the actual root Nixpkgs input,
+  and restore missing licenses, descriptions and source references while
+  preserving package identities and dependencies.
+- Decode current Nix derivation JSON and handle immutable patch metadata without
+  accepting malformed inventory evidence.
+- Keep local installer boot logs writable outside the Nix store and synchronize
+  Packer consumers with the current qualification-state schema.
+- Preserve guest LVM access, bounded isolated-restore cleanup and service
+  readiness checks while retaining file-restore unit coverage.
 
 ## [2.0.0] - 2026-08-23
 
