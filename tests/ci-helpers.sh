@@ -99,6 +99,26 @@ for event in pull_request merge_group push schedule workflow_dispatch; do
   fi
 done
 
+# Speculative qualification must never turn a failed/cancelled overlapping
+# audit into a successful required verdict, even when every other job passed.
+env ROUTE_RESULT=success CI_PLAN="$media_plan" QUALIFICATION_RESULT=success \
+  SECURITY_RESULT=success SIGNING_RESULT=skipped GITHUB_EVENT_NAME=workflow_dispatch \
+  GITHUB_REF=refs/heads/pilot AUDIT_OVERLAP=true AUDIT_RESULT=success "$MAESTRO_CI_VERDICT"
+for audit_result in failure cancelled skipped; do
+  if env ROUTE_RESULT=success CI_PLAN="$media_plan" QUALIFICATION_RESULT=success \
+    SECURITY_RESULT=success SIGNING_RESULT=success GITHUB_EVENT_NAME=workflow_dispatch \
+    GITHUB_REF=refs/heads/main AUDIT_OVERLAP=true AUDIT_RESULT="$audit_result" \
+    "$MAESTRO_CI_VERDICT" >/dev/null 2>&1; then
+    printf 'CI verdict accepted missing or failed overlapping audit.\n' >&2; exit 1
+  fi
+done
+if env ROUTE_RESULT=success CI_PLAN="$media_plan" QUALIFICATION_RESULT=success \
+  SECURITY_RESULT=success SIGNING_RESULT=success GITHUB_EVENT_NAME=push \
+  GITHUB_REF=refs/heads/main AUDIT_OVERLAP=true AUDIT_RESULT=success \
+  "$MAESTRO_CI_VERDICT" >/dev/null 2>&1; then
+  printf 'CI verdict accepted an unapproved overlap event.\n' >&2; exit 1
+fi
+
 invalid_publish_plan='{"schema_version":3,"qualification":{"required":false,"mode":"skip","artifact_run_id":null,"media_run_id":null,"evidence_run_id":null,"media_input":null,"evidence_input":null},"publish_required":true}'
 if env ROUTE_RESULT=success SECURITY_RESULT=success CI_PLAN="$invalid_publish_plan" \
   QUALIFICATION_RESULT=skipped "$MAESTRO_CI_VERDICT" >/dev/null 2>&1; then

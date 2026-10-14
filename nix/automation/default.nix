@@ -54,6 +54,15 @@
   };
 
   commands = {
+    release-request = mkCommand {
+      name = "release-request";
+      prefix = ''
+        MAESTRO_RELEASE_REQUEST_SOURCE=${./release-request.py}
+        export MAESTRO_RELEASE_REQUEST_SOURCE
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.python3];
+      source = ./release-request.sh;
+    };
     security-inventory-preflight = mkCommand {
       name = "security-inventory-preflight";
       prefix = ''

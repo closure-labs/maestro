@@ -110,6 +110,17 @@ dispatch() {
   : "${GITHUB_REPOSITORY:?}" "${SOURCE_SHA:?}"
   remote_sha=$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq .sha)
   [[ "$remote_sha" == "$SOURCE_SHA" ]]
+  if [[ ${EVENT_CONTINUATION:-false} == true ]]; then
+    [[ ${MAESTRO_RELEASE_CONTINUATION_ENABLED:-false} == true ]]
+    [[ ${GITHUB_RUN_ID:?} =~ ^[1-9][0-9]*$ ]]
+    # The immutable request artifact must already have been uploaded. The
+    # completion workflow binds this marker back to that exact origin run.
+    gh workflow run ci.yml --ref main \
+      -f validate_only=false -f force_artifact=false -f release_candidate=true \
+      -f "release_request_id=$GITHUB_RUN_ID"
+    return
+  fi
+  [[ ${EVENT_CONTINUATION:-false} == false ]]
   previous_run_id=$(gh run list --workflow ci.yml --event workflow_dispatch --branch main \
     --commit "$SOURCE_SHA" --limit 1 --json databaseId --jq '.[0].databaseId // empty')
   gh workflow run ci.yml --ref main \

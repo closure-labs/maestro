@@ -129,6 +129,7 @@ case "${1:-} ${2:-}" in
     ;;
   "run watch")
     [[ "${3:-}" == 314 && "${4:-}" == --exit-status ]]
+    touch "${FAKE_WATCH_MARKER:?}"
     ;;
   *)
     printf 'Unexpected gh fixture invocation: %s\n' "$*" >&2
@@ -142,11 +143,27 @@ dispatch_output="$temporary/dispatch-output"
 export FAKE_DISPATCH_MARKER="$temporary/dispatched"
 export FAKE_SOURCE_SHA="$source_sha"
 export FAKE_WORKFLOW_ARGS="$temporary/workflow-args"
+export FAKE_WATCH_MARKER="$temporary/watched"
 GITHUB_OUTPUT="$dispatch_output" \
 GITHUB_REPOSITORY=example/maestro \
 SOURCE_SHA="$source_sha" \
   "$MAESTRO_CI_RELEASE_MANAGER" dispatch
 grep -Fxq 'run_id=314' "$dispatch_output"
 grep -Fq -- '-f release_candidate=true' "$FAKE_WORKFLOW_ARGS"
+
+# Event mode must return after dispatch, never spend a runner watching CI.
+rm "$FAKE_WATCH_MARKER" "$FAKE_DISPATCH_MARKER" "$FAKE_WORKFLOW_ARGS"
+GITHUB_OUTPUT="$dispatch_output" GITHUB_REPOSITORY=example/maestro SOURCE_SHA="$source_sha" \
+  EVENT_CONTINUATION=true MAESTRO_RELEASE_CONTINUATION_ENABLED=true GITHUB_RUN_ID=123 \
+  "$MAESTRO_CI_RELEASE_MANAGER" dispatch
+[[ ! -e "$FAKE_WATCH_MARKER" ]]
+grep -Fq -- '-f release_request_id=123' "$FAKE_WORKFLOW_ARGS"
+rm "$FAKE_DISPATCH_MARKER" "$FAKE_WORKFLOW_ARGS"
+if GITHUB_OUTPUT="$dispatch_output" GITHUB_REPOSITORY=example/maestro SOURCE_SHA="$source_sha" \
+  EVENT_CONTINUATION=true MAESTRO_RELEASE_CONTINUATION_ENABLED=false GITHUB_RUN_ID=123 \
+  "$MAESTRO_CI_RELEASE_MANAGER" dispatch >/dev/null 2>&1; then
+  printf 'Disabled event continuation unexpectedly dispatched CI.\n' >&2; exit 1
+fi
+[[ ! -e "$FAKE_DISPATCH_MARKER" ]]
 
 printf 'Release asset fixture checks passed.\n'

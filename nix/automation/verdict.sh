@@ -4,6 +4,14 @@
 set -euo pipefail
 
 test "${ROUTE_RESULT:?}" = success
+case "${AUDIT_OVERLAP:-false}" in
+  true)
+    [[ ${GITHUB_EVENT_NAME:-} == workflow_dispatch ]]
+    [[ ${AUDIT_RESULT:?} == success ]]
+    ;;
+  false) [[ ${AUDIT_RESULT:-skipped} == skipped ]] ;;
+  *) printf 'Invalid audit overlap flag\n' >&2; exit 1 ;;
+esac
 : "${CI_PLAN:?CI_PLAN must contain the route decision JSON output}"
 
 # Enforce the schema-v3 conditional graph through the declared ci:verdict task.

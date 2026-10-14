@@ -1,0 +1,26 @@
+{
+  "assumptions": {
+    "additional_cross_job_queue_delays": 0,
+    "audit_job_overhead_seconds": 60,
+    "concurrent_cache_and_CPU_contention": "not modeled",
+    "release_continuation": "idle runner watch removed; release latency and protected merge waits unchanged; not measured",
+    "unchanged_job_durations": true
+  },
+  "evidence_kind": "modeled DAG using observed hosted durations; pilot performance not observed",
+  "modeled_seconds": {
+    "additional_runner_work": 60,
+    "critical_path_reduction": 189,
+    "overlap_until_security_and_audit_ready": 1348,
+    "serial_until_security_and_audit_ready": 1537
+  },
+  "observed_seconds": {
+    "audit_step": 189,
+    "qualification": 768,
+    "route": 567,
+    "security": 202
+  },
+  "schema_version": 1,
+  "source_jobs_sha256": "c5aa3280921903553be51581f42e7a0f3571a25aeaf3f78b6936b710f9012c14",
+  "source_run_id": 38623241194,
+  "source_url": "https://github.com/closure-labs/maestro/actions/runs/38623241194"
+}

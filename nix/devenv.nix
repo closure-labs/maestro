@@ -104,6 +104,9 @@ in {
     "automation:open-lock-update-pr".exec =
       runFlakePackage "maestro-ci-open-update-pr" "flake.lock devenv.lock";
 
+    "release:request".exec = runFlakePackage "maestro-ci-release-request" "create";
+    "release:pending".exec = runFlakePackage "maestro-ci-release-request" "pending";
+    "release:continuation".exec = runFlakePackage "maestro-ci-release-request" "resolve";
     "release:prepare".exec = runFlakePackage "maestro-ci-release-manager" "prepare";
     "release:dispatch".exec = runFlakePackage "maestro-ci-release-manager" "dispatch";
     "release:inventory".exec = runFlakePackage "maestro-ci-release-manager" "inventory";

@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: Apache-2.0
+name: Continue Maestro release
+on:
+  # Only protected-main code executes; authoritative run identity, immutable
+  # request, exact source, ancestry and candidate success are independently
+  # checked twice. No triggering checkout or artifact code is executed.
+  workflow_run: # zizmor: ignore[dangerous-triggers]
+    workflows: [CI, Release Maestro]
+    types: [completed]
+permissions:
+  contents: read
+jobs:
+  resolve:
+    name: Resolve protected immutable release request
+    if: vars.MAESTRO_RELEASE_CONTINUATION_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      ready: ${{ steps.request.outputs.ready }}
+      request_run_id: ${{ steps.request.outputs.request_run_id }}
+      run_id: ${{ steps.request.outputs.run_id }}
+    steps:
+      # workflow_run can originate in untrusted PR code; never check out or
+      # execute that source. The leaf fetches and validates authoritative runs.
+      - name: Checkout protected orchestration source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Set up Nix
+        uses: ./.github/actions/setup-nix
+      - name: Verify immutable release request and exact candidate
+        id: request
+        env:
+          MAESTRO_RELEASE_CONTINUATION_ENABLED: ${{ vars.MAESTRO_RELEASE_CONTINUATION_ENABLED || 'false' }}
+          GH_TOKEN: ${{ github.token }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:continuation
+  finalize:
+    needs: resolve
+    if: needs.resolve.outputs.ready == 'true'
+    permissions:
+      actions: write
+      artifact-metadata: write
+      attestations: write
+      contents: write
+      id-token: write
+      pull-requests: write
+    # Keep release environment, signer workflow, FIFO publication and exact
+    # candidate verification in the existing release workflow.
+    uses: ./.github/workflows/release.yml
+    with:
+      release_request_run_id: ${{ needs.resolve.outputs.request_run_id }}
+      release_candidate_run_id: ${{ needs.resolve.outputs.run_id }}
