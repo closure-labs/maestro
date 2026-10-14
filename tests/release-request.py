@@ -64,6 +64,22 @@ class Requests(unittest.TestCase):
         self.assertIn('source_sha=' + SOURCE, output)
         self.assertIn('run_id=20\n', output)
 
+    def test_published_duplicate_only_resumes_unfinished_version_advancement(self):
+        for current, ready in [('1.2.3', True), ('1.2.4-dev.0', False), ('1.3.0', False)]:
+            with self.subTest(current=current):
+                def api(path):
+                    if path == 'contents/VERSION?ref=main':
+                        return {'content': base64.b64encode(current.encode()).decode()}
+                    return self.api(path)
+                self.output.unlink(missing_ok=True)
+                with patch.object(module, 'api', side_effect=api), patch.object(module, 'journal', return_value=self.request), \
+                        patch.object(module, 'published', return_value=True) as publication:
+                    module.resolve()
+                self.assertEqual(publication.call_count, 1)
+                self.assertIn('ready=' + str(ready).lower() + '\n', self.output.read_text())
+                if not ready:
+                    self.assertEqual(self.output.read_text(), 'ready=false\n')
+
     def test_invalid_run_identity_rejected(self):
         for field, value in [('event', 'pull_request'), ('head_branch', 'evil'), ('head_sha', 'c' * 40),
                              ('path', '.github/workflows/untrusted.yml'), ('display_title', 'Maestro release request 11'),

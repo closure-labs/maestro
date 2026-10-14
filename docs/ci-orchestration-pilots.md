@@ -62,8 +62,10 @@ window. API failures fail rather than imply absence or success.
 
 Duplicate completion events serialize through `maestro-release` with
 `queue: max`. A previously published exact-source tag skips scan and publication
-and can finish the existing idempotent next-version advancement. A different
-published source fails. Both release and rolling publication retain the shared
+and can finish the existing idempotent next-version advancement while main
+VERSION still equals that release. Once VERSION has moved, late callbacks for
+the old published release are ignored rather than starting stale advancement
+jobs. A different published source fails. Both release and rolling publication retain the shared
 FIFO queue. If continuation fails, inspect the resolver logs and rerun its
 original completion run while the request remains valid. Disabling the variable
 stops new resolution; it does not withdraw a finalizer that already passed its

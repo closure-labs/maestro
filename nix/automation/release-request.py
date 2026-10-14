@@ -196,8 +196,16 @@ def resolve():
         emit(ready=False)
         return
     validate(request, origin, run)
+    already_published = published(request)
+    if already_published:
+        main_version = api('contents/VERSION?ref=main')
+        if base64.b64decode(main_version['content']).decode().strip() != request['version']:
+            # An earlier continuation already advanced VERSION, or a later
+            # release is in progress. Never spawn a stale advancement job.
+            emit(ready=False)
+            return
     emit(ready=True, run_id=run['id'], source_sha=request['source_sha'], tag=request['tag'],
-         version=request['version'], request_run_id=origin['id'], already_published=published(request))
+         version=request['version'], request_run_id=origin['id'], already_published=already_published)
 
 
 if __name__ == '__main__':
