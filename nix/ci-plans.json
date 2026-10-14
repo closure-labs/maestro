@@ -19,6 +19,7 @@
       {"name": "configuration", "attribute": "checks.x86_64-linux.configuration"},
       {"name": "ci-plan-contract", "attribute": "checks.x86_64-linux.ci-plan-contract"},
       {"name": "security-fixtures", "attribute": "checks.x86_64-linux.security-fixtures"},
+      {"name": "runtime-security", "attribute": "checks.x86_64-linux.runtime-security"},
       {"name": "packer-policy", "attribute": "checks.x86_64-linux.packer-policy"}
     ]
   },
@@ -40,6 +41,8 @@
   "publish": {
     "name": "maestro-publish",
     "targets": [
+      {"name": "maestro-ci-toolchain", "attribute": "packages.x86_64-linux.maestro-ci-toolchain"},
+      {"name": "sbomnix", "attribute": "packages.x86_64-linux.sbomnix"},
       {"name": "toplevel", "attribute": "nixosConfigurations.maestro.config.system.build.toplevel"},
       {"name": "deploy-template", "attribute": "packages.x86_64-linux.deploy-template"},
       {"name": "metadata", "attribute": "packages.x86_64-linux.metadata"},

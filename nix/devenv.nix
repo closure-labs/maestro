@@ -45,7 +45,10 @@ in {
       ];
     };
     "ci:repository-audit:flake" = {
-      exec = runFlakePackage "maestro-ci-repository-audit" "--no-write-lock-file";
+      exec = ''
+        export MAESTRO_CI_AUDIT_MANIFEST="''${MAESTRO_CI_AUDIT_MANIFEST:-$DEVENV_STATE/maestro-validation.json}"
+        ${runFlakePackage "maestro-ci-repository-audit" "--no-write-lock-file"}
+      '';
       # Reuse is safe only for an identical checkout; every tracked source or
       # documentation change is allowed to invalidate the complete contract.
       execIfModified = ["."];
@@ -57,6 +60,13 @@ in {
       ];
     };
 
+    "ci:cache-validation" = {
+      after = ["ci:repository-audit"];
+      exec = runFlakePackage "maestro-ci-cache-validation" ''
+        "''${MAESTRO_CI_AUDIT_MANIFEST:-$DEVENV_STATE/maestro-validation.json}"
+      '';
+    };
+
     "ci:qualification:resolve".exec = runFlakePackage "maestro-ci-resolve-qualification" "";
     "ci:qualification:assemble".exec = runFlakePackage "maestro-ci-qualification-assets" "";
     "ci:qualification:sign-check".exec = runFlakePackage "maestro-ci-sign-check" "";
@@ -65,6 +75,10 @@ in {
     '';
     "ci:publish".exec = runFlakePackage "maestro-ci-publish" "";
     "ci:security:scan".exec = runFlakePackage "maestro-ci-security-scan" "";
+    "ci:security:inventory-preflight".exec = runFlakePackage "maestro-ci-security-inventory-preflight" "";
+    "ci:security:inventory".exec = runFlakePackage "maestro-ci-security-inventory" ''
+      "''${SECURITY_SYSTEM_SBOM:-maestro-system.cdx.json}" "''${SECURITY_XO_SBOM:-xen-orchestra-supply.cdx.json}"
+    '';
     "ci:security:latest".exec = runFlakePackage "maestro-ci-security-latest" "";
     "ci:security:policy-drift".exec = runFlakePackage "maestro-ci-policy-drift" "";
     "ci:packer:validate".exec = runFlakePackage "maestro-ci-packer-validate" "";

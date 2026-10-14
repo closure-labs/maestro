@@ -108,18 +108,18 @@ reject "$MAESTRO_CI_VERIFY_INVENTORY" "$inventory" "$sha"
 
 # Report-only findings do not block; scanner failures are handled by the scan
 # command. Enforcement compares reviewed baselines and expiring exceptions.
-printf '[{"advisory":"CVE-fixture","component":"example","version":"1","severity":"high"}]\n' >"$temporary/findings.json"
+printf '[{"advisory":"CVE-fixture","component":"example","version":"1","severity":"high","identity":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]\n' >"$temporary/findings.json"
 cp "$root/nix/automation/security-policy.json" "$temporary/policy.json"
 "$MAESTRO_CI_SECURITY_VERDICT" "$temporary/findings.json" "$temporary/policy.json" >/dev/null
 jq '.mode="enforce"' "$temporary/policy.json" >"$temporary/enforce.json"
 reject "$MAESTRO_CI_SECURITY_VERDICT" "$temporary/findings.json" "$temporary/enforce.json"
-jq '.baseline=[{advisory:"CVE-fixture",component:"example",version:"1",severity:"high",owner:"operator",reason:"reviewed"}]' "$temporary/enforce.json" >"$temporary/baseline.json"
+jq --arg created "$(date -u +%F)" --arg expires "$(date -u -d tomorrow +%F)" '.dispositions=[{advisory:"CVE-fixture",component:"example",version:"1",severity:"high",identity:("a"*64),kind:"fixed",owner:"operator",reason:"reviewed",evidence:["https://example.invalid/patch"],created:$created,expires:$expires}]' "$temporary/enforce.json" >"$temporary/baseline.json"
 "$MAESTRO_CI_SECURITY_VERDICT" "$temporary/findings.json" "$temporary/baseline.json" >/dev/null
 jq '.[0].severity="critical"' "$temporary/findings.json" >"$temporary/escalated.json"
 reject "$MAESTRO_CI_SECURITY_VERDICT" "$temporary/escalated.json" "$temporary/baseline.json"
 today=$(date -u +%F)
 tomorrow=$(date -u -d tomorrow +%F)
-jq --arg created "$today" --arg expires "$tomorrow" '.exceptions=[{advisory:"CVE-fixture",component:"example",version:"1",owner:"operator",reason:"temporary",created:$created,expires:$expires}]' "$temporary/enforce.json" >"$temporary/exception.json"
+jq --arg created "$today" --arg expires "$tomorrow" '.exceptions=[{advisory:"CVE-fixture",component:"example",version:"1",severity:"high",identity:("a"*64),owner:"operator",reason:"temporary",evidence:["https://example.invalid/issue"],created:$created,expires:$expires}]' "$temporary/enforce.json" >"$temporary/exception.json"
 "$MAESTRO_CI_SECURITY_VERDICT" "$temporary/findings.json" "$temporary/exception.json" >/dev/null
 jq '.exceptions[0].created="2020-01-01" | .exceptions[0].expires="2020-01-02"' "$temporary/exception.json" >"$temporary/expired.json"
 reject "$MAESTRO_CI_SECURITY_VERDICT" "$temporary/findings.json" "$temporary/expired.json"

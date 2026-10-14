@@ -21,7 +21,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Check publication prerequisites before spending runner time building media.
+# Check the hosted metadata interface and upstream publications before building.
+maestro-ci-security-inventory-preflight
 nix config show substituters
 nix config show trusted-public-keys
 determinate_out=$(nix eval --accept-flake-config --raw .#nixosConfigurations.maestro.config.nix.package.upstream.outPath)
@@ -83,6 +84,7 @@ else
   )
   mv "$sbom_work/sbom.spdx.json" maestro-system.spdx.json
   mv "$sbom_work/sbom.cdx.json" maestro-system.cdx.json
+  maestro-ci-security-inventory maestro-system.cdx.json xen-orchestra-supply.cdx.json
 
   xo_version=$(jq -er .subject.version xen-orchestra-supply.assertion.json)
   xo_document_namespace=$(jq -er .documentNamespace xen-orchestra-supply.spdx.json)

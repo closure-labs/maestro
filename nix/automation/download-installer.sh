@@ -2,7 +2,13 @@
 # SPDX-License-Identifier: Apache-2.0
 set -euo pipefail
 : "${GITHUB_REPOSITORY:?}"
-[[ $# == 1 ]] || { echo 'Usage: maestro-ci-download-installer DIRECTORY' >&2; exit 2; }
+[[ $# -ge 1 && $# -le 2 ]] || { echo 'Usage: maestro-ci-download-installer DIRECTORY [evidence]' >&2; exit 2; }
+mode=${2:-full}
+case $mode in
+  full) artifact_name=maestro-installer ;;
+  evidence) artifact_name=maestro-evidence ;;
+  *) echo 'Only evidence may be specified as a download mode' >&2; exit 2 ;;
+esac
 destination=$(realpath -m -- "$1")
 [[ ! -e $destination ]] || { echo 'Download destination must not exist' >&2; exit 2; }
 github_cli=${GH_BIN:-gh}
@@ -23,8 +29,8 @@ while read -r run_id; do
   artifact_run_id=$(jq -er .artifact_run_id "$pointer")
   artifact_sha=$(jq -er .artifact_source_commit "$pointer")
   if ! "$github_cli" run download "$artifact_run_id" --repo "$GITHUB_REPOSITORY" \
-      --name maestro-installer --dir "$temporary/inventory" ||
-    ! maestro-ci-verify-inventory "$temporary/inventory" "$artifact_sha"; then
+      --name "$artifact_name" --dir "$temporary/inventory" ||
+    ! maestro-ci-verify-inventory "$temporary/inventory" "$artifact_sha" "$mode"; then
     continue
   fi
   if ! jq -e --slurpfile pointer "$pointer" '

@@ -59,8 +59,9 @@ Options:
   --configure-only        save settings without deploying
   -h, --help              show this help
 
-The XCP-ng password is never written to disk. Set PKR_VAR_remote_password for
-unattended use; otherwise the script requests it without echo.
+The XCP-ng password is never written to disk. Supply XCP_HOSTPASSWORD through
+SecretOps, set XCP_PASSWORD_PASS_ENTRY for runtime password-store lookup, or
+set PKR_VAR_remote_password; otherwise the script requests it without echo.
 EOF
 }
 
@@ -244,7 +245,13 @@ printf 'Saved non-secret XCP-ng settings to %s\n' "$config_file"
 
 [[ "$configure_only" -eq 0 ]] || exit 0
 
-remote_password=${PKR_VAR_remote_password:-}
+remote_password=${PKR_VAR_remote_password:-${XCP_HOSTPASSWORD:-}}
+if [[ -z "$remote_password" && -n ${XCP_PASSWORD_PASS_ENTRY:-} ]]; then
+  command -v pass >/dev/null || { echo 'Password-store provider is unavailable.' >&2; exit 1; }
+  # Resolve SecretOps credentials only after configuration/Nix work is done.
+  remote_password=$(pass show "$XCP_PASSWORD_PASS_ENTRY")
+  remote_password=${remote_password%%$'\n'*}
+fi
 if [[ -z "$remote_password" ]]; then
   [[ -t 0 ]] || {
     printf 'Set PKR_VAR_remote_password for non-interactive deployment.\n' >&2

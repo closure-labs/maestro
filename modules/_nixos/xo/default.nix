@@ -11,6 +11,7 @@ in {
     ./service.nix
     ./tls.nix
     ./storage.nix
+    ./file-restore.nix
   ];
 
   options.maestro.xo = {

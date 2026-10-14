@@ -68,7 +68,6 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
           permission-administration: read
-          permission-contents: read
       - name: Read repository security settings
         env:
           GH_TOKEN: ${{ steps.policy-token.outputs.token }}

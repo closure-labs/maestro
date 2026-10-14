@@ -32,7 +32,10 @@ in {
       bootstrap = inputs.self.packages.${system}.bootstrap;
       buildTemplate = inputs.self.packages.${system}.build-template;
       deployTemplate = inputs.self.packages.${system}.deploy-template;
-      devenv = inputs.devenv.packages.${system}.devenv;
+      devenv = import ../../nix/devenv-launcher.nix {
+        inherit pkgs lib;
+        devenv = inputs.devenv.packages.${system}.devenv;
+      };
       maestroctlApp = mkMaestroctlApp pkgs maestroctl;
     in {
       devenv = {

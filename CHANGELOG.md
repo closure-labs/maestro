@@ -11,6 +11,67 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Add local `ci:cache-validation` to audit and publish the exact successful
+  validation closures to the configured Cachix cache using runtime credentials.
+  Audit manifests live under `.devenv`; hosted execution cannot publish them.
+
+- Download signed evidence without installer media for CI, weekly, and release
+  vulnerability scans. `maestro-ci-download-installer DIRECTORY [evidence]`
+  keeps full installer verification as its default; publication still verifies
+  the ISO and its bound SPDX inventory.
+- Batch provenance requests within one invocation, retaining exact source and
+  attestation checks while avoiding repeated producer and ancestry API reads.
+  `maestro-ci-trusted-run --batch` accepts a JSON request array on stdin.
+- Check the active Nix derivation JSON interface before repository validation
+  and media builds. Materialize literal coreutils patches in the pinned devenv
+  launcher even when its runtime is substituted. Publish the CI toolchain and
+  SBOM tooling alongside the existing protected-main cache targets.
+
+- Read versioned Nix derivation JSON for security evidence, including structured
+  attributes, input derivations and fixed-output patch paths; retain support for
+  older flat responses and reject malformed or unsupported formats explicitly.
+
+- Validate hosted Nix paths and build budgets before exporting runner state
+  through the shared setup helper; reject multiline environment injection.
+
+- Remove nested libguestfs file restore acceptance from the CI runtime VM test.
+  Keep storage, network, SSH, TLS, service privilege and crypto assertions in
+  that test, and retain file restore unit fixtures.
+
+- Size hosted Nix jobs/cores from each runner's CPU and RAM, preserve the
+  setup-installed Determinate CLI through packaged audit commands, and make
+  env-backed SecretSpec runtime loading explicit in devenv configuration.
+
+- Consume the published XO runtime built against OpenSSL 3.5.9 LTS. Verify the
+  active XO process's crypto version and loaded libraries, and wait for bounded
+  isolated-restore cleanup in the installed-XO test.
+
+- Restrict appliance SSH/XO and installer SSH ingress to the operator-approved
+  `192.168.0.0/16` management range through typed operator policy. Verify allowed
+  and rejected client ranges in the booted runtime test.
+- Generate source-bound security inventory v2 with complete installed XO npm
+  identities, exact Nix derivations, patch hashes and runtime context. Prove
+  native/npm scanner coverage and reject incomplete inventories. Replace
+  permanent version-only baselines with exact, expiring policy v2 decisions;
+  unscored advisories also require review.
+- Build Determinate's same pinned source through its public component interface
+  against patched appliance libraries. Select patched terminal Vim from the
+  XO runtime snapshot, and use specific hostname tools in
+  operator wrappers.
+- Route guest file restore through an unprivileged, read-only libguestfs RPC
+  helper and a source-built appliance with a headless x86 QEMU. Keep partition,
+  LVM, file listing and ZIP/TGZ downloads inside the guest kernel. Bound concurrent
+  work and runtime; reject traversal, links and special files; fail closed when
+  the backend is disabled or unavailable.
+- Protect mount directory names with root ownership and sticky permissions,
+  claim them through descriptor-based validation, and run VHD parsing/FUSE
+  mounting as XO. Add booted storage, TLS, SSH and pathname-boundary tests.
+- Declare SecretOps XCP-ng runtime credential variables and optional pass-entry
+  resolution. Remove host passwords from installer/Nix preparation subprocesses.
+- Request only the installed audit App's Administration read permission for
+  policy checks. Allow canceled CI runs to release their runner while keeping
+  failure verdicts for active runs.
+
 - Require qualification-state v5 and successful protected-main producer runs
   across CI reuse, releases, and template deployment. Verify the complete signed
   inventory and compare the bound SPDX predicate with the downloaded SBOM.

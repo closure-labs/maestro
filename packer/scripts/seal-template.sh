@@ -48,7 +48,7 @@ canonical_module=
 
 nixos-rebuild --accept-flake-config switch --flake "path:$repo#maestro"
 
-sshd -t
+sshd -t -f /etc/ssh/sshd_config
 assert_sshd_directive /etc/ssh/sshd_config PasswordAuthentication no
 assert_sshd_directive /etc/ssh/sshd_config PermitRootLogin no
 # Neither the bootstrap authorization nor enrollment files may survive sealing.

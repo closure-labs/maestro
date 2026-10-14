@@ -14,11 +14,15 @@ in {
       };
       xenOrchestraCe = inputs.xen-orchestra-ce.packages.x86_64-linux.latest;
       xenOrchestraSupplyProtector = inputs.xen-orchestra-ce.packages.x86_64-linux.supply-protector-latest;
-      planRunner = inputs.xen-orchestra-ce.packages.${system}.flake-plan-runner;
+      ciNix = import ../../nix/ci-nix.nix {inherit pkgs;};
+      planRunner = inputs.xen-orchestra-ce.packages.${system}.flake-plan-runner.override {nix = ciNix;};
       maestroctl = pkgs.callPackage ../../pkgs/maestroctl/package.nix {};
       maestroMenu = pkgs.callPackage ../../pkgs/maestro-menu/package.nix {};
       automationCommands = import ../../nix/automation {
-        inherit pkgs planRunner packerXenserver;
+        inherit pkgs planRunner packerXenserver ciNix;
+        appliance = inputs.self.nixosConfigurations.maestro.config;
+        lockFile = ../../flake.lock;
+        packageSourceRoots = [inputs.nixpkgs.outPath inputs.xen-orchestra-ce.inputs.nixpkgs.outPath];
       };
       automationPackages =
         lib.mapAttrs' (
@@ -33,6 +37,7 @@ in {
       bootstrap = pkgs.callPackage ../../pkgs/maestro-bootstrap/package.nix {};
       templateTools = pkgs.callPackage ../../pkgs/maestro-template-tools/package.nix {
         inherit packerXenserver;
+        nix = ciNix;
         qualificationValidation = [automationCommands.download-installer];
       };
       applianceToplevel = inputs.self.nixosConfigurations.maestro.config.system.build.toplevel;
@@ -41,6 +46,7 @@ in {
         modules = [../../installer];
         specialArgs = {
           inherit applianceToplevel maestroMenu xenOrchestraCe;
+          managementCIDRs = inputs.self.nixosConfigurations.maestro.config.maestro.operator.managementCIDRs;
         };
       };
       installerIso = assert builtins.elem applianceToplevel installerSystem.config.isoImage.storeContents;
@@ -53,6 +59,16 @@ in {
         xen-orchestra-supply-protector = xenOrchestraSupplyProtector;
         flake-plan-runner = planRunner;
         sbomnix = pkgs.sbomnix;
+        maestro-ci-toolchain = pkgs.buildEnv {
+          name = "maestro-ci-toolchain";
+          paths = [
+            (import ../../nix/devenv-launcher.nix {
+              inherit pkgs lib;
+              devenv = inputs.devenv.packages.${system}.devenv;
+            })
+            planRunner
+          ];
+        };
         inherit secretspec;
         libvhdi = inputs.xen-orchestra-ce.packages.x86_64-linux.libvhdi;
         default = xenOrchestraCe;
@@ -64,6 +80,7 @@ in {
           deploy-template = templateTools.deploy;
           maestroctl = maestroctl;
           maestro-menu = maestroMenu;
+          maestro-file-restore = pkgs.callPackage ../../pkgs/maestro-file-restore/package.nix {inherit pkgs;};
         }
         // automationPackages
       )

@@ -14,11 +14,24 @@ runs:
     - name: Enforce the public CI substituter baseline
       shell: bash
       run: |
+        nix_cli=$(readlink -f "$(command -v nix)")
+        nix_version=$("$nix_cli" --version)
+        printf 'Hosted Nix: %s (%s)\n' "$nix_version" "$nix_cli"
+        [[ $nix_version == *Determinate* ]]
         determinate-nixd auth logout
         printf 'substituters = https://cache.nixos.org/\n' |
-          sudo tee -a /etc/nix/nix.conf >/dev/null
+          sudo tee -a /etc/nix/nix.custom.conf >/dev/null
+        runner_budget=$(bash "$GITHUB_ACTION_PATH/resources.sh")
+        printf '%s\n' "$runner_budget" | sudo tee -a /etc/nix/nix.custom.conf >/dev/null
+        max_jobs=$(awk '$1 == "max-jobs" {print $3}' <<<"$runner_budget")
+        cores=$(awk '$1 == "cores" {print $3}' <<<"$runner_budget")
+        bash "$GITHUB_ACTION_PATH/export-runtime.sh" "$nix_cli" "$max_jobs" "$cores"
         sudo systemctl restart nix-daemon.service
         substituters=$(nix config show substituters)
         printf 'CI substituters: %s\n' "$substituters"
         [[ " $substituters " == *" https://cache.nixos.org/ "* ]]
         [[ $substituters != *cache.flakehub.com* ]]
+        [[ $(nix config show max-jobs) == "$max_jobs" ]]
+        [[ $(nix config show cores) == "$cores" ]]
+        printf 'Effective max-jobs: %s; cores: %s\n' \
+          "$(nix config show max-jobs)" "$(nix config show cores)"

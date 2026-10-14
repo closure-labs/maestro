@@ -68,7 +68,9 @@ in {
     users.users.${cfg.user} = {
       isSystemUser = true;
       description = "Xen Orchestra service account";
-      createHome = true;
+      # Explicit tmpfiles rules own the home; user activation otherwise chowns
+      # it back to XO on every switch, defeating protected mount ancestors.
+      createHome = false;
       group = cfg.group;
       home = cfg.home;
       shell = "${pkgs.shadow}/bin/nologin";
@@ -103,7 +105,6 @@ in {
         pkgs.openssl
         pkgs.fuse
         pkgs.lvm2
-        pkgs.libguestfs
         pkgs.ntfs3g
         pkgs.git
         pkgs.valkey
@@ -112,7 +113,7 @@ in {
       ++ optionals cfg.storage.enableCIFS [pkgs.cifs-utils];
 
     systemd.tmpfiles.rules = [
-      "d ${cfg.home} 0750 ${cfg.user} ${cfg.group} - -"
+      "d ${cfg.home} 1770 root ${cfg.group} - -"
       "d ${cfg.cacheDir} 0750 ${cfg.user} ${cfg.group} - -"
       "d ${cfg.dataDir} 0750 ${cfg.user} ${cfg.group} - -"
       "d ${cfg.tempDir} 0750 ${cfg.user} ${cfg.group} - -"
@@ -177,7 +178,6 @@ in {
           NODE_ENV = "production";
           LD_LIBRARY_PATH = lib.makeLibraryPath [
             pkgs.fuse
-            pkgs.libguestfs
             pkgs.stdenv.cc.cc.lib
           ];
         };
@@ -187,7 +187,8 @@ in {
         User = cfg.user;
         Group = cfg.group;
         WorkingDirectory = "${cfg.package}/libexec/xen-orchestra";
-        StateDirectory = "xo";
+        # tmpfiles owns the protected home/mount ancestors. StateDirectory=xo
+        # would recursively give those root-owned names back to the service.
         CacheDirectory = "xo";
         LogsDirectory = "xo";
         RuntimeDirectory = "xo xo-server";
@@ -203,6 +204,7 @@ in {
         CapabilityBoundingSet =
           ["CAP_NET_BIND_SERVICE"]
           ++ optionals storageEnabled [
+            "CAP_CHOWN"
             "CAP_SETUID"
             "CAP_SETGID"
             "CAP_SETPCAP"

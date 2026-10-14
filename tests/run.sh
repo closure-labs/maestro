@@ -62,6 +62,7 @@ bash -n \
 
 bash "$TEST_ROOT/tests/xo-storage-helper.sh"
 bash "$TEST_ROOT/tests/fix-nix-hashes.sh"
+bash "$TEST_ROOT/tests/ci-runtime-config.sh"
 
 # Fixed target resolution.
 actual="$(
@@ -177,7 +178,7 @@ yq -e '
 yq -o=json '.jobs.policy.steps[] | select(.id == "policy-token") | .with' \
   "$TEST_ROOT/.github/workflows/security.yml" | jq -e '
   ."permission-administration" == "read" and
-  ."permission-contents" == "read" and
+  ."permission-contents" == null and
   .repositories == "${{ github.event.repository.name }}" and
   ."skip-token-revoke" == null and
   ([to_entries[] | select(.key | startswith("permission-")) | .value] | all(. == "read"))
@@ -195,7 +196,7 @@ grep -Fq 'substituters = https://cache.nixos.org/' \
 grep -Fq 'determinate-nixd auth logout' \
   "$TEST_ROOT/.github/actions/setup-nix/action.yml" \
   || fail "shared CI setup does not disable Determinate's authenticated cache injection"
-grep -Fq 'sudo tee -a /etc/nix/nix.conf' \
+grep -Fq 'sudo tee -a /etc/nix/nix.custom.conf' \
   "$TEST_ROOT/.github/actions/setup-nix/action.yml" \
   || fail "shared CI setup does not override Determinate cache injection"
 grep -Fq 'sudo systemctl restart nix-daemon.service' \
@@ -206,6 +207,22 @@ grep -Fq 'sudo systemctl restart nix-daemon.service' \
 grep -Fq '[[ $substituters != *cache.flakehub.com* ]]' \
   "$TEST_ROOT/.github/actions/setup-nix/action.yml" \
   || fail "shared CI setup does not reject the authenticated FlakeHub cache"
+for workflow in "$TEST_ROOT"/.github/workflows/*.yml; do
+  yq -o=json '.jobs' "$workflow" | jq -e '
+    all(.[];
+      if any(.steps[]?;
+        ((.run // "") | test("(^|[[:space:]])nix[[:space:]]")) or
+        ((.uses // "") | startswith("DeterminateSystems/flakehub-push@")))
+      then any(.steps[]?; .uses == "./.github/actions/setup-nix")
+      else true end)
+  ' >/dev/null || fail "Nix job bypasses shared hosted configuration: $workflow"
+done
+yq -e '.secretspec.enable == true and .secretspec.provider == "env" and .secretspec.profile == "github"' \
+  "$TEST_ROOT/devenv.yaml" >/dev/null || fail "native SecretSpec configuration is missing"
+grep -Fq 'DEVENV_MAX_JOBS=%s' "$TEST_ROOT/.github/actions/setup-nix/export-runtime.sh" \
+  || fail "native devenv does not share the hosted job budget"
+grep -Fq 'DEVENV_CORES=%s' "$TEST_ROOT/.github/actions/setup-nix/export-runtime.sh" \
+  || fail "native devenv does not share the hosted core budget"
 grep -Fq "'' ci:verdict" \
   "$TEST_ROOT/.github/workflows/ci.yml" \
   || fail "required CI verdict does not use its declared task"
@@ -455,17 +472,16 @@ grep -Fq '"growpart"' "$TEST_ROOT/modules/_nixos/xcp-ng.nix" \
 grep -Fq '"resizefs"' "$TEST_ROOT/modules/_nixos/xcp-ng.nix" \
   || fail "installed appliance does not resize the grown root filesystem"
 
-# Installed systems keep all public appliance/build caches and avoid requesting
-# Determinate's uncached manual output.
+# Installed systems keep all public caches and select the patched runtime only.
 grep -Fq '"https://install.determinate.systems"' \
   "$TEST_ROOT/modules/_nixos/platform.nix" \
   || fail "installed system omits the Determinate bootstrap cache"
 grep -Fq '"https://nixoa.cachix.org"' \
   "$TEST_ROOT/modules/_nixos/platform.nix" \
   || fail "installed system omits the Maestro Cachix cache"
-grep -Fq 'paths = [upstreamDeterminateNix.out]' \
+grep -Fq 'paths = [patchedDeterminateNix.out]' \
   "$TEST_ROOT/modules/_nixos/platform.nix" \
-  || fail "installed system does not isolate the cached Determinate runtime output"
+  || fail "installed system does not isolate the patched Determinate runtime output"
 
 if MAESTRO_SYSTEM_ROOT="$TEST_ROOT" bash -c '
   source "$MAESTRO_SYSTEM_ROOT/scripts/lib/common.sh"
@@ -540,6 +556,7 @@ mkdir -p "$temporary/bin"
 # shellcheck disable=SC2016
 printf '%s\n' \
   "#!$(command -v bash)" \
+  '[[ ${PKR_VAR_remote_password:-} == fixture-password ]] || exit 2' \
   'printf "%s\n" "$@" >"$FAKE_BUILD_ARGS"' \
   'printf "%s\n%s\n" "$MAESTRO_SYSTEM_ROOT" "$MAESTRO_PACKER_ROOT" >"$FAKE_BUILD_ROOTS"' \
   >"$temporary/bin/build-template"
@@ -557,6 +574,24 @@ grep -Fxq -- "-var-file=$temporary/packer.pkrvars.json" \
 expected_roots="$(printf '%s\n%s' "$TEST_ROOT" "$TEST_ROOT/packer")"
 assert_eq "$(cat "$temporary/build-template.roots")" "$expected_roots"
 
+cat >"$temporary/bin/pass" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ $1 == show && $2 == fixture/host ]]
+printf 'fixture-password\nusername: root\n'
+EOF
+sed -i "1c#!${BASH}" "$temporary/bin/pass"
+chmod +x "$temporary/bin/pass"
+env -u PKR_VAR_remote_password -u XCP_HOSTPASSWORD \
+  PATH="$temporary/bin:$PATH" \
+  FAKE_BUILD_ARGS="$temporary/build-template.args" \
+  FAKE_BUILD_ROOTS="$temporary/build-template.roots" \
+  MAESTRO_BUILD_TEMPLATE_BIN="$temporary/bin/build-template" \
+  XCP_PASSWORD_PASS_ENTRY=fixture/host \
+  bash "$TEST_ROOT/packer/deploy-template.sh" \
+    --operator-key "$temporary/operator.pub" \
+    --config "$temporary/packer.pkrvars.json"
+
 # Exercise the downloaded-media handoff independently of the shared verifier
 # (the verifier's rejection cases live in security-contracts.sh).
 mkdir -p "$temporary/fake-result/iso"
@@ -571,6 +606,7 @@ EOF
 cat >"$temporary/bin/nix" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
+[[ ! ${PKR_VAR_remote_password+x} && ! ${XCP_HOSTPASSWORD+x} && ! ${xcp_password+x} ]]
 printf '%s\n' "$@" >"$FAKE_NIX_ARGS"
 printf '%s\n' "$FAKE_INSTALLER_RESULT"
 EOF
@@ -579,6 +615,8 @@ cat >"$temporary/bin/packer" <<'EOF'
 set -euo pipefail
 printf '%s\n' "$@" >"$FAKE_PACKER_ARGS"
 if [[ $1 == build ]]; then
+  [[ ${PKR_VAR_remote_password:-} == fixture-password ]]
+  [[ ! ${XCP_HOSTPASSWORD+x} && ! ${xcp_password+x} ]]
   for argument in "$@"; do
     if [[ $argument == bootstrap_private_key_file=* ]]; then
       key=${argument#*=}
@@ -586,11 +624,14 @@ if [[ $1 == build ]]; then
       printf '%s\n' "$key" >"$FAKE_BOOTSTRAP_PATH"
     fi
   done
+else
+  [[ ! ${PKR_VAR_remote_password+x} && ! ${XCP_HOSTPASSWORD+x} && ! ${xcp_password+x} ]]
 fi
 EOF
 sed -i "1c#!${BASH}" "$temporary/bin/maestro-ci-download-installer" "$temporary/bin/nix" "$temporary/bin/packer"
 chmod +x "$temporary/bin/maestro-ci-download-installer" "$temporary/bin/nix" "$temporary/bin/packer"
 PATH="$temporary/bin:$PATH" \
+  PKR_VAR_remote_password=fixture-password \
   FAKE_BOOTSTRAP_PATH="$temporary/bootstrap.path" \
   FAKE_PACKER_ARGS="$temporary/packer.args" \
   PACKER_BIN="$temporary/bin/packer" \
@@ -604,6 +645,7 @@ grep -Fxq 'repo_revision=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' "$temporary/p
 [[ ! -e $(cat "$temporary/bootstrap.path") ]] || fail "Packer retained its private bootstrap key"
 
 FAKE_INSTALLER_RESULT="$temporary/fake-result" \
+  XCP_HOSTPASSWORD=fixture-password \
   FAKE_NIX_ARGS="$temporary/nix.args" \
   FAKE_BOOTSTRAP_PATH="$temporary/bootstrap.path" \
   FAKE_PACKER_ARGS="$temporary/packer.args" \

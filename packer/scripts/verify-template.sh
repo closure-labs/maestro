@@ -91,7 +91,7 @@ grep -Fq 'networking.hostName = "maestro";' \
 grep -Fq 'authorizedKeys.keys = lib.mkAfter' \
   /home/maestro/maestro/host/packer.nix
 
-sshd -t
+sshd -t -f /etc/ssh/sshd_config
 assert_sshd_directive /etc/ssh/sshd_config PermitRootLogin no
 assert_sshd_directive /etc/ssh/sshd_config PasswordAuthentication no
 assert_sshd_directive /etc/ssh/sshd_config AllowUsers maestro

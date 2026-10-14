@@ -35,6 +35,7 @@ in {
           export MAESTRO_CI_BOOT_MEDIA=${lib.getExe packages.maestro-ci-boot-media}
           export MAESTRO_CI_QUALIFICATION_INPUTS=${lib.getExe packages.maestro-ci-qualification-inputs}
           export MAESTRO_CI_CLASSIFY=${lib.getExe packages.maestro-ci-classify}
+          export MAESTRO_CI_CACHE_VALIDATION=${lib.getExe packages.maestro-ci-cache-validation}
           export MAESTRO_CI_CLASSIFY_PATHS=${lib.getExe packages.maestro-ci-classify-paths}
           export MAESTRO_CI_VERDICT=${lib.getExe packages.maestro-ci-verdict}
           export MAESTRO_CI_LOCK_VALIDATE=${lib.getExe packages.maestro-ci-lock-validate}
@@ -48,6 +49,7 @@ in {
           export MAESTRO_CI_VALIDATE_STATE=${lib.getExe packages.maestro-ci-validate-state}
           export MAESTRO_CI_TRUSTED_RUN=${lib.getExe packages.maestro-ci-trusted-run}
           export MAESTRO_CI_VERIFY_INVENTORY=${lib.getExe packages.maestro-ci-verify-inventory}
+          export MAESTRO_CI_VERIFY_STATE=${lib.getExe packages.maestro-ci-verify-state}
           export MAESTRO_CI_DOWNLOAD_INSTALLER=${lib.getExe packages.maestro-ci-download-installer}
           export MAESTRO_CI_SECURITY_SCAN=${lib.getExe packages.maestro-ci-security-scan}
           export MAESTRO_CI_SECURITY_VERDICT=${lib.getExe packages.maestro-ci-security-verdict}
@@ -80,7 +82,7 @@ in {
             jq -e '
               (.validation.schemaVersion == 2) and
               (.validation.name == "maestro-validation") and
-              (.validation.targets | length == 18) and
+              (.validation.targets | length == 19) and
               (.media.schemaVersion == 2) and
               (.media.name == "maestro-media-qualification") and
               (.media.targets | length == 1) and
@@ -89,7 +91,7 @@ in {
               (.evidence.targets | length == 4) and
               (.publish.schemaVersion == 2) and
               (.publish.name == "maestro-publish") and
-              (.publish.targets | length == 5)
+              (.publish.targets | length == 7)
             ' plans.json >/dev/null
             test -e ${qualificationInputs.media.source}/installer/default.nix
             test -e ${qualificationInputs.media.source}/modules/outputs/packages.nix
@@ -160,8 +162,8 @@ in {
           for task in \
             ci:route ci:classify ci:repository-audit ci:qualification:resolve \
             ci:qualification:assemble ci:qualification:boot-media ci:qualification:sign-check \
-            ci:security:scan ci:security:latest ci:security:policy-drift ci:packer:validate \
-            ci:publish ci:verdict automation:queue \
+            ci:security:scan ci:security:inventory-preflight ci:security:latest ci:security:policy-drift ci:packer:validate \
+            ci:publish ci:cache-validation ci:verdict automation:queue \
             automation:fix-hashes \
             automation:update-locks automation:validate-locks automation:open-lock-update-pr \
             release:prepare release:dispatch release:inventory release:verify \
@@ -169,6 +171,11 @@ in {
             grep -Fq "\"$task\"" nix/devenv.nix
           done
           grep -Fq 'pkgs.check-jsonschema' nix/automation/default.nix
+          # A cold runner must receive literal source patches with the cached
+          # toolchain, even if coreutils's runtime output was substituted.
+          for patch in ${lib.escapeShellArgs (map (patch: "${patch}") (builtins.filter builtins.isPath (pkgs.coreutils.patches or [])))}; do
+            grep -Fx "$patch" ${pkgs.closureInfo {rootPaths = [packages.maestro-ci-toolchain];}}/store-paths
+          done
           ! test -e nix/automation/cli.sh
           ! grep -Fq 'maestroCiCommand' nix/devenv.nix
           grep -Fq 'runFlakePackage "maestro-ci-route"' nix/devenv.nix
@@ -209,6 +216,8 @@ in {
             scripts/lib/*.sh \
             scripts/tui/*.sh \
             nix/automation/*.sh \
+            nix/ci-nix.sh \
+            .github/actions/setup-nix/*.sh \
             tests/*.sh
           touch "$out"
         '';
@@ -218,13 +227,15 @@ in {
         command = ''
           bash ./tests/ci-helpers.sh
           bash ./tests/fix-nix-hashes.sh
+          bash ./tests/ci-runtime-config.sh
+          bash ./tests/cache-validation.sh
         '';
       };
 
       security-fixtures = mkSourceCheck {
         name = "security-fixtures";
-        command = "bash ./tests/security-contracts.sh && bash ./tests/security-scan.sh";
-        nativeBuildInputs = fixtureInputs ++ [pkgs.openssh];
+        command = "PYTHONDONTWRITEBYTECODE=1 python3 ./tests/security-inventory.py && PYTHONDONTWRITEBYTECODE=1 python3 ./tests/file-restore.py && bash ./tests/policy-drift.sh && bash ./tests/security-contracts.sh && bash ./tests/evidence-download.sh && bash ./tests/provenance-requests.sh && bash ./tests/security-scan.sh";
+        nativeBuildInputs = fixtureInputs ++ [pkgs.openssh pkgs.python3];
       };
 
       packer-policy = mkSourceCheck {
@@ -293,6 +304,8 @@ in {
       assert builtins.length xoConfigFragments.http.http.listen == 2;
       assert xoConfigFragments.web.http.mounts."/v6" == "${appliance.maestro.xo.home}/xen-orchestra/@xen-orchestra/web/dist";
       assert appliance.systemd.services.xo-server.environment.TMPDIR == appliance.maestro.xo.tempDir;
+      assert appliance.maestro.xo.fileRestore.enable;
+      assert appliance.systemd.services.xo-server.environment.XO_FILE_RESTORE_HELPER == lib.getExe appliance.maestro.xo.internal.fileRestorePackage;
       assert appliance.maestro.xo.storage.libvhdiPackage == inputs.xen-orchestra-ce.packages.x86_64-linux.libvhdi;
       assert appliance.programs.fuse.userAllowOther;
       assert builtins.elem "fuse" appliance.users.users.${appliance.maestro.xo.user}.extraGroups;
@@ -333,7 +346,15 @@ in {
       assert appliance.systemd.services.xo-server.serviceConfig.AmbientCapabilities == ["CAP_NET_BIND_SERVICE"];
       assert appliance.systemd.services.xo-server.serviceConfig.EnvironmentFile == [];
       assert lib.all (rule: !(builtins.elem "xo" rule.users) || lib.all (command: lib.hasSuffix "/bin/xo-storage-helper" command.command) rule.commands) appliance.security.sudo.extraRules;
-      assert appliance.networking.firewall.allowedTCPPorts == [22 80 443];
+      assert appliance.networking.firewall.allowedTCPPorts == [];
+      assert appliance.maestro.operator.managementCIDRs == ["192.168.0.0/16"];
+      assert !appliance.services.openssh.openFirewall;
+      assert appliance.networking.firewall.allowedUDPPorts == [];
+      assert !appliance.services.avahi.enable;
+      assert !appliance.services.samba.enable;
+      assert !appliance.hardware.bluetooth.enable;
+      assert !appliance.virtualisation.libvirtd.enable;
+      assert !appliance.services.nfs.server.enable;
       assert appliance.determinate.enable;
       assert appliance.home-manager.users.maestro.programs.git.enable;
       assert appliance.nix.gc.automatic;
@@ -341,6 +362,8 @@ in {
         pkgs.runCommandLocal "maestro-configuration-assertions" {} ''
           touch "$out"
         '';
+
+      runtime-security = import ../../nix/tests/runtime-security.nix {inherit pkgs inputs appliance;};
     }
   );
 }

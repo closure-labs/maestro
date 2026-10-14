@@ -24,6 +24,15 @@ maestro
 The flake exports one concrete appliance configuration and one operator-side
 template builder.
 
+XO's home and mount ancestors are root-owned and sticky, with group write
+access for the XO account. A focused descriptor-based guard claims directory
+names before root mounts, so XO cannot rename a validated ancestor. Final
+mountpoints are root-owned and group-writable without a sticky bit, as required
+by unprivileged FUSE. VHD parsing and mounting run as XO, with FUSE access
+restricted to XO and root for validated unmounts; NFS/CIFS use the
+validated root helper. Explicit tmpfiles rules own this layout, avoiding
+systemd state-directory ownership changes on service restart.
+
 The native XCP-ng template builder runs on the operator workstation.
 `packages.x86_64-linux.installer-iso` evaluates a small live installer, while
 `nix run --accept-flake-config .#deploy-template` realizes Packer and its
@@ -45,6 +54,8 @@ execute explicit `maestro-ci-*` leaf packages. No umbrella automation app or
 dispatcher sits between the task graph and those Nix derivations. Workflows
 retain GitHub security
 boundaries—permissions, OIDC, artifacts, attestations, Cachix, and FlakeHub.
+The organization audit App requests repository-scoped Administration read
+access; the policy endpoints do not require Contents permission.
 The work router combines source classification and immutable artifact reuse
 into one versioned JSON plan consumed by later jobs and the required verdict.
 A Nix policy declares which source paths affect the immutable installer
@@ -137,5 +148,25 @@ short-lived, root-readable credential file.
 - initial state version: `26.05`
 - direct XO package:
   `inputs.xen-orchestra-ce.packages.x86_64-linux.latest`
+
+Guest file restore uses `maestro.xo.fileRestore.enable` (enabled by default).
+XO sends partition/list/archive requests to a trusted absolute helper. The
+helper runs as XO, opens the raw FUSE disk read-only with an explicit raw format,
+and uses libguestfs RPC inside a source-built appliance. No guest filesystem or
+LVM metadata reaches the host kernel. QEMU is headless, networking is disabled,
+and each request gets one CPU and 512 MiB; a lock admits one request at a time
+and a 15-minute deadline bounds it. Files stream through private pipes into
+ZIP/TGZ archives; guest paths never name host output files. Traversal, selected
+symlinks and special files are rejected. Client disconnect terminates the
+helper before releasing its raw VHD view. Disabling the feature makes restore
+fail closed instead of restoring the legacy host mount path.
+The manual host partition-mount API is disabled while isolated restore is configured.
+
+Management access uses typed `maestro.operator.managementCIDRs`, with the
+operator-approved `192.168.0.0/16` range in `host/settings.nix`. Appliance SSH
+and XO HTTP/HTTPS, plus installer SSH, accept that IPv4 range. Management ports
+are absent from global allow lists, and IPv6 management ingress remains closed.
+The VM console and per-build key enrollment provide the installation recovery
+path; new deployments qualify that path in the disposable lab.
 
 [Back to documentation](index.md)

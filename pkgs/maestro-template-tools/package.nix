@@ -8,6 +8,7 @@
   nix,
   packerXenserver,
   openssh,
+  pass,
   qualificationValidation,
   writeShellApplication,
 }: let
@@ -41,6 +42,7 @@
       coreutils
       git
       jq
+      pass
     ];
     text = builtins.readFile ../../packer/deploy-template.sh;
     meta = {

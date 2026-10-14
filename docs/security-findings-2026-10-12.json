@@ -1,0 +1,4024 @@
+{
+  "review_date": "2026-10-12",
+  "source_commit": "b7990e2143f77dbe786e83da87b1275e60c20a8f",
+  "ci_run": 38331315241,
+  "security_artifact": 11784463514,
+  "evidence_artifact": 11784687650,
+  "scope": "Repository defaults and immutable CI artifacts; no deployed appliance or exploit verification. Provisional records do not authorize policy suppression.",
+  "policy_change": false,
+  "input_sha256": {
+    "findings.json": "8f0d225a2425a38baaee4a2ac4750071ab1d4e6f38e51c476651b11a30d0a262",
+    "maestro-system.grype.json": "2dc8ecea849ded73119b413705a0537d9b9e7b77274fab3f9d4f49bbfe9854a6",
+    "xen-orchestra-supply.grype.json": "274f915cd3d84f58e0a53c707728f2d25f31db617811560fc569ecbac07354c3",
+    "cargo-audit.json": "54fdf78aad7f5983ba7fb54c539c2cfadf4bc0f05df4a2a7d3b5d0f96828ad68"
+  },
+  "sbom_sha256": {
+    "maestro-system.cdx.json": "a16f8546723ff4f0f9999e49bb1f9b82c16a58ab17dc9d7963c59fbf06486cc4",
+    "xen-orchestra-supply.cdx.json": "f99ff1c69ce0ded8a9f4d305cba411429df9f4199d7490aa60d933896c92a070"
+  },
+  "source_pins": {
+    "root": "6fcc160353f63555b560f25588925133c8f61f2a",
+    "xo": "83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c",
+    "determinate": "c5c4a43b0e8056328ec4529f735cabdb8f1942bb"
+  },
+  "counts": {
+    "low": 20,
+    "medium": 74,
+    "high": 98,
+    "critical": 12
+  },
+  "findings": [
+    {
+      "advisory": "CVE-2000-0006",
+      "component": "strace",
+      "version": "7.2",
+      "severity": "low",
+      "scanner": "grype",
+      "disposition": "needs_patch_and_caller_verification",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Closure membership established; patch applicability and the affected caller have not been proven.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/nzvkmd7in07sa9g4r8dx12if2ak04dnh-strace-7.2.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2007-2768",
+      "component": "openssh",
+      "version": "10.5p1",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 5,
+      "basis": "SSH is reachable, but this advisory needs individual feature/product verification. Key-only authentication does not protect pre-authentication parsers.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/c24xx0wwnfmcf1nsfwxiiap5hls8s8pd-openssh-10.5p1.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2008-3844",
+      "component": "openssh",
+      "version": "10.5p1",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "inapplicable_product",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Record concerns unofficial trojaned 2008 RHEL packages, not a Nix build from the declared upstream source.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/c24xx0wwnfmcf1nsfwxiiap5hls8s8pd-openssh-10.5p1.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://nvd.nist.gov/vuln/detail/CVE-2008-3844",
+        "https://github.com/NixOS/nixpkgs/blob/6fcc160353f63555b560f25588925133c8f61f2a/pkgs/tools/networking/openssh/default.nix"
+      ]
+    },
+    {
+      "advisory": "CVE-2010-4226",
+      "component": "cpio",
+      "version": "2.15",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "needs_patch_and_caller_verification",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Closure membership established; patch applicability and the affected caller have not been proven.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/6ql83iyyqf6skmq7wxpccwnjsmi3ns54-cpio-2.15.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2011-1763",
+      "component": "xen",
+      "version": "4.20.4",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "hypervisor_role_mismatch",
+      "priority": "P2",
+      "checkpoint": 5,
+      "basis": "Reported event-channel issue is a hypervisor surface; Maestro runs as an XCP-ng guest with tools/agent. Host patching requires a separate XCP-ng review.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/ywrr1pivzlgxgl1fnidgsg4jfk6hpin3-xen-4.20.4.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2011-2411",
+      "component": "samba",
+      "version": "4.23.10",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "inapplicable_product",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Advisory concerns HP NonStop H06/J06 software; Maestro is NixOS x86_64.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/phf0zh4ffy0fx8n1r1hmsdm5qbg5hz3y-samba-4.23.10.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://nvd.nist.gov/vuln/detail/CVE-2011-2411"
+      ]
+    },
+    {
+      "advisory": "CVE-2014-9278",
+      "component": "openssh",
+      "version": "10.5p1",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 5,
+      "basis": "SSH is reachable, but this advisory needs individual feature/product verification. Key-only authentication does not protect pre-authentication parsers.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/c24xx0wwnfmcf1nsfwxiiap5hls8s8pd-openssh-10.5p1.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2016-0749",
+      "component": "spice",
+      "version": "0.16.0",
+      "severity": "critical",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/81khc43mwf0saxhdzmwnlcglf2df621j-spice-0.16.0.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2016-2150",
+      "component": "spice",
+      "version": "0.16.0",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/81khc43mwf0saxhdzmwnlcglf2df621j-spice-0.16.0.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2017-5436",
+      "component": "graphite2",
+      "version": "1.3.15",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/78lafm1zwwb5mcffa417gq0axnwrdd8b-graphite2-1.3.15.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2018-10893",
+      "component": "spice",
+      "version": "0.16.0",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/81khc43mwf0saxhdzmwnlcglf2df621j-spice-0.16.0.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2018-18438",
+      "component": "qemu",
+      "version": "10.2.4",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "QEMU is a libguestfs dependency; Maestro is a guest. Inspect image-tooling processes, emulated devices, old fixes and any shared-filesystem configuration.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/mkd4mjhhmp8mza9fqymja4wq7x4i6m57-qemu-10.2.4.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2018-7263",
+      "component": "libmad",
+      "version": "0.15.1b",
+      "severity": "critical",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/dagz1jz16aq02gzy3l8ylykn7s17d26r-libmad-0.15.1b.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2019-12067",
+      "component": "qemu",
+      "version": "10.2.4",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "QEMU is a libguestfs dependency; Maestro is a guest. Inspect image-tooling processes, emulated devices, old fixes and any shared-filesystem configuration.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/mkd4mjhhmp8mza9fqymja4wq7x4i6m57-qemu-10.2.4.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2020-24490",
+      "component": "bluez",
+      "version": "5.86",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "service_not_declared_runtime_unverified",
+      "priority": "P2",
+      "checkpoint": 5,
+      "basis": "Corresponding server/daemon is not enabled by repository defaults; check evaluated units and transient image-tooling subprocesses. This does not rule out library/client use.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/pk56yihi6558wjw83vm5fcqhazvyclma-bluez-5.86.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2021-20255",
+      "component": "qemu",
+      "version": "10.2.4",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "QEMU is a libguestfs dependency; Maestro is a guest. Inspect image-tooling processes, emulated devices, old fixes and any shared-filesystem configuration.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/mkd4mjhhmp8mza9fqymja4wq7x4i6m57-qemu-10.2.4.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2021-3468",
+      "component": "avahi",
+      "version": "0.8",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "service_not_declared_runtime_unverified",
+      "priority": "P2",
+      "checkpoint": 5,
+      "basis": "Corresponding server/daemon is not enabled by repository defaults; check evaluated units and transient image-tooling subprocesses. This does not rule out library/client use.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/qfm09cdn4gdvrlxvv2bk097y3hp45gkd-avahi-0.8.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2022-2211",
+      "component": "libguestfs",
+      "version": "1.56.2",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Guest-image tooling is declared; inspect affected key-selection path and upstream fixes on the exact package.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/nzkbd35n76dfv73k69lqdwr277xhapi3-libguestfs-1.56.2.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2022-3219",
+      "component": "gnupg",
+      "version": "2.4.9",
+      "severity": "low",
+      "scanner": "grype",
+      "disposition": "needs_patch_and_caller_verification",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Closure membership established; patch applicability and the affected caller have not been proven.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/lazwdcz4py6wrn56ysbbfp832i06xkgf-gnupg-2.4.9.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2022-47021",
+      "component": "opusfile",
+      "version": "0.12",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/46zj7lchasxalbvwqvcrazf592pdq6wl-opusfile-0.12.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2023-1386",
+      "component": "qemu",
+      "version": "10.2.4",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "QEMU is a libguestfs dependency; Maestro is a guest. Inspect image-tooling processes, emulated devices, old fixes and any shared-filesystem configuration.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/mkd4mjhhmp8mza9fqymja4wq7x4i6m57-qemu-10.2.4.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2023-2680",
+      "component": "qemu",
+      "version": "10.2.4",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "QEMU is a libguestfs dependency; Maestro is a guest. Inspect image-tooling processes, emulated devices, old fixes and any shared-filesystem configuration.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/mkd4mjhhmp8mza9fqymja4wq7x4i6m57-qemu-10.2.4.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2023-37769",
+      "component": "pixman",
+      "version": "0.46.4",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/q05pi6g8inp3fgam09sa4iq6nl3njydg-pixman-0.46.4.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2023-38469",
+      "component": "avahi",
+      "version": "0.8",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "service_not_declared_runtime_unverified",
+      "priority": "P2",
+      "checkpoint": 5,
+      "basis": "Corresponding server/daemon is not enabled by repository defaults; check evaluated units and transient image-tooling subprocesses. This does not rule out library/client use.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/qfm09cdn4gdvrlxvv2bk097y3hp45gkd-avahi-0.8.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2023-38470",
+      "component": "avahi",
+      "version": "0.8",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "service_not_declared_runtime_unverified",
+      "priority": "P2",
+      "checkpoint": 5,
+      "basis": "Corresponding server/daemon is not enabled by repository defaults; check evaluated units and transient image-tooling subprocesses. This does not rule out library/client use.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/qfm09cdn4gdvrlxvv2bk097y3hp45gkd-avahi-0.8.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2023-38471",
+      "component": "avahi",
+      "version": "0.8",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "service_not_declared_runtime_unverified",
+      "priority": "P2",
+      "checkpoint": 5,
+      "basis": "Corresponding server/daemon is not enabled by repository defaults; check evaluated units and transient image-tooling subprocesses. This does not rule out library/client use.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/qfm09cdn4gdvrlxvv2bk097y3hp45gkd-avahi-0.8.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2023-38472",
+      "component": "avahi",
+      "version": "0.8",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "service_not_declared_runtime_unverified",
+      "priority": "P2",
+      "checkpoint": 5,
+      "basis": "Corresponding server/daemon is not enabled by repository defaults; check evaluated units and transient image-tooling subprocesses. This does not rule out library/client use.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/qfm09cdn4gdvrlxvv2bk097y3hp45gkd-avahi-0.8.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2023-38473",
+      "component": "avahi",
+      "version": "0.8",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "service_not_declared_runtime_unverified",
+      "priority": "P2",
+      "checkpoint": 5,
+      "basis": "Corresponding server/daemon is not enabled by repository defaults; check evaluated units and transient image-tooling subprocesses. This does not rule out library/client use.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/qfm09cdn4gdvrlxvv2bk097y3hp45gkd-avahi-0.8.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2023-51767",
+      "component": "openssh",
+      "version": "10.5p1",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 5,
+      "basis": "SSH is reachable, but this advisory needs individual feature/product verification. Key-only authentication does not protect pre-authentication parsers.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/c24xx0wwnfmcf1nsfwxiiap5hls8s8pd-openssh-10.5p1.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2023-5366",
+      "component": "openvswitch",
+      "version": "3.7.1",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "service_not_declared_runtime_unverified",
+      "priority": "P2",
+      "checkpoint": 5,
+      "basis": "Corresponding server/daemon is not enabled by repository defaults; check evaluated units and transient image-tooling subprocesses. This does not rule out library/client use.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/6clzswp77l6zncjnhcqac2dahdyac9x0-openvswitch-3.7.1.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2023-6228",
+      "component": "libtiff",
+      "version": "4.7.2",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/c148dxhjnxqgjlg55i2v2r280jvaj62p-libtiff-4.7.2.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2023-6277",
+      "component": "libtiff",
+      "version": "4.7.2",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/c148dxhjnxqgjlg55i2v2r280jvaj62p-libtiff-4.7.2.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2023-7216",
+      "component": "cpio",
+      "version": "2.15",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "needs_patch_and_caller_verification",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Closure membership established; patch applicability and the affected caller have not been proven.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/6ql83iyyqf6skmq7wxpccwnjsmi3ns54-cpio-2.15.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2024-45993",
+      "component": "giflib",
+      "version": "5.2.2",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/hh2a5r6sh4vkv3xkx34dqjlrvsfa0ccm-giflib-5.2.2.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2024-58251",
+      "component": "busybox",
+      "version": "1.37.0",
+      "severity": "low",
+      "scanner": "grype",
+      "disposition": "needs_patch_and_caller_verification",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Closure membership established; patch applicability and the affected caller have not been proven.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/n5wgmx1g7lmi86fhjad8mdyj31nr49n7-busybox-1.37.0.drv",
+        "/nix/store/x2dyqign6dp29q8sa39g96xjx6mhkgp5-busybox-1.37.0.drv",
+        "/nix/store/zwk7m1z1kkv00zcyjqqjxqiw253yrjwa-busybox-1.37.0.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2024-6505",
+      "component": "qemu",
+      "version": "10.2.4",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "QEMU is a libguestfs dependency; Maestro is a guest. Inspect image-tooling processes, emulated devices, old fixes and any shared-filesystem configuration.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/mkd4mjhhmp8mza9fqymja4wq7x4i6m57-qemu-10.2.4.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2024-6519",
+      "component": "qemu",
+      "version": "10.2.4",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "QEMU is a libguestfs dependency; Maestro is a guest. Inspect image-tooling processes, emulated devices, old fixes and any shared-filesystem configuration.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/mkd4mjhhmp8mza9fqymja4wq7x4i6m57-qemu-10.2.4.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2024-8354",
+      "component": "qemu",
+      "version": "10.2.4",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "QEMU is a libguestfs dependency; Maestro is a guest. Inspect image-tooling processes, emulated devices, old fixes and any shared-filesystem configuration.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/mkd4mjhhmp8mza9fqymja4wq7x4i6m57-qemu-10.2.4.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2024-9410",
+      "component": "ada",
+      "version": "4.0.0",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "product_mismatch_candidate",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Record describes Ada.cx service Sentry configuration, while the package is a URL parsing library. Confirm vendor/product identity before exclusion.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/qwzgw56jd7x3dkggfm827i3ls2d5s8f0-ada-4.0.0.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2025-10911",
+      "component": "libxslt",
+      "version": "1.1.45",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/l69w27v8ny3ni3lghk94n3ifkp9kirin-libxslt-1.1.45.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2025-15661",
+      "component": "libssh2",
+      "version": "1.11.1",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "fixed_at_locked_source",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Root, XO and Determinate Nixpkgs definitions all declare a named backport for this advisory; retain separate derivation identities.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/cd7iw2vmzd7n3k5a39wq9c7r61z2m97p-libssh2-1.11.1.drv",
+        "/nix/store/mf4hc0cp0aw9dn8lq8z009mdgwbdg3s5-libssh2-1.11.1.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://github.com/NixOS/nixpkgs/blob/6fcc160353f63555b560f25588925133c8f61f2a/pkgs/by-name/li/libssh2/package.nix",
+        "https://github.com/NixOS/nixpkgs/blob/83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c/pkgs/by-name/li/libssh2/package.nix",
+        "https://github.com/NixOS/nixpkgs/blob/c5c4a43b0e8056328ec4529f735cabdb8f1942bb/pkgs/by-name/li/libssh2/package.nix"
+      ]
+    },
+    {
+      "advisory": "CVE-2025-32989",
+      "component": "gnutls",
+      "version": "3.8.13",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "fixed_in_scanned_version",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Upstream fixed this advisory by 3.8.13; the scanned version is 3.8.13.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/jq3z5mimkbb69i8qay0jd3k4fi927vnh-gnutls-3.8.13.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://www.gnutls.org/security-new.html"
+      ]
+    },
+    {
+      "advisory": "CVE-2025-32990",
+      "component": "gnutls",
+      "version": "3.8.13",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "fixed_in_scanned_version",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Upstream fixed this advisory by 3.8.13; the scanned version is 3.8.13.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/jq3z5mimkbb69i8qay0jd3k4fi927vnh-gnutls-3.8.13.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://www.gnutls.org/security-new.html"
+      ]
+    },
+    {
+      "advisory": "CVE-2025-46394",
+      "component": "busybox",
+      "version": "1.37.0",
+      "severity": "low",
+      "scanner": "grype",
+      "disposition": "needs_patch_and_caller_verification",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Closure membership established; patch applicability and the affected caller have not been proven.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/n5wgmx1g7lmi86fhjad8mdyj31nr49n7-busybox-1.37.0.drv",
+        "/nix/store/x2dyqign6dp29q8sa39g96xjx6mhkgp5-busybox-1.37.0.drv",
+        "/nix/store/zwk7m1z1kkv00zcyjqqjxqiw253yrjwa-busybox-1.37.0.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2025-59529",
+      "component": "avahi",
+      "version": "0.8",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "service_not_declared_runtime_unverified",
+      "priority": "P2",
+      "checkpoint": 5,
+      "basis": "Corresponding server/daemon is not enabled by repository defaults; check evaluated units and transient image-tooling subprocesses. This does not rule out library/client use.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/qfm09cdn4gdvrlxvv2bk097y3hp45gkd-avahi-0.8.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2025-59777",
+      "component": "libmicrohttpd",
+      "version": "1.0.2",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "needs_patch_and_caller_verification",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Closure membership established; patch applicability and the affected caller have not been proven.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/0i2hin9mrjnkw21099222h3wl84wsqwz-libmicrohttpd-1.0.2.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2025-6021",
+      "component": "libxml2",
+      "version": "2.15.3",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "fixed_in_scanned_version",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Upstream NEWS records the xmlBuildQName overflow fix in 2.14.4, preceding both scanned 2.15 versions.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/1cj8by9mrpim6hvbmbn6jpcfhdv7ig5a-libxml2-2.15.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://github.com/GNOME/libxml2/blob/v2.15.4/NEWS"
+      ]
+    },
+    {
+      "advisory": "CVE-2025-6021",
+      "component": "libxml2",
+      "version": "2.15.4",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "fixed_in_scanned_version",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Upstream NEWS records the xmlBuildQName overflow fix in 2.14.4, preceding both scanned 2.15 versions.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/p7kdv57jabpvv18jyxlxd8d9pps43dkq-libxml2-2.15.4.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://github.com/GNOME/libxml2/blob/v2.15.4/NEWS"
+      ]
+    },
+    {
+      "advisory": "CVE-2025-60876",
+      "component": "busybox",
+      "version": "1.37.0",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "needs_patch_and_caller_verification",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Closure membership established; patch applicability and the affected caller have not been proven.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/n5wgmx1g7lmi86fhjad8mdyj31nr49n7-busybox-1.37.0.drv",
+        "/nix/store/x2dyqign6dp29q8sa39g96xjx6mhkgp5-busybox-1.37.0.drv",
+        "/nix/store/zwk7m1z1kkv00zcyjqqjxqiw253yrjwa-busybox-1.37.0.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2025-6170",
+      "component": "libxml2",
+      "version": "2.15.3",
+      "severity": "low",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Older libxml2 remains through libarchive; inspect archive/parser consumers and advance the independent runtime tree.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/1cj8by9mrpim6hvbmbn6jpcfhdv7ig5a-libxml2-2.15.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2025-6170",
+      "component": "libxml2",
+      "version": "2.15.4",
+      "severity": "low",
+      "scanner": "grype",
+      "disposition": "needs_patch_and_caller_verification",
+      "priority": "P2",
+      "checkpoint": 3,
+      "basis": "2.15.4 NEWS records shell argument bounds improvements; confirm the exact advisory fix before suppressing.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/p7kdv57jabpvv18jyxlxd8d9pps43dkq-libxml2-2.15.4.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://github.com/GNOME/libxml2/blob/v2.15.4/NEWS"
+      ]
+    },
+    {
+      "advisory": "CVE-2025-62689",
+      "component": "libmicrohttpd",
+      "version": "1.0.2",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "needs_patch_and_caller_verification",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Closure membership established; patch applicability and the affected caller have not been proven.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/0i2hin9mrjnkw21099222h3wl84wsqwz-libmicrohttpd-1.0.2.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2025-67873",
+      "component": "capstone",
+      "version": "5.0.7",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/9g9712a1afxakxrcgc081r9b2anmpm87-capstone-5.0.7.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2025-68114",
+      "component": "capstone",
+      "version": "5.0.7",
+      "severity": "critical",
+      "scanner": "grype",
+      "disposition": "affected_callback_control_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Upstream requires an attacker-controlled cs_opt_mem.vsnprintf callback; arbitrary guest/image instruction bytes alone do not meet that prerequisite.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/9g9712a1afxakxrcgc081r9b2anmpm87-capstone-5.0.7.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://github.com/capstone-engine/capstone/security/advisories/GHSA-85f5-6xr3-q76r"
+      ]
+    },
+    {
+      "advisory": "CVE-2025-68276",
+      "component": "avahi",
+      "version": "0.8",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "service_not_declared_runtime_unverified",
+      "priority": "P2",
+      "checkpoint": 5,
+      "basis": "Corresponding server/daemon is not enabled by repository defaults; check evaluated units and transient image-tooling subprocesses. This does not rule out library/client use.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/qfm09cdn4gdvrlxvv2bk097y3hp45gkd-avahi-0.8.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2025-68468",
+      "component": "avahi",
+      "version": "0.8",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "service_not_declared_runtime_unverified",
+      "priority": "P2",
+      "checkpoint": 5,
+      "basis": "Corresponding server/daemon is not enabled by repository defaults; check evaluated units and transient image-tooling subprocesses. This does not rule out library/client use.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/qfm09cdn4gdvrlxvv2bk097y3hp45gkd-avahi-0.8.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2025-68471",
+      "component": "avahi",
+      "version": "0.8",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "service_not_declared_runtime_unverified",
+      "priority": "P2",
+      "checkpoint": 5,
+      "basis": "Corresponding server/daemon is not enabled by repository defaults; check evaluated units and transient image-tooling subprocesses. This does not rule out library/client use.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/qfm09cdn4gdvrlxvv2bk097y3hp45gkd-avahi-0.8.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2025-7425",
+      "component": "libxslt",
+      "version": "1.1.45",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/l69w27v8ny3ni3lghk94n3ifkp9kirin-libxslt-1.1.45.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-106587",
+      "component": "openssh",
+      "version": "10.5p1",
+      "severity": "low",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 5,
+      "basis": "SSH is reachable, but this advisory needs individual feature/product verification. Key-only authentication does not protect pre-authentication parsers.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/c24xx0wwnfmcf1nsfwxiiap5hls8s8pd-openssh-10.5p1.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-11822",
+      "component": "sqlite",
+      "version": "3.51.2",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_input_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 3,
+      "basis": "Requires affected FTS5 queries over a malicious database; Nix-owned state is not by itself an arbitrary uploaded database. Verify consumers, patch status and enabled FTS5.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/l3v2f0dy9w2b15b8rwmvvyx7gy7jw2ba-sqlite-3.51.2.drv",
+        "/nix/store/ww4qpdn81hyglwnk5z0akbgpi4l8my29-sqlite-3.51.2.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-11824",
+      "component": "sqlite",
+      "version": "3.51.2",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_input_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 3,
+      "basis": "Requires affected FTS5 queries over a malicious database; Nix-owned state is not by itself an arbitrary uploaded database. Verify consumers, patch status and enabled FTS5.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/l3v2f0dy9w2b15b8rwmvvyx7gy7jw2ba-sqlite-3.51.2.drv",
+        "/nix/store/ww4qpdn81hyglwnk5z0akbgpi4l8my29-sqlite-3.51.2.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-11979",
+      "component": "libxml2",
+      "version": "2.15.3",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Older libxml2 remains through libarchive; inspect archive/parser consumers and advance the independent runtime tree.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/1cj8by9mrpim6hvbmbn6jpcfhdv7ig5a-libxml2-2.15.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-12891",
+      "component": "gstreamer",
+      "version": "1.26.11",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/hr5vvn336b352nm8bx3356vdykp1zxfp-gstreamer-1.26.11.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-12892",
+      "component": "gstreamer",
+      "version": "1.26.11",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/hr5vvn336b352nm8bx3356vdykp1zxfp-gstreamer-1.26.11.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-13221",
+      "component": "perl",
+      "version": "5.42.3",
+      "severity": "critical",
+      "scanner": "grype",
+      "disposition": "fixed_in_scanned_version",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Perl 5.42.3 release notes explicitly list this fix. CVE-2026-8376 additionally concerns 32-bit builds, unlike Maestro.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/j62q08zzqxsbm1bnb9jf6bz320wkld38-perl-5.42.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://github.com/Perl/perl5/blob/v5.42.3/pod/perldelta.pod"
+      ]
+    },
+    {
+      "advisory": "CVE-2026-13757",
+      "component": "p11-kit",
+      "version": "0.26.2",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "needs_patch_and_caller_verification",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Closure membership established; patch applicability and the affected caller have not been proven.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/5h2adxdn7bbisfdfq1zdf39pq6vlrv5q-p11-kit-0.26.2.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-14456",
+      "component": "openssl",
+      "version": "3.6.3",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "An older dependency copy remains in an independent input tree; trace exact library consumers and affected API use. HTTP TLS does not establish CMP, QUIC or DTLS exposure.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/r4h8yax7i8q29c1p4b8xn6kff5bvg96f-openssl-3.6.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-14457",
+      "component": "openssl",
+      "version": "3.6.3",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "An older dependency copy remains in an independent input tree; trace exact library consumers and affected API use. HTTP TLS does not establish CMP, QUIC or DTLS exposure.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/r4h8yax7i8q29c1p4b8xn6kff5bvg96f-openssl-3.6.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-15534",
+      "component": "perl",
+      "version": "5.42.3",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "fixed_at_locked_source",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "The root interpreter declares CVE-2026-15534-1.patch and CVE-2026-15534-2.patch.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/j62q08zzqxsbm1bnb9jf6bz320wkld38-perl-5.42.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://github.com/NixOS/nixpkgs/blob/6fcc160353f63555b560f25588925133c8f61f2a/pkgs/development/interpreters/perl/interpreter.nix"
+      ]
+    },
+    {
+      "advisory": "CVE-2026-1584",
+      "component": "gnutls",
+      "version": "3.8.13",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "fixed_in_scanned_version",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Upstream fixed this advisory by 3.8.13; the scanned version is 3.8.13.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/jq3z5mimkbb69i8qay0jd3k4fi927vnh-gnutls-3.8.13.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://www.gnutls.org/security-new.html"
+      ]
+    },
+    {
+      "advisory": "CVE-2026-18295",
+      "component": "gstreamer",
+      "version": "1.26.11",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/hr5vvn336b352nm8bx3356vdykp1zxfp-gstreamer-1.26.11.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-18296",
+      "component": "gstreamer",
+      "version": "1.26.11",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/hr5vvn336b352nm8bx3356vdykp1zxfp-gstreamer-1.26.11.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-18297",
+      "component": "gstreamer",
+      "version": "1.26.11",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/hr5vvn336b352nm8bx3356vdykp1zxfp-gstreamer-1.26.11.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-18298",
+      "component": "gstreamer",
+      "version": "1.26.11",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/hr5vvn336b352nm8bx3356vdykp1zxfp-gstreamer-1.26.11.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-18299",
+      "component": "gstreamer",
+      "version": "1.26.11",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/hr5vvn336b352nm8bx3356vdykp1zxfp-gstreamer-1.26.11.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-18798",
+      "component": "openssl",
+      "version": "3.6.3",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "An older dependency copy remains in an independent input tree; trace exact library consumers and affected API use. HTTP TLS does not establish CMP, QUIC or DTLS exposure.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/r4h8yax7i8q29c1p4b8xn6kff5bvg96f-openssl-3.6.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-1940",
+      "component": "gstreamer",
+      "version": "1.26.11",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/hr5vvn336b352nm8bx3356vdykp1zxfp-gstreamer-1.26.11.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-2100",
+      "component": "p11-kit",
+      "version": "0.26.2",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "needs_patch_and_caller_verification",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Closure membership established; patch applicability and the affected caller have not been proven.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/5h2adxdn7bbisfdfq1zdf39pq6vlrv5q-p11-kit-0.26.2.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-2340",
+      "component": "samba",
+      "version": "4.23.10",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "service_not_declared_runtime_unverified",
+      "priority": "P2",
+      "checkpoint": 5,
+      "basis": "Corresponding server/daemon is not enabled by repository defaults; check evaluated units and transient image-tooling subprocesses. This does not rule out library/client use.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/phf0zh4ffy0fx8n1r1hmsdm5qbg5hz3y-samba-4.23.10.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-23679",
+      "component": "libusb",
+      "version": "1.0.29",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "needs_patch_and_caller_verification",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Closure membership established; patch applicability and the affected caller have not been proven.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/i36vysf1p3nw896px50dvawgcqvcjp54-libusb-1.0.29.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-23868",
+      "component": "giflib",
+      "version": "5.2.2",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/hh2a5r6sh4vkv3xkx34dqjlrvsfa0ccm-giflib-5.2.2.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-24061",
+      "component": "inetutils",
+      "version": "2.7",
+      "severity": "critical",
+      "scanner": "grype",
+      "disposition": "fixed_at_locked_source",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Named advisory backports are present in the locked root Nixpkgs definition. No telnetd service is declared.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/idyg82pdd1qp2bpq6h33hjaxwrjszz2k-inetutils-2.7.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://github.com/NixOS/nixpkgs/blob/6fcc160353f63555b560f25588925133c8f61f2a/pkgs/by-name/in/inetutils/package.nix"
+      ]
+    },
+    {
+      "advisory": "CVE-2026-24401",
+      "component": "avahi",
+      "version": "0.8",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "service_not_declared_runtime_unverified",
+      "priority": "P2",
+      "checkpoint": 5,
+      "basis": "Corresponding server/daemon is not enabled by repository defaults; check evaluated units and transient image-tooling subprocesses. This does not rule out library/client use.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/qfm09cdn4gdvrlxvv2bk097y3hp45gkd-avahi-0.8.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-26740",
+      "component": "giflib",
+      "version": "5.2.2",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/hh2a5r6sh4vkv3xkx34dqjlrvsfa0ccm-giflib-5.2.2.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-28372",
+      "component": "inetutils",
+      "version": "2.7",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "fixed_at_locked_source",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Named advisory backports are present in the locked root Nixpkgs definition. No telnetd service is declared.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/idyg82pdd1qp2bpq6h33hjaxwrjszz2k-inetutils-2.7.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://github.com/NixOS/nixpkgs/blob/6fcc160353f63555b560f25588925133c8f61f2a/pkgs/by-name/in/inetutils/package.nix"
+      ]
+    },
+    {
+      "advisory": "CVE-2026-2920",
+      "component": "gstreamer",
+      "version": "1.26.11",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/hr5vvn336b352nm8bx3356vdykp1zxfp-gstreamer-1.26.11.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-2921",
+      "component": "gstreamer",
+      "version": "1.26.11",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/hr5vvn336b352nm8bx3356vdykp1zxfp-gstreamer-1.26.11.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-2922",
+      "component": "gstreamer",
+      "version": "1.26.11",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/hr5vvn336b352nm8bx3356vdykp1zxfp-gstreamer-1.26.11.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-2923",
+      "component": "gstreamer",
+      "version": "1.26.11",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/hr5vvn336b352nm8bx3356vdykp1zxfp-gstreamer-1.26.11.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-3081",
+      "component": "gstreamer",
+      "version": "1.26.11",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/hr5vvn336b352nm8bx3356vdykp1zxfp-gstreamer-1.26.11.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-3082",
+      "component": "gstreamer",
+      "version": "1.26.11",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/hr5vvn336b352nm8bx3356vdykp1zxfp-gstreamer-1.26.11.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-3083",
+      "component": "gstreamer",
+      "version": "1.26.11",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/hr5vvn336b352nm8bx3356vdykp1zxfp-gstreamer-1.26.11.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-3084",
+      "component": "gstreamer",
+      "version": "1.26.11",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/hr5vvn336b352nm8bx3356vdykp1zxfp-gstreamer-1.26.11.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-3085",
+      "component": "gstreamer",
+      "version": "1.26.11",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/hr5vvn336b352nm8bx3356vdykp1zxfp-gstreamer-1.26.11.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-3086",
+      "component": "gstreamer",
+      "version": "1.26.11",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/hr5vvn336b352nm8bx3356vdykp1zxfp-gstreamer-1.26.11.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-32746",
+      "component": "inetutils",
+      "version": "2.7",
+      "severity": "critical",
+      "scanner": "grype",
+      "disposition": "fixed_at_locked_source",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Named advisory backports are present in the locked root Nixpkgs definition. No telnetd service is declared.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/idyg82pdd1qp2bpq6h33hjaxwrjszz2k-inetutils-2.7.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://github.com/NixOS/nixpkgs/blob/6fcc160353f63555b560f25588925133c8f61f2a/pkgs/by-name/in/inetutils/package.nix"
+      ]
+    },
+    {
+      "advisory": "CVE-2026-32772",
+      "component": "inetutils",
+      "version": "2.7",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Reported issue requires use of the telnet client with a malicious peer. Repository wrappers use hostname, not telnet; narrow dependencies and inspect remaining Xen parent.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/idyg82pdd1qp2bpq6h33hjaxwrjszz2k-inetutils-2.7.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-33845",
+      "component": "gnutls",
+      "version": "3.8.13",
+      "severity": "critical",
+      "scanner": "grype",
+      "disposition": "fixed_in_scanned_version",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Upstream fixed this advisory by 3.8.13; the scanned version is 3.8.13.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/jq3z5mimkbb69i8qay0jd3k4fi927vnh-gnutls-3.8.13.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://www.gnutls.org/security-new.html"
+      ]
+    },
+    {
+      "advisory": "CVE-2026-34933",
+      "component": "avahi",
+      "version": "0.8",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "service_not_declared_runtime_unverified",
+      "priority": "P2",
+      "checkpoint": 5,
+      "basis": "Corresponding server/daemon is not enabled by repository defaults; check evaluated units and transient image-tooling subprocesses. This does not rule out library/client use.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/qfm09cdn4gdvrlxvv2bk097y3hp45gkd-avahi-0.8.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-3497",
+      "component": "openssh",
+      "version": "10.5p1",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_not_in_declared_package",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Advisory concerns the distribution GSSAPI key-exchange delta. Inspected default openssh differs from the separate openssh-with-gssapi package; confirm evaluated sshd package before policy exclusion.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/c24xx0wwnfmcf1nsfwxiiap5hls8s8pd-openssh-10.5p1.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://github.com/NixOS/nixpkgs/blob/6fcc160353f63555b560f25588925133c8f61f2a/pkgs/tools/networking/openssh/default.nix"
+      ]
+    },
+    {
+      "advisory": "CVE-2026-35189",
+      "component": "openssl",
+      "version": "3.6.3",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Peer certificate processing may cause memory amplification; plausible for outbound XO/Nix TLS clients using 3.6.3. Verify exact library and caller; do not discard because scanner severity is medium.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/r4h8yax7i8q29c1p4b8xn6kff5bvg96f-openssl-3.6.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://openssl-library.org/news/secadv/20260929.txt"
+      ]
+    },
+    {
+      "advisory": "CVE-2026-35191",
+      "component": "openssl",
+      "version": "3.6.3",
+      "severity": "low",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "An older dependency copy remains in an independent input tree; trace exact library consumers and affected API use. HTTP TLS does not establish CMP, QUIC or DTLS exposure.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/r4h8yax7i8q29c1p4b8xn6kff5bvg96f-openssl-3.6.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-3832",
+      "component": "gnutls",
+      "version": "3.8.13",
+      "severity": "low",
+      "scanner": "grype",
+      "disposition": "fixed_in_scanned_version",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Upstream fixed this advisory by 3.8.13; the scanned version is 3.8.13.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/jq3z5mimkbb69i8qay0jd3k4fi927vnh-gnutls-3.8.13.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://www.gnutls.org/security-new.html"
+      ]
+    },
+    {
+      "advisory": "CVE-2026-3833",
+      "component": "gnutls",
+      "version": "3.8.13",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "fixed_in_scanned_version",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Upstream fixed this advisory by 3.8.13; the scanned version is 3.8.13.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/jq3z5mimkbb69i8qay0jd3k4fi927vnh-gnutls-3.8.13.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://www.gnutls.org/security-new.html"
+      ]
+    },
+    {
+      "advisory": "CVE-2026-42009",
+      "component": "gnutls",
+      "version": "3.8.13",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "fixed_in_scanned_version",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Upstream fixed this advisory by 3.8.13; the scanned version is 3.8.13.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/jq3z5mimkbb69i8qay0jd3k4fi927vnh-gnutls-3.8.13.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://www.gnutls.org/security-new.html"
+      ]
+    },
+    {
+      "advisory": "CVE-2026-42010",
+      "component": "gnutls",
+      "version": "3.8.13",
+      "severity": "critical",
+      "scanner": "grype",
+      "disposition": "fixed_in_scanned_version",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Upstream fixed this advisory by 3.8.13; the scanned version is 3.8.13.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/jq3z5mimkbb69i8qay0jd3k4fi927vnh-gnutls-3.8.13.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://www.gnutls.org/security-new.html"
+      ]
+    },
+    {
+      "advisory": "CVE-2026-42772",
+      "component": "openssl",
+      "version": "3.6.3",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "An older dependency copy remains in an independent input tree; trace exact library consumers and affected API use. HTTP TLS does not establish CMP, QUIC or DTLS exposure.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/r4h8yax7i8q29c1p4b8xn6kff5bvg96f-openssl-3.6.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-47104",
+      "component": "libusb",
+      "version": "1.0.29",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "needs_patch_and_caller_verification",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Closure membership established; patch applicability and the affected caller have not been proven.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/i36vysf1p3nw896px50dvawgcqvcjp54-libusb-1.0.29.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-47143",
+      "component": "capstone",
+      "version": "5.0.7",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/9g9712a1afxakxrcgc081r9b2anmpm87-capstone-5.0.7.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-4775",
+      "component": "libtiff",
+      "version": "4.7.2",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/c148dxhjnxqgjlg55i2v2r280jvaj62p-libtiff-4.7.2.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-4878",
+      "component": "libcap",
+      "version": "2.77",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "privileged_call_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 5,
+      "basis": "Requires privileged capability-setting against attacker-writable paths. No direct setcap caller was found in repository runtime sources; check generated activation and patch contents.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/4ydyhf9qjsmr7ny54ca4d2d31s1rd8xh-libcap-2.77.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-49263",
+      "component": "capstone",
+      "version": "5.0.7",
+      "severity": "low",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/9g9712a1afxakxrcgc081r9b2anmpm87-capstone-5.0.7.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-49282",
+      "component": "capstone",
+      "version": "5.0.7",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/9g9712a1afxakxrcgc081r9b2anmpm87-capstone-5.0.7.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-5201",
+      "component": "gdk-pixbuf",
+      "version": "2.44.8",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/yscqb90cwj1lmwy62dk73kaglvhrfb16-gdk-pixbuf-2.44.8.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-52858",
+      "component": "vim",
+      "version": "9.2.0541",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "conditional_operator_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Locked Vim source predates advisory fixes; hostile operator inputs can matter. Verify per-advisory build features and update the terminal editor.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/53i7fgx976wbv2kky5ji1gkv87jn38i3-vim-9.2.0541.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-52859",
+      "component": "vim",
+      "version": "9.2.0541",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "conditional_operator_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Locked Vim source predates advisory fixes; hostile operator inputs can matter. Verify per-advisory build features and update the terminal editor.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/53i7fgx976wbv2kky5ji1gkv87jn38i3-vim-9.2.0541.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-52860",
+      "component": "vim",
+      "version": "9.2.0541",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "conditional_operator_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Locked Vim source predates advisory fixes; hostile operator inputs can matter. Verify per-advisory build features and update the terminal editor.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/53i7fgx976wbv2kky5ji1gkv87jn38i3-vim-9.2.0541.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-54872",
+      "component": "openssl",
+      "version": "3.6.3",
+      "severity": "low",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "An older dependency copy remains in an independent input tree; trace exact library consumers and affected API use. HTTP TLS does not establish CMP, QUIC or DTLS exposure.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/r4h8yax7i8q29c1p4b8xn6kff5bvg96f-openssl-3.6.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-54873",
+      "component": "openssl",
+      "version": "3.6.3",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "An older dependency copy remains in an independent input tree; trace exact library consumers and affected API use. HTTP TLS does not establish CMP, QUIC or DTLS exposure.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/r4h8yax7i8q29c1p4b8xn6kff5bvg96f-openssl-3.6.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-54874",
+      "component": "openssl",
+      "version": "3.6.3",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "An older dependency copy remains in an independent input tree; trace exact library consumers and affected API use. HTTP TLS does not establish CMP, QUIC or DTLS exposure.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/r4h8yax7i8q29c1p4b8xn6kff5bvg96f-openssl-3.6.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-54875",
+      "component": "openssl",
+      "version": "3.6.3",
+      "severity": "low",
+      "scanner": "grype",
+      "disposition": "platform_mismatch",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Advisory identifies a 32-bit or ARM64/RISC-V-specific path; Maestro is x86_64. Confirm no auxiliary executable of that architecture is present before exclusion.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/r4h8yax7i8q29c1p4b8xn6kff5bvg96f-openssl-3.6.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://openssl-library.org/news/secadv/20260929.txt"
+      ]
+    },
+    {
+      "advisory": "CVE-2026-54876",
+      "component": "openssl",
+      "version": "3.6.3",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "An older dependency copy remains in an independent input tree; trace exact library consumers and affected API use. HTTP TLS does not establish CMP, QUIC or DTLS exposure.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/r4h8yax7i8q29c1p4b8xn6kff5bvg96f-openssl-3.6.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-55199",
+      "component": "libssh2",
+      "version": "1.11.1",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "fixed_at_locked_source",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Root, XO and Determinate Nixpkgs definitions all declare a named backport for this advisory; retain separate derivation identities.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/cd7iw2vmzd7n3k5a39wq9c7r61z2m97p-libssh2-1.11.1.drv",
+        "/nix/store/mf4hc0cp0aw9dn8lq8z009mdgwbdg3s5-libssh2-1.11.1.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://github.com/NixOS/nixpkgs/blob/6fcc160353f63555b560f25588925133c8f61f2a/pkgs/by-name/li/libssh2/package.nix",
+        "https://github.com/NixOS/nixpkgs/blob/83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c/pkgs/by-name/li/libssh2/package.nix",
+        "https://github.com/NixOS/nixpkgs/blob/c5c4a43b0e8056328ec4529f735cabdb8f1942bb/pkgs/by-name/li/libssh2/package.nix"
+      ]
+    },
+    {
+      "advisory": "CVE-2026-55200",
+      "component": "libssh2",
+      "version": "1.11.1",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "fixed_at_locked_source",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Root, XO and Determinate Nixpkgs definitions all declare a named backport for this advisory; retain separate derivation identities.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/cd7iw2vmzd7n3k5a39wq9c7r61z2m97p-libssh2-1.11.1.drv",
+        "/nix/store/mf4hc0cp0aw9dn8lq8z009mdgwbdg3s5-libssh2-1.11.1.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://github.com/NixOS/nixpkgs/blob/6fcc160353f63555b560f25588925133c8f61f2a/pkgs/by-name/li/libssh2/package.nix",
+        "https://github.com/NixOS/nixpkgs/blob/83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c/pkgs/by-name/li/libssh2/package.nix",
+        "https://github.com/NixOS/nixpkgs/blob/c5c4a43b0e8056328ec4529f735cabdb8f1942bb/pkgs/by-name/li/libssh2/package.nix"
+      ]
+    },
+    {
+      "advisory": "CVE-2026-55653",
+      "component": "openssh",
+      "version": "10.5p1",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 5,
+      "basis": "SSH is reachable, but this advisory needs individual feature/product verification. Key-only authentication does not protect pre-authentication parsers.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/c24xx0wwnfmcf1nsfwxiiap5hls8s8pd-openssh-10.5p1.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-55654",
+      "component": "openssh",
+      "version": "10.5p1",
+      "severity": "low",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 5,
+      "basis": "SSH is reachable, but this advisory needs individual feature/product verification. Key-only authentication does not protect pre-authentication parsers.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/c24xx0wwnfmcf1nsfwxiiap5hls8s8pd-openssh-10.5p1.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-55655",
+      "component": "openssh",
+      "version": "10.5p1",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 5,
+      "basis": "SSH is reachable, but this advisory needs individual feature/product verification. Key-only authentication does not protect pre-authentication parsers.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/c24xx0wwnfmcf1nsfwxiiap5hls8s8pd-openssh-10.5p1.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-55693",
+      "component": "vim",
+      "version": "9.2.0541",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "conditional_operator_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Locked Vim source predates advisory fixes; hostile operator inputs can matter. Verify per-advisory build features and update the terminal editor.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/53i7fgx976wbv2kky5ji1gkv87jn38i3-vim-9.2.0541.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-55892",
+      "component": "vim",
+      "version": "9.2.0541",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "conditional_operator_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Locked Vim source predates advisory fixes; hostile operator inputs can matter. Verify per-advisory build features and update the terminal editor.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/53i7fgx976wbv2kky5ji1gkv87jn38i3-vim-9.2.0541.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-55893",
+      "component": "capstone",
+      "version": "5.0.7",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/9g9712a1afxakxrcgc081r9b2anmpm87-capstone-5.0.7.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-55894",
+      "component": "capstone",
+      "version": "5.0.7",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/9g9712a1afxakxrcgc081r9b2anmpm87-capstone-5.0.7.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-55895",
+      "component": "vim",
+      "version": "9.2.0541",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "conditional_operator_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Locked Vim source predates advisory fixes; hostile operator inputs can matter. Verify per-advisory build features and update the terminal editor.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/53i7fgx976wbv2kky5ji1gkv87jn38i3-vim-9.2.0541.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-56109",
+      "component": "alsa-lib",
+      "version": "1.2.15.3",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/d6z2fg53l7ixda9gl7sgfy0r7a4rw8ck-alsa-lib-1.2.15.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-57432",
+      "component": "perl",
+      "version": "5.42.3",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "fixed_in_scanned_version",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Perl 5.42.3 release notes explicitly list this fix. CVE-2026-8376 additionally concerns 32-bit builds, unlike Maestro.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/j62q08zzqxsbm1bnb9jf6bz320wkld38-perl-5.42.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://github.com/Perl/perl5/blob/v5.42.3/pod/perldelta.pod"
+      ]
+    },
+    {
+      "advisory": "CVE-2026-57451",
+      "component": "vim",
+      "version": "9.2.0541",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "conditional_operator_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Locked Vim source predates advisory fixes; hostile operator inputs can matter. Verify per-advisory build features and update the terminal editor.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/53i7fgx976wbv2kky5ji1gkv87jn38i3-vim-9.2.0541.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-57452",
+      "component": "vim",
+      "version": "9.2.0541",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "conditional_operator_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Locked Vim source predates advisory fixes; hostile operator inputs can matter. Verify per-advisory build features and update the terminal editor.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/53i7fgx976wbv2kky5ji1gkv87jn38i3-vim-9.2.0541.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-57453",
+      "component": "vim",
+      "version": "9.2.0541",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "conditional_operator_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Locked Vim source predates advisory fixes; hostile operator inputs can matter. Verify per-advisory build features and update the terminal editor.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/53i7fgx976wbv2kky5ji1gkv87jn38i3-vim-9.2.0541.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-57454",
+      "component": "vim",
+      "version": "9.2.0541",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "conditional_operator_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Locked Vim source predates advisory fixes; hostile operator inputs can matter. Verify per-advisory build features and update the terminal editor.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/53i7fgx976wbv2kky5ji1gkv87jn38i3-vim-9.2.0541.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-57455",
+      "component": "vim",
+      "version": "9.2.0541",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "conditional_operator_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Locked Vim source predates advisory fixes; hostile operator inputs can matter. Verify per-advisory build features and update the terminal editor.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/53i7fgx976wbv2kky5ji1gkv87jn38i3-vim-9.2.0541.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-57456",
+      "component": "vim",
+      "version": "9.2.0541",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "conditional_operator_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Locked Vim source predates advisory fixes; hostile operator inputs can matter. Verify per-advisory build features and update the terminal editor.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/53i7fgx976wbv2kky5ji1gkv87jn38i3-vim-9.2.0541.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-58050",
+      "component": "libssh2",
+      "version": "1.11.1",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "fixed_at_locked_source",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Root, XO and Determinate Nixpkgs definitions all declare a named backport for this advisory; retain separate derivation identities.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/cd7iw2vmzd7n3k5a39wq9c7r61z2m97p-libssh2-1.11.1.drv",
+        "/nix/store/mf4hc0cp0aw9dn8lq8z009mdgwbdg3s5-libssh2-1.11.1.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://github.com/NixOS/nixpkgs/blob/6fcc160353f63555b560f25588925133c8f61f2a/pkgs/by-name/li/libssh2/package.nix",
+        "https://github.com/NixOS/nixpkgs/blob/83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c/pkgs/by-name/li/libssh2/package.nix",
+        "https://github.com/NixOS/nixpkgs/blob/c5c4a43b0e8056328ec4529f735cabdb8f1942bb/pkgs/by-name/li/libssh2/package.nix"
+      ]
+    },
+    {
+      "advisory": "CVE-2026-58051",
+      "component": "libssh2",
+      "version": "1.11.1",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "fixed_at_locked_source",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Root, XO and Determinate Nixpkgs definitions all declare a named backport for this advisory; retain separate derivation identities.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/cd7iw2vmzd7n3k5a39wq9c7r61z2m97p-libssh2-1.11.1.drv",
+        "/nix/store/mf4hc0cp0aw9dn8lq8z009mdgwbdg3s5-libssh2-1.11.1.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://github.com/NixOS/nixpkgs/blob/6fcc160353f63555b560f25588925133c8f61f2a/pkgs/by-name/li/libssh2/package.nix",
+        "https://github.com/NixOS/nixpkgs/blob/83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c/pkgs/by-name/li/libssh2/package.nix",
+        "https://github.com/NixOS/nixpkgs/blob/c5c4a43b0e8056328ec4529f735cabdb8f1942bb/pkgs/by-name/li/libssh2/package.nix"
+      ]
+    },
+    {
+      "advisory": "CVE-2026-58055",
+      "component": "nghttp2",
+      "version": "1.69.0",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "needs_patch_and_caller_verification",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Closure membership established; patch applicability and the affected caller have not been proven.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/f1m10914mg6shrwalfwzdwfbxv3hkmja-nghttp2-1.69.0.drv",
+        "/nix/store/w9h4xx6hhi92isgsp4fbzhf0im1492qc-nghttp2-1.69.0.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-58058",
+      "component": "nmap",
+      "version": "7.99",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "conditional_operator_exposure",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Nmap is an installed operator tool; hostile received packets are plausible input. Review packet parser fix and actual scanning behavior even though severity is medium.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/rzigmwl58bdflj66rd2k3q85bi983q1f-nmap-7.99.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-59843",
+      "component": "libssh",
+      "version": "0.12.2",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "This is libssh, not OpenSSH sshd. Its parent is ffmpeg-headless; establish client usage and whether the advisory instead requires a libssh server.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/h7b56qy013xwvcs4wsr7y0k9rw71g2rx-libssh-0.12.2.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-59844",
+      "component": "libssh",
+      "version": "0.12.2",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "This is libssh, not OpenSSH sshd. Its parent is ffmpeg-headless; establish client usage and whether the advisory instead requires a libssh server.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/h7b56qy013xwvcs4wsr7y0k9rw71g2rx-libssh-0.12.2.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-59845",
+      "component": "libssh",
+      "version": "0.12.2",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "This is libssh, not OpenSSH sshd. Its parent is ffmpeg-headless; establish client usage and whether the advisory instead requires a libssh server.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/h7b56qy013xwvcs4wsr7y0k9rw71g2rx-libssh-0.12.2.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-59846",
+      "component": "libssh",
+      "version": "0.12.2",
+      "severity": "low",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "This is libssh, not OpenSSH sshd. Its parent is ffmpeg-headless; establish client usage and whether the advisory instead requires a libssh server.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/h7b56qy013xwvcs4wsr7y0k9rw71g2rx-libssh-0.12.2.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-59848",
+      "component": "libssh",
+      "version": "0.12.2",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "This is libssh, not OpenSSH sshd. Its parent is ffmpeg-headless; establish client usage and whether the advisory instead requires a libssh server.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/h7b56qy013xwvcs4wsr7y0k9rw71g2rx-libssh-0.12.2.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-59850",
+      "component": "libssh",
+      "version": "0.12.2",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "This is libssh, not OpenSSH sshd. Its parent is ffmpeg-headless; establish client usage and whether the advisory instead requires a libssh server.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/h7b56qy013xwvcs4wsr7y0k9rw71g2rx-libssh-0.12.2.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-59851",
+      "component": "libssh",
+      "version": "0.12.2",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "This is libssh, not OpenSSH sshd. Its parent is ffmpeg-headless; establish client usage and whether the advisory instead requires a libssh server.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/h7b56qy013xwvcs4wsr7y0k9rw71g2rx-libssh-0.12.2.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-59856",
+      "component": "vim",
+      "version": "9.2.0541",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "conditional_operator_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Locked Vim source predates advisory fixes; hostile operator inputs can matter. Verify per-advisory build features and update the terminal editor.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/53i7fgx976wbv2kky5ji1gkv87jn38i3-vim-9.2.0541.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-59857",
+      "component": "vim",
+      "version": "9.2.0541",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "conditional_operator_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Locked Vim source predates advisory fixes; hostile operator inputs can matter. Verify per-advisory build features and update the terminal editor.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/53i7fgx976wbv2kky5ji1gkv87jn38i3-vim-9.2.0541.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-59858",
+      "component": "vim",
+      "version": "9.2.0541",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "conditional_operator_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Locked Vim source predates advisory fixes; hostile operator inputs can matter. Verify per-advisory build features and update the terminal editor.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/53i7fgx976wbv2kky5ji1gkv87jn38i3-vim-9.2.0541.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-63072",
+      "component": "openssl",
+      "version": "3.6.3",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "An older dependency copy remains in an independent input tree; trace exact library consumers and affected API use. HTTP TLS does not establish CMP, QUIC or DTLS exposure.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/r4h8yax7i8q29c1p4b8xn6kff5bvg96f-openssl-3.6.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-63073",
+      "component": "openssl",
+      "version": "3.6.3",
+      "severity": "critical",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "An older dependency copy remains in an independent input tree; trace exact library consumers and affected API use. HTTP TLS does not establish CMP, QUIC or DTLS exposure.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/r4h8yax7i8q29c1p4b8xn6kff5bvg96f-openssl-3.6.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-63074",
+      "component": "openssl",
+      "version": "3.6.3",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "An older dependency copy remains in an independent input tree; trace exact library consumers and affected API use. HTTP TLS does not establish CMP, QUIC or DTLS exposure.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/r4h8yax7i8q29c1p4b8xn6kff5bvg96f-openssl-3.6.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-63075",
+      "component": "openssl",
+      "version": "3.6.3",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "An older dependency copy remains in an independent input tree; trace exact library consumers and affected API use. HTTP TLS does not establish CMP, QUIC or DTLS exposure.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/r4h8yax7i8q29c1p4b8xn6kff5bvg96f-openssl-3.6.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-63076",
+      "component": "openssl",
+      "version": "3.6.3",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "An older dependency copy remains in an independent input tree; trace exact library consumers and affected API use. HTTP TLS does not establish CMP, QUIC or DTLS exposure.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/r4h8yax7i8q29c1p4b8xn6kff5bvg96f-openssl-3.6.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-6507",
+      "component": "dnsmasq",
+      "version": "2.93",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "service_not_declared_runtime_unverified",
+      "priority": "P2",
+      "checkpoint": 5,
+      "basis": "Corresponding server/daemon is not enabled by repository defaults; check evaluated units and transient image-tooling subprocesses. This does not rule out library/client use.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/vxgy0dwrq79rm1h7x0py5p1gfmqyc7b7-dnsmasq-2.93.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-66032",
+      "component": "libssh2",
+      "version": "1.11.1",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "fixed_at_locked_source",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Root, XO and Determinate Nixpkgs definitions all declare a named backport for this advisory; retain separate derivation identities.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/cd7iw2vmzd7n3k5a39wq9c7r61z2m97p-libssh2-1.11.1.drv",
+        "/nix/store/mf4hc0cp0aw9dn8lq8z009mdgwbdg3s5-libssh2-1.11.1.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://github.com/NixOS/nixpkgs/blob/6fcc160353f63555b560f25588925133c8f61f2a/pkgs/by-name/li/libssh2/package.nix",
+        "https://github.com/NixOS/nixpkgs/blob/83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c/pkgs/by-name/li/libssh2/package.nix",
+        "https://github.com/NixOS/nixpkgs/blob/c5c4a43b0e8056328ec4529f735cabdb8f1942bb/pkgs/by-name/li/libssh2/package.nix"
+      ]
+    },
+    {
+      "advisory": "CVE-2026-66033",
+      "component": "libssh2",
+      "version": "1.11.1",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "fixed_at_locked_source",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Root, XO and Determinate Nixpkgs definitions all declare a named backport for this advisory; retain separate derivation identities.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/cd7iw2vmzd7n3k5a39wq9c7r61z2m97p-libssh2-1.11.1.drv",
+        "/nix/store/mf4hc0cp0aw9dn8lq8z009mdgwbdg3s5-libssh2-1.11.1.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://github.com/NixOS/nixpkgs/blob/6fcc160353f63555b560f25588925133c8f61f2a/pkgs/by-name/li/libssh2/package.nix",
+        "https://github.com/NixOS/nixpkgs/blob/83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c/pkgs/by-name/li/libssh2/package.nix",
+        "https://github.com/NixOS/nixpkgs/blob/c5c4a43b0e8056328ec4529f735cabdb8f1942bb/pkgs/by-name/li/libssh2/package.nix"
+      ]
+    },
+    {
+      "advisory": "CVE-2026-66034",
+      "component": "libssh2",
+      "version": "1.11.1",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "fixed_at_locked_source",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Root, XO and Determinate Nixpkgs definitions all declare a named backport for this advisory; retain separate derivation identities.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/cd7iw2vmzd7n3k5a39wq9c7r61z2m97p-libssh2-1.11.1.drv",
+        "/nix/store/mf4hc0cp0aw9dn8lq8z009mdgwbdg3s5-libssh2-1.11.1.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://github.com/NixOS/nixpkgs/blob/6fcc160353f63555b560f25588925133c8f61f2a/pkgs/by-name/li/libssh2/package.nix",
+        "https://github.com/NixOS/nixpkgs/blob/83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c/pkgs/by-name/li/libssh2/package.nix",
+        "https://github.com/NixOS/nixpkgs/blob/c5c4a43b0e8056328ec4529f735cabdb8f1942bb/pkgs/by-name/li/libssh2/package.nix"
+      ]
+    },
+    {
+      "advisory": "CVE-2026-66035",
+      "component": "libssh2",
+      "version": "1.11.1",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "fixed_at_locked_source",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Root, XO and Determinate Nixpkgs definitions all declare a named backport for this advisory; retain separate derivation identities.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/cd7iw2vmzd7n3k5a39wq9c7r61z2m97p-libssh2-1.11.1.drv",
+        "/nix/store/mf4hc0cp0aw9dn8lq8z009mdgwbdg3s5-libssh2-1.11.1.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://github.com/NixOS/nixpkgs/blob/6fcc160353f63555b560f25588925133c8f61f2a/pkgs/by-name/li/libssh2/package.nix",
+        "https://github.com/NixOS/nixpkgs/blob/83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c/pkgs/by-name/li/libssh2/package.nix",
+        "https://github.com/NixOS/nixpkgs/blob/c5c4a43b0e8056328ec4529f735cabdb8f1942bb/pkgs/by-name/li/libssh2/package.nix"
+      ]
+    },
+    {
+      "advisory": "CVE-2026-72897",
+      "component": "openssl",
+      "version": "3.6.3",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "An older dependency copy remains in an independent input tree; trace exact library consumers and affected API use. HTTP TLS does not establish CMP, QUIC or DTLS exposure.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/r4h8yax7i8q29c1p4b8xn6kff5bvg96f-openssl-3.6.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-73070",
+      "component": "vim",
+      "version": "9.2.0541",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "conditional_operator_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Locked Vim source predates advisory fixes; hostile operator inputs can matter. Verify per-advisory build features and update the terminal editor.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/53i7fgx976wbv2kky5ji1gkv87jn38i3-vim-9.2.0541.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-73071",
+      "component": "vim",
+      "version": "9.2.0541",
+      "severity": "low",
+      "scanner": "grype",
+      "disposition": "conditional_operator_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Locked Vim source predates advisory fixes; hostile operator inputs can matter. Verify per-advisory build features and update the terminal editor.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/53i7fgx976wbv2kky5ji1gkv87jn38i3-vim-9.2.0541.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-73072",
+      "component": "vim",
+      "version": "9.2.0541",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "conditional_operator_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Locked Vim source predates advisory fixes; hostile operator inputs can matter. Verify per-advisory build features and update the terminal editor.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/53i7fgx976wbv2kky5ji1gkv87jn38i3-vim-9.2.0541.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-73073",
+      "component": "vim",
+      "version": "9.2.0541",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "conditional_operator_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Locked Vim source predates advisory fixes; hostile operator inputs can matter. Verify per-advisory build features and update the terminal editor.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/53i7fgx976wbv2kky5ji1gkv87jn38i3-vim-9.2.0541.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-73074",
+      "component": "vim",
+      "version": "9.2.0541",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "conditional_operator_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Locked Vim source predates advisory fixes; hostile operator inputs can matter. Verify per-advisory build features and update the terminal editor.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/53i7fgx976wbv2kky5ji1gkv87jn38i3-vim-9.2.0541.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-73075",
+      "component": "vim",
+      "version": "9.2.0541",
+      "severity": "low",
+      "scanner": "grype",
+      "disposition": "conditional_operator_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Locked Vim source predates advisory fixes; hostile operator inputs can matter. Verify per-advisory build features and update the terminal editor.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/53i7fgx976wbv2kky5ji1gkv87jn38i3-vim-9.2.0541.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-73076",
+      "component": "vim",
+      "version": "9.2.0541",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "conditional_operator_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Locked Vim source predates advisory fixes; hostile operator inputs can matter. Verify per-advisory build features and update the terminal editor.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/53i7fgx976wbv2kky5ji1gkv87jn38i3-vim-9.2.0541.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-73077",
+      "component": "vim",
+      "version": "9.2.0541",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "conditional_operator_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Locked Vim source predates advisory fixes; hostile operator inputs can matter. Verify per-advisory build features and update the terminal editor.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/53i7fgx976wbv2kky5ji1gkv87jn38i3-vim-9.2.0541.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-73078",
+      "component": "vim",
+      "version": "9.2.0541",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "feature_not_in_declared_package",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Upstream advisory explicitly requires GUI menus and excludes terminal Vim. Verify the built feature list before policy exclusion.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/53i7fgx976wbv2kky5ji1gkv87jn38i3-vim-9.2.0541.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://github.com/vim/vim/security/advisories/GHSA-rcr7-f3wr-22r2",
+        "https://github.com/NixOS/nixpkgs/blob/6fcc160353f63555b560f25588925133c8f61f2a/pkgs/applications/editors/vim/default.nix"
+      ]
+    },
+    {
+      "advisory": "CVE-2026-73433",
+      "component": "gstreamer",
+      "version": "1.26.11",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/hr5vvn336b352nm8bx3356vdykp1zxfp-gstreamer-1.26.11.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-73434",
+      "component": "gstreamer",
+      "version": "1.26.11",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/hr5vvn336b352nm8bx3356vdykp1zxfp-gstreamer-1.26.11.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-75803",
+      "component": "openssl",
+      "version": "3.6.3",
+      "severity": "critical",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "An older dependency copy remains in an independent input tree; trace exact library consumers and affected API use. HTTP TLS does not establish CMP, QUIC or DTLS exposure.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/r4h8yax7i8q29c1p4b8xn6kff5bvg96f-openssl-3.6.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-75804",
+      "component": "openssl",
+      "version": "3.6.3",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "An older dependency copy remains in an independent input tree; trace exact library consumers and affected API use. HTTP TLS does not establish CMP, QUIC or DTLS exposure.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/r4h8yax7i8q29c1p4b8xn6kff5bvg96f-openssl-3.6.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-75805",
+      "component": "openssl",
+      "version": "3.6.3",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "An older dependency copy remains in an independent input tree; trace exact library consumers and affected API use. HTTP TLS does not establish CMP, QUIC or DTLS exposure.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/r4h8yax7i8q29c1p4b8xn6kff5bvg96f-openssl-3.6.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-75806",
+      "component": "openssl",
+      "version": "3.6.3",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "An older dependency copy remains in an independent input tree; trace exact library consumers and affected API use. HTTP TLS does not establish CMP, QUIC or DTLS exposure.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/r4h8yax7i8q29c1p4b8xn6kff5bvg96f-openssl-3.6.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-75904",
+      "component": "libmodplug",
+      "version": "0.8.9.0",
+      "severity": "low",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/yn5023116llc7m901crq76s1087b0qgp-libmodplug-0.8.9.0.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-7598",
+      "component": "libssh2",
+      "version": "1.11.1",
+      "severity": "critical",
+      "scanner": "grype",
+      "disposition": "fixed_at_locked_source",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Root, XO and Determinate Nixpkgs definitions all declare a named backport for this advisory; retain separate derivation identities.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/cd7iw2vmzd7n3k5a39wq9c7r61z2m97p-libssh2-1.11.1.drv",
+        "/nix/store/mf4hc0cp0aw9dn8lq8z009mdgwbdg3s5-libssh2-1.11.1.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://github.com/NixOS/nixpkgs/blob/6fcc160353f63555b560f25588925133c8f61f2a/pkgs/by-name/li/libssh2/package.nix",
+        "https://github.com/NixOS/nixpkgs/blob/83199d0d373dd3ac2b9a1996b1d0263f76ab7a4c/pkgs/by-name/li/libssh2/package.nix",
+        "https://github.com/NixOS/nixpkgs/blob/c5c4a43b0e8056328ec4529f735cabdb8f1942bb/pkgs/by-name/li/libssh2/package.nix"
+      ]
+    },
+    {
+      "advisory": "CVE-2026-77696",
+      "component": "openssl",
+      "version": "3.6.3",
+      "severity": "low",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "An older dependency copy remains in an independent input tree; trace exact library consumers and affected API use. HTTP TLS does not establish CMP, QUIC or DTLS exposure.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/r4h8yax7i8q29c1p4b8xn6kff5bvg96f-openssl-3.6.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-8376",
+      "component": "perl",
+      "version": "5.42.3",
+      "severity": "critical",
+      "scanner": "grype",
+      "disposition": "fixed_in_scanned_version",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Perl 5.42.3 release notes explicitly list this fix. CVE-2026-8376 additionally concerns 32-bit builds, unlike Maestro.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/j62q08zzqxsbm1bnb9jf6bz320wkld38-perl-5.42.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://github.com/Perl/perl5/blob/v5.42.3/pod/perldelta.pod"
+      ]
+    },
+    {
+      "advisory": "CVE-2026-84782",
+      "component": "openssl",
+      "version": "3.6.3",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "An older dependency copy remains in an independent input tree; trace exact library consumers and affected API use. HTTP TLS does not establish CMP, QUIC or DTLS exposure.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/r4h8yax7i8q29c1p4b8xn6kff5bvg96f-openssl-3.6.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-84784",
+      "component": "openssl",
+      "version": "3.6.3",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "An older dependency copy remains in an independent input tree; trace exact library consumers and affected API use. HTTP TLS does not establish CMP, QUIC or DTLS exposure.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/r4h8yax7i8q29c1p4b8xn6kff5bvg96f-openssl-3.6.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-85091",
+      "component": "zlib",
+      "version": "1.3.2",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "affected_call_sequence_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 3,
+      "basis": "Reported issue requires specific nonblocking gzip-write/printf calls. General compressed HTTP/archive input alone does not prove the required call sequence.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/4h14gh40cmy92iwbsv9z0rxcchi0c980-zlib-1.3.2.drv",
+        "/nix/store/z84lzqk6n44ya8fdmwhpwxnfrp2a961y-zlib-1.3.2.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-86137",
+      "component": "libxml2",
+      "version": "2.15.3",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Older libxml2 remains through libarchive; inspect archive/parser consumers and advance the independent runtime tree.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/1cj8by9mrpim6hvbmbn6jpcfhdv7ig5a-libxml2-2.15.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-86138",
+      "component": "libxml2",
+      "version": "2.15.3",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Older libxml2 remains through libarchive; inspect archive/parser consumers and advance the independent runtime tree.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/1cj8by9mrpim6hvbmbn6jpcfhdv7ig5a-libxml2-2.15.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-86139",
+      "component": "libxml2",
+      "version": "2.15.3",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Older libxml2 remains through libarchive; inspect archive/parser consumers and advance the independent runtime tree.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/1cj8by9mrpim6hvbmbn6jpcfhdv7ig5a-libxml2-2.15.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-86140",
+      "component": "libxml2",
+      "version": "2.15.3",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Older libxml2 remains through libarchive; inspect archive/parser consumers and advance the independent runtime tree.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/1cj8by9mrpim6hvbmbn6jpcfhdv7ig5a-libxml2-2.15.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-86141",
+      "component": "libxml2",
+      "version": "2.15.3",
+      "severity": "low",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Older libxml2 remains through libarchive; inspect archive/parser consumers and advance the independent runtime tree.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/1cj8by9mrpim6hvbmbn6jpcfhdv7ig5a-libxml2-2.15.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-86142",
+      "component": "libxml2",
+      "version": "2.15.3",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Older libxml2 remains through libarchive; inspect archive/parser consumers and advance the independent runtime tree.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/1cj8by9mrpim6hvbmbn6jpcfhdv7ig5a-libxml2-2.15.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-86143",
+      "component": "libxml2",
+      "version": "2.15.3",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Older libxml2 remains through libarchive; inspect archive/parser consumers and advance the independent runtime tree.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/1cj8by9mrpim6hvbmbn6jpcfhdv7ig5a-libxml2-2.15.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-86144",
+      "component": "libxml2",
+      "version": "2.15.3",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "potential_runtime_exposure",
+      "priority": "P1",
+      "checkpoint": 3,
+      "basis": "Older libxml2 remains through libarchive; inspect archive/parser consumers and advance the independent runtime tree.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/1cj8by9mrpim6hvbmbn6jpcfhdv7ig5a-libxml2-2.15.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-89156",
+      "component": "pcre2",
+      "version": "10.46",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "needs_patch_and_caller_verification",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Closure membership established; patch applicability and the affected caller have not been proven.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/z1sfjja53y3w1q15m6rrkjslj1snlmfg-pcre2-10.46.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-89157",
+      "component": "pcre2",
+      "version": "10.46",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "platform_mismatch",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Advisory identifies a 32-bit or ARM64/RISC-V-specific path; Maestro is x86_64. Confirm no auxiliary executable of that architecture is present before exclusion.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/z1sfjja53y3w1q15m6rrkjslj1snlmfg-pcre2-10.46.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://github.com/PCRE2Project/pcre2/releases/tag/pcre2-10.48"
+      ]
+    },
+    {
+      "advisory": "CVE-2026-89158",
+      "component": "pcre2",
+      "version": "10.46",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "platform_mismatch",
+      "priority": "P3",
+      "checkpoint": 2,
+      "basis": "Advisory identifies a 32-bit or ARM64/RISC-V-specific path; Maestro is x86_64. Confirm no auxiliary executable of that architecture is present before exclusion.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/z1sfjja53y3w1q15m6rrkjslj1snlmfg-pcre2-10.46.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": [
+        "https://github.com/PCRE2Project/pcre2/releases/tag/pcre2-10.48"
+      ]
+    },
+    {
+      "advisory": "CVE-2026-89160",
+      "component": "pcre2",
+      "version": "10.46",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "needs_patch_and_caller_verification",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Closure membership established; patch applicability and the affected caller have not been proven.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/z1sfjja53y3w1q15m6rrkjslj1snlmfg-pcre2-10.46.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-89161",
+      "component": "pcre2",
+      "version": "10.46",
+      "severity": "high",
+      "scanner": "grype",
+      "disposition": "needs_patch_and_caller_verification",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Closure membership established; patch applicability and the affected caller have not been proven.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/z1sfjja53y3w1q15m6rrkjslj1snlmfg-pcre2-10.46.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-89162",
+      "component": "pcre2",
+      "version": "10.46",
+      "severity": "low",
+      "scanner": "grype",
+      "disposition": "needs_patch_and_caller_verification",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Closure membership established; patch applicability and the affected caller have not been proven.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/z1sfjja53y3w1q15m6rrkjslj1snlmfg-pcre2-10.46.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-90781",
+      "component": "alsa-lib",
+      "version": "1.2.15.3",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/d6z2fg53l7ixda9gl7sgfy0r7a4rw8ck-alsa-lib-1.2.15.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-96674",
+      "component": "alsa-lib",
+      "version": "1.2.15.3",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/d6z2fg53l7ixda9gl7sgfy0r7a4rw8ck-alsa-lib-1.2.15.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    },
+    {
+      "advisory": "CVE-2026-96675",
+      "component": "alsa-lib",
+      "version": "1.2.15.3",
+      "severity": "medium",
+      "scanner": "grype",
+      "disposition": "feature_and_patch_unconfirmed",
+      "priority": "P2",
+      "checkpoint": 4,
+      "basis": "Image/tooling closure contains this library; prove the affected plugin, decoder or API is invoked before claiming remote exposure. Prefer a supported headless dependency chain.",
+      "verified_exploitable": false,
+      "matched_derivations": [
+        "/nix/store/d6z2fg53l7ixda9gl7sgfy0r7a4rw8ck-alsa-lib-1.2.15.3.drv"
+      ],
+      "match_basis": [
+        "cpe-match"
+      ],
+      "review_evidence": []
+    }
+  ]
+}

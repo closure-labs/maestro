@@ -66,6 +66,50 @@ boundary. The aggregate `ci:repository-audit` task remains dependency-aware
 and has no command of its own after its declared flake and formatting checks
 finish.
 
+The `runtime-security` check boots the appliance and storage peer to verify
+network, SSH, TLS, service privileges, crypto and NFS/CIFS/VHD boundaries.
+It does not run the nested libguestfs file restore VM acceptance scripts;
+file restore unit fixtures still run through `security-fixtures`.
+
+Every hosted Nix job uses the shared Determinate setup. It records the installed
+CLI path and preserves it through packaged commands, including `nix-store`.
+The setup's export helper accepts only Determinate Nix store paths and
+positive numeric budgets before writing runner environment/path files;
+the credential access reason is a fixed literal. Injection fixtures verify
+invalid or multiline values leave those files unchanged.
+The setup writes supported overrides to `nix.custom.conf`, derives jobs/cores
+from detected CPU and RAM, reserves 8 GiB for VM tests and runner processes,
+and exports the same budget to devenv. Runners with at most 8 GiB reserve
+2 GiB and execute one build at a time, with a one-core minimum on very small
+runners. A four-core, 16 GiB runner gets two jobs with two cores each;
+a two-core, 7 GiB runner gets one job with two cores. Workflow fixtures prevent
+new Nix jobs from bypassing this setup.
+
+Native SecretSpec uses the env provider and optional `github` profile, with an
+explicit hosted access reason. Secrets remain runtime inputs; repository Nix
+modules do not copy `secretspec.secrets` into derivations. Credential-free
+audits and dummy-token runtime injection are checked independently. Devenv's
+pinned native evaluator is separate from the hosted Determinate CLI and may
+warn about unsupported Determinate experimental flags. The pinned sbomnix
+package deliberately retains Nix 2.31 for its older derivation-JSON parser;
+this scanner compatibility tool is distinct from the audit/build CLI.
+
+XO and its supply evidence are downloaded from the signed public
+`xen-orchestra-ce.cachix.org` cache at the exact locked output paths. A plan
+runner's "Building" target label can also mean substituting an existing
+output; the Nix download/build logs establish which occurred. Maestro publishes
+its own runtime closure to Cachix after successful protected-main qualification
+and signing. Failed PR runs do not publish new Maestro build outputs, so custom
+QEMU/appliance builds can repeat before the first successful main publication.
+Installer/evidence reuse separately requires a matching signed qualification
+state from a successful trusted producer.
+
+The security inventory parser reads both legacy flat derivation maps and Nix's
+version-4 envelope. It resolves shortened store paths, `inputs.drvs`, direct
+structured attributes and fixed outputs whose path is recorded only in the
+builder environment. Invalid records, versions and missing requested identities
+fail with an explicit error instead of producing incomplete evidence.
+
 The `maestro-ci-route` command emits one versioned JSON route plan. Focused
 qualification, protected-main publication, and the required verdict all
 consume that exact output, so downstream jobs cannot independently reinterpret
@@ -135,6 +179,83 @@ public Cachix `extra-substituters` are then applied normally. The required
 verdict runs the packaged `ci:verdict` task through Nix/devenv, validates the
 schema-v3 route contract, and checks required scanning and protected-main
 signing results.
+
+Before validation or installer construction, an inventory preflight decodes a
+real derivation returned by the active Nix CLI. Run it separately with
+`devenv tasks run ci:security:inventory-preflight`. This catches metadata format
+incompatibilities before an expensive media build. The pinned devenv launcher
+also includes literal coreutils patches in its closure, so substitution does
+not leave the native evaluator's build-time source paths unmaterialized.
+
+Protected-main publication now includes `maestro-ci-toolchain` (the pinned
+devenv launcher and plan runner) and `sbomnix`, in addition to the five appliance
+and operator targets. Their exact signed closures can be substituted on later
+runners. Publication still runs only after qualification, scanning and signing;
+PR jobs receive no cache write credentials. A cold runner may still build when
+the exact output has not yet been published.
+
+CI and release security jobs download `maestro-evidence` from the assembled
+inventory's `artifact_run_id`. Weekly scanning uses
+`maestro-ci-download-installer DIRECTORY evidence`. This preserves the same
+signed pointer, producer, checksum and evidence attestation checks without
+transferring the ISO. The downloader's default and release publication retain
+full media verification, including the ISO's SPDX predicate binding. The
+original `evidence_run_id` can identify older evidence and must not select the
+assembled inventory downloaded for scanning.
+
+`maestro-ci-trusted-run --batch` accepts a nonempty array of
+`{"run_id":123,"source_sha":"<40-character commit or empty string>"}` on stdin.
+It fetches each producer once, takes one protected-main snapshot, and checks
+each unique ancestry once. It validates every requested source constraint and
+returns metadata in request order. Reuse ends when the command exits; no trust
+decision persists between jobs or scans.
+
+For local validation with cache publication, configure `CACHIX_CACHE_NAME` in
+the runtime environment, then run:
+
+```bash
+devenv tasks run ci:cache-validation
+```
+
+This runs the complete repository audit, records its exact output roots in
+`$DEVENV_STATE/maestro-validation.json`, and pushes their closures to the runtime
+`CACHIX_CACHE_NAME`. The leaf command requires an explicit environment value;
+the default in `secretspec.toml` does not configure its destination by itself.
+Cachix reads its existing user configuration or runtime `CACHIX_AUTH_TOKEN`;
+credentials never enter Nix evaluation. The cache task rejects hosted execution,
+failed or incomplete manifests, and missing store outputs. `MAESTRO_CI_AUDIT_MANIFEST` optionally
+selects another runtime manifest path for both tasks.
+
+Local credentials can differ from GitHub's credentials, provided the service
+authorizes them for the selected cache. To use workstation password-store
+references, resolve them into the task's runtime environment:
+
+```bash
+CACHIX_CACHE_NAME="$(pass show GitHub/closure-labs/maestro/CACHIX_CACHE_NAME)" \
+CACHIX_AUTH_TOKEN="$(pass show GitHub/closure-labs/maestro/CACHIX_AUTH_TOKEN)" \
+devenv tasks run ci:cache-validation
+```
+
+GitHub's API returns repository variable values but only metadata for Actions
+secrets. `gh` can dispatch a remote workflow that uses those secrets; it cannot
+resolve their values for a local process. Store a separately authorized local
+token or an existing workstation credential in `pass` instead.
+
+`cachix.push` in `devenv.local.nix` observes devenv's own native builds. It does
+not reliably observe the audit's nested Nix subprocess builds; the explicit
+cache task publishes those exact completed outputs instead. After aggressive
+store cleanup, realize `.#maestro-ci-toolchain` before retrying if evaluation
+reports a missing `cabal2nix` derivation: an upstream import-from-derivation
+reference can outlive its collected producer metadata.
+
+Vulnerability findings remain in the documented report stage until fresh
+inventory, source-bound dispositions, runtime validation and disposable lab
+acceptance pass. These performance changes do not establish those prerequisites.
+Validation/qualification overlap and event-driven release continuation remain
+benchmarking work: they change runner cost or orchestration and are not required
+to avoid unnecessary ISO downloads and repeated API calls. Hosted runs must
+measure the elapsed-time improvement after rollout.
+
 Deployment templates, metadata, menus, and CLI packages remain covered by the
 repository audit and protected-main publication without being redundantly
 realized during installer qualification. Reusable evidence is accepted only

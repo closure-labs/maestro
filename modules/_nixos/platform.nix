@@ -5,15 +5,20 @@
   pkgs,
   ...
 }: let
-  # The official Determinate cache publishes the runtime output. Avoid pulling
-  # the uncached manual output into the appliance closure, which otherwise
-  # forces a complete Determinate Nix source build.
+  # Retain the official output for cache preflight/provenance; the installed
+  # runtime below is rebuilt from the same source with appliance dependencies.
   upstreamDeterminateNix = inputs.determinate.inputs.nix.packages.${pkgs.stdenv.hostPlatform.system}.default;
+  # Use the upstream public source-build interface with patched appliance
+  # dependencies. This rebuilds the actual linked runtime, including Nix's
+  # libarchive/OpenSSL consumers; changing a CLI package would not do that.
+  determinateComponents = inputs.determinate.inputs.nix.lib.makeComponents {inherit pkgs;};
+  patchedDeterminateNix = determinateComponents.nix-everything;
   determinateNix = pkgs.symlinkJoin {
     name = "determinate-nix-${upstreamDeterminateNix.version}";
-    paths = [upstreamDeterminateNix.out];
+    paths = [patchedDeterminateNix.out];
     passthru = {
       upstream = upstreamDeterminateNix;
+      patched = patchedDeterminateNix;
       inherit (upstreamDeterminateNix) pname version;
     };
     meta =
@@ -102,7 +107,7 @@ in {
   };
 
   environment.systemPackages = with pkgs; [
-    vim
+    inputs.xen-orchestra-ce.inputs.nixpkgs.legacyPackages.${pkgs.stdenv.hostPlatform.system}.vim
     nano
     micro
     wget
