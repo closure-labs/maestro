@@ -7,7 +7,7 @@ temporary=$(mktemp -d)
 trap 'rm -rf -- "$temporary"' EXIT
 mkdir -p "$temporary/bin"
 export MAESTRO_CI_PATH_PREFIX="$temporary/bin"
-export CACHIX_CACHE_NAME=nixoa FAKE_CACHE_FIXTURE="$temporary"
+export CACHIX_CACHE_NAME=maestro-fixture FAKE_CACHE_FIXTURE="$temporary"
 export GITHUB_ACTIONS=false
 # Two roots occur throughout all validation targets to prove deduplication
 # without relying on fixture-only subsets of the actual repository plan.
@@ -30,7 +30,7 @@ NIX
 cat >"$temporary/bin/cachix" <<'CACHIX'
 #!/usr/bin/env bash
 set -euo pipefail
-[[ "$1 $2" == 'push nixoa' ]]
+[[ "$1 $2" == 'push maestro-fixture' ]]
 cat >"${FAKE_CACHE_FIXTURE:?}/published"
 CACHIX
 sed -i "1c#!${BASH}" "$temporary/bin/nix" "$temporary/bin/cachix"

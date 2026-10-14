@@ -218,11 +218,27 @@ devenv tasks run ci:cache-validation
 
 This runs the complete repository audit, records its exact output roots in
 `.devenv/maestro-validation.json`, and pushes their closures to the runtime
-`CACHIX_CACHE_NAME` (default `nixoa`). Cachix reads its existing user
-configuration or runtime `CACHIX_AUTH_TOKEN`; credentials never enter Nix
+`CACHIX_CACHE_NAME` (with the default declared in `secretspec.toml`). Cachix
+reads its existing user configuration or runtime `CACHIX_AUTH_TOKEN`;
+credentials never enter Nix
 evaluation. The cache task rejects hosted execution, failed or incomplete
 manifests, and missing store outputs. `MAESTRO_CI_AUDIT_MANIFEST` optionally
 selects another runtime manifest path for both tasks.
+
+Local credentials can differ from GitHub's credentials, provided the service
+authorizes them for the selected cache. To use workstation password-store
+references, resolve them into the task's runtime environment:
+
+```bash
+CACHIX_CACHE_NAME="$(pass show GitHub/closure-labs/maestro/CACHIX_CACHE_NAME)" \
+CACHIX_AUTH_TOKEN="$(pass show GitHub/closure-labs/maestro/CACHIX_AUTH_TOKEN)" \
+devenv tasks run ci:cache-validation
+```
+
+GitHub's API returns repository variable values but only metadata for Actions
+secrets. `gh` can dispatch a remote workflow that uses those secrets; it cannot
+resolve their values for a local process. Store a separately authorized local
+token or an existing workstation credential in `pass` instead.
 
 `cachix.push` in `devenv.local.nix` observes devenv's own native builds. It does
 not reliably observe the audit's nested Nix subprocess builds; the explicit
