@@ -15,8 +15,9 @@ set -euo pipefail
 }
 # Accept the complete declared validation plan, never a successful subset or a
 # different plan. Only immutable realized output roots reach the Cachix CLI.
-jq -e --slurpfile contract "$MAESTRO_CI_PLAN_CONTRACT" '
-  type == "object" and
+manifest=$(jq -ces --slurpfile contract "$MAESTRO_CI_PLAN_CONTRACT" '
+  select(length == 1) | .[0] |
+  select(type == "object" and
   (keys | sort) == ["failureCount", "flake", "plan", "results", "schemaVersion", "targetCount"] and
   .schemaVersion == 2 and .plan == "maestro-validation" and
   (.flake | type == "string" and length > 0) and
@@ -31,9 +32,9 @@ jq -e --slurpfile contract "$MAESTRO_CI_PLAN_CONTRACT" '
     (keys | sort) == ["attribute", "name", "outputs", "status"] and
     .status == "success" and
     (.outputs | type == "array" and length > 0 and
-      all(.[]; type == "string" and test("^/nix/store/[0123456789abcdfghijklmnpqrsvwxyz]{32}-[^/[:space:]]+\\z"))))
-' "$1" >/dev/null
-mapfile -t outputs < <(jq -r '[.results[].outputs[]] | unique[]' "$1")
+      all(.[]; type == "string" and test("^/nix/store/[0123456789abcdfghijklmnpqrsvwxyz]{32}-[^/[:space:]]+\\z")))))
+' "$1")
+mapfile -t outputs < <(jq -r '[.results[].outputs[]] | unique[]' <<<"$manifest")
 [[ ${#outputs[@]} -gt 0 ]]
 nix path-info "${outputs[@]}" >/dev/null
 # Cachix resolves its token from its runtime environment or native user config.

@@ -69,6 +69,15 @@ done
 printf '{malformed\n' >"$temporary/invalid.json"
 reject "$MAESTRO_CI_CACHE_VALIDATION" "$temporary/invalid.json"
 [[ ! -e $temporary/queried ]]
+# A later valid document cannot hide an invalid document, and even multiple
+# valid documents must be refused before querying or publishing any roots.
+jq '.failureCount=1' "$temporary/valid.json" >"$temporary/invalid.json"
+cat "$temporary/valid.json" >>"$temporary/invalid.json"
+reject "$MAESTRO_CI_CACHE_VALIDATION" "$temporary/invalid.json"
+[[ ! -e $temporary/queried ]]
+cat "$temporary/valid.json" "$temporary/valid.json" >"$temporary/invalid.json"
+reject "$MAESTRO_CI_CACHE_VALIDATION" "$temporary/invalid.json"
+[[ ! -e $temporary/queried ]]
 FAKE_CACHE_MISSING=true reject "$MAESTRO_CI_CACHE_VALIDATION" "$temporary/valid.json"
 [[ -e $temporary/queried ]]
 # Hosted execution is refused before even querying paths or inspecting a file.
