@@ -401,6 +401,16 @@ PATH="$temporary/bin:$PATH" \
   timeout 5s "$MAESTRO_CI_BOOT_MEDIA" "$temporary/installer.iso"
 grep -Fq 'maestro-installer login:' "$temporary/boot.log"
 
+# The packaged executable is an immutable store file, just like a flake-built
+# ISO. A default log beside it would fail before QEMU could start.
+mkdir -p "$temporary/boot-logs"
+(
+  unset BOOT_LOG RUNNER_TEMP
+  PATH="$temporary/bin:$PATH" TMPDIR="$temporary/boot-logs" BOOT_TIMEOUT=20s \
+    timeout 5s "$MAESTRO_CI_BOOT_MEDIA" "$MAESTRO_CI_BOOT_MEDIA"
+)
+grep -Fq 'maestro-installer login:' "$temporary/boot-logs/"*.log
+
 cat >"$temporary/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail

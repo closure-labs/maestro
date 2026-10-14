@@ -15,6 +15,8 @@ correspond to published GitHub tags.
   devenv and CI builds. Keep XO, devenv and nix-community caches available;
   publish only to Maestro with its repository-specific runtime credential and
   public-key contract. Add SecretSpec references for workstation `pass` entries.
+- Keep local installer boot logs in a writable temporary file when the ISO is
+  built into the immutable Nix store; preserve explicit hosted log destinations.
 
 - Add local `ci:cache-validation` to audit and publish the exact successful
   validation closures to the configured Cachix cache using runtime credentials.
