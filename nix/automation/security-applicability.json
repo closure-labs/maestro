@@ -1,0 +1,275 @@
+{
+  "schema_version": 1,
+  "rules": [
+    {
+      "id": "perl-cve-2026-13221-19e5e538233a",
+      "advisory": "CVE-2026-13221",
+      "component": "perl",
+      "version": "5.42.3-env",
+      "severity": "critical",
+      "kind": "fixed",
+      "owner": "maestro operator",
+      "reason": "Exact reviewed Perl producer uses upstream 5.42.3 source archive SHA256 1137740985837b5cdf15f0cfab932279dcb4352f912fed6fc144e8b4f0823627, which includes this fix. The full patch chain preserves regcomp_study.c SHA256 1cadbfecc09b015f1675b1560be23856581904a1162d2d0810ab0d1abb115bd5. This exact wrapper derivation/output was reviewed and resolves to /nix/store/llas6flzd2875r7zzhhvwnynwqi349jb-perl-5.42.3/bin/perl (executable SHA256 91d5e8a79c0a0d630dde96cfb499252d4a766f7e1ea751e08d9184c23993c30e); its contained interpreter source is fixed. This is not an env-name or OS heuristic.",
+      "evidence": [
+        "https://perldoc.perl.org/5.42.3/perl5423delta",
+        "https://cpan.metacpan.org/src/5.0/perl-5.42.3.tar.gz",
+        "https://github.com/Perl/perl5/commit/03f74bbbd3a68350d926ee93d56ee4808c28c4c7"
+      ],
+      "created": "2026-10-14",
+      "expires": "2026-11-13",
+      "binding": {
+        "advisory_digest": "a20f7db9dbebd27ce34b24c0f84f80f9cad5ba0ff8d2e6632e45d019a60973d5",
+        "purl": "pkg:nix/perl@5.42.3-env",
+        "component_ref": "/nix/store/2gfckfvzf489l459c944ys7g8axhda9i-perl-5.42.3-env.drv",
+        "output_path": "/nix/store/ryyyfwmb2pi4s2j3gzb8q1xyb29i9s8q-perl-5.42.3-env",
+        "derivation": "/nix/store/2gfckfvzf489l459c944ys7g8axhda9i-perl-5.42.3-env.drv",
+        "derivation_digest": "02302986f898e95cb48aff78247354da7d96cc344b3847ad16a0198be5f02999",
+        "source": "null",
+        "patches": "[]",
+        "hashes": []
+      },
+      "context": {},
+      "files": []
+    },
+    {
+      "id": "perl-cve-2026-13221-38c7497a7c36",
+      "advisory": "CVE-2026-13221",
+      "component": "perl",
+      "version": "5.42.3",
+      "severity": "critical",
+      "kind": "fixed",
+      "owner": "maestro operator",
+      "reason": "Exact reviewed Perl producer uses upstream 5.42.3 source archive SHA256 1137740985837b5cdf15f0cfab932279dcb4352f912fed6fc144e8b4f0823627, which includes this fix. The full patch chain preserves regcomp_study.c SHA256 1cadbfecc09b015f1675b1560be23856581904a1162d2d0810ab0d1abb115bd5. The matched man output belongs to that exact fixed interpreter producer; this decision relies on its verified source, not a documentation-output waiver.",
+      "evidence": [
+        "https://perldoc.perl.org/5.42.3/perl5423delta",
+        "https://cpan.metacpan.org/src/5.0/perl-5.42.3.tar.gz",
+        "https://github.com/Perl/perl5/commit/03f74bbbd3a68350d926ee93d56ee4808c28c4c7"
+      ],
+      "created": "2026-10-14",
+      "expires": "2026-11-13",
+      "binding": {
+        "advisory_digest": "a20f7db9dbebd27ce34b24c0f84f80f9cad5ba0ff8d2e6632e45d019a60973d5",
+        "purl": "pkg:nix/perl@5.42.3",
+        "component_ref": "/nix/store/j62q08zzqxsbm1bnb9jf6bz320wkld38-perl-5.42.3.drv",
+        "output_path": "/nix/store/q3crxhphcci7qdz3y6jirdm0qgyn01hk-perl-5.42.3-man",
+        "derivation": "/nix/store/j62q08zzqxsbm1bnb9jf6bz320wkld38-perl-5.42.3.drv",
+        "derivation_digest": "bb3837787c0ac667aa291f98ad3c27f9a900d54573933a5ab175e65eb24ca7a1",
+        "source": "\"/nix/store/m2qam71fmv9f8vyliw7741lr87mbxcwk-perl-5.42.3.tar.gz\"",
+        "patches": "[{\"path\": \"/nix/store/6dd4aj4q0n602yg42cqz46g76plb7wif-no-sys-dirs.patch\", \"sha256\": \"fd72367907df500da446bb04b1194777832cacc431f1178077c53a315e3f2fa9\"}, {\"path\": \"/nix/store/2nr8kyh8x11fqppcqp0wmp82wmqbp007-CVE-2026-15534-1.patch\", \"sha256\": \"ac8aecb8e5eca7e107ab063e71096a424513688326510a36d32db16ce03ab238\"}, {\"path\": \"/nix/store/431crcjyjs4w8p1ifvqnpp9sqsv62wrd-CVE-2026-15534-2.patch\", \"sha256\": \"896ca35fcee9a9a20a13fed3613ff2cb3fe8b37789ebc480e90aa8a2d060ae84\"}]",
+        "hashes": []
+      },
+      "context": {},
+      "files": []
+    },
+    {
+      "id": "perl-cve-2026-13221-7c732e4995f2",
+      "advisory": "CVE-2026-13221",
+      "component": "perl",
+      "version": "5.42.3-env",
+      "severity": "critical",
+      "kind": "fixed",
+      "owner": "maestro operator",
+      "reason": "Exact reviewed Perl producer uses upstream 5.42.3 source archive SHA256 1137740985837b5cdf15f0cfab932279dcb4352f912fed6fc144e8b4f0823627, which includes this fix. The full patch chain preserves regcomp_study.c SHA256 1cadbfecc09b015f1675b1560be23856581904a1162d2d0810ab0d1abb115bd5. This exact wrapper derivation/output was reviewed and resolves to /nix/store/llas6flzd2875r7zzhhvwnynwqi349jb-perl-5.42.3/bin/perl (executable SHA256 91d5e8a79c0a0d630dde96cfb499252d4a766f7e1ea751e08d9184c23993c30e); its contained interpreter source is fixed. This is not an env-name or OS heuristic.",
+      "evidence": [
+        "https://perldoc.perl.org/5.42.3/perl5423delta",
+        "https://cpan.metacpan.org/src/5.0/perl-5.42.3.tar.gz",
+        "https://github.com/Perl/perl5/commit/03f74bbbd3a68350d926ee93d56ee4808c28c4c7"
+      ],
+      "created": "2026-10-14",
+      "expires": "2026-11-13",
+      "binding": {
+        "advisory_digest": "a20f7db9dbebd27ce34b24c0f84f80f9cad5ba0ff8d2e6632e45d019a60973d5",
+        "purl": "pkg:nix/perl@5.42.3-env",
+        "component_ref": "/nix/store/235q8xj5fy4smyynkb5w35jbkc5r0zdq-perl-5.42.3-env.drv",
+        "output_path": "/nix/store/9lrzpy4c3kbv01bf59c7cvf58z65mzs1-perl-5.42.3-env",
+        "derivation": "/nix/store/235q8xj5fy4smyynkb5w35jbkc5r0zdq-perl-5.42.3-env.drv",
+        "derivation_digest": "d28cb985e3719b3683ffcbd803ac1048944eb054b82d2398740ba6b55df3e3e4",
+        "source": "null",
+        "patches": "[]",
+        "hashes": []
+      },
+      "context": {},
+      "files": []
+    },
+    {
+      "id": "perl-cve-2026-13221-a73c47bf5fa0",
+      "advisory": "CVE-2026-13221",
+      "component": "perl",
+      "version": "5.42.3-env",
+      "severity": "critical",
+      "kind": "fixed",
+      "owner": "maestro operator",
+      "reason": "Exact reviewed Perl producer uses upstream 5.42.3 source archive SHA256 1137740985837b5cdf15f0cfab932279dcb4352f912fed6fc144e8b4f0823627, which includes this fix. The full patch chain preserves regcomp_study.c SHA256 1cadbfecc09b015f1675b1560be23856581904a1162d2d0810ab0d1abb115bd5. This exact wrapper derivation/output was reviewed and resolves to /nix/store/llas6flzd2875r7zzhhvwnynwqi349jb-perl-5.42.3/bin/perl (executable SHA256 91d5e8a79c0a0d630dde96cfb499252d4a766f7e1ea751e08d9184c23993c30e); its contained interpreter source is fixed. This is not an env-name or OS heuristic.",
+      "evidence": [
+        "https://perldoc.perl.org/5.42.3/perl5423delta",
+        "https://cpan.metacpan.org/src/5.0/perl-5.42.3.tar.gz",
+        "https://github.com/Perl/perl5/commit/03f74bbbd3a68350d926ee93d56ee4808c28c4c7"
+      ],
+      "created": "2026-10-14",
+      "expires": "2026-11-13",
+      "binding": {
+        "advisory_digest": "a20f7db9dbebd27ce34b24c0f84f80f9cad5ba0ff8d2e6632e45d019a60973d5",
+        "purl": "pkg:nix/perl@5.42.3-env",
+        "component_ref": "/nix/store/sc7w33difmw3170sjmab2h24wridn8v4-perl-5.42.3-env.drv",
+        "output_path": "/nix/store/g5yn47a3x9rbncggyi05m67h2paysrv7-perl-5.42.3-env",
+        "derivation": "/nix/store/sc7w33difmw3170sjmab2h24wridn8v4-perl-5.42.3-env.drv",
+        "derivation_digest": "84cc6bb3d0d6b359fd123d62ece285eacab799731e2e33700a173225bbcb165c",
+        "source": "null",
+        "patches": "[]",
+        "hashes": []
+      },
+      "context": {},
+      "files": []
+    },
+    {
+      "id": "libssh2-cve-2026-7598-e45dbc56282e",
+      "advisory": "CVE-2026-7598",
+      "component": "libssh2",
+      "version": "1.11.1",
+      "severity": "critical",
+      "kind": "fixed",
+      "owner": "maestro operator",
+      "reason": "Exact reviewed libssh2 producer binds source archive SHA256 d9ec76cbe34db98eec3539fe2c899d26b0c837cb3eb466a56b0f109cabf658f7 and fix patch SHA256 70c6da78d7fb589f87f2c8b2e8eb1c82619c53122d1708d7e218478334eeb695. The patch payload is byte-identical to upstream commit 256d04b60d80bf1190e96b0ad1e91b2174d744b1. Applying the complete recorded 11-patch chain with standard Nixpkgs flags preserves all three authentication bounds guards; final src/userauth.c SHA256 is 4fff87fde157b9936c536fe545c2966a1b2d7f4e387db352849220020f98eadc. The first hunk requires fuzz 1; no fuzz-0 verification is claimed.",
+      "evidence": [
+        "https://github.com/libssh2/libssh2/commit/256d04b60d80bf1190e96b0ad1e91b2174d744b1",
+        "https://www.libssh2.org/download/libssh2-1.11.1.tar.gz",
+        "https://access.redhat.com/security/cve/CVE-2026-7598"
+      ],
+      "created": "2026-10-14",
+      "expires": "2026-11-13",
+      "binding": {
+        "advisory_digest": "df75f32c1bb7f73affd4d07f58f33d241b74cafb155b856bf2f7dab4e6e1bda9",
+        "purl": "pkg:nix/libssh2@1.11.1",
+        "component_ref": "/nix/store/cd7iw2vmzd7n3k5a39wq9c7r61z2m97p-libssh2-1.11.1.drv",
+        "output_path": "/nix/store/9csszq0cch2npq0flybqmvkabb1dj3r4-libssh2-1.11.1",
+        "derivation": "/nix/store/cd7iw2vmzd7n3k5a39wq9c7r61z2m97p-libssh2-1.11.1.drv",
+        "derivation_digest": "e1e20d1b27d0c97150c625c186dba9ff196854c2883f7cb4cd54ddc02fdb936f",
+        "source": "\"/nix/store/j04yfblg6sk5abb4n067xv0x0dfraf73-libssh2-1.11.1.tar.gz\"",
+        "patches": "[{\"path\": \"/nix/store/m9171q7kn5bbp08hqmhfra41mmn6p5nk-CVE-2026-7598.patch\", \"sha256\": \"70c6da78d7fb589f87f2c8b2e8eb1c82619c53122d1708d7e218478334eeb695\"}, {\"path\": \"/nix/store/1aqykxv6k3r55r25gbgfvmmcc5qzwasi-CVE-2025-15661.patch\", \"sha256\": \"473ea2ffcf3509b39b5037196dc3e58153da2a2cd2a7a6514dd989349f472c71\"}, {\"path\": \"/nix/store/1pd10jmsqkyhsn0r4lcax7njjsbxzziv-CVE-2026-55199.patch\", \"sha256\": \"00565ae64a2185aeb6684d227f9724980749d1364d7237cfdf6c83ce7a0484da\"}, {\"path\": \"/nix/store/6rv2i7dl0bbxl3069p61896xi0948643-CVE-2026-55200.patch\", \"sha256\": \"c0202096bf01b015888678774a215ec8acd9988a7cac2e4c55f160a04ce9fe11\"}, {\"path\": \"/nix/store/msjfdz91y6lwp3pg1cy90jgyq16m5pig-libssh-unconst-backport.patch\", \"sha256\": \"8dcd3515bef419b683f7e4587928d168b141b4a2e230f4ccb976acdb5682d008\"}, {\"path\": \"/nix/store/7fi3q2kal2rljr2l5z701i6dgwr8q6wf-CVE-2026-58050.patch\", \"sha256\": \"059d5ec1982bae87afda0909c1da0708c1492b8c2246603f638b73c1a42a05df\"}, {\"path\": \"/nix/store/6rm8ynmihq2crs4dfj2wy30l312675h2-CVE-2026-58051.patch\", \"sha256\": \"7ddb97207d36bb0cea595d910e275999a0c1cb9d55f32b82e172a519869c8f18\"}, {\"path\": \"/nix/store/idhhjlhpjagam2r7x1y9kznwgz6wb87a-CVE-2026-66032.patch\", \"sha256\": \"1fa55785573bb821718ff9375e8bb283ef06629b27ffd21e71766b3e4cec824b\"}, {\"path\": \"/nix/store/41yjsa29ydagklnqfd17abjzy909facg-CVE-2026-66033.patch\", \"sha256\": \"4e8dae97d89b680927d0158dbbb7d46e96aa1ea117fa3b94b016e303404617ab\"}, {\"path\": \"/nix/store/kg03300p29j5si16b1wfg0lmrmdx5ckz-CVE-2026-66034.patch\", \"sha256\": \"c5883daa1f3b2a5131237f2c9c0ab9139845e75988a1a275c0e5fd7b5b847669\"}, {\"path\": \"/nix/store/xdffljjmrzdwam0gdn57dl1n7lyv55ik-CVE-2026-66035.patch\", \"sha256\": \"f96afd769fa0df8ee980a689611351c7e1171c0de238a80e3b8b63c62ef3903f\"}]",
+        "hashes": []
+      },
+      "context": {},
+      "files": []
+    },
+    {
+      "id": "perl-cve-2026-8376-1422ce84e260",
+      "advisory": "CVE-2026-8376",
+      "component": "perl",
+      "version": "5.42.3-env",
+      "severity": "critical",
+      "kind": "fixed",
+      "owner": "maestro operator",
+      "reason": "Exact reviewed Perl producer uses upstream 5.42.3 source archive SHA256 1137740985837b5cdf15f0cfab932279dcb4352f912fed6fc144e8b4f0823627, which includes this fix. The full patch chain preserves regcomp_study.c SHA256 1cadbfecc09b015f1675b1560be23856581904a1162d2d0810ab0d1abb115bd5. This exact wrapper derivation/output was reviewed and resolves to /nix/store/llas6flzd2875r7zzhhvwnynwqi349jb-perl-5.42.3/bin/perl (executable SHA256 91d5e8a79c0a0d630dde96cfb499252d4a766f7e1ea751e08d9184c23993c30e); its contained interpreter source is fixed. This is not an env-name or OS heuristic.",
+      "evidence": [
+        "https://perldoc.perl.org/5.42.3/perl5423delta",
+        "https://cpan.metacpan.org/src/5.0/perl-5.42.3.tar.gz",
+        "https://github.com/Perl/perl5/commit/5e7f119eb2bb1181be908701f22bf7068e722f1c"
+      ],
+      "created": "2026-10-14",
+      "expires": "2026-11-13",
+      "binding": {
+        "advisory_digest": "e5b5e1345830a101a8bcfab00dc3892687f20a4b6c0d66c5bd2111ccd697cf19",
+        "purl": "pkg:nix/perl@5.42.3-env",
+        "component_ref": "/nix/store/2gfckfvzf489l459c944ys7g8axhda9i-perl-5.42.3-env.drv",
+        "output_path": "/nix/store/ryyyfwmb2pi4s2j3gzb8q1xyb29i9s8q-perl-5.42.3-env",
+        "derivation": "/nix/store/2gfckfvzf489l459c944ys7g8axhda9i-perl-5.42.3-env.drv",
+        "derivation_digest": "02302986f898e95cb48aff78247354da7d96cc344b3847ad16a0198be5f02999",
+        "source": "null",
+        "patches": "[]",
+        "hashes": []
+      },
+      "context": {},
+      "files": []
+    },
+    {
+      "id": "perl-cve-2026-8376-4584eddc8542",
+      "advisory": "CVE-2026-8376",
+      "component": "perl",
+      "version": "5.42.3",
+      "severity": "critical",
+      "kind": "fixed",
+      "owner": "maestro operator",
+      "reason": "Exact reviewed Perl producer uses upstream 5.42.3 source archive SHA256 1137740985837b5cdf15f0cfab932279dcb4352f912fed6fc144e8b4f0823627, which includes this fix. The full patch chain preserves regcomp_study.c SHA256 1cadbfecc09b015f1675b1560be23856581904a1162d2d0810ab0d1abb115bd5. The matched man output belongs to that exact fixed interpreter producer; this decision relies on its verified source, not a documentation-output waiver.",
+      "evidence": [
+        "https://perldoc.perl.org/5.42.3/perl5423delta",
+        "https://cpan.metacpan.org/src/5.0/perl-5.42.3.tar.gz",
+        "https://github.com/Perl/perl5/commit/5e7f119eb2bb1181be908701f22bf7068e722f1c"
+      ],
+      "created": "2026-10-14",
+      "expires": "2026-11-13",
+      "binding": {
+        "advisory_digest": "e5b5e1345830a101a8bcfab00dc3892687f20a4b6c0d66c5bd2111ccd697cf19",
+        "purl": "pkg:nix/perl@5.42.3",
+        "component_ref": "/nix/store/j62q08zzqxsbm1bnb9jf6bz320wkld38-perl-5.42.3.drv",
+        "output_path": "/nix/store/q3crxhphcci7qdz3y6jirdm0qgyn01hk-perl-5.42.3-man",
+        "derivation": "/nix/store/j62q08zzqxsbm1bnb9jf6bz320wkld38-perl-5.42.3.drv",
+        "derivation_digest": "bb3837787c0ac667aa291f98ad3c27f9a900d54573933a5ab175e65eb24ca7a1",
+        "source": "\"/nix/store/m2qam71fmv9f8vyliw7741lr87mbxcwk-perl-5.42.3.tar.gz\"",
+        "patches": "[{\"path\": \"/nix/store/6dd4aj4q0n602yg42cqz46g76plb7wif-no-sys-dirs.patch\", \"sha256\": \"fd72367907df500da446bb04b1194777832cacc431f1178077c53a315e3f2fa9\"}, {\"path\": \"/nix/store/2nr8kyh8x11fqppcqp0wmp82wmqbp007-CVE-2026-15534-1.patch\", \"sha256\": \"ac8aecb8e5eca7e107ab063e71096a424513688326510a36d32db16ce03ab238\"}, {\"path\": \"/nix/store/431crcjyjs4w8p1ifvqnpp9sqsv62wrd-CVE-2026-15534-2.patch\", \"sha256\": \"896ca35fcee9a9a20a13fed3613ff2cb3fe8b37789ebc480e90aa8a2d060ae84\"}]",
+        "hashes": []
+      },
+      "context": {},
+      "files": []
+    },
+    {
+      "id": "perl-cve-2026-8376-903d7851aedf",
+      "advisory": "CVE-2026-8376",
+      "component": "perl",
+      "version": "5.42.3-env",
+      "severity": "critical",
+      "kind": "fixed",
+      "owner": "maestro operator",
+      "reason": "Exact reviewed Perl producer uses upstream 5.42.3 source archive SHA256 1137740985837b5cdf15f0cfab932279dcb4352f912fed6fc144e8b4f0823627, which includes this fix. The full patch chain preserves regcomp_study.c SHA256 1cadbfecc09b015f1675b1560be23856581904a1162d2d0810ab0d1abb115bd5. This exact wrapper derivation/output was reviewed and resolves to /nix/store/llas6flzd2875r7zzhhvwnynwqi349jb-perl-5.42.3/bin/perl (executable SHA256 91d5e8a79c0a0d630dde96cfb499252d4a766f7e1ea751e08d9184c23993c30e); its contained interpreter source is fixed. This is not an env-name or OS heuristic.",
+      "evidence": [
+        "https://perldoc.perl.org/5.42.3/perl5423delta",
+        "https://cpan.metacpan.org/src/5.0/perl-5.42.3.tar.gz",
+        "https://github.com/Perl/perl5/commit/5e7f119eb2bb1181be908701f22bf7068e722f1c"
+      ],
+      "created": "2026-10-14",
+      "expires": "2026-11-13",
+      "binding": {
+        "advisory_digest": "e5b5e1345830a101a8bcfab00dc3892687f20a4b6c0d66c5bd2111ccd697cf19",
+        "purl": "pkg:nix/perl@5.42.3-env",
+        "component_ref": "/nix/store/sc7w33difmw3170sjmab2h24wridn8v4-perl-5.42.3-env.drv",
+        "output_path": "/nix/store/g5yn47a3x9rbncggyi05m67h2paysrv7-perl-5.42.3-env",
+        "derivation": "/nix/store/sc7w33difmw3170sjmab2h24wridn8v4-perl-5.42.3-env.drv",
+        "derivation_digest": "84cc6bb3d0d6b359fd123d62ece285eacab799731e2e33700a173225bbcb165c",
+        "source": "null",
+        "patches": "[]",
+        "hashes": []
+      },
+      "context": {},
+      "files": []
+    },
+    {
+      "id": "perl-cve-2026-8376-f3220bbfecfa",
+      "advisory": "CVE-2026-8376",
+      "component": "perl",
+      "version": "5.42.3-env",
+      "severity": "critical",
+      "kind": "fixed",
+      "owner": "maestro operator",
+      "reason": "Exact reviewed Perl producer uses upstream 5.42.3 source archive SHA256 1137740985837b5cdf15f0cfab932279dcb4352f912fed6fc144e8b4f0823627, which includes this fix. The full patch chain preserves regcomp_study.c SHA256 1cadbfecc09b015f1675b1560be23856581904a1162d2d0810ab0d1abb115bd5. This exact wrapper derivation/output was reviewed and resolves to /nix/store/llas6flzd2875r7zzhhvwnynwqi349jb-perl-5.42.3/bin/perl (executable SHA256 91d5e8a79c0a0d630dde96cfb499252d4a766f7e1ea751e08d9184c23993c30e); its contained interpreter source is fixed. This is not an env-name or OS heuristic.",
+      "evidence": [
+        "https://perldoc.perl.org/5.42.3/perl5423delta",
+        "https://cpan.metacpan.org/src/5.0/perl-5.42.3.tar.gz",
+        "https://github.com/Perl/perl5/commit/5e7f119eb2bb1181be908701f22bf7068e722f1c"
+      ],
+      "created": "2026-10-14",
+      "expires": "2026-11-13",
+      "binding": {
+        "advisory_digest": "e5b5e1345830a101a8bcfab00dc3892687f20a4b6c0d66c5bd2111ccd697cf19",
+        "purl": "pkg:nix/perl@5.42.3-env",
+        "component_ref": "/nix/store/235q8xj5fy4smyynkb5w35jbkc5r0zdq-perl-5.42.3-env.drv",
+        "output_path": "/nix/store/9lrzpy4c3kbv01bf59c7cvf58z65mzs1-perl-5.42.3-env",
+        "derivation": "/nix/store/235q8xj5fy4smyynkb5w35jbkc5r0zdq-perl-5.42.3-env.drv",
+        "derivation_digest": "d28cb985e3719b3683ffcbd803ac1048944eb054b82d2398740ba6b55df3e3e4",
+        "source": "null",
+        "patches": "[]",
+        "hashes": []
+      },
+      "context": {},
+      "files": []
+    }
+  ]
+}

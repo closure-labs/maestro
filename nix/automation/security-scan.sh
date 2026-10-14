@@ -74,10 +74,39 @@ with open(sys.argv[2], "w", encoding="utf-8") as handle:
 PYTHON
 
 jq -s 'add | unique_by([.advisory,.identity,.severity])' "$work/"*.findings.json >"$output/findings.json"
+jq '[.[] | select(.scanner == "grype")]' "$output/findings.json" >"$output/grype-findings.json"
+# Revalidate reviewed source fixes and attack-surface constraints on this exact
+# inventory. Unknown findings remain visible; applicability does not lower a
+# scanner's severity or turn an incomplete call graph into an exclusion.
+maestro-ci-security-applicability "$output/grype-findings.json" "$sbom" \
+  "$output/critical-applicability.json"
+# RustSec findings bind the lockfile rather than a CycloneDX component. Keep
+# them unresolved in the machine report and subject to the existing policy.
+jq --slurpfile findings "$output/findings.json" '
+  .results += [$findings[0][] | select(.scanner != "grype") |
+    {finding: ., classification: "unresolved", rule_id: null,
+     reason: "This lockfile finding requires remediation or its existing exact policy decision."}] |
+  .unresolved_critical += [$findings[0][] |
+    select(.scanner != "grype" and .severity == "critical")]
+' "$output/critical-applicability.json" >"$work/applicability.json"
+mv "$work/applicability.json" "$output/critical-applicability.json"
+# Human decisions retain precedence. Fresh machine decisions use the same
+# exact finding identities and expiry contract as the existing verdict.
+jq --slurpfile applicability "$output/critical-applicability.json" '
+  def key: [.advisory, .component, .version, .severity, .identity];
+  ([.dispositions[], .exceptions[]] | map(key)) as $reviewed |
+  .dispositions += [$applicability[0].dispositions[] |
+    select(key as $candidate | $reviewed | index($candidate) | not)]
+' "$MAESTRO_SECURITY_POLICY" >"$output/effective-policy.json"
 sha256sum "$inventory/maestro-system.cdx.json" "$inventory/xen-orchestra-supply.cdx.json" \
   "$repo_root/pkgs/maestro-menu/Cargo.lock" >"$output/inputs.sha256"
-maestro-ci-security-verdict "$output/findings.json" "$MAESTRO_SECURITY_POLICY" >"$output/new-high-critical.json"
+maestro-ci-security-verdict "$output/findings.json" "$output/effective-policy.json" >"$output/new-high-critical.json"
 if [[ -n ${GITHUB_STEP_SUMMARY:-} ]]; then
   printf 'Security scan: %s findings; policy mode %s. Unscored advisories require triage.\n' \
     "$(jq length "$output/findings.json")" "$(jq -r .mode "$MAESTRO_SECURITY_POLICY")" >>"$GITHUB_STEP_SUMMARY"
+  jq -r '
+    "Critical applicability: \([.results[] | select(.finding.severity == "critical" and .classification == "fixed")] | length) verified fixed; " +
+    "\([.results[] | select(.finding.severity == "critical" and .classification == "not_affected")] | length) verified not affected; " +
+    "\(.unresolved_critical | length) unresolved. Raw findings are retained."
+  ' "$output/critical-applicability.json" >>"$GITHUB_STEP_SUMMARY"
 fi

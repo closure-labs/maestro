@@ -15,7 +15,7 @@ python3 - "$temporary/inventory" <<'PYTHON'
 import hashlib,json,sys,pathlib
 context = {"fixture":"runtime"}
 context_digest = hashlib.sha256(json.dumps(context,sort_keys=True,separators=(",",":")).encode()).hexdigest()
-sbom={"bomFormat":"CycloneDX","properties":[{"name":"maestro:inventoryVersion","value":"2"},{"name":"maestro:runtimeContext","value":json.dumps(context)},{"name":"maestro:runtimeContextDigest","value":context_digest}],"components":[{"type":"library","name":"fixture","version":"1","bom-ref":"fixture","purl":"pkg:nix/fixture@1"}],"dependencies":[]}
+sbom={"bomFormat":"CycloneDX","metadata":{"component":{"bom-ref":"fixture-root","name":"fixture-system"}},"properties":[{"name":"maestro:inventoryVersion","value":"2"},{"name":"maestro:runtimeContext","value":json.dumps(context)},{"name":"maestro:runtimeContextDigest","value":context_digest}],"components":[{"type":"library","name":"fixture","version":"1","bom-ref":"fixture","purl":"pkg:nix/fixture@1"}],"dependencies":[]}
 for name in ["maestro-system", "xen-orchestra-supply"]:pathlib.Path(sys.argv[1],name+".cdx.json").write_text(json.dumps(sbom))
 PYTHON
 cat >"$temporary/bin/grype" <<'EOF'
@@ -40,6 +40,7 @@ sed -i "1c#!${BASH}" "$temporary/bin/grype" "$temporary/bin/cargo"
 chmod +x "$temporary/bin/grype" "$temporary/bin/cargo"
 "$MAESTRO_CI_SECURITY_SCAN"
 jq -e 'length == 2 and any(.[]; .advisory == "RUSTSEC-fixture" and .severity == "critical")' "$temporary/report/findings.json" >/dev/null
+jq -e '.mode == "report" and (.results | length == 2) and (.unresolved_critical | length == 1) and (.dispositions | length == 0)' "$temporary/report/critical-applicability.json" >/dev/null
 for failure in FAKE_GRYPE_FAILURE FAKE_AUDIT_FAILURE; do
   if env "$failure=true" "$MAESTRO_CI_SECURITY_SCAN" >/dev/null 2>&1; then
     echo "Scanner returned success after $failure" >&2; exit 1

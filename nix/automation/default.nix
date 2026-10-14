@@ -6,6 +6,7 @@
   appliance,
   lockFile,
   packageSourceRoots,
+  applicabilityCommand,
 }: let
   mkCommand = {
     name,
@@ -116,6 +117,15 @@
       runtimeInputs = commonInputs ++ [pkgs.python3];
       source = ./security-verdict.sh;
     };
+    security-applicability = mkCommand {
+      name = "security-applicability";
+      prefix = ''
+        MAESTRO_SECURITY_APPLICABILITY_RULES=${./security-applicability.json}
+        export MAESTRO_SECURITY_APPLICABILITY_RULES
+      '';
+      runtimeInputs = commonInputs ++ [applicabilityCommand];
+      source = ./security-applicability.sh;
+    };
     security-scan = mkCommand {
       name = "security-scan";
       prefix = ''
@@ -130,6 +140,7 @@
           pkgs.grype
           pkgs.cargo-audit
           commands.security-verdict
+          commands.security-applicability
           (pkgs.python3.withPackages (pythonPackages: [pythonPackages.cvss]))
         ];
       source = ./security-scan.sh;

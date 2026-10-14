@@ -42,6 +42,8 @@
     };
     import-tree.url = "github:vic/import-tree";
     nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0";
-    xen-orchestra-ce.url = "git+https://github.com/closure-labs/xo-nixpkg.git?ref=refs/heads/main";
+    # Exact shared applicability evaluator; the runtime package inputs remain
+    # unchanged. The shared evaluator was reviewed and merged upstream.
+    xen-orchestra-ce.url = "github:closure-labs/xo-nixpkg/f375273ee680121d9fc428569b8238b664b4ca77";
   };
 }
