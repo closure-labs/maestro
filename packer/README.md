@@ -55,7 +55,8 @@ workflow run into a temporary directory, verifies its SHA-256 checksum, and
 passes it directly to Packer. Run `gh auth login` once before using the
 deployer.
 
-The Cachix and Determinate substituters are declared directly in `flake.nix`.
+The Maestro, XO, devenv, nix-community and Determinate substituters and public
+signing keys are declared directly in `flake.nix`.
 The GitHub artifact is deliberately resolved by the flake app's runtime helper,
 not declared as a flake input or pinned in `flake.lock`. It may briefly lag the
 checkout while a newer `main` workflow is still running. Set

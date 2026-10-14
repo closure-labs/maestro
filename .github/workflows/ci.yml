@@ -337,8 +337,8 @@ jobs:
 
       - name: Publish exact planned closures to Cachix
         env:
-          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
-          CACHIX_CACHE_NAME: ${{ vars.CACHIX_CACHE_NAME }}
+          CACHIX_MAESTRO_AUTH_TOKEN: ${{ secrets.CACHIX_MAESTRO_AUTH_TOKEN }}
+          CACHIX_MAESTRO_PUBKEY: ${{ vars.CACHIX_MAESTRO_PUBKEY }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:publish
 
       - name: Publish the rolling flake to FlakeHub

@@ -18,8 +18,7 @@ assert_eq() {
 temporary="$(mktemp -d)"
 trap 'rm -rf "$temporary"' EXIT
 
-# The legacy cache keeps its existing external identity temporarily, and the
-# released changelog remains an immutable historical record. No other active
+# The released changelog remains an immutable historical record. No active
 # product or CLI identity may survive the clean-break rebrand.
 old_product='nix''oa'
 old_cli='nx''cli'
@@ -34,8 +33,7 @@ while IFS= read -r -d '' source_file; do
     fail "legacy identity remains in active path: $relative_path"
   fi
   matches=$(grep -InEi "${old_product}|${old_cli}" "$source_file" || true)
-  unexpected=$(grep -viE 'nixoa\.cachix\.org|default = "nixoa"|cachix\.push = "nixoa"' <<<"$matches" || true)
-  [[ -z $unexpected ]] || fail "legacy identity remains in $relative_path: $unexpected"
+  [[ -z $matches ]] || fail "legacy identity remains in $relative_path: $matches"
 done < <(
   find "$TEST_ROOT" \
     \( -path "$TEST_ROOT/.git" -o -path "$TEST_ROOT/.jj" -o -path "$TEST_ROOT/.devenv" -o -path "$TEST_ROOT/pkgs/maestro-menu/target" \) -prune \
@@ -88,10 +86,10 @@ actual="$(
     printf "%s\n" "${command[@]}"
   '
 )"
-grep -Fxq 'https://install.determinate.systems https://nixoa.cachix.org https://xen-orchestra-ce.cachix.org' \
+grep -Fxq 'https://install.determinate.systems https://maestro.cachix.org https://xen-orchestra-ce.cachix.org https://devenv.cachix.org https://nix-community.cachix.org' \
   <<<"$actual" \
   || fail "first-install command omits a required binary cache"
-grep -Fxq 'cache.flakehub.com-3:hJuILl5sVK4iKm86JzgdXW12Y2Hwd5G07qKtHTOcDCM= nixoa.cachix.org-1:N+GsSSd2yKgj2hx01fMG6Oe7tLfbxEi/V0oZFEB721g= xen-orchestra-ce.cachix.org-1:WAOajkFLXWTaFiwMbLidlGa5kWB7Icu29eJnYbeMG7E=' \
+grep -Fxq 'cache.flakehub.com-3:hJuILl5sVK4iKm86JzgdXW12Y2Hwd5G07qKtHTOcDCM= maestro.cachix.org-1:fGFZFVwe2ZHEBENWZLHVzERZrz2c50ru+g0UewH68I0= xen-orchestra-ce.cachix.org-1:WAOajkFLXWTaFiwMbLidlGa5kWB7Icu29eJnYbeMG7E= devenv.cachix.org-1:w1cLUi8dv3hnoSPGAuibQv+f9TZLr6cv/Hm9XgU50cw= nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=' \
   <<<"$actual" \
   || fail "first-install command omits a required cache signing key"
 if grep -Fxq 'https://cache.flakehub.com' <<<"$actual"; then
@@ -103,13 +101,13 @@ grep -Fq '"https://install.determinate.systems"' \
 grep -Fq 'squashfsCompression = "zstd -Xcompression-level 1";' \
   "$TEST_ROOT/installer/default.nix" \
   || fail "installer ISO does not pin fast SquashFS compression"
-grep -Fq '"https://nixoa.cachix.org"' \
+grep -Fq '"https://maestro.cachix.org"' \
   "$TEST_ROOT/installer/default.nix" \
   || fail "installer ISO omits the Maestro Cachix cache"
 grep -Fq '"cache.flakehub.com-3:hJuILl5sVK4iKm86JzgdXW12Y2Hwd5G07qKtHTOcDCM="' \
   "$TEST_ROOT/installer/default.nix" \
   || fail "installer ISO omits the Determinate bootstrap cache key"
-grep -Fq '"nixoa.cachix.org-1:N+GsSSd2yKgj2hx01fMG6Oe7tLfbxEi/V0oZFEB721g="' \
+grep -Fq '"maestro.cachix.org-1:fGFZFVwe2ZHEBENWZLHVzERZrz2c50ru+g0UewH68I0="' \
   "$TEST_ROOT/installer/default.nix" \
   || fail "installer ISO omits the Maestro Cachix key"
 if grep -Fq '"https://cache.flakehub.com"' "$TEST_ROOT/installer/default.nix"; then
@@ -279,7 +277,7 @@ grep -Fq -- '--no-build --print-build-logs' \
   || fail "complete validation does not separate evaluation from planned builds"
 # GitHub and shell expressions must remain literal in the source contract.
 # shellcheck disable=SC2016
-grep -Fq 'CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}' \
+grep -Fq 'CACHIX_MAESTRO_AUTH_TOKEN: ${{ secrets.CACHIX_MAESTRO_AUTH_TOKEN }}' \
   "$TEST_ROOT/.github/workflows/ci.yml" \
   || fail "protected publication does not receive the Cachix token"
 # shellcheck disable=SC2016
@@ -476,7 +474,7 @@ grep -Fq '"resizefs"' "$TEST_ROOT/modules/_nixos/xcp-ng.nix" \
 grep -Fq '"https://install.determinate.systems"' \
   "$TEST_ROOT/modules/_nixos/platform.nix" \
   || fail "installed system omits the Determinate bootstrap cache"
-grep -Fq '"https://nixoa.cachix.org"' \
+grep -Fq '"https://maestro.cachix.org"' \
   "$TEST_ROOT/modules/_nixos/platform.nix" \
   || fail "installed system omits the Maestro Cachix cache"
 grep -Fq 'paths = [patchedDeterminateNix.out]' \

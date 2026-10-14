@@ -18,6 +18,14 @@
 in {
   packages = import ./devenv-packages.nix {inherit pkgs;};
 
+  # Public pulls need no credentials. Publication is the explicit audited task
+  # below, so ordinary hosted jobs cannot automatically push realized closures.
+  cachix.pull = [
+    "maestro"
+    "xen-orchestra-ce"
+    "nix-community"
+  ];
+
   tasks = {
     "ci:route".exec = runFlakePackage "maestro-ci-route" "";
     "ci:classify".exec = runFlakePackage "maestro-ci-classify" "";

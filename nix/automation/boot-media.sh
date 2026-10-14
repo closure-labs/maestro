@@ -12,7 +12,10 @@ iso=${1:?usage: boot-installer-iso.sh ISO}
 qemu_bin=${QEMU_BIN:-qemu-system-x86_64}
 qemu_img_bin=${QEMU_IMG_BIN:-qemu-img}
 boot_timeout=${BOOT_TIMEOUT:-5m}
-log=${BOOT_LOG:-$(dirname "$iso")/qemu-boot.log}
+# Flake-built media lives in the immutable store. Retain a writable, distinct
+# log by default; hosted jobs may still select their artifact path explicitly.
+log=${BOOT_LOG:-$(mktemp "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/maestro-qemu-boot.XXXXXX.log")}
+printf 'Installer boot log: %s\n' "$log"
 disk=$(mktemp "${TMPDIR:-/tmp}/maestro-boot.XXXXXX.qcow2")
 trap 'rm -f -- "$disk"' EXIT
 

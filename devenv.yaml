@@ -7,6 +7,9 @@ secretspec:
   enable: true
   provider: env
   profile: github
+  # Public cache pulls do not require a publishing secret. The audited publish
+  # commands map the Maestro-specific credential to Cachix only at runtime.
+  cachix_auth_token: false
 
 inputs:
   nixpkgs:

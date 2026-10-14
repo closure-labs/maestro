@@ -6,11 +6,12 @@ set -euo pipefail
   echo 'Validation cache publication is available only outside GitHub Actions.' >&2
   exit 1
 }
-: "${CACHIX_CACHE_NAME:?CACHIX_CACHE_NAME must be configured at runtime}"
+: "${CACHIX_MAESTRO_AUTH_TOKEN:?CACHIX_MAESTRO_AUTH_TOKEN must be configured at runtime}"
+: "${CACHIX_MAESTRO_PUBKEY:?CACHIX_MAESTRO_PUBKEY must be configured at runtime}"
 : "${MAESTRO_CI_PLAN_CONTRACT:?}"
 [[ $# == 1 ]] || { echo 'Usage: maestro-ci-cache-validation MANIFEST.json' >&2; exit 2; }
-[[ $CACHIX_CACHE_NAME =~ ^[a-zA-Z0-9][a-zA-Z0-9-]*$ ]] || {
-  echo 'Invalid Cachix cache name.' >&2
+[[ $CACHIX_MAESTRO_PUBKEY == 'maestro.cachix.org-1:fGFZFVwe2ZHEBENWZLHVzERZrz2c50ru+g0UewH68I0=' ]] || {
+  echo 'Maestro Cachix public key differs from the reviewed repository configuration.' >&2
   exit 2
 }
 # Accept the complete declared validation plan, never a successful subset or a
@@ -37,5 +38,6 @@ manifest=$(jq -ces --slurpfile contract "$MAESTRO_CI_PLAN_CONTRACT" '
 mapfile -t outputs < <(jq -r '[.results[].outputs[]] | unique[]' <<<"$manifest")
 [[ ${#outputs[@]} -gt 0 ]]
 nix path-info "${outputs[@]}" >/dev/null
-# Cachix resolves its token from its runtime environment or native user config.
-printf '%s\n' "${outputs[@]}" | cachix push "$CACHIX_CACHE_NAME"
+# Override any ambient Cachix token: only the Maestro credential may publish.
+export CACHIX_AUTH_TOKEN="$CACHIX_MAESTRO_AUTH_TOKEN"
+printf '%s\n' "${outputs[@]}" | cachix push maestro

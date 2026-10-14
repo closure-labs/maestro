@@ -7,7 +7,13 @@ set -euo pipefail
   echo 'Rolling publication requires a protected-main push.' >&2; exit 1;
 }
 
-: "${CACHIX_CACHE_NAME:?CACHIX_CACHE_NAME must be set}"
+: "${CACHIX_MAESTRO_AUTH_TOKEN:?CACHIX_MAESTRO_AUTH_TOKEN must be set}"
+: "${CACHIX_MAESTRO_PUBKEY:?CACHIX_MAESTRO_PUBKEY must be set}"
+[[ $CACHIX_MAESTRO_PUBKEY == 'maestro.cachix.org-1:fGFZFVwe2ZHEBENWZLHVzERZrz2c50ru+g0UewH68I0=' ]] || {
+  echo 'Maestro Cachix public key differs from the reviewed repository configuration.' >&2
+  exit 2
+}
+export CACHIX_AUTH_TOKEN="$CACHIX_MAESTRO_AUTH_TOKEN"
 repo_root=${MAESTRO_SYSTEM_ROOT:-}
 if [[ -z "$repo_root" ]]; then
   repo_root=$(git rev-parse --show-toplevel)
@@ -21,4 +27,4 @@ flake-plan-runner \
   --plan lib.ciPlans.x86_64-linux.publish \
   --manifest "$manifest"
 jq -r '.results[].outputs[]' "$manifest" |
-  cachix push "$CACHIX_CACHE_NAME"
+  cachix push maestro
