@@ -53,6 +53,15 @@
   };
 
   commands = {
+    security-inventory-preflight = mkCommand {
+      name = "security-inventory-preflight";
+      prefix = ''
+        MAESTRO_SECURITY_INVENTORY_SOURCE=${./security-inventory.py}
+        export MAESTRO_SECURITY_INVENTORY_SOURCE
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.python3];
+      source = ./security-inventory-preflight.sh;
+    };
     security-inventory = mkCommand {
       name = "security-inventory";
       prefix = let
@@ -185,7 +194,7 @@
         MAESTRO_SPDX_SCHEMA="''${MAESTRO_SPDX_SCHEMA:-${spdxSchema}}"
         export MAESTRO_SPDX_SCHEMA
       '';
-      runtimeInputs = commonInputs ++ [pkgs.check-jsonschema planRunner commands.validate-state commands.verify-inventory commands.verify-state commands.security-inventory];
+      runtimeInputs = commonInputs ++ [pkgs.check-jsonschema planRunner commands.validate-state commands.verify-inventory commands.verify-state commands.security-inventory commands.security-inventory-preflight];
       source = ./qualification-assets.sh;
     };
     qualification-inputs = mkCommand {
@@ -195,7 +204,7 @@
     };
     repository-audit = mkCommand {
       name = "repository-audit";
-      runtimeInputs = commonInputs ++ [planRunner];
+      runtimeInputs = commonInputs ++ [planRunner commands.security-inventory-preflight];
       source = ./repository-audit.sh;
     };
     classify = mkCommand {

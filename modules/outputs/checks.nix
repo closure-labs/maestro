@@ -48,6 +48,7 @@ in {
           export MAESTRO_CI_VALIDATE_STATE=${lib.getExe packages.maestro-ci-validate-state}
           export MAESTRO_CI_TRUSTED_RUN=${lib.getExe packages.maestro-ci-trusted-run}
           export MAESTRO_CI_VERIFY_INVENTORY=${lib.getExe packages.maestro-ci-verify-inventory}
+          export MAESTRO_CI_VERIFY_STATE=${lib.getExe packages.maestro-ci-verify-state}
           export MAESTRO_CI_DOWNLOAD_INSTALLER=${lib.getExe packages.maestro-ci-download-installer}
           export MAESTRO_CI_SECURITY_SCAN=${lib.getExe packages.maestro-ci-security-scan}
           export MAESTRO_CI_SECURITY_VERDICT=${lib.getExe packages.maestro-ci-security-verdict}
@@ -89,7 +90,7 @@ in {
               (.evidence.targets | length == 4) and
               (.publish.schemaVersion == 2) and
               (.publish.name == "maestro-publish") and
-              (.publish.targets | length == 5)
+              (.publish.targets | length == 7)
             ' plans.json >/dev/null
             test -e ${qualificationInputs.media.source}/installer/default.nix
             test -e ${qualificationInputs.media.source}/modules/outputs/packages.nix
@@ -160,7 +161,7 @@ in {
           for task in \
             ci:route ci:classify ci:repository-audit ci:qualification:resolve \
             ci:qualification:assemble ci:qualification:boot-media ci:qualification:sign-check \
-            ci:security:scan ci:security:latest ci:security:policy-drift ci:packer:validate \
+            ci:security:scan ci:security:inventory-preflight ci:security:latest ci:security:policy-drift ci:packer:validate \
             ci:publish ci:verdict automation:queue \
             automation:fix-hashes \
             automation:update-locks automation:validate-locks automation:open-lock-update-pr \
@@ -169,6 +170,11 @@ in {
             grep -Fq "\"$task\"" nix/devenv.nix
           done
           grep -Fq 'pkgs.check-jsonschema' nix/automation/default.nix
+          # A cold runner must receive literal source patches with the cached
+          # toolchain, even if coreutils's runtime output was substituted.
+          for patch in ${lib.escapeShellArgs (map (patch: "${patch}") (builtins.filter builtins.isPath (pkgs.coreutils.patches or [])))}; do
+            grep -Fx "$patch" ${pkgs.closureInfo {rootPaths = [packages.maestro-ci-toolchain];}}/store-paths
+          done
           ! test -e nix/automation/cli.sh
           ! grep -Fq 'maestroCiCommand' nix/devenv.nix
           grep -Fq 'runFlakePackage "maestro-ci-route"' nix/devenv.nix
@@ -226,7 +232,7 @@ in {
 
       security-fixtures = mkSourceCheck {
         name = "security-fixtures";
-        command = "PYTHONDONTWRITEBYTECODE=1 python3 ./tests/security-inventory.py && PYTHONDONTWRITEBYTECODE=1 python3 ./tests/file-restore.py && bash ./tests/policy-drift.sh && bash ./tests/security-contracts.sh && bash ./tests/security-scan.sh";
+        command = "PYTHONDONTWRITEBYTECODE=1 python3 ./tests/security-inventory.py && PYTHONDONTWRITEBYTECODE=1 python3 ./tests/file-restore.py && bash ./tests/policy-drift.sh && bash ./tests/security-contracts.sh && bash ./tests/evidence-download.sh && bash ./tests/provenance-requests.sh && bash ./tests/security-scan.sh";
         nativeBuildInputs = fixtureInputs ++ [pkgs.openssh pkgs.python3];
       };
 

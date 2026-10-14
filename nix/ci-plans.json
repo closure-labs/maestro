@@ -41,6 +41,8 @@
   "publish": {
     "name": "maestro-publish",
     "targets": [
+      {"name": "maestro-ci-toolchain", "attribute": "packages.x86_64-linux.maestro-ci-toolchain"},
+      {"name": "sbomnix", "attribute": "packages.x86_64-linux.sbomnix"},
       {"name": "toplevel", "attribute": "nixosConfigurations.maestro.config.system.build.toplevel"},
       {"name": "deploy-template", "attribute": "packages.x86_64-linux.deploy-template"},
       {"name": "metadata", "attribute": "packages.x86_64-linux.metadata"},

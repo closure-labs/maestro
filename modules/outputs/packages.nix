@@ -59,6 +59,16 @@ in {
         xen-orchestra-supply-protector = xenOrchestraSupplyProtector;
         flake-plan-runner = planRunner;
         sbomnix = pkgs.sbomnix;
+        maestro-ci-toolchain = pkgs.buildEnv {
+          name = "maestro-ci-toolchain";
+          paths = [
+            (import ../../nix/devenv-launcher.nix {
+              inherit pkgs lib;
+              devenv = inputs.devenv.packages.${system}.devenv;
+            })
+            planRunner
+          ];
+        };
         inherit secretspec;
         libvhdi = inputs.xen-orchestra-ce.packages.x86_64-linux.libvhdi;
         default = xenOrchestraCe;

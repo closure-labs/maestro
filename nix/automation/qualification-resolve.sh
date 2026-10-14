@@ -65,10 +65,11 @@ if [[ "$allow_reuse" == true && "$force_build" != true ]]; then
     state_file="$state_dir/maestro-qualification-state.json"
     candidate_artifact_run_id=$(jq -r .artifact_run_id "$state_file")
     candidate_evidence_run_id=$(jq -r .evidence_run_id "$state_file")
-    candidate_media_run_id=$(jq -r .media_run_id "$state_file")
-    if ! run_is_trusted "$candidate_artifact_run_id" "$(jq -r .artifact_source_commit "$state_file")" ||
-      ! run_is_trusted "$candidate_media_run_id" "$(jq -r .media_source_commit "$state_file")" ||
-      ! run_is_trusted "$candidate_evidence_run_id"; then
+    if ! jq -c '[
+      {run_id:.artifact_run_id,source_sha:.artifact_source_commit},
+      {run_id:.media_run_id,source_sha:.media_source_commit},
+      {run_id:.evidence_run_id,source_sha:""}
+    ]' "$state_file" | maestro-ci-trusted-run --batch >/dev/null; then
       rm -rf -- "$state_dir"
       continue
     fi
@@ -85,7 +86,6 @@ if [[ "$allow_reuse" == true && "$force_build" != true ]]; then
     fi
 
     if [[ $(jq -r .evidence_input "$state_file") == "$evidence_input" ]] &&
-      run_is_trusted "$candidate_evidence_run_id" &&
       [[ -n $(artifact_available "$candidate_evidence_run_id" maestro-evidence) ]]; then
       evidence_dir=$(mktemp -d "${runner_temp}/maestro-evidence.XXXXXX")
       if gh run download "$candidate_evidence_run_id" --repo "$GITHUB_REPOSITORY" --name maestro-evidence --dir "$evidence_dir" >/dev/null 2>&1 &&

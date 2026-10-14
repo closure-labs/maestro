@@ -13,9 +13,11 @@ state=$inventory/maestro-qualification-state.json
 [[ -f $state && ! -L $state ]]
 maestro-ci-validate-state "$state"
 [[ $(jq -er .artifact_source_commit "$state") == "$source_sha" ]]
-maestro-ci-trusted-run "$(jq -er .artifact_run_id "$state")" "$source_sha" >/dev/null
-maestro-ci-trusted-run "$(jq -er .media_run_id "$state")" "$(jq -er .media_source_commit "$state")" >/dev/null
-maestro-ci-trusted-run "$(jq -er .evidence_run_id "$state")" >/dev/null
+jq -c '[
+  {run_id:.artifact_run_id,source_sha:.artifact_source_commit},
+  {run_id:.media_run_id,source_sha:.media_source_commit},
+  {run_id:.evidence_run_id,source_sha:""}
+]' "$state" | maestro-ci-trusted-run --batch >/dev/null
 
 files=(
   maestro-system.spdx.json maestro-system.cdx.json

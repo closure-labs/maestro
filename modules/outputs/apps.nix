@@ -32,15 +32,9 @@ in {
       bootstrap = inputs.self.packages.${system}.bootstrap;
       buildTemplate = inputs.self.packages.${system}.build-template;
       deployTemplate = inputs.self.packages.${system}.deploy-template;
-      # The native evaluator can return a literal patch's store path before
-      # materializing it on a cold runner. Realizing the appliance's coreutils
-      # through the outer Nix CLI also materializes its stdenv source inputs.
-      devenv = pkgs.writeShellApplication {
-        name = "devenv";
-        runtimeInputs = [pkgs.coreutils];
-        text = ''
-          exec ${lib.getExe inputs.devenv.packages.${system}.devenv} "$@"
-        '';
+      devenv = import ../../nix/devenv-launcher.nix {
+        inherit pkgs lib;
+        devenv = inputs.devenv.packages.${system}.devenv;
       };
       maestroctlApp = mkMaestroctlApp pkgs maestroctl;
     in {

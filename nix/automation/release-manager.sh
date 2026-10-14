@@ -147,7 +147,7 @@ inventory() {
 
 verify() {
   : "${ARTIFACT_RUN_ID:?}" "${ARTIFACT_SOURCE_COMMIT:?}" "${MEDIA_INPUT:?}" "${EVIDENCE_INPUT:?}" "${GITHUB_REPOSITORY:?}"
-  maestro-ci-verify-inventory candidate "$ARTIFACT_SOURCE_COMMIT"
+  maestro-ci-verify-inventory candidate "$ARTIFACT_SOURCE_COMMIT" "${RELEASE_INVENTORY_MODE:-full}"
   jq -e --arg media "$MEDIA_INPUT" --arg evidence "$EVIDENCE_INPUT" --argjson run "$ARTIFACT_RUN_ID" \
     '.media_input == $media and .evidence_input == $evidence and .artifact_run_id == $run' \
     candidate/maestro-qualification-state.json >/dev/null

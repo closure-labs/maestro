@@ -21,7 +21,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Check publication prerequisites before spending runner time building media.
+# Check the hosted metadata interface and upstream publications before building.
+maestro-ci-security-inventory-preflight
 nix config show substituters
 nix config show trusted-public-keys
 determinate_out=$(nix eval --accept-flake-config --raw .#nixosConfigurations.maestro.config.nix.package.upstream.outPath)

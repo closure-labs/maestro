@@ -65,6 +65,7 @@ in {
     '';
     "ci:publish".exec = runFlakePackage "maestro-ci-publish" "";
     "ci:security:scan".exec = runFlakePackage "maestro-ci-security-scan" "";
+    "ci:security:inventory-preflight".exec = runFlakePackage "maestro-ci-security-inventory-preflight" "";
     "ci:security:inventory".exec = runFlakePackage "maestro-ci-security-inventory" ''
       "''${SECURITY_SYSTEM_SBOM:-maestro-system.cdx.json}" "''${SECURITY_XO_SBOM:-xen-orchestra-supply.cdx.json}"
     '';

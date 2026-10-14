@@ -19,6 +19,7 @@ if git -C "$repo_root" rev-parse --show-toplevel >/dev/null 2>&1; then
   flake_ref="git+file:$repo_root"
 fi
 
+MAESTRO_SYSTEM_ROOT="$repo_root" maestro-ci-security-inventory-preflight
 nix flake check --accept-flake-config --no-build --print-build-logs \
   "$flake_ref" "$@"
 exec flake-plan-runner \

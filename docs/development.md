@@ -179,6 +179,45 @@ public Cachix `extra-substituters` are then applied normally. The required
 verdict runs the packaged `ci:verdict` task through Nix/devenv, validates the
 schema-v3 route contract, and checks required scanning and protected-main
 signing results.
+
+Before validation or installer construction, an inventory preflight decodes a
+real derivation returned by the active Nix CLI. Run it separately with
+`devenv tasks run ci:security:inventory-preflight`. This catches metadata format
+incompatibilities before an expensive media build. The pinned devenv launcher
+also includes literal coreutils patches in its closure, so substitution does
+not leave the native evaluator's build-time source paths unmaterialized.
+
+Protected-main publication now includes `maestro-ci-toolchain` (the pinned
+devenv launcher and plan runner) and `sbomnix`, in addition to the five appliance
+and operator targets. Their exact signed closures can be substituted on later
+runners. Publication still runs only after qualification, scanning and signing;
+PR jobs receive no cache write credentials. A cold runner may still build when
+the exact output has not yet been published.
+
+CI and release security jobs download `maestro-evidence` from the assembled
+inventory's `artifact_run_id`. Weekly scanning uses
+`maestro-ci-download-installer DIRECTORY evidence`. This preserves the same
+signed pointer, producer, checksum and evidence attestation checks without
+transferring the ISO. The downloader's default and release publication retain
+full media verification, including the ISO's SPDX predicate binding. The
+original `evidence_run_id` can identify older evidence and must not select the
+assembled inventory downloaded for scanning.
+
+`maestro-ci-trusted-run --batch` accepts a nonempty array of
+`{"run_id":123,"source_sha":"<40-character commit or empty string>"}` on stdin.
+It fetches each producer once, takes one protected-main snapshot, and checks
+each unique ancestry once. It validates every requested source constraint and
+returns metadata in request order. Reuse ends when the command exits; no trust
+decision persists between jobs or scans.
+
+Vulnerability findings remain in the documented report stage until fresh
+inventory, source-bound dispositions, runtime validation and disposable lab
+acceptance pass. These performance changes do not establish those prerequisites.
+Validation/qualification overlap and event-driven release continuation remain
+benchmarking work: they change runner cost or orchestration and are not required
+to avoid unnecessary ISO downloads and repeated API calls. Hosted runs must
+measure the elapsed-time improvement after rollout.
+
 Deployment templates, metadata, menus, and CLI packages remain covered by the
 repository audit and protected-main publication without being redundantly
 realized during installer qualification. Reusable evidence is accepted only

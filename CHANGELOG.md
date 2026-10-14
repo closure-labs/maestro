@@ -11,6 +11,18 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Download signed evidence without installer media for CI, weekly, and release
+  vulnerability scans. `maestro-ci-download-installer DIRECTORY [evidence]`
+  keeps full installer verification as its default; publication still verifies
+  the ISO and its bound SPDX inventory.
+- Batch provenance requests within one invocation, retaining exact source and
+  attestation checks while avoiding repeated producer and ancestry API reads.
+  `maestro-ci-trusted-run --batch` accepts a JSON request array on stdin.
+- Check the active Nix derivation JSON interface before repository validation
+  and media builds. Materialize literal coreutils patches in the pinned devenv
+  launcher even when its runtime is substituted. Publish the CI toolchain and
+  SBOM tooling alongside the existing protected-main cache targets.
+
 - Read versioned Nix derivation JSON for security evidence, including structured
   attributes, input derivations and fixed-output patch paths; retain support for
   older flat responses and reject malformed or unsupported formats explicitly.
