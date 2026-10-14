@@ -68,11 +68,80 @@ for producer_output in [{"path": Path(patch_path).name}, {"method": "flat", "has
     producer = {"version": 4, "env": {"out": patch_path}, "outputs": {"out": producer_output},
                 "inputs": {"drvs": {}, "srcs": []}}
     response = json.dumps({"version": 4, "derivations": {Path(producer_path).name: producer}}).encode()
+    realized = [False]
     with mock_patch.object(inventory.subprocess, "check_output", return_value=response) as query, \
-            mock_patch.object(inventory.subprocess, "run") as build:
+            mock_patch.object(inventory.Path, "is_file", autospec=True, side_effect=lambda path: realized[0]), \
+            mock_patch.object(inventory.subprocess, "run", side_effect=lambda *args, **kwargs: realized.__setitem__(0, True)) as build:
         inventory.realize_patch_inputs({drv_path: consumer}, [])
     query.assert_called_once_with(["nix", "derivation", "show", producer_path])
     build.assert_called_once_with(["nix", "build", "--no-link", producer_path + "^out"], check=True)
+
+# Fetched source trees contain patches beneath their output root. Query and
+# realize only that declared producer, preserving both individual file paths.
+patch_root = "/nix/store/" + "d" * 32 + "-source"
+nested_patches = [patch_root + "/debian/patches/CVE-fixture.patch", patch_root + "/debian/patches/second.patch"]
+consumer = deepcopy(modern)
+consumer["structuredAttrs"]["patches"] = nested_patches
+producer = {"version": 4, "env": {"out": patch_root}, "outputs": {"out": {"method": "nar", "hash": "sha256-fixture"}},
+            "inputs": {"drvs": {}, "srcs": []}}
+response = json.dumps({"version": 4, "derivations": {Path(producer_path).name: producer}}).encode()
+realized = [False]
+with mock_patch.object(inventory.subprocess, "check_output", return_value=response) as query, \
+        mock_patch.object(inventory.Path, "is_file", autospec=True, side_effect=lambda path: realized[0]), \
+        mock_patch.object(inventory.subprocess, "run", side_effect=lambda *args, **kwargs: realized.__setitem__(0, True)) as build:
+    inventory.realize_patch_inputs({drv_path: consumer}, [])
+query.assert_called_once_with(["nix", "derivation", "show", producer_path])
+build.assert_called_once_with(["nix", "build", "--no-link", producer_path + "^out"], check=True)
+assert inventory.patches(consumer) == nested_patches
+
+# Other declared build dependencies may be inspected for provenance, but must
+# not be realized merely because a patch source needs recovery.
+unused_producer_path = "/nix/store/" + "f" * 32 + "-build-tool.drv"
+extra_consumer = deepcopy(consumer)
+extra_consumer["inputs"]["drvs"][Path(unused_producer_path).name] = {"outputs": ["out"]}
+extra_records = {Path(producer_path).name: producer, Path(unused_producer_path).name: {**producer, "env": {"out": out_path}}}
+extra_response = json.dumps({"version": 4, "derivations": extra_records}).encode()
+realized = [False]
+with mock_patch.object(inventory.subprocess, "check_output", return_value=extra_response), \
+        mock_patch.object(inventory.Path, "is_file", autospec=True, side_effect=lambda path: realized[0]), \
+        mock_patch.object(inventory.subprocess, "run", side_effect=lambda *args, **kwargs: realized.__setitem__(0, True)) as build:
+    inventory.realize_patch_inputs({drv_path: extra_consumer}, [])
+build.assert_called_once_with(["nix", "build", "--no-link", producer_path + "^out"], check=True)
+
+# A similarly named but different immutable output cannot supply a patch.
+unrelated = deepcopy(producer)
+unrelated["env"]["out"] = out_path
+unrelated_response = json.dumps({"version": 4, "derivations": {Path(producer_path).name: unrelated}}).encode()
+with mock_patch.object(inventory.subprocess, "check_output", return_value=unrelated_response), \
+        mock_patch.object(inventory.Path, "is_file", return_value=False), \
+        mock_patch.object(inventory.subprocess, "run") as build:
+    reject(lambda: inventory.realize_patch_inputs({drv_path: consumer}, []))
+build.assert_not_called()
+
+# Successful realization must provide every requested file, and a symlink
+# cannot escape the declared output tree to another immutable or mutable root.
+for escape in [False, True]:
+    realized = [False]
+    def file_exists(path):
+        return realized[0] and (escape or str(path) != nested_patches[1])
+    def resolved(path):
+        return Path("/tmp/escaping-patch") if escape and str(path) == nested_patches[1] else path
+    with mock_patch.object(inventory.subprocess, "check_output", return_value=response), \
+            mock_patch.object(inventory.Path, "is_file", autospec=True, side_effect=file_exists), \
+            mock_patch.object(inventory.Path, "resolve", autospec=True, side_effect=resolved), \
+            mock_patch.object(inventory.subprocess, "run", side_effect=lambda *args, **kwargs: realized.__setitem__(0, True)) as build:
+        reject(lambda: inventory.realize_patch_inputs({drv_path: consumer}, []))
+    build.assert_called_once_with(["nix", "build", "--no-link", producer_path + "^out"], check=True)
+
+for unsafe in [patch_root + "/../outside.patch", patch_root + "/./patch", patch_root + "//patch", "/tmp/patch"]:
+    unsafe_consumer = deepcopy(consumer)
+    unsafe_consumer["structuredAttrs"]["patches"] = [unsafe]
+    with mock_patch.object(inventory.Path, "is_file", return_value=False), \
+            mock_patch.object(inventory.subprocess, "check_output") as query, \
+            mock_patch.object(inventory.subprocess, "run") as build:
+        reject(lambda: inventory.realize_patch_inputs({drv_path: unsafe_consumer}, []))
+    query.assert_not_called()
+    build.assert_not_called()
 
 with mock_patch.object(inventory.subprocess, "check_output", return_value=b'{"version":4,"derivations":{}}'):
     reject(lambda: inventory.read_derivations([drv_path]))

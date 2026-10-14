@@ -122,21 +122,31 @@ def patches(derivation):
     return value
 
 
+def patch_store_root(path):
+    parts = path.split("/")
+    if len(parts) < 4 or parts[:3] != ["", "nix", "store"] or any(part in {"", ".", ".."} for part in parts[3:]):
+        raise ValueError("invalid immutable patch path")
+    return store_path("/".join(parts[:4]))
+
+
 def realize_patch_inputs(derivations, source_roots):
     # Substituting a runtime closure does not fetch its build-time patches.
     # Resolve only missing patch outputs, never entire package build inputs.
     missing = {str(p) for drv in derivations.values() for p in patches(drv) if not Path(p).is_file()}
     if not missing:
         return
+    roots = {patch: patch_store_root(patch) for patch in missing}
     # Literal Nixpkgs patches are inputSrcs, not derivation outputs. Recreate
     # their exact store paths from the locked source and verify Nix's identity.
-    names = {Path(p).name[33:] for p in missing}
+    names = {Path(p).name[33:] for p in missing if p == roots[p]}
     candidates = {name: [] for name in names}
     for root in source_roots:
         for directory, _, files in os.walk(root):
             for name in names.intersection(files):
                 candidates[name].append(Path(directory) / name)
     for patch in sorted(missing):
+        if patch != roots[patch]:
+            continue
         name = Path(patch).name[33:]
         for candidate in sorted(candidates[name]):
             if candidate.is_file():
@@ -148,16 +158,22 @@ def realize_patch_inputs(derivations, source_roots):
         return
     inputs = sorted({p for drv in derivations.values() for p in input_derivations(drv)})
     producers = {}
+    missing_roots = {roots[patch] for patch in missing}
     for start in range(0, len(inputs), 64):
         records = read_derivations(inputs[start:start + 64])
         for path, record in records.items():
             for output, info in record["outputs"].items():
                 produced = output_path(record, output, info)
-                if produced in missing:
+                if produced in missing_roots:
                     producers[produced] = path + "^" + output
-    if missing - producers.keys():
+    if missing_roots - producers.keys():
         raise ValueError("missing immutable patch producer metadata")
     subprocess.run(["nix", "build", "--no-link", *sorted(set(producers.values()))], check=True)
+    # A patch may be a file within a fetched immutable source output. Realize
+    # that exact producer once, then bind every requested file to its root.
+    for patch in missing:
+        if not Path(patch).is_file() or not Path(patch).resolve().is_relative_to(Path(roots[patch]).resolve()):
+            raise ValueError("missing or escaping immutable patch file")
 
 
 def enrich(system, supply, context, derivations):
