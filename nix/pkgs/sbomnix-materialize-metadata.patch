@@ -1,0 +1,29 @@
+--- a/src/nixmeta/scanner.py
++++ b/src/nixmeta/scanner.py
+@@ -152,6 +152,26 @@
+         LOG.warning("Failed reading flake metadata: %s", flakeref)
+         return None
+     meta_json = json.loads(ret.stdout)
++    if not isinstance(meta_json, dict):
++        raise ValueError("Malformed flake metadata")
++    # Lazy-tree metadata can omit the source path. nix-env needs a materialized
++    # locked source; do not silently skip licenses and other enrichment.
++    if not isinstance(meta_json.get("path"), str) or not meta_json["path"]:
++        materialized = exec_cmd(
++            nix_cmd(
++                "flake", "metadata", flakeref, "--json",
++                "--option", "lazy-trees", "false",
++            ),
++            return_error=True,
++        )
++        meta_json = json.loads(materialized.stdout)
++        if (not isinstance(meta_json, dict)
++                or not isinstance(meta_json.get("path"), str)
++                or not meta_json["path"]):
++            raise ValueError("Materialized flake metadata is missing its source path")
++    source_path = pathlib.Path(meta_json["path"])
++    if not source_path.is_absolute() or not source_path.is_dir():
++        raise ValueError("Flake metadata source path is not an existing absolute directory")
+     LOG.log(LOG_SPAM, meta_json)
+     return meta_json
+ 

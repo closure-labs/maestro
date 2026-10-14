@@ -11,6 +11,12 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Run sbomnix and its metadata scanner through the captured hosted Nix CLI,
+  including `nix-store` and `nix-env`. Gate evidence qualification on a packaged
+  runtime fixture and reject unexpected upstream wrapper changes. Materialize
+  lazy-tree flake metadata when its source path is omitted so licenses,
+  descriptions and other locked-source metadata remain in the inventories.
+
 - Use the dedicated Maestro Cachix cache for appliance, installer, CLI, native
   devenv and CI builds. Keep XO, devenv and nix-community caches available;
   publish only to Maestro with its repository-specific runtime credential and

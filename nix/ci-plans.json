@@ -34,6 +34,7 @@
     "targets": [
       {"name": "toplevel", "attribute": "nixosConfigurations.maestro.config.system.build.toplevel"},
       {"name": "sbomnix", "attribute": "packages.x86_64-linux.sbomnix"},
+      {"name": "sbomnix-runtime", "attribute": "checks.x86_64-linux.sbomnix-runtime"},
       {"name": "xen-orchestra-ce", "attribute": "packages.x86_64-linux.xen-orchestra-ce"},
       {"name": "xen-orchestra-supply-protector", "attribute": "packages.x86_64-linux.xen-orchestra-supply-protector"}
     ]

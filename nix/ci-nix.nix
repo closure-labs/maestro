@@ -9,5 +9,5 @@
 in
   pkgs.symlinkJoin {
     name = "maestro-ci-nix";
-    paths = map command ["nix" "nix-store"];
+    paths = map command ["nix" "nix-store" "nix-env"];
   }

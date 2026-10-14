@@ -58,7 +58,7 @@ in {
         xen-orchestra-ce = xenOrchestraCe;
         xen-orchestra-supply-protector = xenOrchestraSupplyProtector;
         flake-plan-runner = planRunner;
-        sbomnix = pkgs.sbomnix;
+        sbomnix = import ../../nix/pkgs/sbomnix.nix {inherit pkgs ciNix;};
         maestro-ci-toolchain = pkgs.buildEnv {
           name = "maestro-ci-toolchain";
           paths = [
