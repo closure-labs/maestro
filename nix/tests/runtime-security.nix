@@ -121,7 +121,7 @@ in
       openssl_version = versions["openssl"]
       match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", openssl_version)
       assert match is not None, versions
-      series = tuple(map(int, match.groups()[:2]))
+      series = (int(match[1]), int(match[2]))
       # September 2026 fixes have distinct release numbers in each series.
       minimum_patch = {(3, 5): 9, (3, 6): 5}
       assert series in minimum_patch and int(match[3]) >= minimum_patch[series], versions
