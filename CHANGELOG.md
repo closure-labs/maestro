@@ -17,6 +17,11 @@ correspond to published GitHub tags.
   public-key contract. Add SecretSpec references for workstation `pass` entries.
 - Keep local installer boot logs in a writable temporary file when the ISO is
   built into the immutable Nix store; preserve explicit hosted log destinations.
+- Triage critical scanner matches against reviewed immutable source and runtime
+  evidence. Emit exact, expiring applicability decisions and preserve raw
+  findings; unknown attack surfaces remain visible in report mode until the
+  existing deployment acceptance gates pass. Bind installed npm manifest paths
+  in the version-3 normalizer and share the evaluator with XO supply scanning.
 
 - Add local `ci:cache-validation` to audit and publish the exact successful
   validation closures to the configured Cachix cache using runtime credentials.

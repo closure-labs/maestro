@@ -277,6 +277,37 @@ reference can outlive its collected producer metadata.
 Vulnerability findings remain in the documented report stage until fresh
 inventory, source-bound dispositions, runtime validation and disposable lab
 acceptance pass. These performance changes do not establish those prerequisites.
+
+Critical triage now runs through the shared XO applicability evaluator. The
+scanner preserves `findings.json` and emits `critical-applicability.json` plus
+`effective-policy.json`; the latter combines still-valid human decisions with
+fresh exact machine decisions. The report binds its inventory, rules, evaluator
+and runtime context. Reviewed rules expire within 30 days and require exact
+advisory, component, derivation, source and patch evidence. npm rules also need
+the installed manifest identity and explicit library/consumer code hashes.
+Unknown, missing, changed or expired evidence cannot produce an exclusion.
+
+An absent attack surface requires relevant runtime guards in a bound embedded
+deployment context. An operating system name, a private management CIDR, the
+absence of a currently running process, or caller-supplied configuration alone
+does not prove safety. XO supply inventories describe packages and therefore
+cannot establish effective appliance configuration. The current reviewed rules
+verify nine native fixes; the five npm critical matches remain unresolved.
+See [the critical triage record](critical-triage-2026-10-14.md).
+
+To reevaluate a completed scan locally:
+
+```bash
+SECURITY_INVENTORY="$PWD" SECURITY_OUTPUT=security-report \
+devenv tasks run --mode single ci:security:applicability
+```
+
+The default is report mode. `SECURITY_APPLICABILITY_MODE=enforce` is an explicit
+local check that fails when critical matches remain unresolved; changing it
+does not change the repository's deployment acceptance policy. Malformed or
+inconsistent evidence fails in either mode. The regular security scan runs this
+boundary automatically and retains the existing high/critical/unscored verdict.
+
 Validation/qualification overlap and event-driven release continuation remain
 benchmarking work: they change runner cost or orchestration and are not required
 to avoid unnecessary ISO downloads and repeated API calls. Hosted runs must

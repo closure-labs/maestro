@@ -20,6 +20,7 @@ in {
       maestroMenu = pkgs.callPackage ../../pkgs/maestro-menu/package.nix {};
       automationCommands = import ../../nix/automation {
         inherit pkgs planRunner packerXenserver ciNix;
+        applicabilityCommand = inputs.xen-orchestra-ce.packages.${system}.security-applicability;
         appliance = inputs.self.nixosConfigurations.maestro.config;
         lockFile = ../../flake.lock;
         packageSourceRoots = [inputs.nixpkgs.outPath inputs.xen-orchestra-ce.inputs.nixpkgs.outPath];
