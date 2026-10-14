@@ -209,6 +209,8 @@ in {
             scripts/lib/*.sh \
             scripts/tui/*.sh \
             nix/automation/*.sh \
+            nix/ci-nix.sh \
+            .github/actions/setup-nix/resources.sh \
             tests/*.sh
           touch "$out"
         '';
@@ -218,6 +220,7 @@ in {
         command = ''
           bash ./tests/ci-helpers.sh
           bash ./tests/fix-nix-hashes.sh
+          bash ./tests/ci-runtime-config.sh
         '';
       };
 

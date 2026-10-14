@@ -1,6 +1,13 @@
 # yaml-language-server: $schema=https://devenv.sh/devenv.schema.json
 require_version: true
 
+# Optional env-backed credentials are injected at runtime by SecretSpec;
+# Nix modules must not copy secretspec.secrets values into derivations.
+secretspec:
+  enable: true
+  provider: env
+  profile: github
+
 inputs:
   nixpkgs:
     url: https://flakehub.com/f/NixOS/nixpkgs/0

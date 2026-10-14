@@ -62,6 +62,7 @@ bash -n \
 
 bash "$TEST_ROOT/tests/xo-storage-helper.sh"
 bash "$TEST_ROOT/tests/fix-nix-hashes.sh"
+bash "$TEST_ROOT/tests/ci-runtime-config.sh"
 
 # Fixed target resolution.
 actual="$(
@@ -195,7 +196,7 @@ grep -Fq 'substituters = https://cache.nixos.org/' \
 grep -Fq 'determinate-nixd auth logout' \
   "$TEST_ROOT/.github/actions/setup-nix/action.yml" \
   || fail "shared CI setup does not disable Determinate's authenticated cache injection"
-grep -Fq 'sudo tee -a /etc/nix/nix.conf' \
+grep -Fq 'sudo tee -a /etc/nix/nix.custom.conf' \
   "$TEST_ROOT/.github/actions/setup-nix/action.yml" \
   || fail "shared CI setup does not override Determinate cache injection"
 grep -Fq 'sudo systemctl restart nix-daemon.service' \
@@ -206,6 +207,22 @@ grep -Fq 'sudo systemctl restart nix-daemon.service' \
 grep -Fq '[[ $substituters != *cache.flakehub.com* ]]' \
   "$TEST_ROOT/.github/actions/setup-nix/action.yml" \
   || fail "shared CI setup does not reject the authenticated FlakeHub cache"
+for workflow in "$TEST_ROOT"/.github/workflows/*.yml; do
+  yq -o=json '.jobs' "$workflow" | jq -e '
+    all(.[];
+      if any(.steps[]?;
+        ((.run // "") | test("(^|[[:space:]])nix[[:space:]]")) or
+        ((.uses // "") | startswith("DeterminateSystems/flakehub-push@")))
+      then any(.steps[]?; .uses == "./.github/actions/setup-nix")
+      else true end)
+  ' >/dev/null || fail "Nix job bypasses shared hosted configuration: $workflow"
+done
+yq -e '.secretspec.enable == true and .secretspec.provider == "env" and .secretspec.profile == "github"' \
+  "$TEST_ROOT/devenv.yaml" >/dev/null || fail "native SecretSpec configuration is missing"
+grep -Fq 'DEVENV_MAX_JOBS=%s' "$TEST_ROOT/.github/actions/setup-nix/action.yml" \
+  || fail "native devenv does not share the hosted job budget"
+grep -Fq 'DEVENV_CORES=%s' "$TEST_ROOT/.github/actions/setup-nix/action.yml" \
+  || fail "native devenv does not share the hosted core budget"
 grep -Fq "'' ci:verdict" \
   "$TEST_ROOT/.github/workflows/ci.yml" \
   || fail "required CI verdict does not use its declared task"

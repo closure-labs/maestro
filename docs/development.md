@@ -66,6 +66,25 @@ boundary. The aggregate `ci:repository-audit` task remains dependency-aware
 and has no command of its own after its declared flake and formatting checks
 finish.
 
+Every hosted Nix job uses the shared Determinate setup. It records the installed
+CLI path and preserves it through packaged commands, including `nix-store`.
+The setup writes supported overrides to `nix.custom.conf`, derives jobs/cores
+from detected CPU and RAM, reserves 8 GiB for VM tests and runner processes,
+and exports the same budget to devenv. Runners with at most 8 GiB reserve
+2 GiB and execute one build at a time, with a one-core minimum on very small
+runners. A four-core, 16 GiB runner gets two jobs with two cores each;
+a two-core, 7 GiB runner gets one job with two cores. Workflow fixtures prevent
+new Nix jobs from bypassing this setup.
+
+Native SecretSpec uses the env provider and optional `github` profile, with an
+explicit hosted access reason. Secrets remain runtime inputs; repository Nix
+modules do not copy `secretspec.secrets` into derivations. Credential-free
+audits and dummy-token runtime injection are checked independently. Devenv's
+pinned native evaluator is separate from the hosted Determinate CLI and may
+warn about unsupported Determinate experimental flags. The pinned sbomnix
+package deliberately retains Nix 2.31 for its older derivation-JSON parser;
+this scanner compatibility tool is distinct from the audit/build CLI.
+
 The `maestro-ci-route` command emits one versioned JSON route plan. Focused
 qualification, protected-main publication, and the required verdict all
 consume that exact output, so downstream jobs cannot independently reinterpret

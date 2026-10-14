@@ -2,6 +2,7 @@
   planRunner,
   packerXenserver,
   pkgs,
+  ciNix,
   appliance,
   lockFile,
   packageSourceRoots,
@@ -27,7 +28,7 @@
     gnugrep
     gnused
     jq
-    nix
+    ciNix
   ];
 
   spdxSchema = pkgs.fetchurl {

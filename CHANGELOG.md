@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Size hosted Nix jobs/cores from each runner's CPU and RAM, preserve the
+  setup-installed Determinate CLI through packaged audit commands, and make
+  env-backed SecretSpec runtime loading explicit in devenv configuration.
+
 - Consume the published XO runtime built against OpenSSL 3.5.9 LTS. Verify the
   active XO process's crypto version and loaded libraries, and wait for bounded
   isolated-restore cleanup in the installed-XO test.
