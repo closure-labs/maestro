@@ -77,6 +77,41 @@ rejection, ambiguous candidates, bounded lookup overflow, pending isolation,
 disabled dispatch and preserved synchronous dispatch. They do not fake a
 hosted release or replace attestation verification.
 
+## Observed hosted overlap pair
+
+The same source SHA `d40f09a4282fadf873840ce9d9545ed550cbb445` was qualified
+with two manual branch dispatches: [serial 38634526399](https://github.com/closure-labs/maestro/actions/runs/38634526399)
+and [overlap 38634594909](https://github.com/closure-labs/maestro/actions/runs/38634594909).
+Both forced fresh media and evidence with `validate_only=false`,
+`force_artifact=true`, and `release_candidate=false`. The complete nineteen-target
+audit, inventory assembly, real installer boot, current scan and required verdict
+passed in both; signing and publication were skipped. Media/evidence fingerprints
+and source identities matched. The separate overlap audit ran concurrently with
+qualification and passed before qualification completed.
+
+| Observed measure | Serial | Overlap |
+| --- | ---: | ---: |
+| First active job through required verdict | 20m21s | 19m04s |
+| Summed active runner jobs | 20m11s | 23m22s |
+| Initial dispatch/concurrency queue | 4s | 20m |
+| Full qualification job | 520s | 654s |
+
+The observed active path was 77 seconds shorter (6.3%), with 191 seconds more
+runner work (15.8%). Initial queue is separate and contributes no claimed benefit.
+This is one sequential pair on shared runners: cache order, setup, network and VM
+variation are material. Qualification was slower in the overlap run, while route
+and verdict were faster. These observations do not isolate a causal scheduling
+benefit or justify enabling overlap by default. Keep the pilot opt-in and default
+`false`. The existing historical models below remain models.
+
+The [observed report](benchmarks/maestro-overlap-observed-38634526399-38634594909.md) and
+[raw-fingerprinted timing summary](benchmarks/maestro-overlap-observed-38634526399-38634594909.json)
+retain per-job/step timings and qualification input parity. They describe the
+measured source before subsequent independent changes; later changes do not
+retroactively receive this result. Event-driven release continuation remains
+disabled by default and has fixture evidence only. No genuine release was
+manufactured or published for this benchmark.
+
 ## Historical timing model
 
 The following successful hosted runs provide observed baseline job and audit
