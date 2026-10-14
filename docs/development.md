@@ -210,19 +210,20 @@ each unique ancestry once. It validates every requested source constraint and
 returns metadata in request order. Reuse ends when the command exits; no trust
 decision persists between jobs or scans.
 
-For local validation with cache publication, run:
+For local validation with cache publication, configure `CACHIX_CACHE_NAME` in
+the runtime environment, then run:
 
 ```bash
 devenv tasks run ci:cache-validation
 ```
 
 This runs the complete repository audit, records its exact output roots in
-`.devenv/maestro-validation.json`, and pushes their closures to the runtime
-`CACHIX_CACHE_NAME` (with the default declared in `secretspec.toml`). Cachix
-reads its existing user configuration or runtime `CACHIX_AUTH_TOKEN`;
-credentials never enter Nix
-evaluation. The cache task rejects hosted execution, failed or incomplete
-manifests, and missing store outputs. `MAESTRO_CI_AUDIT_MANIFEST` optionally
+`$DEVENV_STATE/maestro-validation.json`, and pushes their closures to the runtime
+`CACHIX_CACHE_NAME`. The leaf command requires an explicit environment value;
+the default in `secretspec.toml` does not configure its destination by itself.
+Cachix reads its existing user configuration or runtime `CACHIX_AUTH_TOKEN`;
+credentials never enter Nix evaluation. The cache task rejects hosted execution,
+failed or incomplete manifests, and missing store outputs. `MAESTRO_CI_AUDIT_MANIFEST` optionally
 selects another runtime manifest path for both tasks.
 
 Local credentials can differ from GitHub's credentials, provided the service
