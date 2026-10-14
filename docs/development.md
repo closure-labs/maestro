@@ -210,39 +210,65 @@ each unique ancestry once. It validates every requested source constraint and
 returns metadata in request order. Reuse ends when the command exits; no trust
 decision persists between jobs or scans.
 
-For local validation with cache publication, configure `CACHIX_CACHE_NAME` in
-the runtime environment, then run:
+Maestro uses `https://maestro.cachix.org` for its own binary cache. Native
+`devenv` also pulls from `xen-orchestra-ce`, `devenv` and `nix-community`.
+The flake, installed appliance, installer and first-install commands trust the
+same public signing keys. Public pulls do not require publishing credentials.
+
+GitHub protected-main publication reads repository secret
+`CACHIX_MAESTRO_AUTH_TOKEN` and variable `CACHIX_MAESTRO_PUBKEY`. SecretSpec
+profiles declare both names; publishing checks the supplied public key against
+the reviewed key and maps the dedicated token to Cachix's `CACHIX_AUTH_TOKEN`
+only at runtime. The destination is always `maestro`.
+
+For local validation with cache publication, resolve the workstation `pass`
+references declared by SecretSpec's `local-publish` profile:
 
 ```bash
+SECRETSPEC_REASON='Validate and populate the Maestro cache' \
+nix run --accept-flake-config .#secretspec -- run --provider workstation-pass \
+  --profile local-publish \
+  --scope cachix -- devenv tasks run ci:cache-validation
+```
+
+The explicit provider overrides an unrelated global `SECRETSPEC_PROVIDER`.
+The profile reads `cachix/maestro/auth_token` and the public-key entry
+`cachix/maestro`. A multiline configuration entry must supply the exact public
+key as the resolved value; other configuration belongs outside that entry.
+The equivalent explicit runtime environment is:
+
+```bash
+CACHIX_MAESTRO_AUTH_TOKEN="$(pass show cachix/maestro/auth_token)" \
+CACHIX_MAESTRO_PUBKEY="$(pass show cachix/maestro)" \
+SECRETSPEC_REASON='Validate and populate the Maestro cache' \
 devenv tasks run ci:cache-validation
 ```
 
-This runs the complete repository audit, records its exact output roots in
-`$DEVENV_STATE/maestro-validation.json`, and pushes their closures to the runtime
-`CACHIX_CACHE_NAME`. The leaf command requires an explicit environment value;
-the default in `secretspec.toml` does not configure its destination by itself.
-Cachix reads its existing user configuration or runtime `CACHIX_AUTH_TOKEN`;
-credentials never enter Nix evaluation. The cache task rejects hosted execution,
-failed or incomplete manifests, and missing store outputs. `MAESTRO_CI_AUDIT_MANIFEST` optionally
-selects another runtime manifest path for both tasks.
-
-Local credentials can differ from GitHub's credentials, provided the service
-authorizes them for the selected cache. To use workstation password-store
-references, resolve them into the task's runtime environment:
-
-```bash
-CACHIX_CACHE_NAME="$(pass show GitHub/closure-labs/maestro/CACHIX_CACHE_NAME)" \
-CACHIX_AUTH_TOKEN="$(pass show GitHub/closure-labs/maestro/CACHIX_AUTH_TOKEN)" \
-devenv tasks run ci:cache-validation
-```
+This runs the complete repository audit, records exact output roots in
+`$DEVENV_STATE/maestro-validation.json`, and pushes their closures to Maestro.
+Credentials never enter Nix evaluation. The cache task rejects hosted execution,
+failed or incomplete manifests, missing store outputs and a mismatched public
+key. `MAESTRO_CI_AUDIT_MANIFEST` optionally selects another runtime manifest path
+for both tasks. Ambient generic Cachix credentials cannot select a different
+publication identity or destination.
 
 GitHub's API returns repository variable values but only metadata for Actions
 secrets. `gh` can dispatch a remote workflow that uses those secrets; it cannot
 resolve their values for a local process. Store a separately authorized local
 token or an existing workstation credential in `pass` instead.
 
-`cachix.push` in `devenv.local.nix` observes devenv's own native builds. It does
-not reliably observe the audit's nested Nix subprocess builds; the explicit
+`cachix.push = "maestro"` in `devenv.local.nix` observes devenv's own native builds
+when its runtime token is supplied as `CACHIX_AUTH_TOKEN`. To enable this optional
+observer as well as the explicit task with the same SecretSpec credential,
+replace the command after `--scope cachix --` above with:
+
+```bash
+bash -c 'export CACHIX_AUTH_TOKEN="$CACHIX_MAESTRO_AUTH_TOKEN"; exec devenv tasks run ci:cache-validation'
+```
+
+Repository defaults enable public pulls
+and use explicit audited publication. The native push observer does not
+reliably observe the audit's nested Nix subprocess builds; the explicit
 cache task publishes those exact completed outputs instead. After aggressive
 store cleanup, realize `.#maestro-ci-toolchain` before retrying if evaluation
 reports a missing `cabal2nix` derivation: an upstream import-from-derivation

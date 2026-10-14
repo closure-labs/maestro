@@ -266,14 +266,21 @@ in {
             --file ${inputs.self}/secretspec.toml \
             --profile github \
             --output github-schema.json
-          jq -e '.required == ["CACHIX_CACHE_NAME"]' github-schema.json >/dev/null
+          jq -e '.required == ["CACHIX_MAESTRO_PUBKEY"]' github-schema.json >/dev/null
           secretspec schema \
             --file ${inputs.self}/secretspec.toml \
             --profile github-publish \
             --output publish-schema.json
           jq -e \
-            '.required == ["CACHIX_AUTH_TOKEN", "CACHIX_CACHE_NAME"]' \
+            '.required == ["CACHIX_MAESTRO_AUTH_TOKEN", "CACHIX_MAESTRO_PUBKEY"]' \
             publish-schema.json >/dev/null
+          secretspec schema \
+            --file ${inputs.self}/secretspec.toml \
+            --profile local-publish \
+            --output local-schema.json
+          jq -e \
+            '.required == ["CACHIX_MAESTRO_AUTH_TOKEN", "CACHIX_MAESTRO_PUBKEY"]' \
+            local-schema.json >/dev/null
           touch "$out"
         '';
 

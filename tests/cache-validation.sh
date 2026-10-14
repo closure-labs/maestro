@@ -7,7 +7,10 @@ temporary=$(mktemp -d)
 trap 'rm -rf -- "$temporary"' EXIT
 mkdir -p "$temporary/bin"
 export MAESTRO_CI_PATH_PREFIX="$temporary/bin"
-export CACHIX_CACHE_NAME=maestro-fixture FAKE_CACHE_FIXTURE="$temporary"
+export CACHIX_MAESTRO_AUTH_TOKEN=fixture-maestro-token FAKE_CACHE_FIXTURE="$temporary"
+export CACHIX_MAESTRO_PUBKEY='maestro.cachix.org-1:fGFZFVwe2ZHEBENWZLHVzERZrz2c50ru+g0UewH68I0='
+# A stale ambient generic token/destination must not select another cache.
+export CACHIX_AUTH_TOKEN=fixture-stale-token CACHIX_CACHE_NAME=retired-cache
 export GITHUB_ACTIONS=false
 # Two roots occur throughout all validation targets to prove deduplication
 # without relying on fixture-only subsets of the actual repository plan.
@@ -30,7 +33,8 @@ NIX
 cat >"$temporary/bin/cachix" <<'CACHIX'
 #!/usr/bin/env bash
 set -euo pipefail
-[[ "$1 $2" == 'push maestro-fixture' ]]
+[[ "$1 $2" == 'push maestro' ]]
+[[ ${CACHIX_AUTH_TOKEN:?} == fixture-maestro-token ]]
 cat >"${FAKE_CACHE_FIXTURE:?}/published"
 CACHIX
 sed -i "1c#!${BASH}" "$temporary/bin/nix" "$temporary/bin/cachix"
@@ -83,9 +87,11 @@ FAKE_CACHE_MISSING=true reject "$MAESTRO_CI_CACHE_VALIDATION" "$temporary/valid.
 # Hosted execution is refused before even querying paths or inspecting a file.
 GITHUB_ACTIONS=true reject "$MAESTRO_CI_CACHE_VALIDATION" "$temporary/nonexistent.json"
 [[ ! -e $temporary/queried ]]
-CACHIX_CACHE_NAME='' reject "$MAESTRO_CI_CACHE_VALIDATION" "$temporary/valid.json"
+CACHIX_MAESTRO_AUTH_TOKEN='' reject "$MAESTRO_CI_CACHE_VALIDATION" "$temporary/valid.json"
 [[ ! -e $temporary/queried ]]
-CACHIX_CACHE_NAME=--invalid reject "$MAESTRO_CI_CACHE_VALIDATION" "$temporary/valid.json"
+CACHIX_MAESTRO_PUBKEY='' reject "$MAESTRO_CI_CACHE_VALIDATION" "$temporary/valid.json"
+[[ ! -e $temporary/queried ]]
+CACHIX_MAESTRO_PUBKEY='wrong-cache-1:wrong-key' reject "$MAESTRO_CI_CACHE_VALIDATION" "$temporary/valid.json"
 [[ ! -e $temporary/queried ]]
 # The audit preserves its existing invocation and forwards an optional output
 # manifest, including paths containing spaces, to the actual plan runner.

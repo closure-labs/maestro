@@ -136,13 +136,17 @@ in {
     settings = {
       extra-substituters = [
         "https://install.determinate.systems"
-        "https://nixoa.cachix.org"
+        "https://maestro.cachix.org"
         "https://xen-orchestra-ce.cachix.org"
+        "https://devenv.cachix.org"
+        "https://nix-community.cachix.org"
       ];
       extra-trusted-public-keys = [
         "cache.flakehub.com-3:hJuILl5sVK4iKm86JzgdXW12Y2Hwd5G07qKtHTOcDCM="
-        "nixoa.cachix.org-1:N+GsSSd2yKgj2hx01fMG6Oe7tLfbxEi/V0oZFEB721g="
+        "maestro.cachix.org-1:fGFZFVwe2ZHEBENWZLHVzERZrz2c50ru+g0UewH68I0="
         "xen-orchestra-ce.cachix.org-1:WAOajkFLXWTaFiwMbLidlGa5kWB7Icu29eJnYbeMG7E="
+        "devenv.cachix.org-1:w1cLUi8dv3hnoSPGAuibQv+f9TZLr6cv/Hm9XgU50cw="
+        "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
       ];
       trusted-users = [
         "root"

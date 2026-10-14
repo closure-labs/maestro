@@ -15,11 +15,15 @@ readonly MAESTRO_DEFAULT_TIMEZONE="America/Chicago"
 readonly MAESTRO_DEFAULT_GIT_NAME="Maestro Admin"
 readonly MAESTRO_DEFAULT_GIT_EMAIL="maestro@maestro"
 readonly MAESTRO_DETERMINATE_SUBSTITUTER="https://install.determinate.systems"
-readonly MAESTRO_CACHE_SUBSTITUTER="https://nixoa.cachix.org"
+readonly MAESTRO_CACHE_SUBSTITUTER="https://maestro.cachix.org"
 readonly MAESTRO_XO_SUBSTITUTER="https://xen-orchestra-ce.cachix.org"
+readonly MAESTRO_DEVENV_SUBSTITUTER="https://devenv.cachix.org"
+readonly MAESTRO_COMMUNITY_SUBSTITUTER="https://nix-community.cachix.org"
 readonly MAESTRO_DETERMINATE_PUBLIC_KEY="cache.flakehub.com-3:hJuILl5sVK4iKm86JzgdXW12Y2Hwd5G07qKtHTOcDCM="
-readonly MAESTRO_CACHE_PUBLIC_KEY="nixoa.cachix.org-1:N+GsSSd2yKgj2hx01fMG6Oe7tLfbxEi/V0oZFEB721g="
+readonly MAESTRO_CACHE_PUBLIC_KEY="maestro.cachix.org-1:fGFZFVwe2ZHEBENWZLHVzERZrz2c50ru+g0UewH68I0="
 readonly MAESTRO_XO_PUBLIC_KEY="xen-orchestra-ce.cachix.org-1:WAOajkFLXWTaFiwMbLidlGa5kWB7Icu29eJnYbeMG7E="
+readonly MAESTRO_DEVENV_PUBLIC_KEY="devenv.cachix.org-1:w1cLUi8dv3hnoSPGAuibQv+f9TZLr6cv/Hm9XgU50cw="
+readonly MAESTRO_COMMUNITY_PUBLIC_KEY="nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
 readonly -a MAESTRO_TRACKED_PATHS=(
   AGENTS.md
   CHANGELOG.md
@@ -432,8 +436,8 @@ maestro_append_first_install_nix_options() {
   local -n command_ref="$1"
   command_ref+=(
     --option extra-experimental-features "nix-command flakes"
-    --option extra-substituters "$MAESTRO_DETERMINATE_SUBSTITUTER $MAESTRO_CACHE_SUBSTITUTER $MAESTRO_XO_SUBSTITUTER"
-    --option extra-trusted-public-keys "$MAESTRO_DETERMINATE_PUBLIC_KEY $MAESTRO_CACHE_PUBLIC_KEY $MAESTRO_XO_PUBLIC_KEY"
+    --option extra-substituters "$MAESTRO_DETERMINATE_SUBSTITUTER $MAESTRO_CACHE_SUBSTITUTER $MAESTRO_XO_SUBSTITUTER $MAESTRO_DEVENV_SUBSTITUTER $MAESTRO_COMMUNITY_SUBSTITUTER"
+    --option extra-trusted-public-keys "$MAESTRO_DETERMINATE_PUBLIC_KEY $MAESTRO_CACHE_PUBLIC_KEY $MAESTRO_XO_PUBLIC_KEY $MAESTRO_DEVENV_PUBLIC_KEY $MAESTRO_COMMUNITY_PUBLIC_KEY"
   )
 }
 
