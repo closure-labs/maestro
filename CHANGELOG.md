@@ -9,6 +9,13 @@ correspond to published GitHub tags.
 
 ## [Unreleased]
 
+### Fixed
+
+- Explicitly enqueue ready trusted bot updates, preserving the protected merge
+  queue when auto-merge alone leaves an update waiting outside it. Release
+  version preparation and advancement wait for successful exact-head CI before
+  requesting queue entry; pending ordinary bot updates remain asynchronous.
+
 ## [3.0.0] - 2026-10-14
 
 ### Breaking changes
