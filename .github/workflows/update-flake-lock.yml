@@ -29,7 +29,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Nix
-        uses: ./.github/actions/setup-nix
+        uses: $/.github/actions/setup-nix
 
       - name: Refresh native and flake inputs
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' automation:update-locks

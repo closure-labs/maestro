@@ -133,7 +133,7 @@ grep -Fq '.#packages.x86_64-linux.xen-orchestra-ce' \
   || fail "installer workflow does not build Xen Orchestra explicitly"
 # The variable reference must remain literal in the workflow source.
 # shellcheck disable=SC2016
-grep -Fq 'nix path-info --store https://xen-orchestra-ce.cachix.org "$xo_out"' \
+grep -Fq 'maestro-ci-qualification-cache "$xo_out"' \
   "$TEST_ROOT/nix/automation/qualification-assets.sh" \
   || fail "installer workflow does not verify that its Xen Orchestra output is cached"
 grep -Fq 'xen-orchestra-supply-protector' \
@@ -211,7 +211,7 @@ for workflow in "$TEST_ROOT"/.github/workflows/*.yml; do
       if any(.steps[]?;
         ((.run // "") | test("(^|[[:space:]])nix[[:space:]]")) or
         ((.uses // "") | startswith("DeterminateSystems/flakehub-push@")))
-      then any(.steps[]?; .uses == "./.github/actions/setup-nix")
+      then any(.steps[]?; .uses == "$/.github/actions/setup-nix")
       else true end)
   ' >/dev/null || fail "Nix job bypasses shared hosted configuration: $workflow"
 done
@@ -224,7 +224,7 @@ grep -Fq 'DEVENV_CORES=%s' "$TEST_ROOT/.github/actions/setup-nix/export-runtime.
 grep -Fq "'' ci:verdict" \
   "$TEST_ROOT/.github/workflows/ci.yml" \
   || fail "required CI verdict does not use its declared task"
-yq -e '.jobs.verdict.steps[] | select(.uses == "./.github/actions/setup-nix")' \
+yq -e '.jobs.verdict.steps[] | select(.uses == "$/.github/actions/setup-nix")' \
   "$TEST_ROOT/.github/workflows/ci.yml" >/dev/null \
   || fail "required verdict must bootstrap its declared Nix task"
 yq -e '.jobs.verdict.timeout-minutes <= 20' "$TEST_ROOT/.github/workflows/ci.yml" >/dev/null \

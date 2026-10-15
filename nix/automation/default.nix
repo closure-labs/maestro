@@ -213,13 +213,18 @@
       runtimeInputs = commonInputs ++ [pkgs.qemu_kvm];
       source = ./boot-media.sh;
     };
+    qualification-cache = mkCommand {
+      name = "qualification-cache";
+      runtimeInputs = commonInputs;
+      source = ./qualification-cache.sh;
+    };
     qualification-assets = mkCommand {
       name = "qualification-assets";
       prefix = ''
         MAESTRO_SPDX_SCHEMA="''${MAESTRO_SPDX_SCHEMA:-${spdxSchema}}"
         export MAESTRO_SPDX_SCHEMA
       '';
-      runtimeInputs = commonInputs ++ [pkgs.check-jsonschema planRunner commands.validate-state commands.verify-inventory commands.verify-state commands.security-inventory commands.security-inventory-preflight];
+      runtimeInputs = commonInputs ++ [pkgs.check-jsonschema planRunner commands.validate-state commands.verify-inventory commands.verify-state commands.security-inventory commands.security-inventory-preflight commands.qualification-cache];
       source = ./qualification-assets.sh;
     };
     qualification-inputs = mkCommand {

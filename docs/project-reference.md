@@ -118,6 +118,10 @@ running. Use `INSTALLER_SOURCE=build` for the current checkout or
 The Determinate, Maestro, and Xen Orchestra binary caches and their public keys
 are declared in `flake.nix`; libvhdi is supplied by the Xen Orchestra closure.
 Credential-bearing configuration is kept in the runtime Secretspec contract.
+Qualification requires the exact locked XO output to be published in either the
+upstream XO cache or the Maestro mirror. Both missing publications fail the
+preflight. Mirror availability does not change the upstream supply assertion;
+normal Nix realisation still checks the reviewed trusted signatures.
 
 ## Automation
 
@@ -164,6 +168,15 @@ Credential-bearing configuration is kept in the runtime Secretspec contract.
 
 See the [Packer reference](../packer/README.md) for the installer build and
 template-sealing contract.
+
+Same-repository actions and reusable workflows use GitHub's `$/` references,
+which resolve to the running workflow's exact commit independently of checkout
+contents. The native workflow check requires this spelling and full SHA pins
+for approved external actions. The actionlint syntax check uses an equivalent
+workspace-relative copy for compatibility with older pins. Zizmor 1.29 and
+later audits the actual source; older versions use the same copy. Reference
+pinning and external-action boundaries always validate the actual source.
+See [GitHub's self-repository reference documentation](https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/).
 
 The queue credential is declared in SecretSpec as optional in the default profile and a
 required `github-queue` profile. It is required at runtime before requesting
