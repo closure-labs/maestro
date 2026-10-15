@@ -56,6 +56,32 @@ def eligible(graph, job, states, overrides=None, cancelled=False, expression=Non
 
 
 class ReleaseGraph(unittest.TestCase):
+    def test_queue_secret_stays_on_protected_queue_steps(self):
+        self.assertEqual(
+            subprocess.check_output([
+                'yq', '-r', '.on.workflow_call.secrets.MERGE_QUEUE_PAT.required',
+                str(ROOT / '.github/workflows/release.yml')], text=True).strip(),
+            'true')
+        continuation = jobs('release-continuation.yml')['finalize']
+        self.assertEqual(continuation['secrets'],
+                         {'MERGE_QUEUE_PAT': '${{ secrets.MERGE_QUEUE_PAT }}'})
+        expected = {
+            'release.yml': {'Calculate and merge the release version', 'Merge next development version'},
+            'queue-automation.yml': {'Verify, validate, and enqueue updates'},
+            'ci.yml': set(),
+            'release-continuation.yml': set(),
+        }
+        for filename, allowed in expected.items():
+            actual = set()
+            for job in jobs(filename).values():
+                self.assertNotIn('MERGE_QUEUE_PAT', job.get('env', {}))
+                for step in job.get('steps', []):
+                    if 'MERGE_QUEUE_PAT' in step.get('env', {}):
+                        actual.add(step['name'])
+                        self.assertEqual(step['env']['MERGE_QUEUE_PAT'], '${{ secrets.MERGE_QUEUE_PAT }}')
+                        self.assertEqual(step['env']['GH_TOKEN'], '${{ github.token }}')
+            self.assertEqual(actual, allowed)
+
     def test_serial_candidate_signal_survives_skipped_overlap_ancestor(self):
         states = dict.fromkeys(CI, 'success') | {'audit': 'skipped'}
         self.assertIn('audit', ancestors(CI, 'release_signal'))

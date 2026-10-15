@@ -4,6 +4,7 @@
 set -euo pipefail
 : "${MAESTRO_CI_QUALIFICATION_INPUTS:?MAESTRO_CI_QUALIFICATION_INPUTS must point to the packaged input resolver}"
 : "${MAESTRO_CI_RELEASE_MANAGER:?MAESTRO_CI_RELEASE_MANAGER must point to the packaged release manager}"
+
 : "${MAESTRO_CI_RELEASE_SPLIT:?MAESTRO_CI_RELEASE_SPLIT must point to the packaged release splitter}"
 
 test_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -11,6 +12,16 @@ export MAESTRO_INSTALLER_POLICY="$test_root/nix/automation/installer-policy.json
 
 temporary=$(mktemp -d "${TMPDIR:-/tmp}/maestro-release-assets.XXXXXX")
 trap 'rm -rf -- "$temporary"' EXIT
+# Even an already-prepared stable VERSION needs queue credentials for the
+# eventual development update. Refuse before accessing GitHub or mutating it.
+if env GITHUB_REF=refs/heads/main GITHUB_SHA=fixture GITHUB_REPOSITORY=example/maestro \
+  DEFAULT_BRANCH=main EXPECTED_AUTHOR=github-actions REQUESTED_BUMP=auto \
+  MERGE_QUEUE_PAT= "$MAESTRO_CI_RELEASE_MANAGER" prepare >"$temporary/missing-release-queue-token.log" 2>&1; then
+  echo 'Release preparation accepted a missing queue token.' >&2; exit 1
+fi
+grep -Fq 'MERGE_QUEUE_PAT must be configured before preparing a release' \
+  "$temporary/missing-release-queue-token.log"
+
 mkdir -p "$temporary/bin"
 cat >"$temporary/bin/nix" <<'EOF'
 #!/usr/bin/env bash

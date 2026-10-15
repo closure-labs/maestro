@@ -15,6 +15,9 @@ correspond to published GitHub tags.
   queue when auto-merge alone leaves an update waiting outside it. Release
   version preparation and advancement wait for successful exact-head CI before
   requesting queue entry; pending ordinary bot updates remain asynchronous.
+- Use the scoped `MERGE_QUEUE_PAT` personal token for queue admission so
+  GitHub emits native merge-group checks. Keep other automation requests on the
+  job token and reject missing queue credentials before requesting auto-merge.
 
 ## [3.0.0] - 2026-10-14
 

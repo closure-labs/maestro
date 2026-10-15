@@ -6,6 +6,7 @@ set -euo pipefail
 : "${GH_TOKEN:?GH_TOKEN must be set}"
 : "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY must be set}"
 : "${DEFAULT_BRANCH:?DEFAULT_BRANCH must be set}"
+: "${MERGE_QUEUE_PAT:?MERGE_QUEUE_PAT must be configured for protected queue admission}"
 
 pull_requests=$(gh api --paginate \
   "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=100" \

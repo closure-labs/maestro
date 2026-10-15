@@ -1,0 +1,151 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-10-15",
+  "scope": "Completed genuine v3.0.0 release with operator-assisted protected next-development advancement; first-run debugging/recovery interval is not representative unattended performance.",
+  "publication": {
+    "version": "3.0.0",
+    "source_commit": "4f778c188bc863a503871b29bbf40fc84fb8afc3",
+    "origin_run_id": 38677969826,
+    "candidate_run_id": 38678228319,
+    "continuation_run_id": 38680829362,
+    "published_at": "2026-10-15T04:37:43Z",
+    "public_github_release": true,
+    "tag_commit_verified": true,
+    "iso_sha256": "3db805ac817102e187ada15812f287efb441e8b859bc0fb29ec54b8b1689cbd5",
+    "verified_small_assets": {
+      "release-manifest.json": "9b0a25bd0a1e903eb5a600a89cd3529779a5f558d4a4e276092ad7cf3dff5fa4",
+      "maestro-v3.0.0.spdx.json.gz": "c37998e5a555cfc6f290e0a087ecf40fa752b6b7ead2135caef29200cf0c9955",
+      "maestro-v3.0.0.cdx.json.gz": "fce2b8421f9682670c5a36f71b9daf81de60c1a94616a9871dc5a9da254fbf6f"
+    },
+    "strict_gate_and_publication": {
+      "Verify final release provenance and bound SPDX attestation": {
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-10-15T04:35:32Z",
+        "completed_at": "2026-10-15T04:36:16Z"
+      },
+      "Publish versioned flake": {
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-10-15T04:36:16Z",
+        "completed_at": "2026-10-15T04:37:22Z"
+      },
+      "Publish immutable GitHub release": {
+        "status": "completed",
+        "conclusion": "success",
+        "started_at": "2026-10-15T04:37:22Z",
+        "completed_at": "2026-10-15T04:37:43Z"
+      }
+    },
+    "hardening_guide": "https://github.com/closure-labs/maestro/blob/v3.0.0/docs/hardening.md",
+    "development_advance_pr": 85
+  },
+  "timing": {
+    "scope": "Third genuine release through immutable publication; separately observed operator-assisted development advancement completed successfully.",
+    "source_sha": "4f778c188bc863a503871b29bbf40fc84fb8afc3",
+    "origin_id": 38677969826,
+    "candidate_id": 38678228319,
+    "callback_id": 38680829362,
+    "origin_created_to_publication_seconds": 3098.0,
+    "origin_active_seconds": 185.0,
+    "origin_scheduling_seconds": 3.0,
+    "candidate_scheduling_seconds": 6.0,
+    "candidate_required_validation_seconds": 1683.0,
+    "candidate_through_signal_active_seconds": 1795.0,
+    "observed_origin_released_to_verdict_seconds": 1685.0,
+    "signal_resolver_independent_context_job_seconds": 366.0,
+    "natural_noop_observer_job_seconds": 231.0,
+    "initial_callback_scheduling_seconds": 4.0,
+    "operator_dispatched_unsuccessful_queue_helper_id": 38683616666,
+    "publication_proof": "published-v3-verification-proof.json",
+    "gate_ordering_proof": "third-publication-gate-ordering.json",
+    "binding_proof": "third-handoff-binding-proof.json",
+    "comparison_limit": "Observed single genuine path, not matched synchronous causal speedup. Control-job sums are not incremental overhead estimates. Initial scheduling, active work, no-op observers and advancement/recovery are separate."
+  },
+  "runs": {
+    "38677969826": "https://github.com/closure-labs/maestro/actions/runs/38677969826",
+    "38678228319": "https://github.com/closure-labs/maestro/actions/runs/38678228319",
+    "38680829362": "https://github.com/closure-labs/maestro/actions/runs/38680829362",
+    "38688956713": "https://github.com/closure-labs/maestro/actions/runs/38688956713",
+    "38689450032": "https://github.com/closure-labs/maestro/actions/runs/38689450032",
+    "38690963051": "https://github.com/closure-labs/maestro/actions/runs/38690963051"
+  },
+  "queue_recovery": {
+    "pr_number": 85,
+    "initial_bot_enqueue_succeeded": true,
+    "bot_native_merge_group_emitted": false,
+    "manual_queue_ci_run_id": 38689450032,
+    "manual_queue_ci_conclusion": "success",
+    "manual_ci_accepted_by_merge_queue": false,
+    "operator_reenqueue_at": "2026-10-15T06:11:21Z",
+    "operator_native_merge_group_run_id": 38690963051,
+    "operator_native_merge_group_sha": "1c6ccc135f1c05862c2011caec89a0008b13b8ff",
+    "status": "merged_after_native_checks",
+    "protection_bypassed": false,
+    "merged_at": "2026-10-15T06:20:32Z",
+    "merge_sha": "1c6ccc135f1c05862c2011caec89a0008b13b8ff",
+    "native_ci_conclusion": "success",
+    "continuation_conclusion": "success",
+    "continuation_completed_at": "2026-10-15T06:20:56Z",
+    "next_development_version": "3.0.1-dev.0",
+    "unattended_advancement_demonstrated": false
+  },
+  "raw_receipts_sha256": {
+    "third-origin-run.json": "778cda8c10cb1734ff38e7175164e081e6bed86eb6c0e28456eb2f8c92652f62",
+    "third-origin-jobs.json": "2afcf3bde7141022f187c81e8a6146d7e6ce36f69615b60e610685e8e71762f5",
+    "third-candidate-run.json": "c5df40d7ef5ab595305db2cacafbe560cea082cbb50e70c033ea5f0e6d37d4fe",
+    "third-candidate-jobs.json": "37ea0ad002be0e08c635b76d76a341cd077393cd45a289a2250eace8a4726169",
+    "third-observer-origin-run.json": "73b19fdc9c53699b6b790c0b7f45b70286e4b95e1c1fbb915732d0160610570e",
+    "third-observer-origin-jobs.json": "effafa39a449ba100fa1620e3be0ee8ed85e76b532bd879e5c727840d7c4ee3e",
+    "third-observer-main-run.json": "5a95ad4617c3b080a2db482b642313689923888143dee10efd5b408f8a300dd8",
+    "third-observer-main-jobs.json": "7ec2c6f5e268f7e9a7c5bfad755b067929077c238d05878d5108dcd86cfc47c8",
+    "third-advance-pr-run.json": "d3dfa0b13289ef9e7fddd05913905e91388c42b7a400277c2983a9bfc3ed23d9",
+    "third-advance-pr-jobs.json": "e94740d053b5ce7972becb76c97dae37eecc5630da2562797499628187154a28",
+    "third-fixed-queue-helper-run.json": "080c2f11e3826aa3db5f598e3ae418a897f376e2979703f4a96c88878c5af208",
+    "third-fixed-queue-helper-jobs.json": "a9ac183b8b3253710f0ea6577101034f1a3d784d44542383cc59e657ee16499a",
+    "third-advance-refreshed-pr-run.json": "c5fb26ea28947e6b8a6747e35f4a8faab0393723d21f9032d9e80b972e25e246",
+    "third-advance-refreshed-pr-jobs.json": "93387b213384098b41ed87769b61851b7606e84633bf2368b28a6c64009941bc",
+    "third-ready-queue-helper-run.json": "c6921d02ae26a6ca5cf04caf75a8b7a7df5031cfb99cdc906cae76a93e101c8d",
+    "third-ready-queue-helper-jobs.json": "21ce51cc6edf9fa1bcdf66881f210830d6153e381534a921f5bf579db7cf063e",
+    "third-assisted-queue-ci-run.json": "9da4edd829646b15dda790a522ff2dcb809df4262f86acc9a75483e47e7684f9",
+    "third-assisted-queue-ci-jobs.json": "f8c1dcf9ee0e7c2c9a554a9549c0dab423575263bf4e36af7a22729a90a7196f",
+    "third-native-queue-recovery-run.json": "df5d22382286de2037f2c943aad0d682250e038e1b5d14b8a2f2b92917b273f2",
+    "third-native-queue-recovery-jobs.json": "89a4aedc0f293ee0576d3f60c09e8130b9cd8f5ca534cce828b6064536c13286",
+    "third-explicit-continuation-run.json": "26b0214feaf79d40f67eebd2a29479453bebdea74698235998f4008781b0824e",
+    "third-explicit-continuation-jobs.json": "af3debbc4c3aa8ed4645d7c4d9bcacc5a4e8e42240b9c6442ac239e54ec6d771",
+    "third-advance-pr-final-status.json": "45269d3966fac52adac2aea1ac2784a53ccf66d4f7d0d814efca708a92a4e7de",
+    "third-native-queue-recovery-entry.json": "a3bc77095c71326fc396737b9307c73de97f7572476b395a8a294c8c3bde82b3",
+    "actual-bot-enqueue-proof.json": "26ea3b9473cbf0d8557ffe32ed2fc79f885f2824d77d3513508d746de937f60f",
+    "third-queue-rollup-comparison.json": "8cab8e0b3ee331e802c08ed442d7cb01025e0424a50954974a2d01bbcccac033",
+    "third-publication-gate-ordering.json": "058b684902f7fd010212dc73eaaa16bef114039635feec9e23292f806bdc309a",
+    "published-v3-verification-proof.json": "2138177a7d7bfbbc0d7a1e85fbadc7d4c9edf76099421c186b6d1e3f22428026"
+  },
+  "comparison_limit": "Single genuine path. The released-runner interval is observed, not matched causal time savings. Signal/control job durations are not incremental overhead estimates. Queue recovery is separate.",
+  "completed_cycle": {
+    "publication_created_to_public_seconds": 3098.0,
+    "origin_created_to_completed_callback_seconds": 9291.0,
+    "callback_scheduling_seconds": 4.0,
+    "callback_active_seconds": 7305.0,
+    "callback_completed_runner_job_seconds": 7292.0,
+    "advance_job_seconds": 6187.0,
+    "advance_job_started_at": "2026-10-15T04:37:49Z",
+    "advance_job_completed_at": "2026-10-15T06:20:56Z",
+    "pr85_merged_at": "2026-10-15T06:20:32Z",
+    "pr85_merge_sha": "1c6ccc135f1c05862c2011caec89a0008b13b8ff",
+    "native_recovery_ci": {
+      "id": 38690963051,
+      "head_sha": "1c6ccc135f1c05862c2011caec89a0008b13b8ff",
+      "queue_seconds": 4.0,
+      "validation_critical_path_seconds": 498.0,
+      "completed_runner_job_seconds": 494.0
+    },
+    "unattended_advancement_demonstrated": false,
+    "operator_assistance": [
+      "Existing token-only helper attempted green auto-merge without actual enqueue.",
+      "PR86 fixed explicit enqueue; operator-dispatched helper refreshed exact PR head, then later helper entered queue as github-actions.",
+      "GITHUB_TOKEN enqueue created no native merge_group; operator-dispatched exact synthetic-head CI passed but did not satisfy queue rollup.",
+      "Operator normal dequeue/re-enqueue as declarative-dale created native merge_group 38690963051; full audit/verdict passed and GitHub merged normally."
+    ],
+    "comparison_limit": "No matched synchronous baseline; callback/advance duration includes code fixes, operator investigation and queue recovery. Observed 1,685-second origin-released interval is distinct from end-to-end latency."
+  }
+}

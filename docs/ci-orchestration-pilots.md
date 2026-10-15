@@ -116,7 +116,7 @@ and skipped the signal job. No versioned publication occurred. Signal delivery
 and the callback's scan/publication joins now override implicit status inheritance
 with `!cancelled()` and require each direct success result explicitly. Graph
 fixtures cover skipped overlap/prepare ancestors and reject failed scans or
-contexts; the live handoff still must pass before release.
+contexts. The third genuine request below passed the live handoff and publication.
 
 Duplicate completion events serialize through `maestro-release` with
 `queue: max`. A previously published exact-source tag skips scan and publication
@@ -127,13 +127,72 @@ jobs. A different published source fails. Both release and rolling publication r
 FIFO queue. If continuation fails, inspect the resolver logs and rerun its
 original completion run while the request remains valid. Disabling the variable
 stops new resolution; it does not withdraw a finalizer that already passed its
-checks. Do not enable this pilot until its protected-main rollout is reviewed.
+checks. The protected-main pilot was reviewed and explicitly enabled for the
+third genuine request. Its default remains disabled for other installations.
 
 Fixtures exercise both event orders, unfinished/failed origins and candidates,
 source/version/workflow/repository mismatch, expiry, multi-document request
 rejection, ambiguous candidates, bounded lookup overflow, pending isolation,
 disabled dispatch and preserved synchronous dispatch. They do not fake a
 hosted release or replace attestation verification.
+
+## Genuine release continuation result
+
+The third request on 2026-10-15 UTC published immutable
+[Maestro v3.0.0](https://github.com/closure-labs/maestro/releases/tag/v3.0.0)
+from `4f778c188bc863a503871b29bbf40fc84fb8afc3`.
+[Origin 38677969826](https://github.com/closure-labs/maestro/actions/runs/38677969826)
+created its immutable request before dispatching
+[candidate 38678228319](https://github.com/closure-labs/maestro/actions/runs/38678228319)
+and finished successfully without watching qualification. The candidate passed
+the complete audit, qualification, current scan, signing and required verdict,
+then successfully signaled
+[continuation 38680829362](https://github.com/closure-labs/maestro/actions/runs/38680829362).
+The callback independently resolved the same request, candidate and release
+source, then passed the authoritative context and fresh rescan gates.
+
+The final filename's exact ISO provenance and bound SPDX attestation passed at
+04:36:16 UTC. Only afterward did versioned FlakeHub publication succeed at
+04:37:22 and immutable GitHub publication at 04:37:43. The public manifest and
+compressed SPDX/CycloneDX assets matched their published checksums. The ISO
+checksum is `3db805ac817102e187ada15812f287efb441e8b859bc0fb29ec54b8b1689cbd5`.
+The candidate reused matching qualified media and refreshed evidence with the
+captured Nix CLI; its qualification log contained no unknown-setting warnings.
+SPDX contained 811 native packages, while the combined CycloneDX inventory
+contained 4,180 native and npm components. These intentionally different
+inventory scopes do not imply lost components.
+
+| Observed measure | Duration |
+| --- | ---: |
+| Origin active runner | 3m05s |
+| Origin runner released through candidate verdict | 28m05s |
+| Candidate first active job through required verdict | 28m03s |
+| Candidate through completed signal | 29m55s |
+| Origin creation through public release | 51m38s |
+
+This is one genuine release, with no matched synchronous control. The released
+runner interval is observed; it is not a causal end-to-end speedup estimate.
+Signal, resolver and independent context jobs totaled 366 seconds, and natural
+no-op observers totaled 231 seconds; these are control-job durations, not
+estimates of incremental overhead. The
+[timing receipt](benchmarks/maestro-release-observed-38677969826.json) binds
+the run IDs, immutable source, asset checksums, gate order and raw-response hashes.
+
+Development advancement is a separate result. PR #85's exact-head CI passed,
+but auto-merge alone did not enter the queue. The explicit enqueue fix in PR #86
+created a bot-owned queue entry; GitHub suppressed its native `merge_group`
+event. A manual workflow dispatch on that exact synthetic SHA passed the full
+audit and verdict, but the queue still did not accept those checks. It was
+normally dequeued and re-enqueued by the operator, producing native
+[merge-group run 38690963051](https://github.com/closure-labs/maestro/actions/runs/38690963051).
+Its native checks passed in 8m18s, PR #85 merged at 06:20:32 UTC, and the
+original continuation finished successfully at 06:20:56. Main advanced to
+`3.0.1-dev.0`. The complete origin-to-callback interval was 2h34m51s, including
+1h43m07s in advancement with debugging, fixes and queue recovery; this is not
+representative unattended performance. No protection or required check was
+bypassed. Until scoped-token queue admission
+passes a native hosted test, this is successful event-driven publication with
+operator-assisted advancement, not a fully unattended release-cycle result.
 
 ## Observed hosted overlap pair
 
@@ -167,8 +226,8 @@ The [observed report](benchmarks/maestro-overlap-observed-38634526399-3863459490
 retain per-job/step timings and qualification input parity. They describe the
 measured source before subsequent independent changes; later changes do not
 retroactively receive this result. Event-driven release continuation remains
-disabled by default and has fixture evidence only. No genuine release was
-manufactured or published for this benchmark.
+disabled by default; its subsequent genuine release result is documented above.
+No genuine release was manufactured or published for the overlap benchmark.
 
 ## Historical timing model
 
@@ -195,8 +254,7 @@ devenv shell -- python3 nix/automation/pilot-benchmark.py /tmp/maestro-jobs.json
 ```
 
 Event continuation saves the idle release runner's CI watch period; it does not
-shorten qualification or either protected VERSION merge. No hosted
-continuation/release performance measurement is claimed. Fixtures confirm that
-event dispatch omits the watch call. Benchmark it using fixtures and metadata
-until a reviewed genuine release requests the pilot; do not manufacture or
-publish a versioned release merely to measure it.
+shorten qualification or either protected VERSION merge. Fixtures confirm that
+event dispatch omits the watch call. The genuine release above supplies an
+observed path, with queue recovery recorded separately; do not manufacture or
+publish another versioned release merely to measure it.

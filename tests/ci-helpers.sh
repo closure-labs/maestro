@@ -434,6 +434,14 @@ grep -Fq 'maestro-installer login:' "$temporary/boot-logs/"*.log
 cat >"$temporary/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
+# Only merge/queue mutations receive the dedicated token. Every other request
+# must retain the job token, including reads, branch refresh and CI dispatch.
+if [[ "$1 $2" == 'pr merge' ||
+      ( "$1 $2" == 'api graphql' && "$*" == *'enqueuePullRequest(input:'* ) ]]; then
+  [[ "$GH_TOKEN" == queue-fixture ]]
+else
+  [[ "$GH_TOKEN" == fixture ]]
+fi
 if [[ "$1 $2" == 'pr view' ]]; then
   fake_head=${FAKE_HEAD_SHA:-abc123}
   if [[ ${FAKE_CHANGE_AFTER_WATCH:-false} == true && -e ${FAKE_WATCH_MARKER:-/nonexistent} ]]; then
@@ -524,6 +532,7 @@ chmod +x "$temporary/bin/gh"
 trusted_env=(
   CI_POLL_INTERVAL=0
   GH_TOKEN=fixture
+  MERGE_QUEUE_PAT=queue-fixture
   GITHUB_REPOSITORY=example/maestro
   PR_NUMBER=1
   EXPECTED_BRANCH=automation/test
@@ -553,6 +562,14 @@ sync_env=(
   FAKE_ENQUEUE_LOG="$temporary/enqueue.log"
   FAKE_QUEUE_CHECK_LOG="$temporary/queue-check.log"
 )
+# A missing queue credential must fail before enabling auto-merge or enqueue.
+rm -f "$temporary/merge.log" "$temporary/enqueue.log"
+if env PATH="$temporary/bin:$PATH" "${trusted_env[@]}" MERGE_QUEUE_PAT= \
+  "$MAESTRO_CI_TRUSTED_UPDATE" >"$temporary/missing-queue-token.log" 2>&1; then
+  echo 'Trusted update accepted a missing queue token.' >&2; exit 1
+fi
+[[ ! -e $temporary/merge.log && ! -e $temporary/enqueue.log ]]
+grep -Fq 'MERGE_QUEUE_PAT must be configured' "$temporary/missing-queue-token.log"
 env PATH="$temporary/bin:$PATH" "${sync_env[@]}" "$MAESTRO_CI_TRUSTED_UPDATE"
 [[ -s $temporary/enqueue.log && -e $temporary/watched ]]
 for refusal in FAKE_CI_FAILURE=true FAKE_CHANGE_AFTER_WATCH=true; do

@@ -289,6 +289,11 @@ in {
           jq -e '.required == ["CACHIX_MAESTRO_PUBKEY", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS"]' github-schema.json >/dev/null
           secretspec schema \
             --file ${inputs.self}/secretspec.toml \
+            --profile github-queue \
+            --output queue-schema.json
+          jq -e '.required == ["CACHIX_MAESTRO_PUBKEY", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS", "MERGE_QUEUE_PAT"]' queue-schema.json >/dev/null
+          secretspec schema \
+            --file ${inputs.self}/secretspec.toml \
             --profile github-publish \
             --output publish-schema.json
           jq -e \
