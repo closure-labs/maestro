@@ -436,6 +436,9 @@ cat >"$temporary/bin/gh" <<'EOF'
 set -euo pipefail
 if [[ "$1 $2" == 'pr view' ]]; then
   fake_head=${FAKE_HEAD_SHA:-abc123}
+  if [[ ${FAKE_CHANGE_AFTER_WATCH:-false} == true && -e ${FAKE_WATCH_MARKER:-/nonexistent} ]]; then
+    fake_head=changed-after-ci
+  fi
   if [[ -n ${FAKE_UPDATE_MARKER:-} && -e $FAKE_UPDATE_MARKER ]]; then
     if [[ -n ${FAKE_UPDATE_DELAY_MARKER:-} && ! -e $FAKE_UPDATE_DELAY_MARKER ]]; then
       touch "$FAKE_UPDATE_DELAY_MARKER"
@@ -443,10 +446,18 @@ if [[ "$1 $2" == 'pr view' ]]; then
       fake_head=${FAKE_UPDATED_HEAD_SHA:-$fake_head}
     fi
   fi
+  fake_state=OPEN
+  if [[ ${FAKE_SYNC_WAIT:-false} == true ]] &&
+    { [[ -e ${FAKE_ENQUEUE_LOG:-/nonexistent} ]] ||
+      [[ ${FAKE_QUEUE_PRESENT:-false} == true && -e ${FAKE_QUEUE_CHECK_LOG:-/nonexistent} ]] ||
+      [[ ${FAKE_MERGED_AFTER_WATCH:-false} == true && -e ${FAKE_WATCH_MARKER:-/nonexistent} ]]; }; then
+    fake_state=MERGED
+  fi
   jq -n \
     --arg author "${FAKE_AUTHOR:-release-bot}" \
     --arg head "$fake_head" \
-    '{author:{login:$author},baseRefName:"main",headRefName:"automation/test",headRefOid:$head,headRepository:{nameWithOwner:"example/maestro"},mergeStateStatus:"CLEAN",state:"OPEN",title:"Trusted update",url:"https://example.invalid/pr/1"}'
+    --arg state "$fake_state" \
+    '{id:"PR_fixture",author:{login:$author},baseRefName:"main",headRefName:"automation/test",headRefOid:$head,headRepository:{nameWithOwner:"example/maestro"},mergeCommit:{oid:"merged123"},mergeStateStatus:"CLEAN",state:$state,title:"Trusted update",url:"https://example.invalid/pr/1"}'
 elif [[ "$1 $2" == 'run list' ]]; then
   if [[ -n ${FAKE_DISPATCH_MARKER:-} && ! -e $FAKE_DISPATCH_MARKER ]]; then
     printf '[]\n'
@@ -464,12 +475,35 @@ elif [[ "$1 $2" == 'run list' ]]; then
     '[{conclusion:$conclusion,databaseId:$id,headSha:$head,status:$status}]'
 elif [[ "$1 $2" == 'run view' ]]; then
   printf '%s\n' "${FAKE_VIEW_HEAD_SHA:-abc123}"
+elif [[ "$1 $2" == 'run watch' ]]; then
+  [[ "$3" == 42 && "$*" == *'--interval 30 --exit-status'* ]]
+  [[ -z ${FAKE_WATCH_MARKER:-} ]] || touch "$FAKE_WATCH_MARKER"
+  [[ ${FAKE_CI_FAILURE:-false} != true ]]
 elif [[ "$1 $2" == 'pr update-branch' ]]; then
   [[ -z ${FAKE_UPDATE_MARKER:-} ]] || touch "$FAKE_UPDATE_MARKER"
 elif [[ "$1 $2" == 'pr merge' ]]; then
   printf '%s\n' "$*" >"$FAKE_MERGE_LOG"
 elif [[ "$1 $2" == 'workflow run' ]]; then
   [[ -z ${FAKE_DISPATCH_MARKER:-} ]] || touch "$FAKE_DISPATCH_MARKER"
+elif [[ "$1 $2" == 'api graphql' && "$*" == *'enqueuePullRequest(input:'* ]]; then
+  [[ "$*" == *'expectedHeadOid: $head'* && "$*" == *'id=PR_fixture'* && "$*" == *'head=abc123'* ]]
+  [[ "$*" != *jump* && "$*" != *admin* ]]
+  if [[ ${FAKE_REQUIRE_WATCH:-false} == true ]]; then
+    [[ -e $FAKE_WATCH_MARKER ]]
+  fi
+  printf '%s\n' "$*" >"$FAKE_ENQUEUE_LOG"
+  jq -n --arg head "${FAKE_QUEUE_REPLY_HEAD:-abc123}" \
+    '{data:{enqueuePullRequest:{mergeQueueEntry:{id:"MQ_fixture",pullRequest:{id:"PR_fixture",headRefOid:$head}}}}}'
+elif [[ "$1 $2" == 'api graphql' ]]; then
+  [[ -z ${FAKE_QUEUE_CHECK_LOG:-} ]] || printf 'checked\n' >>"$FAKE_QUEUE_CHECK_LOG"
+  queue_state=${FAKE_QUEUE_STATE:-CLEAN}
+  if [[ -n ${FAKE_QUEUE_READY_MARKER:-} && ! -e $FAKE_QUEUE_READY_MARKER ]]; then
+    queue_state=BLOCKED
+    touch "$FAKE_QUEUE_READY_MARKER"
+  fi
+  jq -n --arg head "${FAKE_QUEUE_HEAD:-${FAKE_RUN_HEAD_SHA:-abc123}}" \
+    --arg state "$queue_state" --argjson present "${FAKE_QUEUE_PRESENT:-true}" \
+    '{data:{node:{id:"PR_fixture",headRefOid:$head,isInMergeQueue:$present,mergeStateStatus:$state}}}'
 elif [[ "$1" == api && "$*" == *'/actions/runs/42/approve'* ]]; then
   [[ -z ${FAKE_APPROVAL_MARKER:-} ]] || touch "$FAKE_APPROVAL_MARKER"
 elif [[ "$1" == api && "$*" == *'/pulls/1/files?'* ]]; then
@@ -500,6 +534,68 @@ trusted_env=(
   EXPECTED_VERSION=1.2.3
   FAKE_MERGE_LOG="$temporary/merge.log"
 )
+
+# Model the observed green auto-merge request outside the queue. Only explicit
+# enqueue makes it merge; sleeps are elided while retaining the bounded loop.
+cat >"$temporary/bin/sleep" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+sed -i "1c#!${BASH}" "$temporary/bin/sleep"
+chmod +x "$temporary/bin/sleep"
+sync_env=(
+  "${trusted_env[@]}"
+  WAIT_FOR_MERGE=true
+  FAKE_SYNC_WAIT=true
+  FAKE_REQUIRE_WATCH=true
+  FAKE_QUEUE_PRESENT=false
+  FAKE_WATCH_MARKER="$temporary/watched"
+  FAKE_ENQUEUE_LOG="$temporary/enqueue.log"
+  FAKE_QUEUE_CHECK_LOG="$temporary/queue-check.log"
+)
+env PATH="$temporary/bin:$PATH" "${sync_env[@]}" "$MAESTRO_CI_TRUSTED_UPDATE"
+[[ -s $temporary/enqueue.log && -e $temporary/watched ]]
+for refusal in FAKE_CI_FAILURE=true FAKE_CHANGE_AFTER_WATCH=true; do
+  rm -f "$temporary/enqueue.log" "$temporary/merge.log" "$temporary/watched"
+  if env PATH="$temporary/bin:$PATH" "${sync_env[@]}" "$refusal" \
+    "$MAESTRO_CI_TRUSTED_UPDATE" >/dev/null 2>&1; then
+    printf 'Trusted update accepted failed CI or a changed head after CI.\n' >&2
+    exit 1
+  fi
+  [[ ! -e $temporary/enqueue.log && ! -e $temporary/merge.log ]]
+done
+rm -f "$temporary/enqueue.log" "$temporary/queue-check.log"
+env PATH="$temporary/bin:$PATH" "${sync_env[@]}" FAKE_QUEUE_PRESENT=true \
+  "$MAESTRO_CI_TRUSTED_UPDATE"
+[[ ! -e $temporary/enqueue.log ]]
+rm -f "$temporary/queue-check.log" "$temporary/queue-ready"
+env PATH="$temporary/bin:$PATH" "${sync_env[@]}" \
+  FAKE_QUEUE_READY_MARKER="$temporary/queue-ready" "$MAESTRO_CI_TRUSTED_UPDATE"
+[[ -s $temporary/enqueue.log && $(wc -l <"$temporary/queue-check.log") -ge 2 ]]
+rm -f "$temporary/enqueue.log" "$temporary/merge.log" "$temporary/watched"
+env PATH="$temporary/bin:$PATH" "${sync_env[@]}" FAKE_MERGED_AFTER_WATCH=true \
+  "$MAESTRO_CI_TRUSTED_UPDATE"
+[[ ! -e $temporary/enqueue.log && ! -e $temporary/merge.log ]]
+rm -f "$temporary/enqueue.log" "$temporary/watched"
+if env PATH="$temporary/bin:$PATH" "${sync_env[@]}" FAKE_QUEUE_REPLY_HEAD=wrong \
+  "$MAESTRO_CI_TRUSTED_UPDATE" >/dev/null 2>&1; then
+  printf 'Trusted update accepted a queue response for another head.\n' >&2
+  exit 1
+fi
+
+# Async helpers never watch CI. Pending checks stay async; CLEAN exact heads
+# enter the protected queue without relying on another auto-merge event.
+rm -f "$temporary/enqueue.log" "$temporary/watched"
+env PATH="$temporary/bin:$PATH" "${trusted_env[@]}" FAKE_QUEUE_PRESENT=false \
+  FAKE_QUEUE_STATE=BLOCKED FAKE_WATCH_MARKER="$temporary/watched" \
+  FAKE_ENQUEUE_LOG="$temporary/enqueue.log" "$MAESTRO_CI_TRUSTED_UPDATE"
+[[ ! -e $temporary/enqueue.log && ! -e $temporary/watched ]]
+env PATH="$temporary/bin:$PATH" "${trusted_env[@]}" FAKE_QUEUE_PRESENT=false \
+  FAKE_WATCH_MARKER="$temporary/watched" FAKE_ENQUEUE_LOG="$temporary/enqueue.log" \
+  "$MAESTRO_CI_TRUSTED_UPDATE"
+[[ -s $temporary/enqueue.log && ! -e $temporary/watched ]]
+rm -f "$temporary/bin/sleep"
+
 env PATH="$temporary/bin:$PATH" "${trusted_env[@]}" \
   "$MAESTRO_CI_TRUSTED_UPDATE"
 grep -Fq -- '--auto' "$temporary/merge.log"

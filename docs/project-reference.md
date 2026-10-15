@@ -135,7 +135,9 @@ Credential-bearing configuration is kept in the runtime Secretspec contract.
   request.
 - Weekly grouped Dependabot updates carry a seven-day cooldown. A narrow bot
   verifies the exact trusted author, repository, branch, title, and head SHA,
-  waits for that SHA's CI, and only then enables protected-branch auto-merge.
+  enables protected-branch auto-merge while CI is pending, and explicitly
+  enqueues a ready, revalidated exact head through the normal protected queue.
+  Ordinary bot updates remain asynchronous.
 - Successful installer builds publish the `0.2` rolling FlakeHub release. The
   dedicated release workflow selects a semantic version through a protected
   pull request, verifies the complete signed builder inventory and rescans vulnerabilities, fills a draft GitHub
@@ -145,9 +147,13 @@ Credential-bearing configuration is kept in the runtime Secretspec contract.
   development version passes through the same protection.
 - Release, development-version, and flake-input pull requests use the
   repository-scoped `GITHUB_TOKEN`. Trusted automation dispatches CI for the
-  exact head SHA, waits for the protected `Required CI verdict`, and enables auto-merge
-  after validating the bot identity, branch, title, repository, and allowlisted
-  files. Version pull requests carry exactly the `VERSION` change.
+  exact head SHA and validates the bot identity, branch, title, repository, and
+  allowlisted files before any merge request. Release version preparation and
+  next-development advancement wait for that exact CI run to succeed, then
+  revalidate and request queue entry with an atomic head check. Their existing
+  bounded merge wait retries when GitHub is still calculating readiness.
+  Queue admission still requires the normal merge-group CI. Version pull
+  requests carry exactly the `VERSION` change.
 - `VERSION` records the current development release. The release workflow
   changes it to the selected stable version and advances it to the next patch
   development version after publication.

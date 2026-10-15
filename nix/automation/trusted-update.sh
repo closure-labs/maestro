@@ -19,7 +19,7 @@ ci_poll_interval=${CI_POLL_INTERVAL:-5}
 read_pr() {
   gh pr view "$PR_NUMBER" \
     --repo "$GITHUB_REPOSITORY" \
-    --json author,baseRefName,headRefName,headRefOid,headRepository,mergeStateStatus,state,title,url
+    --json id,author,baseRefName,headRefName,headRefOid,headRepository,mergeCommit,mergeStateStatus,state,title,url
 }
 
 validate_pr() {
@@ -158,7 +158,17 @@ done
   printf 'Could not locate pull-request CI for trusted update %s.\n' "$PR_NUMBER" >&2
   exit 1
 }
+if [[ "$wait_for_merge" == true ]]; then
+  # These callers already wait for merge. Acquire successful exact-head CI
+  # before the final allowlist check and protected queue request.
+  gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --interval 30 --exit-status
+fi
 pr=$(read_pr)
+if [[ "$wait_for_merge" == true && $(jq -er .state <<<"$pr") == MERGED ]]; then
+  [[ $(jq -er .headRefOid <<<"$pr") == "$head_sha" ]]
+  jq -er .mergeCommit.oid <<<"$pr"
+  exit 0
+fi
 validate_pr "$pr"
 validate_changes "$pr"
 [[ $(jq -er .headRefOid <<<"$pr") == "$head_sha" ]] || {
@@ -171,15 +181,59 @@ gh pr merge \
   --match-head-commit "$head_sha" \
   "$pr_url"
 
+enqueue_if_ready() {
+  local queue_state current_pr queued
+  # GraphQL variables are supplied separately and must stay literal here.
+  # shellcheck disable=SC2016
+  queue_state=$(gh api graphql -f query='
+    query($id: ID!) {
+      node(id: $id) { ... on PullRequest { id headRefOid isInMergeQueue mergeStateStatus } }
+    }' -f id="$(jq -er .id <<<"$pr")")
+  jq -e --arg head "$head_sha" '.data.node.headRefOid == $head' <<<"$queue_state" >/dev/null
+  if [[ $(jq -r .data.node.isInMergeQueue <<<"$queue_state") == true ||
+        $(jq -r .data.node.mergeStateStatus <<<"$queue_state") != CLEAN ]]; then
+    return
+  fi
+  current_pr=$(read_pr)
+  [[ $(jq -er .headRefOid <<<"$current_pr") == "$head_sha" ]]
+  if [[ $(jq -er .state <<<"$current_pr") == MERGED ]]; then
+    return
+  fi
+  validate_pr "$current_pr"
+  validate_changes "$current_pr"
+  # Enabling auto-merge is not proof of queue membership. Use the protected
+  # enqueue operation, preserving atomic head binding and the normal queue CI.
+  # shellcheck disable=SC2016
+  queued=$(gh api graphql -f query='
+    mutation($id: ID!, $head: GitObjectID!) {
+      enqueuePullRequest(input: {pullRequestId: $id, expectedHeadOid: $head}) {
+        mergeQueueEntry { id pullRequest { id headRefOid } }
+      }
+    }' -f id="$(jq -er .id <<<"$current_pr")" -f head="$head_sha")
+  jq -e --arg id "$(jq -er .id <<<"$current_pr")" --arg head "$head_sha" '
+    .data.enqueuePullRequest.mergeQueueEntry as $entry |
+    ($entry.id | type == "string" and length > 0) and
+    $entry.pullRequest.id == $id and $entry.pullRequest.headRefOid == $head
+  ' <<<"$queued" >/dev/null
+}
+
+# The asynchronous queue helper must also turn a green auto-merge request into
+# an actual queue entry; pending checks return immediately without watching.
+enqueue_if_ready
+
 if [[ "$wait_for_merge" == true ]]; then
   for _ in {1..240}; do
     state=$(gh pr view "$PR_NUMBER" \
       --repo "$GITHUB_REPOSITORY" \
-      --json mergeCommit,state)
+      --json headRefOid,mergeCommit,state)
+    [[ $(jq -er .headRefOid <<<"$state") == "$head_sha" ]]
     if [[ $(jq -r .state <<<"$state") == MERGED ]]; then
       jq -er .mergeCommit.oid <<<"$state"
       exit 0
     fi
+    # GitHub may still be recomputing CLEAN after CI completes. Recheck during
+    # the existing bounded wait instead of leaving an auto-merge request idle.
+    enqueue_if_ready
     sleep 30
   done
   printf 'Timed out waiting for trusted update %s to merge.\n' "$PR_NUMBER" >&2
