@@ -38,11 +38,13 @@ class Requests(unittest.TestCase):
         self.origin, self.candidate = run(10, 'release.yml', INITIAL), run(20, 'ci.yml')
         self.request['expires_at'] = (module.timestamp(self.origin['created_at']) + module.TTL).isoformat()
         env = patch.dict(os.environ, GITHUB_OUTPUT=str(self.output), MAESTRO_RELEASE_CONTINUATION_ENABLED='true',
-                         RELEASE_REQUEST_RUN_ID='10', RELEASE_CANDIDATE_RUN_ID='20')
+                         MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID='', GITHUB_REF='refs/heads/main',
+                         GITHUB_EVENT_NAME='workflow_run', GITHUB_SHA=SOURCE,
+                         RELEASE_REQUEST_RUN_ID='10', RELEASE_CANDIDATE_RUN_ID='20', GITHUB_RUN_ID='20')
         env.start()
         self.addCleanup(env.stop)
 
-    def api(self, path):
+    def api(self, path, **kwargs):
         if path == 'actions/runs/10':
             return self.origin
         if path == 'actions/runs/20':
@@ -54,7 +56,8 @@ class Requests(unittest.TestCase):
         self.fail('Unexpected API: ' + path)
 
     def resolve(self):
-        with patch.object(module, 'api', side_effect=self.api), patch.object(module, 'journal', return_value=self.request), patch.object(module, 'published', return_value=False):
+        with patch.object(module, 'api', side_effect=self.api), patch.object(module, 'journal', return_value=self.request), \
+                patch.object(module, 'published', return_value=False), patch.object(module.time, 'sleep'):
             module.resolve()
         return self.output.read_text()
 
@@ -98,8 +101,108 @@ class Requests(unittest.TestCase):
                     original = target[field]
                     target[field] = value
                     self.output.unlink(missing_ok=True)
-                    self.assertEqual(self.resolve(), 'ready=false\n')
+                    if field == 'status':
+                        with self.assertRaisesRegex(ValueError, 'timed out'):
+                            self.resolve()
+                    else:
+                        self.assertEqual(self.resolve(), 'ready=false\n')
                     target[field] = original
+
+    def test_explicit_completion_wait_is_bounded_and_requires_success(self):
+        running = self.candidate | {'status': 'in_progress', 'conclusion': None}
+        responses = [running, self.candidate]
+        def api(path, **kwargs):
+            return responses.pop(0) if path == 'actions/runs/20' else self.api(path)
+        with patch.dict(os.environ, GITHUB_EVENT_NAME='workflow_dispatch'), \
+                patch.object(module, 'api', side_effect=api), patch.object(module, 'journal', return_value=self.request), \
+                patch.object(module, 'published', return_value=False), patch.object(module.time, 'sleep') as sleep:
+            module.resolve()
+        sleep.assert_called_once_with(5)
+        self.assertIn('ready=true', self.output.read_text())
+        self.output.unlink()
+        self.candidate.update(status='in_progress', conclusion=None)
+        with patch.object(module.time, 'sleep') as sleep, patch.object(module, 'api', side_effect=self.api), \
+                patch.object(module, 'journal', return_value=self.request):
+            with self.assertRaisesRegex(ValueError, 'timed out'):
+                module.resolve()
+        self.assertEqual(sleep.call_count, 24)
+        self.assertFalse(self.output.exists())
+
+    def test_origin_second_order_and_shared_poll_deadline(self):
+        running = self.origin | {'status': 'in_progress', 'conclusion': None}
+        responses = [running, self.origin]
+        def api(path, **kwargs):
+            return responses.pop(0) if path == 'actions/runs/10' else self.api(path)
+        with patch.dict(os.environ, GITHUB_EVENT_NAME='workflow_dispatch'), \
+                patch.object(module, 'api', side_effect=api), patch.object(module, 'journal', return_value=self.request), \
+                patch.object(module, 'published', return_value=False), patch.object(module.time, 'sleep') as sleep:
+            module.resolve()
+        sleep.assert_called_once_with(5)
+        self.assertIn('ready=true', self.output.read_text())
+        running = self.candidate | {'status': 'in_progress', 'conclusion': None}
+        with patch.object(module.time, 'monotonic', side_effect=[0, 5, 6]), \
+                patch.object(module.time, 'sleep') as sleep, patch.object(module, 'api', return_value=self.candidate) as api:
+            self.assertEqual(module.completion(running, 120), self.candidate)
+        sleep.assert_called_once_with(5)
+        api.assert_called_once_with('actions/runs/20', timeout=115)
+        with patch.object(module.time, 'monotonic', return_value=121), patch.object(module, 'api') as api:
+            with self.assertRaisesRegex(ValueError, 'timed out'):
+                module.completion(running, 120)
+        api.assert_not_called()
+
+    def test_explicit_input_validation_and_protected_context(self):
+        for env in [{'RELEASE_REQUEST_RUN_ID': '0'}, {'RELEASE_CANDIDATE_RUN_ID': '../20'},
+                    {'RELEASE_CANDIDATE_RUN_ID': ''}, {'GITHUB_REF': 'refs/heads/evil'},
+                    {'GITHUB_EVENT_NAME': 'pull_request'}]:
+            with self.subTest(env=env), patch.dict(os.environ, **env):
+                with self.assertRaises(ValueError):
+                    self.resolve()
+
+    def test_exact_request_retirement_preserves_other_requests(self):
+        with patch.dict(os.environ, MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID='10'):
+            self.assertEqual(self.resolve(), 'ready=false\n')
+            with patch.object(module, 'recent', return_value=[self.origin]), patch.object(module, 'published') as published:
+                module.pending()
+                published.assert_not_called()
+        for value in ['0', '*', '10,11', '../10', '-1']:
+            with self.subTest(value=value), patch.dict(os.environ, MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID=value):
+                with self.assertRaises(ValueError):
+                    self.resolve()
+        with patch.dict(os.environ, MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID='11'):
+            self.output.unlink()
+            self.assertIn('ready=true', self.resolve())
+
+    def test_signal_dispatches_only_exact_candidate_after_successful_verdict(self):
+        verdict = dict(name='Required CI verdict', status='completed', conclusion='success')
+        def api(path):
+            if path.endswith('/jobs?per_page=100'):
+                return {'total_count': 1, 'jobs': [verdict]}
+            return self.api(path)
+        def signal():
+            with patch.dict(os.environ, GITHUB_EVENT_NAME='workflow_dispatch'), \
+                    patch.object(module, 'api', side_effect=api), patch.object(module, 'journal', return_value=self.request), \
+                    patch.object(module, 'command') as command:
+                module.signal()
+                command.assert_called_once_with('gh', 'workflow', 'run', 'release-continuation.yml', '--repo', module.REPO,
+                                                '--ref', 'main', '-f', 'release_request_run_id=10', '-f', 'release_candidate_run_id=20')
+        signal()
+        self.origin.update(status='in_progress', conclusion=None)
+        signal()
+        self.origin.update(status='completed', conclusion='success')
+        for env in [{'GITHUB_SHA': INITIAL}, {'RELEASE_REQUEST_RUN_ID': '0'}, {'GITHUB_RUN_ID': '../20'},
+                    {'GITHUB_REF': 'refs/heads/evil'}, {'MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID': '10'},
+                    {'MAESTRO_RELEASE_CONTINUATION_ENABLED': 'false'}]:
+            with self.subTest(env=env), patch.dict(os.environ, **env):
+                with self.assertRaises(ValueError):
+                    signal()
+        for conclusion in ['failure', 'cancelled', 'skipped', None]:
+            verdict['conclusion'] = conclusion
+            with self.assertRaises(ValueError):
+                signal()
+        verdict['conclusion'] = 'success'
+        self.candidate['display_title'] = 'CI main'
+        with self.assertRaises(ValueError):
+            signal()
 
     def test_expiry_and_main_ancestry(self):
         with patch.object(module, 'api', return_value={'status': 'diverged'}):

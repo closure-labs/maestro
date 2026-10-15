@@ -10,6 +10,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 
 TTL = dt.timedelta(hours=48)
 NOW = dt.datetime.now(dt.timezone.utc)
@@ -17,14 +18,15 @@ REPO = os.environ.get('GITHUB_REPOSITORY', '')
 SHA = re.compile(r'[0-9a-f]{40}')
 VERSION = re.compile(r'[0-9]+\.[0-9]+\.[0-9]+')
 MARKER = re.compile(r'Maestro release request ([1-9][0-9]*)')
+RUN_ID = re.compile(r'[1-9][0-9]*')
 
 
-def command(*args):
-    return subprocess.check_output(args, text=True).strip()
+def command(*args, timeout=None):
+    return subprocess.check_output(args, text=True, timeout=timeout).strip()
 
 
-def api(path):
-    return json.loads(command('gh', 'api', f'repos/{REPO}/{path}'))
+def api(path, timeout=None):
+    return json.loads(command('gh', 'api', f'repos/{REPO}/{path}', timeout=timeout))
 
 
 def timestamp(value):
@@ -34,6 +36,31 @@ def timestamp(value):
 def require(condition, message):
     if not condition:
         raise ValueError(message)
+
+
+def retired(identity):
+    configured = os.environ.get('MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID', '')
+    require(not configured or RUN_ID.fullmatch(configured), 'Invalid retired release request ID')
+    return str(identity) == configured
+
+
+def input_run(key):
+    value = os.environ.get(key, '')
+    require(RUN_ID.fullmatch(value), 'Invalid release run ID: ' + key)
+    return api(f'actions/runs/{int(value)}')
+
+
+def completion(run, deadline):
+    for attempt in range(25):
+        if run['status'] == 'completed':
+            return run
+        remaining = deadline - time.monotonic()
+        require(attempt < 24 and remaining > 0, 'Release completion signal timed out after 120 seconds')
+        time.sleep(min(5, remaining))
+        remaining = deadline - time.monotonic()
+        require(remaining > 0, 'Release completion signal timed out after 120 seconds')
+        run = api(f"actions/runs/{run['id']}", timeout=remaining)
+        require(time.monotonic() <= deadline, 'Release completion signal timed out after 120 seconds')
 
 
 def emit(**values):
@@ -145,10 +172,13 @@ def pending():
     if os.environ.get('EVENT_CONTINUATION') == 'true':
         require(os.environ.get('MAESTRO_RELEASE_CONTINUATION_ENABLED') == 'true', 'Event continuation pilot is disabled')
     own = int(os.environ.get('GITHUB_RUN_ID', '0'))
+    retired(own)  # Validate configuration even when there are no older runs.
     for origin in recent('release.yml'):
         if origin['id'] == own:
             continue
         trusted(origin, 'release.yml')
+        if retired(origin['id']):
+            continue
         require(origin['status'] == 'completed', 'Another release request is still active')
         if origin['conclusion'] != 'success':
             continue
@@ -164,11 +194,37 @@ def pending():
         require(base64.b64decode(current['content']).decode().strip() != request['version'], 'Published release still awaits version advancement')
 
 
+def signal():
+    require(os.environ.get('MAESTRO_RELEASE_CONTINUATION_ENABLED') == 'true', 'Event continuation pilot is disabled')
+    require(os.environ.get('GITHUB_REF') == 'refs/heads/main' and os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch',
+            'Release completion signals require a main dispatch')
+    origin, run = input_run('RELEASE_REQUEST_RUN_ID'), input_run('GITHUB_RUN_ID')
+    trusted(origin, 'release.yml')
+    trusted(run, 'ci.yml')
+    require(not retired(origin['id']), 'Release request was explicitly retired')
+    request = journal(origin)
+    require(request is not None and NOW < timestamp(request['expires_at']) and
+            (origin['status'] == 'in_progress' or
+             (origin['status'] == 'completed' and origin['conclusion'] == 'success')), 'Release request is not active')
+    require(run['head_sha'] == request['source_sha'] == os.environ.get('GITHUB_SHA') and
+            run['display_title'] == f"Maestro release request {origin['id']}", 'Completion signal candidate identity mismatch')
+    jobs = api(f"actions/runs/{run['id']}/jobs?per_page=100")
+    require(jobs['total_count'] <= 100, 'Release candidate job lookup overflow')
+    verdicts = [job for job in jobs['jobs'] if job['name'] == 'Required CI verdict']
+    require(len(verdicts) == 1 and verdicts[0]['status'] == 'completed' and verdicts[0]['conclusion'] == 'success',
+            'Release candidate verdict has not succeeded')
+    command('gh', 'workflow', 'run', 'release-continuation.yml', '--repo', REPO, '--ref', 'main',
+            '-f', f"release_request_run_id={origin['id']}", '-f', f"release_candidate_run_id={run['id']}")
+
+
 def resolve():
     require(os.environ.get('MAESTRO_RELEASE_CONTINUATION_ENABLED') == 'true', 'Event continuation pilot is disabled')
-    if 'RELEASE_REQUEST_RUN_ID' in os.environ:
-        origin = api(f"actions/runs/{int(os.environ['RELEASE_REQUEST_RUN_ID'])}")
-        run = api(f"actions/runs/{int(os.environ['RELEASE_CANDIDATE_RUN_ID'])}")
+    explicit = bool(os.environ.get('RELEASE_REQUEST_RUN_ID') or os.environ.get('RELEASE_CANDIDATE_RUN_ID'))
+    if explicit:
+        require(os.environ.get('GITHUB_REF') == 'refs/heads/main' and
+                os.environ.get('GITHUB_EVENT_NAME') in ('workflow_dispatch', 'workflow_run'),
+                'Explicit continuation requires protected main')
+        origin, run = input_run('RELEASE_REQUEST_RUN_ID'), input_run('RELEASE_CANDIDATE_RUN_ID')
     else:
         event = json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text())['workflow_run']
         # workflow_run is an untrusted trigger: fetch current authoritative
@@ -187,12 +243,26 @@ def resolve():
             emit(ready=False)
             return
     trusted(origin, 'release.yml')
+    if retired(origin['id']):
+        emit(ready=False)
+        return
     request = journal(origin)
-    if request is None or NOW >= timestamp(request['expires_at']) or origin['status'] != 'completed' or origin['conclusion'] != 'success':
+    if request is None or NOW >= timestamp(request['expires_at']):
         emit(ready=False)
         return
     run = run or candidate(request)
-    if run is None or run['status'] != 'completed' or run['conclusion'] != 'success':
+    if explicit and run is not None:
+        trusted(run, 'ci.yml')
+        require(run['head_sha'] == request['source_sha'] and
+                run['display_title'] == f"Maestro release request {origin['id']}", 'Continuation candidate identity mismatch')
+        # The signal job dispatches before its own run has fully completed.
+        # Bound this short scheduling race; never wait for qualification here.
+        deadline = time.monotonic() + 120
+        origin = completion(origin, deadline)
+        if origin['conclusion'] == 'success':
+            run = completion(run, deadline)
+    if (origin['status'] != 'completed' or origin['conclusion'] != 'success' or
+            run is None or run['status'] != 'completed' or run['conclusion'] != 'success'):
         emit(ready=False)
         return
     validate(request, origin, run)
@@ -211,7 +281,7 @@ def resolve():
 if __name__ == '__main__':
     try:
         require(re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', REPO), 'Invalid repository identity')
-        {'create': create, 'pending': pending, 'resolve': resolve}[sys.argv[1]]()
-    except (ValueError, KeyError, OSError, subprocess.CalledProcessError, IndexError) as error:
+        {'create': create, 'pending': pending, 'signal': signal, 'resolve': resolve}[sys.argv[1]]()
+    except (ValueError, KeyError, OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired, IndexError) as error:
         print(f'Release request rejected: {error}', file=sys.stderr)
         sys.exit(1)
