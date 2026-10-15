@@ -54,6 +54,11 @@
   };
 
   commands = {
+    release-attestations = mkCommand {
+      name = "release-attestations";
+      runtimeInputs = commonInputs;
+      source = ./release-attestations.sh;
+    };
     release-request = mkCommand {
       name = "release-request";
       prefix = ''

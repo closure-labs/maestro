@@ -163,9 +163,10 @@ fail closed instead of restoring the legacy host mount path.
 The manual host partition-mount API is disabled while isolated restore is configured.
 
 Management access uses typed `maestro.operator.managementCIDRs`, with the
-operator-approved `192.168.0.0/16` range in `host/settings.nix`. Appliance SSH
-and XO HTTP/HTTPS, plus installer SSH, accept that IPv4 range. Management ports
-are absent from global allow lists, and IPv6 management ingress remains closed.
+initial-deployment `0.0.0.0/0` and `::/0` ranges in `host/settings.nix`. Appliance SSH
+and XO HTTP/HTTPS, plus installer SSH, accept all IPv4 and IPv6 clients by default. Restrict the ranges after deployment
+using the [hardening guide](hardening.md). Management ports
+are absent from global allow lists, and each address family is restricted to its declared CIDRs.
 The VM console and per-build key enrollment provide the installation recovery
 path; new deployments qualify that path in the disposable lab.
 

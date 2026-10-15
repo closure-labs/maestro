@@ -62,6 +62,7 @@ maestroctl rollback --ask
 
 ## Next steps
 
+- [Hardening](hardening.md) to restrict the initial all-IPv4/IPv6 management access
 - [Common tasks](common-tasks.md) for SSH keys, packages, TLS, and storage
 - [Operations](operations.md) for updates, boot generations, and logs
 - [Troubleshooting](troubleshooting.md) for symptom-based checks and recovery

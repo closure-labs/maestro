@@ -11,6 +11,7 @@ in {
       packages = inputs.self.packages.${system};
       appliance = inputs.self.nixosConfigurations.maestro.config;
       xoPackages = inputs.xen-orchestra-ce.packages.${system};
+      managementCIDRType = inputs.self.nixosConfigurations.maestro.options.maestro.operator.managementCIDRs.type.nestedTypes.elemType;
       xoConfigFeatures = ["http" "redis" "remotes" "web"];
       xoConfigFragments = appliance.maestro.xo.internal.configFragments;
       fixtureInputs = [
@@ -42,6 +43,7 @@ in {
           export MAESTRO_CI_ROUTE=${lib.getExe packages.maestro-ci-route}
           export MAESTRO_CI_RESOLVE_QUALIFICATION=${lib.getExe packages.maestro-ci-resolve-qualification}
           export MAESTRO_CI_RELEASE_MANAGER=${lib.getExe packages.maestro-ci-release-manager}
+          export MAESTRO_CI_RELEASE_ATTESTATIONS=${lib.getExe packages.maestro-ci-release-attestations}
           export MAESTRO_CI_RELEASE_NOTES=${lib.getExe packages.maestro-ci-release-notes}
           export MAESTRO_CI_RELEASE_SPLIT=${lib.getExe packages.maestro-ci-release-stage}
           export MAESTRO_CI_RELEASE_VERSION=${lib.getExe packages.maestro-ci-release-version}
@@ -178,7 +180,7 @@ in {
             automation:update-locks automation:validate-locks automation:open-lock-update-pr \
             release:request release:pending release:continuation \
             release:prepare release:dispatch release:inventory release:verify \
-            release:stage release:draft release:publish release:advance; do
+            release:stage release:draft release:attestations release:publish release:advance; do
             grep -Fq "\"$task\"" nix/devenv.nix
           done
           grep -Fq 'pkgs.check-jsonschema' nix/automation/default.nix
@@ -263,6 +265,7 @@ in {
         name = "release-fixtures";
         command = ''
           bash ./tests/release-assets.sh
+          bash ./tests/release-attestations.sh
           PYTHONDONTWRITEBYTECODE=1 ${pkgs.python3}/bin/python3 tests/release-request.py
           PYTHONDONTWRITEBYTECODE=1 ${pkgs.python3}/bin/python3 tests/pilot-benchmark.py
         '';
@@ -310,7 +313,8 @@ in {
         source = inputs.self;
       };
 
-      configuration = assert appliance.maestro.xo.enable;
+      configuration = assert inputs.self.lib.ciQualificationInputs.${system}.media.dependencies.applianceToplevel == appliance.system.build.toplevel.outPath;
+      assert appliance.maestro.xo.enable;
       assert appliance.maestro.xo.channel == "latest";
       assert lib.all (channel: builtins.hasAttr channel xoPackages) ["latest" "stable" "rolling"];
       assert appliance.maestro.xo.package == xoPackages.latest;
@@ -369,7 +373,9 @@ in {
       assert appliance.systemd.services.xo-server.serviceConfig.EnvironmentFile == [];
       assert lib.all (rule: !(builtins.elem "xo" rule.users) || lib.all (command: lib.hasSuffix "/bin/xo-storage-helper" command.command) rule.commands) appliance.security.sudo.extraRules;
       assert appliance.networking.firewall.allowedTCPPorts == [];
-      assert appliance.maestro.operator.managementCIDRs == ["192.168.0.0/16"];
+      assert appliance.maestro.operator.managementCIDRs == ["0.0.0.0/0" "::/0"];
+      assert lib.all managementCIDRType.check ["0.0.0.0/0" "::/0" "192.168.98.0/24" "2001:db8::1/128"];
+      assert lib.all (cidr: !managementCIDRType.check cidr) ["0.0.0.0" "256.0.0.0/8" "192.168.0.0/33" "::/129" "2001:::1/64" "12345::/64" "::/0;accept"];
       assert !appliance.services.openssh.openFirewall;
       assert appliance.networking.firewall.allowedUDPPorts == [];
       assert !appliance.services.avahi.enable;

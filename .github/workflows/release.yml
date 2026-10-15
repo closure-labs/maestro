@@ -48,6 +48,7 @@ jobs:
       pull-requests: write
     outputs:
       run_id: ${{ steps.candidate.outputs.run_id }}
+      restarted: ${{ steps.candidate.outputs.restarted }}
       source_sha: ${{ steps.version.outputs.source_sha }}
       tag: ${{ steps.version.outputs.tag }}
       version: ${{ steps.version.outputs.version }}
@@ -104,6 +105,7 @@ jobs:
           EVENT_CONTINUATION: ${{ inputs.event_continuation || false }}
           MAESTRO_RELEASE_CONTINUATION_ENABLED: ${{ vars.MAESTRO_RELEASE_CONTINUATION_ENABLED || 'false' }}
           GH_TOKEN: ${{ github.token }}
+          REQUESTED_BUMP: ${{ inputs.bump }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:dispatch
 
   context:
@@ -111,7 +113,7 @@ jobs:
     needs: prepare
     if: >-
       !cancelled() &&
-      ((needs.prepare.result == 'success' && inputs.event_continuation != true) ||
+      ((needs.prepare.result == 'success' && inputs.event_continuation != true && needs.prepare.outputs.restarted != 'true') ||
        (github.event_name == 'workflow_run' && github.ref == 'refs/heads/main' && inputs.release_request_run_id != ''))
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -301,6 +303,13 @@ jobs:
         with:
           subject-path: ${{ runner.temp }}/maestro-${{ needs.context.outputs.tag }}.iso
           sbom-path: candidate/maestro-system.spdx.json
+
+      - name: Verify final release provenance and bound SPDX attestation
+        env:
+          RELEASE_TAG: ${{ needs.context.outputs.tag }}
+          SOURCE_SHA: ${{ needs.context.outputs.source_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:attestations
 
       - name: Publish versioned flake
         uses: DeterminateSystems/flakehub-push@2ca953b09ca13532271987be2887bbd33b99980f # main, Node.js 24 (post-v6)

@@ -39,6 +39,7 @@ The main Maestro options are grouped by purpose:
 
 | Option group | Controls |
 |---|---|
+| `maestro.operator.managementCIDRs` | IPv4/IPv6 clients allowed to access SSH/XO; defaults to `["0.0.0.0/0" "::/0"]`; see [Hardening](hardening.md) |
 | `maestro.operator.sshKeys` | SSH public keys for the `maestro` account |
 | `maestro.operator.systemPackages` | Packages available system-wide |
 | `maestro.operator.userPackages` | Packages for the operator |

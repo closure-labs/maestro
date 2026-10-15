@@ -64,7 +64,13 @@ in {
 
   networking.hostName = "maestro-installer";
   networking.firewall.allowedTCPPorts = lib.mkForce [];
-  networking.firewall.extraCommands = lib.concatMapStringsSep "\n" (cidr: "iptables -A nixos-fw -s ${lib.escapeShellArg cidr} -p tcp --dport 22 -j nixos-fw-accept") managementCIDRs;
+  networking.firewall.extraCommands =
+    lib.concatMapStringsSep "\n" (cidr: "${
+      if lib.hasInfix ":" cidr
+      then "ip6tables"
+      else "iptables"
+    } -A nixos-fw -s ${lib.escapeShellArg cidr} -p tcp --dport 22 -j nixos-fw-accept")
+    managementCIDRs;
 
   boot.kernelParams = [
     "console=tty0"

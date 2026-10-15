@@ -124,7 +124,11 @@ case "${1:-} ${2:-}" in
     ;;
   "workflow run")
     printf '%s\n' "$*" >"${FAKE_WORKFLOW_ARGS:?}"
-    [[ "$*" == *"-f release_candidate=true"* ]]
+    if [[ ${3:-} == release.yml ]]; then
+      [[ "$*" == *'--ref main -f bump=major -f event_continuation=false'* ]]
+    else
+      [[ "$*" == *"-f release_candidate=true"* ]]
+    fi
     touch "${FAKE_DISPATCH_MARKER:?}"
     ;;
   "run watch")
@@ -147,16 +151,38 @@ export FAKE_WATCH_MARKER="$temporary/watched"
 GITHUB_OUTPUT="$dispatch_output" \
 GITHUB_REPOSITORY=example/maestro \
 SOURCE_SHA="$source_sha" \
+GITHUB_SHA="$source_sha" \
   "$MAESTRO_CI_RELEASE_MANAGER" dispatch
 grep -Fxq 'run_id=314' "$dispatch_output"
+if grep -q '^restarted=' "$dispatch_output"; then
+  printf 'Dispatch unexpectedly restarted the release.\n' >&2; exit 1
+fi
 grep -Fq -- '-f release_candidate=true' "$FAKE_WORKFLOW_ARGS"
 
-# Event mode must return after dispatch, never spend a runner watching CI.
+# A VERSION merge requires a new caller source identity before synchronous CI.
 rm "$FAKE_WATCH_MARKER" "$FAKE_DISPATCH_MARKER" "$FAKE_WORKFLOW_ARGS"
+: >"$dispatch_output"
 GITHUB_OUTPUT="$dispatch_output" GITHUB_REPOSITORY=example/maestro SOURCE_SHA="$source_sha" \
+  GITHUB_SHA=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa REQUESTED_BUMP=major \
+  "$MAESTRO_CI_RELEASE_MANAGER" dispatch
+grep -Fxq 'restarted=true' "$dispatch_output"
+if grep -q '^run_id=' "$dispatch_output"; then
+  printf 'Restart unexpectedly dispatched candidate CI.\n' >&2; exit 1
+fi
+grep -Fq -- 'workflow run release.yml --ref main -f bump=major -f event_continuation=false' "$FAKE_WORKFLOW_ARGS"
+[[ ! -e "$FAKE_WATCH_MARKER" ]]
+
+# Event mode must return after dispatch, never spend a runner watching CI.
+rm "$FAKE_DISPATCH_MARKER" "$FAKE_WORKFLOW_ARGS"
+: >"$dispatch_output"
+GITHUB_OUTPUT="$dispatch_output" GITHUB_REPOSITORY=example/maestro SOURCE_SHA="$source_sha" \
+  GITHUB_SHA=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
   EVENT_CONTINUATION=true MAESTRO_RELEASE_CONTINUATION_ENABLED=true GITHUB_RUN_ID=123 \
   "$MAESTRO_CI_RELEASE_MANAGER" dispatch
 [[ ! -e "$FAKE_WATCH_MARKER" ]]
+if grep -q '^restarted=' "$dispatch_output"; then
+  printf 'Dispatch unexpectedly restarted the release.\n' >&2; exit 1
+fi
 grep -Fq -- '-f release_request_id=123' "$FAKE_WORKFLOW_ARGS"
 rm "$FAKE_DISPATCH_MARKER" "$FAKE_WORKFLOW_ARGS"
 if GITHUB_OUTPUT="$dispatch_output" GITHUB_REPOSITORY=example/maestro SOURCE_SHA="$source_sha" \

@@ -40,6 +40,8 @@ in {
     media = {
       source = mediaSource;
       dependencies = {
+        # Installer media embeds this closure, including host management policy.
+        applianceToplevel = inputs.self.nixosConfigurations.maestro.config.system.build.toplevel.outPath;
         den = inputs.den.outPath;
         determinate = inputs.determinate.outPath;
         homeManager = inputs.home-manager.outPath;

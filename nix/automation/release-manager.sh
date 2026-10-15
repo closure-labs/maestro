@@ -121,6 +121,15 @@ dispatch() {
     return
   fi
   [[ ${EVENT_CONTINUATION:-false} == false ]]
+  if [[ ${GITHUB_SHA:-$SOURCE_SHA} != "$SOURCE_SHA" ]]; then
+    # A VERSION preparation merge changes source without changing this run's
+    # OIDC identity. Finish here and acquire a fresh protected-main context.
+    [[ ${REQUESTED_BUMP:?} =~ ^(auto|patch|minor|major)$ ]]
+    gh workflow run release.yml --ref main \
+      -f "bump=$REQUESTED_BUMP" -f event_continuation=false
+    printf 'restarted=true\n' >>"${GITHUB_OUTPUT:?}"
+    return
+  fi
   previous_run_id=$(gh run list --workflow ci.yml --event workflow_dispatch --branch main \
     --commit "$SOURCE_SHA" --limit 1 --json databaseId --jq '.[0].databaseId // empty')
   gh workflow run ci.yml --ref main \
