@@ -46,7 +46,7 @@ jobs:
         id: request
         env:
           MAESTRO_RELEASE_CONTINUATION_ENABLED: ${{ vars.MAESTRO_RELEASE_CONTINUATION_ENABLED || 'false' }}
-          MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID: ${{ vars.MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID || '' }}
+          MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS: ${{ vars.MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS || '[]' }}
           RELEASE_REQUEST_RUN_ID: ${{ inputs.release_request_run_id || '' }}
           RELEASE_CANDIDATE_RUN_ID: ${{ inputs.release_candidate_run_id || '' }}
           GH_TOKEN: ${{ github.token }}

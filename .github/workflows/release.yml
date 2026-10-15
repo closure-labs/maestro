@@ -69,7 +69,7 @@ jobs:
         env:
           EVENT_CONTINUATION: ${{ inputs.event_continuation || false }}
           MAESTRO_RELEASE_CONTINUATION_ENABLED: ${{ vars.MAESTRO_RELEASE_CONTINUATION_ENABLED || 'false' }}
-          MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID: ${{ vars.MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID || '' }}
+          MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS: ${{ vars.MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS || '[]' }}
           GH_TOKEN: ${{ github.token }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:pending
 
@@ -146,7 +146,7 @@ jobs:
         if: inputs.release_request_run_id != ''
         env:
           MAESTRO_RELEASE_CONTINUATION_ENABLED: ${{ vars.MAESTRO_RELEASE_CONTINUATION_ENABLED || 'false' }}
-          MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID: ${{ vars.MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID || '' }}
+          MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS: ${{ vars.MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS || '[]' }}
           RELEASE_REQUEST_RUN_ID: ${{ inputs.release_request_run_id }}
           RELEASE_CANDIDATE_RUN_ID: ${{ inputs.release_candidate_run_id }}
           GH_TOKEN: ${{ github.token }}
@@ -155,7 +155,9 @@ jobs:
   security:
     name: Verify and rescan release candidate
     needs: context
-    if: needs.context.outputs.ready == 'true' && needs.context.outputs.already_published != 'true'
+    if: >-
+      !cancelled() && needs.context.result == 'success' &&
+      needs.context.outputs.ready == 'true' && needs.context.outputs.already_published != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
@@ -221,7 +223,9 @@ jobs:
   release:
     name: Verify and publish immutable release assets
     needs: [context, security]
-    if: needs.context.outputs.ready == 'true' && needs.context.outputs.already_published != 'true'
+    if: >-
+      !cancelled() && needs.context.result == 'success' && needs.security.result == 'success' &&
+      needs.context.outputs.ready == 'true' && needs.context.outputs.already_published != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     environment: release

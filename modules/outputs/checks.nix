@@ -178,7 +178,7 @@ in {
             ci:publish ci:cache-validation ci:verdict automation:queue \
             automation:fix-hashes \
             automation:update-locks automation:validate-locks automation:open-lock-update-pr \
-            release:request release:pending release:continuation \
+            release:request release:signal release:pending release:continuation \
             release:prepare release:dispatch release:inventory release:verify \
             release:stage release:draft release:attestations release:publish release:advance; do
             grep -Fq "\"$task\"" nix/devenv.nix
@@ -267,8 +267,10 @@ in {
           bash ./tests/release-assets.sh
           bash ./tests/release-attestations.sh
           PYTHONDONTWRITEBYTECODE=1 ${pkgs.python3}/bin/python3 tests/release-request.py
+          PYTHONDONTWRITEBYTECODE=1 ${pkgs.python3}/bin/python3 tests/release-graph.py
           PYTHONDONTWRITEBYTECODE=1 ${pkgs.python3}/bin/python3 tests/pilot-benchmark.py
         '';
+        nativeBuildInputs = fixtureInputs ++ [pkgs.yq-go];
       };
 
       secretspec-contract =
@@ -284,20 +286,20 @@ in {
             --file ${inputs.self}/secretspec.toml \
             --profile github \
             --output github-schema.json
-          jq -e '.required == ["CACHIX_MAESTRO_PUBKEY", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID"]' github-schema.json >/dev/null
+          jq -e '.required == ["CACHIX_MAESTRO_PUBKEY", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS"]' github-schema.json >/dev/null
           secretspec schema \
             --file ${inputs.self}/secretspec.toml \
             --profile github-publish \
             --output publish-schema.json
           jq -e \
-            '.required == ["CACHIX_MAESTRO_AUTH_TOKEN", "CACHIX_MAESTRO_PUBKEY", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID"]' \
+            '.required == ["CACHIX_MAESTRO_AUTH_TOKEN", "CACHIX_MAESTRO_PUBKEY", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS"]' \
             publish-schema.json >/dev/null
           secretspec schema \
             --file ${inputs.self}/secretspec.toml \
             --profile local-publish \
             --output local-schema.json
           jq -e \
-            '.required == ["CACHIX_MAESTRO_AUTH_TOKEN", "CACHIX_MAESTRO_PUBKEY", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID"]' \
+            '.required == ["CACHIX_MAESTRO_AUTH_TOKEN", "CACHIX_MAESTRO_PUBKEY", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS"]' \
             local-schema.json >/dev/null
           touch "$out"
         '';

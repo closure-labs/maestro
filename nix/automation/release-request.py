@@ -39,9 +39,11 @@ def require(condition, message):
 
 
 def retired(identity):
-    configured = os.environ.get('MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID', '')
-    require(not configured or RUN_ID.fullmatch(configured), 'Invalid retired release request ID')
-    return str(identity) == configured
+    configured = json.loads(os.environ.get('MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS', '[]'))
+    require(type(configured) is list and len(configured) <= 16 and
+            all(type(value) is int and value > 0 for value in configured) and
+            len(set(configured)) == len(configured), 'Invalid retired release request IDs')
+    return identity in configured
 
 
 def input_run(key):

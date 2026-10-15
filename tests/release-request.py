@@ -38,7 +38,7 @@ class Requests(unittest.TestCase):
         self.origin, self.candidate = run(10, 'release.yml', INITIAL), run(20, 'ci.yml')
         self.request['expires_at'] = (module.timestamp(self.origin['created_at']) + module.TTL).isoformat()
         env = patch.dict(os.environ, GITHUB_OUTPUT=str(self.output), MAESTRO_RELEASE_CONTINUATION_ENABLED='true',
-                         MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID='', GITHUB_REF='refs/heads/main',
+                         MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS='[]', GITHUB_REF='refs/heads/main',
                          GITHUB_EVENT_NAME='workflow_run', GITHUB_SHA=SOURCE,
                          RELEASE_REQUEST_RUN_ID='10', RELEASE_CANDIDATE_RUN_ID='20', GITHUB_RUN_ID='20')
         env.start()
@@ -159,16 +159,16 @@ class Requests(unittest.TestCase):
                     self.resolve()
 
     def test_exact_request_retirement_preserves_other_requests(self):
-        with patch.dict(os.environ, MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID='10'):
+        with patch.dict(os.environ, MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS='[10]'):
             self.assertEqual(self.resolve(), 'ready=false\n')
             with patch.object(module, 'recent', return_value=[self.origin]), patch.object(module, 'published') as published:
                 module.pending()
                 published.assert_not_called()
-        for value in ['0', '*', '10,11', '../10', '-1']:
-            with self.subTest(value=value), patch.dict(os.environ, MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID=value):
+        for value in ['0', '*', '10,11', '../10', '-1', '[true]', '[1.0]', '["10"]', '[0]', '[-1]', '[[]]', '[10,10]', json.dumps(list(range(1, 18)))]:
+            with self.subTest(value=value), patch.dict(os.environ, MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS=value):
                 with self.assertRaises(ValueError):
                     self.resolve()
-        with patch.dict(os.environ, MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID='11'):
+        with patch.dict(os.environ, MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS='[11]'):
             self.output.unlink()
             self.assertIn('ready=true', self.resolve())
 
@@ -190,7 +190,7 @@ class Requests(unittest.TestCase):
         signal()
         self.origin.update(status='completed', conclusion='success')
         for env in [{'GITHUB_SHA': INITIAL}, {'RELEASE_REQUEST_RUN_ID': '0'}, {'GITHUB_RUN_ID': '../20'},
-                    {'GITHUB_REF': 'refs/heads/evil'}, {'MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID': '10'},
+                    {'GITHUB_REF': 'refs/heads/evil'}, {'MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS': '[10]'},
                     {'MAESTRO_RELEASE_CONTINUATION_ENABLED': 'false'}]:
             with self.subTest(env=env), patch.dict(os.environ, **env):
                 with self.assertRaises(ValueError):
@@ -203,6 +203,26 @@ class Requests(unittest.TestCase):
         self.candidate['display_title'] = 'CI main'
         with self.assertRaises(ValueError):
             signal()
+
+    def test_retirement_list_covers_two_origins_without_retiring_a_third(self):
+        other = self.origin | {'id': 11}
+        third = self.origin | {'id': 12}
+        with patch.dict(os.environ, MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS='[10,11]'), \
+                patch.object(module, 'recent', return_value=[self.origin, other]), \
+                patch.object(module, 'published', return_value=False) as publication:
+            module.pending()
+            publication.assert_not_called()
+            self.assertTrue(module.retired(10))
+            self.assertTrue(module.retired(11))
+            self.assertFalse(module.retired(12))
+            with patch.object(module, 'recent', return_value=[self.origin, other, third]), \
+                    patch.object(module, 'journal', return_value=self.request), \
+                    patch.object(module, 'candidate', return_value=self.candidate):
+                with self.assertRaisesRegex(ValueError, 'awaiting continuation'):
+                    module.pending()
+        with patch.dict(os.environ, MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS=json.dumps(list(range(1, 17)))):
+            self.assertTrue(module.retired(16))
+            self.assertFalse(module.retired(17))
 
     def test_expiry_and_main_ancestry(self):
         with patch.object(module, 'api', return_value={'status': 'diverged'}):

@@ -340,7 +340,7 @@ jobs:
     name: Signal completed release qualification
     needs: verdict
     if: >-
-      needs.verdict.result == 'success' && github.ref == 'refs/heads/main' &&
+      !cancelled() && needs.verdict.result == 'success' && github.ref == 'refs/heads/main' &&
       github.event_name == 'workflow_dispatch' && inputs.release_candidate == true &&
       inputs.release_request_id != '' && vars.MAESTRO_RELEASE_CONTINUATION_ENABLED == 'true'
     runs-on: ubuntu-24.04
@@ -359,7 +359,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           MAESTRO_RELEASE_CONTINUATION_ENABLED: ${{ vars.MAESTRO_RELEASE_CONTINUATION_ENABLED || 'false' }}
-          MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID: ${{ vars.MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID || '' }}
+          MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS: ${{ vars.MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS || '[]' }}
           RELEASE_REQUEST_RUN_ID: ${{ inputs.release_request_id }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:signal
 
