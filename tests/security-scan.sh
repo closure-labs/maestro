@@ -13,7 +13,7 @@ printf '{"schema_version":2,"mode":"report","dispositions":[],"exceptions":[]}\n
 printf 'lockfile fixture\n' >"$temporary/repo/pkgs/maestro-menu/Cargo.lock"
 python3 - "$temporary/inventory" <<'PYTHON'
 import hashlib,json,sys,pathlib
-context = {"fixture":"runtime"}
+context = {"schemaVersion":2,"fixture":"runtime"}
 context_digest = hashlib.sha256(json.dumps(context,sort_keys=True,separators=(",",":")).encode()).hexdigest()
 sbom={"bomFormat":"CycloneDX","metadata":{"component":{"bom-ref":"fixture-root","name":"fixture-system"}},"properties":[{"name":"maestro:inventoryVersion","value":"2"},{"name":"maestro:runtimeContext","value":json.dumps(context)},{"name":"maestro:runtimeContextDigest","value":context_digest}],"components":[{"type":"library","name":"fixture","version":"1","bom-ref":"fixture","purl":"pkg:nix/fixture@1"}],"dependencies":[]}
 for name in ["maestro-system", "xen-orchestra-supply"]:pathlib.Path(sys.argv[1],name+".cdx.json").write_text(json.dumps(sbom))
@@ -21,9 +21,25 @@ PYTHON
 cat >"$temporary/bin/grype" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
+[[ $1 == --config && $(cat "$2") == '{}' ]]
+shift 2
+[[ $GRYPE_DB_MAX_ALLOWED_BUILT_AGE == 48h && $GRYPE_DB_VALIDATE_AGE == true &&
+   $GRYPE_DB_AUTO_UPDATE == true && $GRYPE_DB_REQUIRE_UPDATE_CHECK == true ]]
+[[ -z ${GRYPE_DB_UPDATE_URL:-}${GRYPE_IGNORE:-}${GRYPE_CONFIG:-} ]]
 if [[ $1 == version ]]; then printf '{"version":"fixture"}\n'; exit 0; fi
+if [[ "$1 ${2:-}" == 'db status' ]]; then
+  if [[ ${FAKE_GRYPE_DB_STALE:-false} == true || ${FAKE_GRYPE_UPDATE_FAILURE:-false} == true ]]; then
+    printf '{"valid":false,"error":"database unavailable or expired"}\n'; exit 2
+  fi
+  printf '{"valid":%s,"built":"2026-10-14T06:30:34Z","schemaVersion":"6.1.10"}\n' "${FAKE_GRYPE_DB_VALID:-true}"
+  exit 0
+fi
 [[ ${FAKE_GRYPE_FAILURE:-false} == false ]] || exit 2
+[[ ${FAKE_GRYPE_DB_STALE:-false} == false && ${FAKE_GRYPE_UPDATE_FAILURE:-false} == false ]] || exit 2
 if [[ $1 == *scanner-check.cdx.json ]]; then
+  if [[ ${FAKE_GRYPE_MISSING_NPM:-false} == true ]]; then
+    printf '{"matches":[{"artifact":{"name":"openssl"}}]}\n'; exit 0
+  fi
   printf '{"matches":[{"artifact":{"name":"openssl"}},{"artifact":{"name":"lodash"}}]}\n'; exit 0
 fi
 printf '{"matches":[{"vulnerability":{"id":"CVE-fixture","severity":"High","namespace":"nvd:cpe"},"artifact":{"id":"fixture","name":"fixture","version":"1","purl":"pkg:nix/fixture@1"},"matchDetails":[{"type":"cpe-match"}]}]}\n'
@@ -38,14 +54,35 @@ exit 1
 EOF
 sed -i "1c#!${BASH}" "$temporary/bin/grype" "$temporary/bin/cargo"
 chmod +x "$temporary/bin/grype" "$temporary/bin/cargo"
-"$MAESTRO_CI_SECURITY_SCAN"
+# Ambient flags and config discovery must not suppress scanning or updates.
+env GRYPE_DB_MAX_ALLOWED_BUILT_AGE=999h GRYPE_DB_VALIDATE_AGE=false \
+  GRYPE_DB_AUTO_UPDATE=false GRYPE_DB_REQUIRE_UPDATE_CHECK=false \
+  GRYPE_DB_UPDATE_URL=https://example.invalid/old-db GRYPE_IGNORE=all \
+  GRYPE_CONFIG=/nonexistent/ignore-everything.yaml "$MAESTRO_CI_SECURITY_SCAN"
+jq -e '.valid == true and .built == "2026-10-14T06:30:34Z"' "$temporary/report/grype-database.json" >/dev/null
 jq -e 'length == 2 and any(.[]; .advisory == "RUSTSEC-fixture" and .severity == "critical")' "$temporary/report/findings.json" >/dev/null
 jq -e '.mode == "report" and (.results | length == 2) and (.unresolved_critical | length == 1) and (.dispositions | length == 0)' "$temporary/report/critical-applicability.json" >/dev/null
-for failure in FAKE_GRYPE_FAILURE FAKE_AUDIT_FAILURE; do
+# Reusing that successful output directory must yield current failure metadata,
+# with no previous finding verdict available to masquerade as this attempt.
+if FAKE_GRYPE_UPDATE_FAILURE=true "$MAESTRO_CI_SECURITY_SCAN" >/dev/null 2>&1; then
+  echo 'Scanner reused a successful report after a failed database refresh.' >&2; exit 1
+fi
+jq -e '.valid == false and .error != null' "$temporary/report/grype-database.json" >/dev/null
+[[ ! -e "$temporary/report/findings.json" && ! -e "$temporary/report/critical-applicability.json" ]]
+for failure in FAKE_GRYPE_FAILURE FAKE_AUDIT_FAILURE FAKE_GRYPE_DB_STALE \
+  FAKE_GRYPE_UPDATE_FAILURE FAKE_GRYPE_MISSING_NPM; do
+  rm -rf -- "$temporary/report"
   if env "$failure=true" "$MAESTRO_CI_SECURITY_SCAN" >/dev/null 2>&1; then
     echo "Scanner returned success after $failure" >&2; exit 1
   fi
+  [[ ! -e "$temporary/report/findings.json" ]]
+  [[ -s "$temporary/report/grype-database.json" ]]
 done
+rm -rf -- "$temporary/report"
+if FAKE_GRYPE_DB_VALID=false "$MAESTRO_CI_SECURITY_SCAN" >/dev/null 2>&1; then
+  echo 'Scanner accepted invalid database status.' >&2; exit 1
+fi
+[[ ! -e "$temporary/report/findings.json" ]]
 jq '.mode="enforce"' "$temporary/repo/nix/automation/security-policy.json" >"$temporary/enforce.json"
 mv "$temporary/enforce.json" "$temporary/repo/nix/automation/security-policy.json"
 if "$MAESTRO_CI_SECURITY_SCAN" >/dev/null 2>&1; then

@@ -178,6 +178,15 @@ estimates of incremental overhead. The
 [timing receipt](benchmarks/maestro-release-observed-38677969826.json) binds
 the run IDs, immutable source, asset checksums, gate order and raw-response hashes.
 
+Follow-up validation found that the security-fixture derivation used an AND-list
+followed by an unconditional success marker. An intermediate fixture failure
+could therefore leave that target green without executing its remaining tests.
+PR #87 fixes the runner, its native sandbox interpreter and an outdated runtime
+context fixture; all seven security fixture groups then executed successfully.
+Historical audit target conclusions are retained, but they do not establish that
+those previously masked fixture groups ran. The live release scanner, installer
+boot, source and attestation results above are separate observed gates.
+
 Development advancement is a separate result. PR #85's exact-head CI passed,
 but auto-merge alone did not enter the queue. The explicit enqueue fix in PR #86
 created a bot-owned queue entry; GitHub suppressed its native `merge_group`

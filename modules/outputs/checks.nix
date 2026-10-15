@@ -247,7 +247,15 @@ in {
 
       security-fixtures = mkSourceCheck {
         name = "security-fixtures";
-        command = "PYTHONDONTWRITEBYTECODE=1 python3 ./tests/security-inventory.py && PYTHONDONTWRITEBYTECODE=1 python3 ./tests/file-restore.py && bash ./tests/policy-drift.sh && bash ./tests/security-contracts.sh && bash ./tests/evidence-download.sh && bash ./tests/provenance-requests.sh && bash ./tests/security-scan.sh";
+        command = ''
+          PYTHONDONTWRITEBYTECODE=1 python3 ./tests/security-inventory.py
+          PYTHONDONTWRITEBYTECODE=1 python3 ./tests/file-restore.py
+          bash ./tests/policy-drift.sh
+          bash ./tests/security-contracts.sh
+          bash ./tests/evidence-download.sh
+          bash ./tests/provenance-requests.sh
+          bash ./tests/security-scan.sh
+        '';
         nativeBuildInputs = fixtureInputs ++ [pkgs.openssh pkgs.python3];
       };
 

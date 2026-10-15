@@ -147,5 +147,6 @@
       "Operator normal dequeue/re-enqueue as declarative-dale created native merge_group 38690963051; full audit/verdict passed and GitHub merged normally."
     ],
     "comparison_limit": "No matched synchronous baseline; callback/advance duration includes code fixes, operator investigation and queue recovery. Observed 1,685-second origin-released interval is distinct from end-to-end latency."
-  }
+  },
+  "validation_limit": "A follow-up found the security-fixture target could mask an intermediate failure in an AND-list before its success marker. Historical successful target statuses do not prove all embedded fixture groups executed. PR87 repairs failure propagation and the stale interpreter/context fixtures; live release scan, boot and attestation gates are separately recorded."
 }
