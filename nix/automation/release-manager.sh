@@ -6,6 +6,9 @@ set -euo pipefail
 prepare() {
   : "${GITHUB_REF:?}" "${GITHUB_SHA:?}" "${GITHUB_REPOSITORY:?}"
   : "${DEFAULT_BRANCH:?}" "${EXPECTED_AUTHOR:?}" "${REQUESTED_BUMP:?}"
+  # Detect missing queue credentials before publishing an already-prepared
+  # stable VERSION whose next-development update would otherwise stall later.
+  : "${MERGE_QUEUE_PAT:?MERGE_QUEUE_PAT must be configured before preparing a release}"
   [[ "$GITHUB_REF" == refs/heads/main ]]
   initial_sha=$(git rev-parse HEAD)
   [[ "$initial_sha" == "$GITHUB_SHA" ]] || {

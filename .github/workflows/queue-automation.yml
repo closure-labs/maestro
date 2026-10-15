@@ -35,5 +35,6 @@ jobs:
       - name: Verify, validate, and enqueue updates
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          MERGE_QUEUE_PAT: ${{ secrets.MERGE_QUEUE_PAT }}
           GH_TOKEN: ${{ github.token }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' automation:queue

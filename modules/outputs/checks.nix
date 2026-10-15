@@ -247,7 +247,15 @@ in {
 
       security-fixtures = mkSourceCheck {
         name = "security-fixtures";
-        command = "PYTHONDONTWRITEBYTECODE=1 python3 ./tests/security-inventory.py && PYTHONDONTWRITEBYTECODE=1 python3 ./tests/file-restore.py && bash ./tests/policy-drift.sh && bash ./tests/security-contracts.sh && bash ./tests/evidence-download.sh && bash ./tests/provenance-requests.sh && bash ./tests/security-scan.sh";
+        command = ''
+          PYTHONDONTWRITEBYTECODE=1 python3 ./tests/security-inventory.py
+          PYTHONDONTWRITEBYTECODE=1 python3 ./tests/file-restore.py
+          bash ./tests/policy-drift.sh
+          bash ./tests/security-contracts.sh
+          bash ./tests/evidence-download.sh
+          bash ./tests/provenance-requests.sh
+          bash ./tests/security-scan.sh
+        '';
         nativeBuildInputs = fixtureInputs ++ [pkgs.openssh pkgs.python3];
       };
 
@@ -287,6 +295,11 @@ in {
             --profile github \
             --output github-schema.json
           jq -e '.required == ["CACHIX_MAESTRO_PUBKEY", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS"]' github-schema.json >/dev/null
+          secretspec schema \
+            --file ${inputs.self}/secretspec.toml \
+            --profile github-queue \
+            --output queue-schema.json
+          jq -e '.required == ["CACHIX_MAESTRO_PUBKEY", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS", "MERGE_QUEUE_PAT"]' queue-schema.json >/dev/null
           secretspec schema \
             --file ${inputs.self}/secretspec.toml \
             --profile github-publish \

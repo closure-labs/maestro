@@ -15,6 +15,16 @@ correspond to published GitHub tags.
   queue when auto-merge alone leaves an update waiting outside it. Release
   version preparation and advancement wait for successful exact-head CI before
   requesting queue entry; pending ordinary bot updates remain asynchronous.
+- Use the scoped `MERGE_QUEUE_PAT` personal token for queue admission so
+  GitHub emits native merge-group checks. Keep other automation requests on the
+  job token and reject missing queue credentials before requesting auto-merge.
+- Allow the latest daily vulnerability database through its publication window
+  with a 48-hour age limit and mandatory update checks. Isolate Grype settings
+  from ambient configuration, retain database diagnostics and preserve scanner
+  coverage and finding gates.
+- Propagate every security fixture failure, use the native sandbox interpreter
+  for the policy fixture, and align the scanner fixture with the runtime context
+  schema. Correct the security policy's management defaults to include IPv6.
 
 ## [3.0.0] - 2026-10-14
 

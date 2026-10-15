@@ -22,6 +22,7 @@ case $2 in
   *) exit 2 ;;
 esac
 SH
+sed -i "1c#!${BASH}" "$temporary/bin/gh"
 chmod +x "$temporary/bin/gh"
 policy="$repo_root/nix/automation/github/security-policy.json"
 rules="$repo_root/nix/automation/github/main-ruleset.json"

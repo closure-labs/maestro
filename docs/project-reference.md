@@ -152,14 +152,35 @@ Credential-bearing configuration is kept in the runtime Secretspec contract.
   next-development advancement wait for that exact CI run to succeed, then
   revalidate and request queue entry with an atomic head check. Their existing
   bounded merge wait retries when GitHub is still calculating readiness.
-  Queue admission still requires the normal merge-group CI. Version pull
-  requests carry exactly the `VERSION` change.
+  Queue admission uses the existing fine-grained `finite-merge-queue` personal
+  token, exposed as Actions secret `MERGE_QUEUE_PAT`, for auto-merge and
+  explicit enqueue operations only. GitHub suppresses native merge-group events
+  for queue entries created with `GITHUB_TOKEN`; manual CI dispatch is not a
+  substitute for native queue checks. Version pull requests carry exactly the
+  `VERSION` change.
 - `VERSION` records the current development release. The release workflow
   changes it to the selected stable version and advances it to the next patch
   development version after publication.
 
 See the [Packer reference](../packer/README.md) for the installer build and
 template-sealing contract.
+
+The queue credential is declared in SecretSpec as optional in the default profile and a
+required `github-queue` profile. It is required at runtime before requesting
+auto-merge; ordinary builds and public cache pulls do not need it. Configure the
+fine-grained token for `closure-labs/maestro` with Merge queues, Contents and Pull
+requests write access, an expiry and organization approval where required.
+It needs no Actions, Workflows, Administration or protection-bypass permission.
+Expose it as repository secret `MERGE_QUEUE_PAT` or allow this repository to
+receive the organization secret of the same name. Reusable release callers pass
+only this named secret explicitly. Never place its value in Nix configuration,
+derivations, documentation or command arguments.
+
+If GitHub has only the personal token's label, its value cannot be recovered
+through `gh`. Supply an existing local `pass` reference or add the Actions secret
+from the original token value. A token-created queue entry already stalled on
+missing native checks requires a normal operator dequeue/re-enqueue; successful
+manual checks on its synthetic SHA do not repair that event association.
 
 [Back to documentation](index.md)
 

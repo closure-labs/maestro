@@ -13,10 +13,12 @@ credentials before exposing the appliance beyond the build network. Automatic
 TLS certificates are self-signed; distribute their fingerprint or configure a
 trusted certificate through typed `maestro.xo` options.
 
-The operator's approved management range is `192.168.0.0/16`, declared through
-`maestro.operator.managementCIDRs`. SSH and XO HTTP/HTTPS accept new connections
-only from that IPv4 range; IPv6 management ingress stays closed. Installer SSH
-uses the same range and per-build key enrollment through the VM console.
+Management defaults to all IPv4 and IPv6 clients through
+`maestro.operator.managementCIDRs = ["0.0.0.0/0" "::/0"]` for initial deployment.
+SSH remains key-only and restricted to the `maestro` operator. Installer SSH uses
+the same ranges and per-build key enrollment through the VM console. Follow the
+[hardening guide](docs/hardening.md) to restrict SSH and XO HTTP/HTTPS to trusted
+administrator ranges after deployment.
 
 Guest file restore uses a read-only libguestfs appliance as XO. Guest filesystem
 and LVM parsing stays in that disposable kernel; files are downloaded through
@@ -47,6 +49,15 @@ inventory, scanner/database failures, malformed decisions, and expired records
 fail in both modes. Raw scanner reports retain their original severity and
 matches alongside reviewed decisions. No general package-wide exemption is
 permitted.
+
+Each scan uses an isolated Grype database cache and requires a successful update
+check against the default upstream feed. Database age validation allows at most
+48 hours because daily builds are published after their build timestamp; a
+24-hour cutoff rejects the latest available database during that publication
+gap. Grype's upstream default is 120 hours. Ambient Grype configuration cannot
+disable updates or suppress findings. Database status and build time accompany
+the raw reports, including failure diagnostics; failed updates, invalid databases
+and databases older than 48 hours still fail the scan.
 
 Workflow/action updates require operator review. Automatic queueing is limited
 to narrowly validated version, Nix lockfile, and Cargo dependency changes. Use

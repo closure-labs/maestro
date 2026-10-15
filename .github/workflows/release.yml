@@ -20,6 +20,9 @@ on:
           - major
         default: auto
   workflow_call:
+    secrets:
+      MERGE_QUEUE_PAT:
+        required: true
     inputs:
       release_request_run_id:
         required: true
@@ -78,6 +81,7 @@ jobs:
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           EXPECTED_AUTHOR: github-actions
+          MERGE_QUEUE_PAT: ${{ secrets.MERGE_QUEUE_PAT }}
           GH_TOKEN: ${{ github.token }}
           REQUESTED_BUMP: ${{ inputs.bump }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:prepare
@@ -367,6 +371,7 @@ jobs:
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           EXPECTED_AUTHOR: github-actions
+          MERGE_QUEUE_PAT: ${{ secrets.MERGE_QUEUE_PAT }}
           GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ needs.context.outputs.version }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:advance
