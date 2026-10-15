@@ -84,13 +84,19 @@ candidate or expired request permits an explicit fresh dispatch. Bounded
 lookups fail closed if 300 recent runs cannot cover the complete 48-hour
 window. API failures fail rather than imply absence or success.
 
-To retire an unpublished request whose orchestration cannot continue, set the
-repository variable `MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID` to that exact positive
-decimal origin run ID. First verify its trusted journal, absence of a published
-release and absence of an active finalizer; record the reason and source. Both
-the preparation guard and every resolver/finalizer reject that single request.
-The default empty value retires none; lists and wildcards are rejected. Keep the
-journal and logs, and clear the variable after the request's 48-hour expiry.
+To retire unpublished requests whose orchestration cannot continue, set the
+repository variable `MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS` to a JSON array
+of at most 16 unique positive integer origin IDs. For these two pilots use
+`[38661176168,38669988679]`; use JSON integers, not quoted strings. The default
+`[]` retires none. Scalars, booleans, floats, duplicates and wildcards are rejected.
+First verify each trusted journal, absence of a published release and absence
+of an active finalizer; record each reason and source. Both the preparation
+guard and every resolver/finalizer reject exactly those requests while leaving
+other requests eligible. Keep journals and logs, and remove each ID after its
+own request's 48-hour expiry. Populate the plural variable before deploying the
+new code; remove the obsolete singular `MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID`
+variable after the new code is effective. Retiring a request does not revoke an
+already-running finalizer, so do not skip the active-finalizer check.
 Dispatch a new release at the fixed protected-main source and qualify it anew.
 Do not use retirement to waive a source or attestation mismatch.
 
@@ -101,6 +107,16 @@ signing and verdict, but its token-created completion emitted no continuation
 event. The initial origin observer and ordinary-main observer correctly did
 nothing; no versioned release was published. Retire that request before retrying
 the corrected handoff, retaining the existing final source/signer gate.
+
+The second request `38669988679` used source
+`84a5a4b7c0736687e0132c5607f05ace200ec4b0` and candidate `38670283123`.
+Its full audit, qualification, scan, signing and verdict passed, but GitHub's
+implicit `success()` condition inherited the intentionally skipped overlap audit
+and skipped the signal job. No versioned publication occurred. Signal delivery
+and the callback's scan/publication joins now override implicit status inheritance
+with `!cancelled()` and require each direct success result explicitly. Graph
+fixtures cover skipped overlap/prepare ancestors and reject failed scans or
+contexts; the live handoff still must pass before release.
 
 Duplicate completion events serialize through `maestro-release` with
 `queue: max`. A previously published exact-source tag skips scan and publication

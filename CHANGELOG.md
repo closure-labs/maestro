@@ -74,7 +74,8 @@ correspond to published GitHub tags.
 
 - Deliver release continuation explicitly after candidate verdict success when
   GitHub suppresses token-created completion events. Bound the completion race,
-  require the whole candidate to succeed and preserve failed pilot journals.
+  handle intentionally skipped audit/preparation ancestors, require successful
+  candidate/context/security gates and preserve failed pilot journals.
 - Invalidate installer reuse when the embedded appliance closure changes, so
   host management policy and other appliance changes reach newly qualified media.
 - Verify final release ISO provenance and its exact SPDX attestation against the
