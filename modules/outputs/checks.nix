@@ -284,20 +284,20 @@ in {
             --file ${inputs.self}/secretspec.toml \
             --profile github \
             --output github-schema.json
-          jq -e '.required == ["CACHIX_MAESTRO_PUBKEY", "MAESTRO_RELEASE_CONTINUATION_ENABLED"]' github-schema.json >/dev/null
+          jq -e '.required == ["CACHIX_MAESTRO_PUBKEY", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID"]' github-schema.json >/dev/null
           secretspec schema \
             --file ${inputs.self}/secretspec.toml \
             --profile github-publish \
             --output publish-schema.json
           jq -e \
-            '.required == ["CACHIX_MAESTRO_AUTH_TOKEN", "CACHIX_MAESTRO_PUBKEY", "MAESTRO_RELEASE_CONTINUATION_ENABLED"]' \
+            '.required == ["CACHIX_MAESTRO_AUTH_TOKEN", "CACHIX_MAESTRO_PUBKEY", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID"]' \
             publish-schema.json >/dev/null
           secretspec schema \
             --file ${inputs.self}/secretspec.toml \
             --profile local-publish \
             --output local-schema.json
           jq -e \
-            '.required == ["CACHIX_MAESTRO_AUTH_TOKEN", "CACHIX_MAESTRO_PUBKEY", "MAESTRO_RELEASE_CONTINUATION_ENABLED"]' \
+            '.required == ["CACHIX_MAESTRO_AUTH_TOKEN", "CACHIX_MAESTRO_PUBKEY", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID"]' \
             local-schema.json >/dev/null
           touch "$out"
         '';

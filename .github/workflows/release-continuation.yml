@@ -1,6 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
 name: Continue Maestro release
 on:
+  workflow_dispatch:
+    inputs:
+      release_request_run_id:
+        description: Immutable release request origin run ID
+        required: true
+        type: string
+      release_candidate_run_id:
+        description: Exact candidate run ID; completion is independently verified
+        required: true
+        type: string
   # Only protected-main code executes; authoritative run identity, immutable
   # request, exact source, ancestry and candidate success are independently
   # checked twice. No triggering checkout or artifact code is executed.
@@ -12,7 +22,7 @@ permissions:
 jobs:
   resolve:
     name: Resolve protected immutable release request
-    if: vars.MAESTRO_RELEASE_CONTINUATION_ENABLED == 'true'
+    if: vars.MAESTRO_RELEASE_CONTINUATION_ENABLED == 'true' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -36,6 +46,9 @@ jobs:
         id: request
         env:
           MAESTRO_RELEASE_CONTINUATION_ENABLED: ${{ vars.MAESTRO_RELEASE_CONTINUATION_ENABLED || 'false' }}
+          MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID: ${{ vars.MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID || '' }}
+          RELEASE_REQUEST_RUN_ID: ${{ inputs.release_request_run_id || '' }}
+          RELEASE_CANDIDATE_RUN_ID: ${{ inputs.release_candidate_run_id || '' }}
           GH_TOKEN: ${{ github.token }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:continuation
   finalize:

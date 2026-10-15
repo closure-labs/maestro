@@ -43,14 +43,24 @@ The candidate title binds it to that origin. Dispatch returns immediately;
 it does not hold a runner in `gh run watch`.
 
 `Continue Maestro release` observes completion of both CI and Release Maestro.
-This handles either completion order, but never executes the triggering source.
+GitHub suppresses downstream `workflow_run` events for candidates dispatched
+with `GITHUB_TOKEN`, so a protected-main, request-bound candidate also sends an
+explicit `workflow_dispatch` signal after its required verdict passes. Its
+separate signal job has repository-read and Actions-write permissions only.
+This handles either completion order, but never executes an untrusted triggering source.
 Its read-only resolver checks out protected main and fetches authoritative run
 metadata. It verifies same-repository main dispatches, exact workflow paths,
 request identity and lifetime, a single exact successful candidate, source
 ancestry on current main, and the source's VERSION. Unrelated completions are
 ignored. The existing release workflow revalidates those identities itself as a
 reusable finalizer; its context accepts continuation only from a main
-`workflow_run` event. Existing checksum, state, attestation, fresh scan, release
+`workflow_run` or explicitly bound `workflow_dispatch` event. Since dispatch
+precedes completion of the signal job, an explicit resolver may poll the exact
+origin and candidate under one 120-second completion deadline, including poll
+API calls. This also handles the origin finishing second. Timeout fails; failure or cancellation
+never becomes permission to publish. The whole candidate must succeed, including
+the signal job. The originating release runner never waits for qualification.
+Existing checksum, state, attestation, fresh scan, release
 environment, final filename SBOM binding, and FIFO `maestro-publication` steps
 remain in place. No PR receives new cache or publication permissions.
 
@@ -73,6 +83,24 @@ unexpired pending pilot request before touching VERSION. A failed/cancelled
 candidate or expired request permits an explicit fresh dispatch. Bounded
 lookups fail closed if 300 recent runs cannot cover the complete 48-hour
 window. API failures fail rather than imply absence or success.
+
+To retire an unpublished request whose orchestration cannot continue, set the
+repository variable `MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID` to that exact positive
+decimal origin run ID. First verify its trusted journal, absence of a published
+release and absence of an active finalizer; record the reason and source. Both
+the preparation guard and every resolver/finalizer reject that single request.
+The default empty value retires none; lists and wildcards are rejected. Keep the
+journal and logs, and clear the variable after the request's 48-hour expiry.
+Dispatch a new release at the fixed protected-main source and qualify it anew.
+Do not use retirement to waive a source or attestation mismatch.
+
+The first genuine pilot on 2026-10-15 UTC used request `38661176168`, source
+`ceec1d7798a09ea6f31c4d1d264761e026335818`, version `3.0.0` and candidate
+`38661464531`. The candidate passed audit, fresh media assembly and boot, scan,
+signing and verdict, but its token-created completion emitted no continuation
+event. The initial origin observer and ordinary-main observer correctly did
+nothing; no versioned release was published. Retire that request before retrying
+the corrected handoff, retaining the existing final source/signer gate.
 
 Duplicate completion events serialize through `maestro-release` with
 `queue: max`. A previously published exact-source tag skips scan and publication

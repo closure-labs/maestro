@@ -336,6 +336,33 @@ jobs:
           subject-path: result-installer/iso/maestro-installer.iso
           sbom-path: maestro-system.spdx.json
 
+  release_signal:
+    name: Signal completed release qualification
+    needs: verdict
+    if: >-
+      needs.verdict.result == 'success' && github.ref == 'refs/heads/main' &&
+      github.event_name == 'workflow_dispatch' && inputs.release_candidate == true &&
+      inputs.release_request_id != '' && vars.MAESTRO_RELEASE_CONTINUATION_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Checkout protected source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Nix
+        uses: ./.github/actions/setup-nix
+      - name: Signal exact immutable release request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAESTRO_RELEASE_CONTINUATION_ENABLED: ${{ vars.MAESTRO_RELEASE_CONTINUATION_ENABLED || 'false' }}
+          MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID: ${{ vars.MAESTRO_RELEASE_RETIRED_REQUEST_RUN_ID || '' }}
+          RELEASE_REQUEST_RUN_ID: ${{ inputs.release_request_id }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:signal
+
   publish:
     name: Publish reusable main outputs
     needs:
