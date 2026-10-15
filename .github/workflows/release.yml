@@ -66,7 +66,7 @@ jobs:
           ref: main
 
       - name: Set up Nix
-        uses: ./.github/actions/setup-nix
+        uses: $/.github/actions/setup-nix
 
       - name: Refuse another pending release before version mutation
         env:
@@ -144,7 +144,7 @@ jobs:
           persist-credentials: false
       - name: Set up Nix
         if: inputs.release_request_run_id != ''
-        uses: ./.github/actions/setup-nix
+        uses: $/.github/actions/setup-nix
       - name: Independently verify immutable request and candidate
         id: request
         if: inputs.release_request_run_id != ''
@@ -177,7 +177,7 @@ jobs:
           ref: ${{ needs.context.outputs.source_sha }}
 
       - name: Set up Nix
-        uses: ./.github/actions/setup-nix
+        uses: $/.github/actions/setup-nix
 
       - name: Download tested installer state
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -252,7 +252,7 @@ jobs:
           ref: ${{ needs.context.outputs.source_sha }}
 
       - name: Set up Nix
-        uses: ./.github/actions/setup-nix
+        uses: $/.github/actions/setup-nix
 
       - name: Download tested installer state
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -365,7 +365,7 @@ jobs:
           ref: main
 
       - name: Set up Nix
-        uses: ./.github/actions/setup-nix
+        uses: $/.github/actions/setup-nix
 
       - name: Merge next development version
         env:

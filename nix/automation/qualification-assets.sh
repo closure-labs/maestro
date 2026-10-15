@@ -21,14 +21,14 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Check the hosted metadata interface and upstream publications before building.
+# Check the hosted metadata interface and approved publications before building.
 maestro-ci-security-inventory-preflight
 nix config show substituters
 nix config show trusted-public-keys
 determinate_out=$(nix eval --accept-flake-config --raw .#nixosConfigurations.maestro.config.nix.package.upstream.outPath)
 nix path-info --store https://install.determinate.systems "$determinate_out"
 xo_out=$(nix eval --accept-flake-config --raw .#packages.x86_64-linux.xen-orchestra-ce.outPath)
-nix path-info --store https://xen-orchestra-ce.cachix.org "$xo_out"
+maestro-ci-qualification-cache "$xo_out"
 
 case "$QUALIFICATION_MODE" in
   qualify-media|qualify-media-reuse-evidence)

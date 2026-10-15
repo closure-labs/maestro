@@ -48,6 +48,8 @@ in {
           export MAESTRO_CI_RELEASE_SPLIT=${lib.getExe packages.maestro-ci-release-stage}
           export MAESTRO_CI_RELEASE_VERSION=${lib.getExe packages.maestro-ci-release-version}
           export MAESTRO_CI_TRUSTED_UPDATE=${lib.getExe packages.maestro-ci-trusted-update}
+          export MAESTRO_CI_OPEN_UPDATE_PR=${lib.getExe packages.maestro-ci-open-update-pr}
+          export MAESTRO_CI_QUALIFICATION_CACHE=${lib.getExe packages.maestro-ci-qualification-cache}
           export MAESTRO_CI_VALIDATE_STATE=${lib.getExe packages.maestro-ci-validate-state}
           export MAESTRO_CI_TRUSTED_RUN=${lib.getExe packages.maestro-ci-trusted-run}
           export MAESTRO_CI_VERIFY_INVENTORY=${lib.getExe packages.maestro-ci-verify-inventory}
@@ -122,18 +124,31 @@ in {
           nativeBuildInputs = [
             pkgs.actionlint
             pkgs.bash
+            pkgs.gnused
             pkgs.yq-go
             pkgs.zizmor
           ];
         } ''
           cp -R ${inputs.self} source
+          # Older native linters predate GitHub's $/ syntax. Lint an
+          # equivalent local-reference spelling for those parsers; enforce
+          # pinned $/ references on the actual source below, without waivers.
+          cp -R source legacy-source
+          chmod -R u+w legacy-source
+          sed -i 's@^\([[:space:]]*uses: \)\$/@\1./@' \
+            legacy-source/.github/workflows/*.yml \
+            legacy-source/.github/actions/*/action.yml
+          (
+            cd legacy-source
+            # actionlint 1.7.12 predates the organization queue extension too.
+            actionlint -ignore 'unexpected key "queue"' .github/workflows/*.yml
+            ${lib.optionalString (lib.versionOlder pkgs.zizmor.version "1.29.0") "zizmor .github"}
+          )
           cd source
-          # actionlint 1.7.12 predates GitHub's organization queue extension.
-          actionlint -ignore 'unexpected key "queue"' .github/workflows/*.yml
-          zizmor .github
+          ${lib.optionalString (lib.versionAtLeast pkgs.zizmor.version "1.29.0") "zizmor .github"}
           while IFS= read -r action; do
             case "$action" in
-              ./*) ;;
+              '$/'*) ;;
               *@????????????????????????????????????????) ;;
               *)
                 printf 'Action is not pinned to a full commit: %s\n' "$action" >&2
@@ -141,7 +156,7 @@ in {
                 ;;
             esac
             case "$action" in
-              ./* | actions/checkout@* | actions/upload-artifact@* | actions/download-artifact@* | actions/attest@* | actions/create-github-app-token@* | DeterminateSystems/determinate-nix-action@* | DeterminateSystems/flakehub-push@*) ;;
+              '$/'* | actions/checkout@* | actions/upload-artifact@* | actions/download-artifact@* | actions/attest@* | actions/create-github-app-token@* | DeterminateSystems/determinate-nix-action@* | DeterminateSystems/flakehub-push@*) ;;
               *)
                 printf 'Action is not an approved GitHub-platform boundary: %s\n' "$action" >&2
                 exit 1
@@ -239,6 +254,8 @@ in {
         name = "automation-fixtures";
         command = ''
           bash ./tests/ci-helpers.sh
+          bash ./tests/update-pr.sh
+          bash ./tests/qualification-cache.sh
           bash ./tests/fix-nix-hashes.sh
           bash ./tests/ci-runtime-config.sh
           bash ./tests/cache-validation.sh

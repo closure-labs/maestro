@@ -41,7 +41,7 @@ jobs:
           ref: main
           persist-credentials: false
       - name: Set up Nix
-        uses: ./.github/actions/setup-nix
+        uses: $/.github/actions/setup-nix
       - name: Verify immutable release request and exact candidate
         id: request
         env:
@@ -63,7 +63,7 @@ jobs:
       pull-requests: write
     # Keep release environment, signer workflow, FIFO publication and exact
     # candidate verification in the existing release workflow.
-    uses: ./.github/workflows/release.yml
+    uses: $/.github/workflows/release.yml
     secrets:
       MERGE_QUEUE_PAT: ${{ secrets.MERGE_QUEUE_PAT }}
     with:

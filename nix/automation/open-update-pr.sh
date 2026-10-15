@@ -35,8 +35,16 @@ git commit -m "$UPDATE_TITLE"
 git push --force-with-lease="refs/heads/$UPDATE_BRANCH:$remote_sha" \
   origin "HEAD:refs/heads/$UPDATE_BRANCH"
 
-if gh pr view "$UPDATE_BRANCH" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-  gh pr edit "$UPDATE_BRANCH" --repo "$GITHUB_REPOSITORY" \
+# Reused weekly branches can have historical merged or closed PRs. A branch
+# lookup may select one of those, so only edit an explicitly open PR by number.
+# Keep lookup errors fatal instead of treating an API failure as an absent PR.
+open_prs=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open \
+  --base main --head "$UPDATE_BRANCH" --limit 100 --json number,headRepository)
+open_pr=$(jq -r --arg repository "$GITHUB_REPOSITORY" \
+  '[.[] | select(.headRepository.nameWithOwner == $repository)] | .[0].number // empty' \
+  <<<"$open_prs")
+if [[ -n "$open_pr" ]]; then
+  gh pr edit "$open_pr" --repo "$GITHUB_REPOSITORY" \
     --title "$UPDATE_TITLE" --body "$UPDATE_BODY"
 else
   gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$UPDATE_BRANCH" \

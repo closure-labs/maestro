@@ -11,6 +11,14 @@ correspond to published GitHub tags.
 
 ### Fixed
 
+- Accept the locked XO publication from either the upstream cache or the trusted
+  Maestro mirror during qualification. Preserve signature and supply-provenance
+  checks and fail when both caches lack the exact output.
+- Open a new weekly dependency update PR when earlier PRs for its reused branch
+  are merged or closed. Edit only an existing open PR and fail on lookup errors.
+- Pin same-repository actions and the reusable release workflow to the running
+  workflow commit with GitHub's self-repository references. Preserve workflow
+  validation with both the current and refreshed native linters.
 - Explicitly enqueue ready trusted bot updates, preserving the protected merge
   queue when auto-merge alone leaves an update waiting outside it. Release
   version preparation and advancement wait for successful exact-head CI before

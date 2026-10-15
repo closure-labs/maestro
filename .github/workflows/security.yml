@@ -34,7 +34,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Set up Nix
-        uses: ./.github/actions/setup-nix
+        uses: $/.github/actions/setup-nix
       - name: Verify and scan latest inventories
         env:
           GH_TOKEN: ${{ github.token }}
@@ -58,7 +58,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Set up Nix
-        uses: ./.github/actions/setup-nix
+        uses: $/.github/actions/setup-nix
       - name: Create read-only policy token
         id: policy-token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
