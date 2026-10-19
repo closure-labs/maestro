@@ -284,9 +284,12 @@ grep -Fq 'CACHIX_MAESTRO_AUTH_TOKEN: ${{ secrets.CACHIX_MAESTRO_AUTH_TOKEN }}' \
 grep -Fq 'jq -r '\''.results[].outputs[]'\'' "$manifest"' \
   "$TEST_ROOT/nix/automation/publish.sh" \
   || fail "Cachix publication does not use the exact publish-plan manifest"
-grep -Fq 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' \
-  "$TEST_ROOT/.github/workflows/ci.yml" \
-  || fail "installer workflow does not pin the Node.js 24 artifact uploader"
+# Dependabot owns action revisions. Assert the action and immutable pin at its
+# call site without duplicating a revision that every update would invalidate.
+yq -o=json '.jobs.qualification.steps' "$TEST_ROOT/.github/workflows/ci.yml" | jq -e '
+  any(.[]; (.uses // "") | test("^actions/upload-artifact@[0-9a-f]{40}$"))
+' >/dev/null \
+  || fail "installer qualification does not use an immutable artifact uploader"
 # The command substitution must remain literal in the workflow source.
 # shellcheck disable=SC2016
 grep -Fq 'inputs=$(maestro-ci-qualification-inputs)' \
@@ -330,9 +333,10 @@ grep -Fq 'maestro-system.cdx.json' \
 grep -Fq 'xen-orchestra-supply.assertion.json' \
   "$TEST_ROOT/.github/workflows/ci.yml" \
   || fail "installer artifact omits the verified upstream XO evidence"
-grep -Fq 'DeterminateSystems/flakehub-push@2ca953b09ca13532271987be2887bbd33b99980f' \
-  "$TEST_ROOT/.github/workflows/ci.yml" \
-  || fail "rolling FlakeHub publication does not use the current Node.js 24 action"
+yq -o=json '.jobs.publish.steps' "$TEST_ROOT/.github/workflows/ci.yml" | jq -e '
+  any(.[]; (.uses // "") | test("^DeterminateSystems/flakehub-push@[0-9a-f]{40}$"))
+' >/dev/null \
+  || fail "rolling FlakeHub publication does not use an immutable action"
 grep -Fq 'rolling-minor: 2' \
   "$TEST_ROOT/.github/workflows/ci.yml" \
   || fail "rolling FlakeHub publication does not avoid the legacy version line"
@@ -421,9 +425,10 @@ grep -Fq 'sbom-path: candidate/maestro-system.spdx.json' \
 grep -Fq ".#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:prepare" \
   "$TEST_ROOT/.github/workflows/release.yml" \
   || fail "release version changes bypass protected main"
-grep -Fq 'actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c' \
-  "$TEST_ROOT/.github/workflows/release.yml" \
-  || fail "release workflow does not use the latest immutable artifact downloader"
+yq -o=json '.jobs.release.steps' "$TEST_ROOT/.github/workflows/release.yml" | jq -e '
+  any(.[]; (.uses // "") | test("^actions/download-artifact@[0-9a-f]{40}$"))
+' >/dev/null \
+  || fail "release publication does not use an immutable artifact downloader"
 # The variable reference must remain literal in the workflow source.
 # shellcheck disable=SC2016
 grep -Fq 'gh release edit "$RELEASE_TAG" --draft=false --latest' \
