@@ -98,7 +98,7 @@ jobs:
 
       - name: Upload immutable request before dispatch
         if: inputs.event_continuation == true
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: maestro-release-request
           path: maestro-release-request.json
@@ -180,7 +180,7 @@ jobs:
         uses: $/.github/actions/setup-nix
 
       - name: Download tested installer state
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           github-token: ${{ github.token }}
           name: maestro-qualification-state
@@ -195,7 +195,7 @@ jobs:
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:inventory
 
       - name: Download tested supply evidence
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           github-token: ${{ github.token }}
           name: maestro-evidence
@@ -217,7 +217,7 @@ jobs:
 
       - name: Upload release scan results
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: maestro-release-security-report
           path: security-report
@@ -255,7 +255,7 @@ jobs:
         uses: $/.github/actions/setup-nix
 
       - name: Download tested installer state
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           github-token: ${{ github.token }}
           name: maestro-qualification-state
@@ -270,7 +270,7 @@ jobs:
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:inventory
 
       - name: Download tested installer inventory
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           github-token: ${{ github.token }}
           name: maestro-installer
@@ -325,7 +325,7 @@ jobs:
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:attestations
 
       - name: Publish versioned flake
-        uses: DeterminateSystems/flakehub-push@2ca953b09ca13532271987be2887bbd33b99980f # main, Node.js 24 (post-v6)
+        uses: DeterminateSystems/flakehub-push@99ef15d19ce5deb24d62f5d1d6f5a81d9bf03567 # main, Node.js 24 (post-v6)
         with:
           visibility: public
           name: closure-labs/maestro
