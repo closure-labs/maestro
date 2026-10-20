@@ -55,13 +55,20 @@ if [[ $1 == *scanner-check.cdx.json ]]; then
 fi
 printf '{"matches":[{"vulnerability":{"id":"CVE-fixture","severity":"High","namespace":"nvd:cpe"},"artifact":{"id":"fixture","name":"fixture","version":"1","purl":"pkg:nix/fixture@1"},"matchDetails":[{"type":"cpe-match"}]}]}\n'
 EOF
-cat >"$temporary/bin/cargo" <<'EOF'
+cat >"$temporary/bin/cargo-audit" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
+[[ $1 == audit ]]
 if [[ ${2:-} == --version ]]; then printf '%s\n' "${FAKE_AUDIT_VERSION:-cargo-audit fixture}"; exit 0; fi
 if [[ ${FAKE_AUDIT_FAILURE:-false} == true ]]; then printf '{"error":"database unavailable"}\n'; exit 1; fi
 printf '{"vulnerabilities":{"list":[{"advisory":{"id":"RUSTSEC-fixture","cvss":"CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"},"package":{"name":"crate","version":"1"}}]}}\n'
 exit 1
+EOF
+# The audit leaf must work without borrowing Cargo from a development shell.
+cat >"$temporary/bin/cargo" <<'EOF'
+#!/usr/bin/env bash
+echo 'Unexpected Cargo dispatcher dependency in the scanner leaf.' >&2
+exit 127
 EOF
 cat >"$temporary/bin/git" <<'EOF'
 #!/usr/bin/env bash
@@ -69,8 +76,8 @@ set -euo pipefail
 [[ $1 == -C && $2 == */rustsec && $3 == rev-parse && $4 == HEAD ]]
 printf '%040d\n' 1
 EOF
-sed -i "1c#!${BASH}" "$temporary/bin/grype" "$temporary/bin/cargo" "$temporary/bin/git"
-chmod +x "$temporary/bin/grype" "$temporary/bin/cargo" "$temporary/bin/git"
+sed -i "1c#!${BASH}" "$temporary/bin/grype" "$temporary/bin/cargo-audit" "$temporary/bin/cargo" "$temporary/bin/git"
+chmod +x "$temporary/bin/grype" "$temporary/bin/cargo-audit" "$temporary/bin/cargo" "$temporary/bin/git"
 # Ambient flags and config discovery must not suppress scanning or updates.
 env GRYPE_DB_MAX_ALLOWED_BUILT_AGE=999h GRYPE_DB_VALIDATE_AGE=false \
   GRYPE_DB_AUTO_UPDATE=false GRYPE_DB_REQUIRE_UPDATE_CHECK=false \

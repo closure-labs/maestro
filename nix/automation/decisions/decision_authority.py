@@ -2,13 +2,16 @@
 """Authenticate human decisions against authoritative GitHub PR reviews, not ledger claims."""
 import argparse
 import base64
+import datetime
 import hashlib
 import json
 import os
 from pathlib import Path
 import re
+import resource
 import subprocess
 import sys
+import tempfile
 from urllib.parse import quote
 
 from security_decisions import TechnicalError, canonical_hash, load_json
@@ -18,6 +21,9 @@ REPOSITORY = re.compile(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+')
 APPROVER_ORG = 'closure-labs'
 APPROVER_TEAM = 'super-admins'
 APPROVER_TEAM_ID = 20196962
+# Complete four-profile ledgers exceed 8 MiB; keep an explicit immutable-blob cap.
+MAX_PROPOSAL_BYTES = 16 * 1024**2
+MAX_API_BYTES = 24 * 1024**2
 KINDS = {'security-findings': 'security', 'security-revocation': 'security', 'release-set': 'releases', 'release-product': 'releases'}
 
 
@@ -39,14 +45,24 @@ def proposal_path(proposal):
 
 def github_api(endpoint):
     # Endpoint is constructed from validated repository, PR numbers and hashes.
-    result = subprocess.run(['gh', 'api', '--method', 'GET', endpoint], capture_output=True,
-                            text=True, timeout=60, check=False)
-    if result.returncode:
-        raise AuthorityError('GitHub authority API failed: ' + endpoint.split('?')[0])
-    try:
-        return json.loads(result.stdout)
-    except ValueError as error:
-        raise AuthorityError('Invalid GitHub API response') from error
+    # GitHub base64 JSON needs more space than the bounded raw document. Bound
+    # the child output before allocating or parsing it, including on API errors.
+    def bound_output():
+        resource.setrlimit(resource.RLIMIT_FSIZE, (MAX_API_BYTES, MAX_API_BYTES))
+    with tempfile.TemporaryFile() as output:
+        try:
+            result = subprocess.run(['gh', 'api', '--method', 'GET', endpoint],
+                                    stdout=output, stderr=subprocess.DEVNULL,
+                                    timeout=60, check=False, preexec_fn=bound_output)
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise AuthorityError('GitHub authority API unavailable') from error
+        if result.returncode or output.tell() > MAX_API_BYTES:
+            raise AuthorityError('GitHub authority API failed: ' + endpoint.split('?')[0])
+        output.seek(0)
+        try:
+            return json.load(output)
+        except (ValueError, UnicodeError) as error:
+            raise AuthorityError('Invalid GitHub API response') from error
 
 
 def collection(api, endpoint):
@@ -59,6 +75,31 @@ def collection(api, endpoint):
         if len(response) < 100:
             return values
     raise AuthorityError('GitHub authority collection exceeds bounded pagination')
+
+
+def merged_event(api, repository, number, pull):
+    """Use the completed merge event, never GitHub's preview merge SHA."""
+    events = collection(api, f'repos/{repository}/issues/{number}/timeline')
+    if any(not isinstance(event, dict) for event in events):
+        raise AuthorityError('Invalid authenticated PR timeline')
+    merges = [event for event in events if event.get('event') == 'merged']
+    if len(merges) != 1:
+        raise AuthorityError('Proposal requires one unambiguous completed merge event')
+    event = merges[0]
+    merged_at = pull.get('merged_at')
+    if (type(event.get('id')) is not int or event['id'] < 1
+            or not isinstance(event.get('commit_id'), str) or not SHA.fullmatch(event['commit_id'])
+            or not isinstance(merged_at, str)
+            or not re.fullmatch(r'[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z', merged_at)
+            or event.get('created_at') != merged_at
+            or event.get('commit_url') not in
+               (None, f'https://api.github.com/repos/{repository}/commits/{event["commit_id"]}')):
+        raise AuthorityError('Completed merge event differs from authenticated PR merge metadata')
+    try:
+        datetime.datetime.strptime(merged_at, '%Y-%m-%dT%H:%M:%SZ')
+    except ValueError as error:
+        raise AuthorityError('Invalid authenticated PR merge timestamp') from error
+    return {key: event[key] for key in ('id', 'commit_id', 'created_at')}
 
 
 def validate_context(repository, expected_bot):
@@ -74,7 +115,7 @@ def document_at(api, repository, path, revision):
     content = api(f'repos/{repository}/contents/{quote(path, safe="/")}?ref={revision}')
     if (not isinstance(content, dict) or content.get('type') != 'file'
             or content.get('encoding') not in ('base64', 'none')
-            or type(content.get('size')) is not int or not 0 < content['size'] <= 8 * 1024 * 1024
+            or type(content.get('size')) is not int or not 0 < content['size'] <= MAX_PROPOSAL_BYTES
             or not isinstance(content.get('sha'), str) or not SHA.fullmatch(content['sha'])):
         raise AuthorityError('Decision proposal is not a bounded regular Git blob')
     blob = content
@@ -234,10 +275,11 @@ def verify_proposal(proposal, pr, repository, expected_bot, require_merged=True,
         raise AuthorityError('Proposal file was not changed by the approved PR')
     if canonical_hash(document_at(api, repository, path, head)) != digest:
         raise AuthorityError('Local proposal differs from exact reviewed PR head')
-    merge = pull.get('merge_commit_sha')
+    merge = None
+    merge_provenance = None
     if pull.get('merged'):
-        if not isinstance(merge, str) or not SHA.fullmatch(merge):
-            raise AuthorityError('Merged proposal lacks immutable merge provenance')
+        merge_provenance = merged_event(api, repository, number, pull)
+        merge = merge_provenance['commit_id']
         if canonical_hash(document_at(api, repository, path, merge)) != digest:
             raise AuthorityError('Merged proposal differs from reviewed proposal')
         main = api(f'repos/{repository}/git/ref/heads/main')
@@ -254,8 +296,11 @@ def verify_proposal(proposal, pr, repository, expected_bot, require_merged=True,
     latest = api(endpoint)
     if (not isinstance(latest, dict) or latest.get('head', {}).get('sha') != head
             or latest.get('merged') != pull.get('merged') or latest.get('state') != pull.get('state')
-            or latest.get('merge_commit_sha') != merge):
+            or latest.get('merged_at') != pull.get('merged_at')
+            or latest.get('merge_commit_sha') != pull.get('merge_commit_sha')):
         raise AuthorityError('Proposal PR changed during authorization')
+    if merge_provenance is not None and merged_event(api, repository, number, latest) != merge_provenance:
+        raise AuthorityError('Proposal merge event changed during authorization')
     if review is not None and not eligible(api, repository, review['user']):
         raise HumanDecisionRequired('Super Admin approval was withdrawn during authorization')
     return {'schema': 1, 'status': 'authorized' if review is not None else 'historical-provenance', 'repository': repository,

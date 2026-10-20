@@ -37,7 +37,7 @@ export GRYPE_DB_VALIDATE_AGE=true
 export GRYPE_DB_AUTO_UPDATE=true
 export GRYPE_DB_REQUIRE_UPDATE_CHECK=true
 run_grype version -o json >"$output/grype-version.json"
-cargo audit --version >"$output/cargo-audit-version.txt"
+cargo-audit audit --version >"$output/cargo-audit-version.txt"
 # Prove that both native and JavaScript identities reach the active database.
 # Reuse this invocation's fresh database; never run an extra local download.
 cat >"$work/scanner-check.cdx.json" <<'JSON'
@@ -60,7 +60,7 @@ jq -e '.valid == true' "$output/grype-database.json" >/dev/null
 python3 "$MAESTRO_SECURITY_NORMALIZE_SOURCE" "$output/$component.grype.json" "$sbom" \
   "$output/grype-version.json" "$work/$component.findings.json"
 audit_status=0
-cargo audit --file "$cargo_lock" --db "$work/rustsec" --json \
+cargo-audit audit --file "$cargo_lock" --db "$work/rustsec" --json \
   >"$output/cargo-audit.json" || audit_status=$?
 [[ $audit_status == 0 || $audit_status == 1 ]]
 jq -e '.vulnerabilities.list | type == "array"' "$output/cargo-audit.json" >/dev/null
