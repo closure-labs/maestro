@@ -1,0 +1,347 @@
+{
+  "kind": "release-product",
+  "payload": {
+    "disposition": "accepted",
+    "packet": {
+      "producer": {
+        "repository": "closure-labs/maestro",
+        "revision": "de75accde65217724852bf256ce2f64ec9307472",
+        "runAttempt": 1,
+        "runId": 39482117917,
+        "signerWorkflow": ".github/workflows/release.yml",
+        "sourceRevision": "de75accde65217724852bf256ce2f64ec9307472",
+        "workflow": ".github/workflows/release-continuation.yml"
+      },
+      "reference": "ghcr.io/closure-labs/maestro-decisions@sha256:b64b1395dac213616e3807e74bd4e8eb21de0d987d9eae36118f63e0a874816f",
+      "sha256": "9dadf557f27e5adb3127b38cdb1d9403293d7eb3a701b7f845269607f32382ff"
+    },
+    "product": {
+      "assets": {
+        "maestro-v3.0.1.cdx.json.gz": "195e23b17517d23873c4b402c44601f87499b6f46aefd05103967c69697f3f23",
+        "maestro-v3.0.1.cdx.json.gz.sha256": "7dc300a8067315ed5c6f3d9978b47728efede5f83c58e2985f2e32c9d3284400",
+        "maestro-v3.0.1.iso.part-01": "741330b0dbedc5ebac5d53ed8b154a9f021da332a324a3da9a11f39dea410732",
+        "maestro-v3.0.1.iso.part-02": "ce950366e7c2b2dd251250e7baf1546ebe388f0bd23b75ed2b9ebd5624f7bccb",
+        "maestro-v3.0.1.iso.sha256": "181172dfe122fc665018cf951db6bcaaae9eff1bf1445f991be46055777d030a",
+        "maestro-v3.0.1.spdx.json.gz": "e930166837754efebee9d2ba5ed278a16eb3a9e4d6484b2eadb9b22b61f91cad",
+        "maestro-v3.0.1.spdx.json.gz.sha256": "6c1e3f2c353e2cc21ddf8cdf46ed1f9282432a2693dcb8afa54459a401f77126",
+        "release-manifest.json": "d861c8ad2cf85cc751a23dcb9e8039463bba966144354f27972a890890e794ce",
+        "release-manifest.json.sha256": "cb3a1081ce9dc2636baa43d3d30b0bd57d06f8678697a70bb0a3139096fa68a4",
+        "release-notes.md": "389d753757ac92302763686123a481a4d6a4f08e4264214c8bf36cc892e6db04"
+      },
+      "products": {
+        "maestro": {
+          "narHash": "sha256-hhEZXUIkDASwz5UHt21a1fDKqu7qb7zW3CA7EAgGn1U=",
+          "storePath": "/nix/store/hwafb0q2ivypl7nrc7m79hbx3q070pzd-nixos-system-maestro-26.05.20261013.a033e66"
+        }
+      },
+      "repository": "closure-labs/maestro",
+      "revision": "de75accde65217724852bf256ce2f64ec9307472",
+      "roots": {
+        "deploy-template": {
+          "narHash": "sha256-6bXre9tVOusl/+XOjpRqeOPQgD9AaYoKjlXxFUXME/I=",
+          "profile": "maestro",
+          "storePath": "/nix/store/bj6ns76rywxy85k457kh3kyadq1mq0c7-maestro-deploy-template"
+        },
+        "installer-0": {
+          "narHash": "sha256-qZpYAMt1vKGCpGYFqoSetX1w04XLgH9Fhow3iG8EPSs=",
+          "profile": "maestro",
+          "storePath": "/nix/store/0px57v0m5hbnl64w2408qhflaa43v3s4-nixos-system-maestro-installer-26.05.20261013.a033e66"
+        },
+        "installer-1": {
+          "narHash": "sha256-hPzfQ4JzzzPevoezUK0p7OrwWDKn87ZfmNkqGijKt2o=",
+          "profile": "maestro",
+          "storePath": "/nix/store/plqh8sdsl0wd697awx2bzyaa53r63763-version"
+        },
+        "installer-10": {
+          "narHash": "sha256-dKihaX+GZZ02hEb18ICkk2qZomEfg/E0ig2ea14qKOQ=",
+          "profile": "maestro",
+          "storePath": "/nix/store/7h2wrpv10rjx6jwwz2fphx2d2sir1n9y-memtest86+-8.00"
+        },
+        "installer-11": {
+          "narHash": "sha256-BctmymQUvr8HH4XJPkqzTLnuBrfxoHJqU+/CUIMBEGY=",
+          "profile": "maestro",
+          "storePath": "/nix/store/nnbd491mf2w9palppkar9z1b3r8395hi-source"
+        },
+        "installer-12": {
+          "narHash": "sha256-7eCjcPgFozbe7nAs35A63Kp7hRGWGDn2gXJysN0hzYk=",
+          "profile": "maestro",
+          "storePath": "/nix/store/hzrdxb0vixixavb8yirmy85cq3fz3qic-initrd-fstab"
+        },
+        "installer-13": {
+          "narHash": "sha256-R7YKwdfkQRhbb8QKK7I0mi1eTPNTkHTyOM/utwHiYvg=",
+          "profile": "maestro",
+          "storePath": "/nix/store/k2ymyys2vb0a0q1hcxxy3i5jy9w6s8wc-tpm2-tss-4.2.0"
+        },
+        "installer-14": {
+          "narHash": "sha256-yY+7W03NuapBUvmlJE8w3LeRiy8PwlOGAqCudQMUP6c=",
+          "profile": "maestro",
+          "storePath": "/nix/store/kmzlca218j6j1ar292fxj7707qzypij8-systemd-260.5"
+        },
+        "installer-15": {
+          "narHash": "sha256-dHFtFRZDIQLs925M8FPkfz3m41ysYYGd5yj9cIWlp54=",
+          "profile": "maestro",
+          "storePath": "/nix/store/rfdvhfbdhrr2ijcm9vnbydbbw329wswq-util-linux-minimal-2.42.3-bin"
+        },
+        "installer-16": {
+          "narHash": "sha256-OXU5ejhoQ/pKwhHNuaZoAYFqxZAcx5LD8YyIpTdpZqk=",
+          "profile": "maestro",
+          "storePath": "/nix/store/i5zhz6fs38cyvvd2wpk1rfqcy0dj9lnk-nixos-init-0.1.0"
+        },
+        "installer-17": {
+          "narHash": "sha256-JX2VzBtjxQntP4ZZaPpw1Pr034Ixs9nXqCf8up6WOP4=",
+          "profile": "maestro",
+          "storePath": "/nix/store/jnyfsf2mp08d1xyz2m72ic2vz2kcx0sd-bash-5.3p9"
+        },
+        "installer-18": {
+          "narHash": "sha256-Mu4iB1mNP68BggZNfSgCVKfzDRMmTNluW7igTZUuj8Y=",
+          "profile": "maestro",
+          "storePath": "/nix/store/4yj38rai7lal4gj82r4jni9lh7kvkk8j-unit-script-copytoram-start"
+        },
+        "installer-19": {
+          "narHash": "sha256-s8G7d35r+tKguxJ4VEtaacBTfNL1GlbFjXyPvC+wN+k=",
+          "profile": "maestro",
+          "storePath": "/nix/store/a7vcwq5x4fhxab6wqgrh1gdiphridbkq-unit-script-initrd-find-nixos-closure-start"
+        },
+        "installer-2": {
+          "narHash": "sha256-DX15P/EjuvNjz5/IqPYecjo6Sja5m9h4msSeOgVApZs=",
+          "profile": "maestro",
+          "storePath": "/nix/store/l94h0skn99v3fqhvzjcr7cvcz202nabd-linux-6.18.56"
+        },
+        "installer-20": {
+          "narHash": "sha256-k1jHvqMueX/AyVpMk5FTl9mwYRS9Kc/LIkxBj90FEbs=",
+          "profile": "maestro",
+          "storePath": "/nix/store/kbnzi163cc66lyi0aibq1w3z03vk29qs-unit-script-initrd-nixos-activation-start"
+        },
+        "installer-21": {
+          "narHash": "sha256-TeKyLf7dVVRTA6uMdls9wVwp6kSzy6hF29C/jHInGX0=",
+          "profile": "maestro",
+          "storePath": "/nix/store/p341xzclcr28sxixng486ai3imi2nyzn-initrd-unit-env"
+        },
+        "installer-22": {
+          "narHash": "sha256-ja1VPkWvYSFeTFpJe9aMP3hbQWyD5Ipy6wv4grJDy1E=",
+          "profile": "maestro",
+          "storePath": "/nix/store/3mrq6h7chrqw0w3av12wrwz7qr7xl2cb-initrd-bin-env"
+        },
+        "installer-23": {
+          "narHash": "sha256-KhwCrfhk/oevXJTSsUK68wp/Y5EbL3Hp0Eeg0NsUPFE=",
+          "profile": "maestro",
+          "storePath": "/nix/store/swayc0k0phsz1w5n7qajf7ip6j52njjj-dbus-1"
+        },
+        "installer-24": {
+          "narHash": "sha256-TcvyHH8GL/wb9HLcyTLwhso/Xw/z5hCOXlR3DF+SYaU=",
+          "profile": "maestro",
+          "storePath": "/nix/store/vs4fbjbm4m3zmh0r5k1h924qa0596m1m-initrd-group"
+        },
+        "installer-25": {
+          "narHash": "sha256-C6lXfhJOYhdhaYtqy/ihekeBfXfq2KXd/uPD3DXM5Yk=",
+          "profile": "maestro",
+          "storePath": "/nix/store/zbi7z459rnl02dlv4snc8i5kn7ihlvml-gen-hostid"
+        },
+        "installer-26": {
+          "narHash": "sha256-pA0YQYL9yVcDIABlHUEjBKtkNIEgVUAdJIQbdgmrCyU=",
+          "profile": "maestro",
+          "storePath": "/nix/store/agqqz8wa770x06fyycc3gp8g2vi6zbk7-initrd-hostname"
+        },
+        "installer-27": {
+          "narHash": "sha256-5FZcHeltId77UI2/F0jNWPek2BkgHVGIzBsxny50Yds=",
+          "profile": "maestro",
+          "storePath": "/nix/store/pxz0f3q50cjk36h9wh2zs0vjd5h6gczn-initrd-release"
+        },
+        "installer-28": {
+          "narHash": "sha256-MdRASndcApQYRTF2IoBZzr96R8yEy49iU8wGNmxnXFY=",
+          "profile": "maestro",
+          "storePath": "/nix/store/wa4p21k109pn5cm334sl3khx8m0amgfl-console-env"
+        },
+        "installer-29": {
+          "narHash": "sha256-VLT49/eP2SJA5OTRN3HMN6BgYL1TVFegwIhoi/lNBmY=",
+          "profile": "maestro",
+          "storePath": "/nix/store/sh7vvys0ypf0x8ywc871gih4ndkp1fhq-initrd-mdadm.conf"
+        },
+        "installer-3": {
+          "narHash": "sha256-noQ3h2bky0eTf2NU8+veYpHXs5bAuYOqQX1sYJ+/Vkw=",
+          "profile": "maestro",
+          "storePath": "/nix/store/wgmq2fha9jb3ka63yzhjzwpl9zbq5v75-initrd-linux-6.18.56"
+        },
+        "installer-30": {
+          "narHash": "sha256-9LH82beW5blQleDoUdV41zS9Bbhx0JZcilvFtbFeKk8=",
+          "profile": "maestro",
+          "storePath": "/nix/store/5dfbdzhl6g1gl1cmq823g1j81h6la7sz-kmod-debian-aliases.conf-30+20230601-2"
+        },
+        "installer-31": {
+          "narHash": "sha256-n9Os85tGiXITE4pYZCfyQPb3HjXg/Wsz16bYyP7+UIg=",
+          "profile": "maestro",
+          "storePath": "/nix/store/c8r83rfbf7wr3x64plwlki5inalwqngg-etc-modprobe.d-nixos.conf"
+        },
+        "installer-32": {
+          "narHash": "sha256-YKJK1GtQPWFuPxmlUzICo/4jCbQbYAyer+RrEOpQWk4=",
+          "profile": "maestro",
+          "storePath": "/nix/store/fqpi9dlppn329rp57xp6bmn07jwgfp66-kmod-blacklist-31+20240202-2ubuntu8"
+        },
+        "installer-33": {
+          "narHash": "sha256-Fh3A0p8C+1hTdhRoHhxwtHrV0DTlEDka/HP/+PStnP4=",
+          "profile": "maestro",
+          "storePath": "/nix/store/yl76j3p4z9j21lhm297905cwwqbb96bp-initrd-nixos.conf"
+        },
+        "installer-34": {
+          "narHash": "sha256-3ZPNXqd3ymro/338a7txNU9OQZln6wmHgf7mHgmOFyw=",
+          "profile": "maestro",
+          "storePath": "/nix/store/ili8npy7bz40rlab0bxj0svascwia1a5-initrd-passwd"
+        },
+        "installer-35": {
+          "narHash": "sha256-JdMNYHbM5EMtgVopA+FUDsPShPJ4C96A/q+CNrCnR7s=",
+          "profile": "maestro",
+          "storePath": "/nix/store/hnaz410v246s1k6f2927p4nw2npkr8lb-initrd-shadow"
+        },
+        "installer-36": {
+          "narHash": "sha256-/Kk60SYz+GxvA61DadSIabxk271d2XCWHUEE1uWKWdg=",
+          "profile": "maestro",
+          "storePath": "/nix/store/vm1yxg7d5dcxwkcpi2aybsvz0hg8mixd-initrd-shells"
+        },
+        "installer-37": {
+          "narHash": "sha256-9rDVz2kjyeauUr4oJ8UF6WtIth5jaIIGWoeKFSIC8oI=",
+          "profile": "maestro",
+          "storePath": "/nix/store/sh4kdcafw3adcav85fxa8i6y1n2nw0xv-initrd-nixos.conf"
+        },
+        "installer-38": {
+          "narHash": "sha256-8PUHrxrZrFSDStL8ZwAnTX0HBcw1fteEqLtwsPTuDAg=",
+          "profile": "maestro",
+          "storePath": "/nix/store/27mc8f8qfxy5ykxc85p6sjnn2lxxkyvh-initrd-units"
+        },
+        "installer-39": {
+          "narHash": "sha256-0oORiixWhsjQkONt6DrIj+sdAwwt+V52qgT2w23JIjA=",
+          "profile": "maestro",
+          "storePath": "/nix/store/dw9xf5sypb2qdp5fjjcz8zkzrzz3pknf-initrd-system.conf"
+        },
+        "installer-4": {
+          "narHash": "sha256-IsIWifxSYepPppKBwFpcgPOmBOhkMxsMUSGj0D2nBHw=",
+          "profile": "maestro",
+          "storePath": "/nix/store/nvwr3w7kapjci132jrh7jrvymkq2wbwz-bios-boot.png"
+        },
+        "installer-40": {
+          "narHash": "sha256-bwCJ4PDrMOy018sD4zkWZWeCLdES9GcFU1LeK0ZQVsw=",
+          "profile": "maestro",
+          "storePath": "/nix/store/wpyc0r4d4idaq96y0dc1375ziabl4b38-ncurses-6.6"
+        },
+        "installer-41": {
+          "narHash": "sha256-remLMhTwoiqxV249tPr7tJbjBcbuxeIfdVwx1yKXPNk=",
+          "profile": "maestro",
+          "storePath": "/nix/store/2hk7bvnfmn53baxfxybhblv09w189s6s-initrd-udev-rules"
+        },
+        "installer-42": {
+          "narHash": "sha256-yNnx72DlNcnMUkAipBRqq91bGeHvmDkO2mTO3CjeAKw=",
+          "profile": "maestro",
+          "storePath": "/nix/store/mqchq6f3a6scs25lf1hxh11yai9l4agc-vconsole.conf"
+        },
+        "installer-43": {
+          "narHash": "sha256-2uoiwg1WfDBT/HceYb+UBnjthNe92ITRg7PKgbrnOdQ=",
+          "profile": "maestro",
+          "storePath": "/nix/store/rdbl2nsq1qlmkf6qcvqg44y130gcx0cg-linux-6.18.56-modules-shrunk"
+        },
+        "installer-44": {
+          "narHash": "sha256-c9VTB0ezSOYH331yInQ5a7N73FFzdKcvzI6Jk9tFNSU=",
+          "profile": "maestro",
+          "storePath": "/nix/store/fsd4vbp9zjd9iaicq2fb9lpc1h5j973y-glibc-2.42-100"
+        },
+        "installer-45": {
+          "narHash": "sha256-sMS2XjvOs7h/raWaQIN+ovFWlCnTaPDJvvPdqvmEpg4=",
+          "profile": "maestro",
+          "storePath": "/nix/store/v82dmsjgrqvavc1x1vys9qcnc6dqvi7w-libfido2-1.17.0"
+        },
+        "installer-46": {
+          "narHash": "sha256-GyNZhO4uoHgMDICcoSbPZKHwITJT1JpXzz0E/SSEMxs=",
+          "profile": "maestro",
+          "storePath": "/nix/store/2hc6lqclam28wdnjgd8gjdmw168mlf1a-dbus-1.16.2"
+        },
+        "installer-47": {
+          "narHash": "sha256-zJDZrJtYieB/g//MoC4Q7e2auoMSBu3kSlrVdSiohao=",
+          "profile": "maestro",
+          "storePath": "/nix/store/y3n1siv0d6v00lkgrdqxd3xs8zqp1m2p-lvm2-2.03.39-bin"
+        },
+        "installer-48": {
+          "narHash": "sha256-E2Rpg7FM2TyEqNWoi2hVwh46TXQeLc00HCH71E/o9lM=",
+          "profile": "maestro",
+          "storePath": "/nix/store/rmzizfxnlvqvdhj9w1r0v1kx7hkflvx3-bcache-tools-1.1"
+        },
+        "installer-49": {
+          "narHash": "sha256-EnQ/Uo+a/0qTh0zcy/J6/utf7PPLySAsPch16ydSBmk=",
+          "profile": "maestro",
+          "storePath": "/nix/store/4i0fh2wxrp23043ml54bb0fd63ipc5cn-shadow-4.19.4"
+        },
+        "installer-5": {
+          "narHash": "sha256-VkEYCrnWJlbydeEJhyMpPZbGfSLd7JHCXNuF+JGe4hg=",
+          "profile": "maestro",
+          "storePath": "/nix/store/7zvxs500iklhfjjkiqk7x0p1a05n95rc-isolinux.cfg"
+        },
+        "installer-50": {
+          "narHash": "sha256-1vuyvifxUQ+xq3BBc5S39r2ZYEI7P5ZzLKmTS7/3Gxs=",
+          "profile": "maestro",
+          "storePath": "/nix/store/0c7g3mxyjgpkyynr8iadcmrqkkccy8a7-kbd-2.9.0"
+        },
+        "installer-51": {
+          "narHash": "sha256-lZa6scu4HAYf1tadK5/gurYcq2bb0ptbCg4BPn5LscU=",
+          "profile": "maestro",
+          "storePath": "/nix/store/8xwasjx7w71i4gsas9prv1dkilz2alg2-grub-2.12"
+        },
+        "installer-52": {
+          "narHash": "sha256-rmZam++w2qWEseY2LxshmP4okEPwL1E12T39xxBoe7s=",
+          "profile": "maestro",
+          "storePath": "/nix/store/f78f2hvdkg7jq6jlbj3vgx6z1q8cgz0z-refind-0.14.2"
+        },
+        "installer-6": {
+          "narHash": "sha256-p44zQwhPmcP0jFWPtMf8TM+KKZ0Bq5JLGCqQi06DSHo=",
+          "profile": "maestro",
+          "storePath": "/nix/store/zzi19z0n5hm8bw5vnb62dkgb1r2fyiwx-syslinux-unstable-2019-02-07"
+        },
+        "installer-7": {
+          "narHash": "sha256-uwI3fwx6tCrjarxI1nsb0bdpumCER+yq0PLkgl7V+dk=",
+          "profile": "maestro",
+          "storePath": "/nix/store/b2qr82c0q86kdldgql0zmwk4nz84dldx-efi-image_eltorito"
+        },
+        "installer-8": {
+          "narHash": "sha256-n8ZYmao4TeWzvSGfEzZNd+7zKQUFVRV4ARxPVvIxWlI=",
+          "profile": "maestro",
+          "storePath": "/nix/store/ai4w6dchyfgnifkxmi0d0lk1pzw6g2l0-efi-directory"
+        },
+        "installer-9": {
+          "narHash": "sha256-Sa+Fph4AjcdIxYTGdFBSNlxjQPZ1M7zHUFE7lfKVRY4=",
+          "profile": "maestro",
+          "storePath": "/nix/store/dxmgm5hll1889ax7ngp81syw4cs7pxfi-efi-background.png"
+        },
+        "maestro-ci-toolchain": {
+          "narHash": "sha256-nC9HTmD0qPA1edvoBEhwC0OOzPIM0P+5T2XCGXJM+30=",
+          "profile": "maestro",
+          "storePath": "/nix/store/9nyvcjzxaqdcffvyz69fwvnvizh4g1xx-maestro-ci-toolchain"
+        },
+        "maestro-menu": {
+          "narHash": "sha256-GtVuSzs88c6AISMK1uhngFT9T7u8hz/13dCWwWbBbDg=",
+          "profile": "maestro",
+          "storePath": "/nix/store/wa3900qhv4ibkxpna6kgnks4ammjs0by-maestro-menu-0.7.0"
+        },
+        "maestroctl": {
+          "narHash": "sha256-Xou2dJhzk8TCX566xmgxH6Lijosk+G8iXwEYjoIcW0U=",
+          "profile": "maestro",
+          "storePath": "/nix/store/hdn7p27c5338h0s0v7r949l2d5hpj3v0-maestroctl"
+        },
+        "metadata": {
+          "narHash": "sha256-IV+EatRCa1umlGEcHif2f6KeCHlYoVexYWxhQAokGOQ=",
+          "profile": "maestro",
+          "storePath": "/nix/store/q40cgzszw59p2x9r3yx2mabafx6l11ni-maestro-metadata-3.1.0"
+        },
+        "sbomnix": {
+          "narHash": "sha256-QPCtAmzX+HMNmUK1a1bEAoGfHMQNrggX7fD/XlJr9U4=",
+          "profile": "maestro",
+          "storePath": "/nix/store/n0n9sd1aigsb7h26577mpxkln5afpmcd-sbomnix-1.7.6"
+        },
+        "toplevel": {
+          "narHash": "sha256-hhEZXUIkDASwz5UHt21a1fDKqu7qb7zW3CA7EAgGn1U=",
+          "profile": "maestro",
+          "storePath": "/nix/store/hwafb0q2ivypl7nrc7m79hbx3q070pzd-nixos-system-maestro-26.05.20261013.a033e66"
+        }
+      },
+      "schema": 1
+    },
+    "rationale": "Review the complete authenticated native evidence and exact proposed scope.",
+    "supersedes": []
+  },
+  "schema": 1
+}
