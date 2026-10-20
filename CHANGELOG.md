@@ -30,6 +30,8 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Refresh the XO input to use Nixpkgs' cached Node 22.23.3 and OpenSSL 3.5.9
+  runtime without rebuilding the crypto stack.
 - Separate qualification from publication. Retain authenticated Nix closures and
   immutable release assets so publishers can restore verified products without
   builders and resume interrupted publication without replacing existing bytes.

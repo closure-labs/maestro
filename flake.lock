@@ -552,11 +552,11 @@
     },
     "nixpkgs_6": {
       "locked": {
-        "lastModified": 1791734076,
-        "narHash": "sha256-i5qk1kLiit98rRbh1AXmWBNT9QXC/y4l5Wk/u5EdpDQ=",
+        "lastModified": 1792210252,
+        "narHash": "sha256-Mh0PUaIv4nFY+8wAGonaEh8iBzwsmdNlwjVHmFg1Biw=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "7fd4004d0511991fff3a0524856a9be09e28c5f0",
+        "rev": "09063bd1f2b36fd9fd793c36dfade7bd40a93dfc",
         "type": "github"
       },
       "original": {
@@ -628,17 +628,17 @@
         "xo-stable": "xo-stable"
       },
       "locked": {
-        "lastModified": 1792008276,
-        "narHash": "sha256-13Mg14XlxK35iDRVzktklKy4BWZFz1fE3SaLmXqh2tI=",
+        "lastModified": 1792464896,
+        "narHash": "sha256-NQBrgCyoxPsjO28z/AhqTc+Dl0D+fBGy35M7V/s9Cvk=",
         "owner": "closure-labs",
         "repo": "xo-nixpkg",
-        "rev": "f375273ee680121d9fc428569b8238b664b4ca77",
+        "rev": "3bbc8743ba999a9200ba06a403c96b967a8b4949",
         "type": "github"
       },
       "original": {
         "owner": "closure-labs",
         "repo": "xo-nixpkg",
-        "rev": "f375273ee680121d9fc428569b8238b664b4ca77",
+        "rev": "3bbc8743ba999a9200ba06a403c96b967a8b4949",
         "type": "github"
       }
     },
@@ -662,17 +662,17 @@
     "xo-rolling": {
       "flake": false,
       "locked": {
-        "lastModified": 1791973805,
-        "narHash": "sha256-Bdl/GLEj9AWoryedIVQFY2GBrJGUcwG8Z6asqV/ICcY=",
+        "lastModified": 1792412591,
+        "narHash": "sha256-B0jqjcZ1mCgmCAsvG0ijnRCTTiMSZhhI771cSmLXkoI=",
         "owner": "vatesfr",
         "repo": "xen-orchestra",
-        "rev": "0bb2f12b2b9d0ffb0397d987d10e1b441a9e2aeb",
+        "rev": "ab4d372ce2b7fe0cf2cc498407d88635bcf2e82c",
         "type": "github"
       },
       "original": {
         "owner": "vatesfr",
         "repo": "xen-orchestra",
-        "rev": "0bb2f12b2b9d0ffb0397d987d10e1b441a9e2aeb",
+        "rev": "ab4d372ce2b7fe0cf2cc498407d88635bcf2e82c",
         "type": "github"
       }
     },

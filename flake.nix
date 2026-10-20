@@ -44,6 +44,6 @@
     nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0";
     # Exact shared applicability evaluator; the runtime package inputs remain
     # unchanged. The shared evaluator was reviewed and merged upstream.
-    xen-orchestra-ce.url = "github:closure-labs/xo-nixpkg/f375273ee680121d9fc428569b8238b664b4ca77";
+    xen-orchestra-ce.url = "github:closure-labs/xo-nixpkg/3bbc8743ba999a9200ba06a403c96b967a8b4949";
   };
 }
