@@ -270,6 +270,7 @@ in {
         name = "security-fixtures";
         command = ''
           PYTHONDONTWRITEBYTECODE=1 python3 ./tests/security-inventory.py
+          PYTHONDONTWRITEBYTECODE=1 python3 ./tests/security-components.py
           PYTHONDONTWRITEBYTECODE=1 python3 ./tests/file-restore.py
           bash ./tests/policy-drift.sh
           bash ./tests/security-contracts.sh

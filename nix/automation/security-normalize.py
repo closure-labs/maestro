@@ -17,6 +17,16 @@ def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
+def inventory_components(sbom):
+    values = list(sbom["components"])
+    root = sbom.get("metadata", {}).get("component", {})
+    # CycloneDX places the root package outside components. It still carries
+    # shipped code and must receive the same identity and coverage validation.
+    if any(field in root for field in ("type", "purl", "version")):
+        values.append(root)
+    return values
+
+
 def normalize(report, sbom, scanner_version):
     props = {p["name"]: p["value"] for p in sbom.get("properties", [])}
     if props.get("maestro:inventoryVersion") != "2":
@@ -24,8 +34,9 @@ def normalize(report, sbom, scanner_version):
     context = props.get("maestro:runtimeContextDigest", "")
     if len(context) != 64 or digest(json.loads(props["maestro:runtimeContext"])) != context:
         raise ValueError("invalid runtime context binding")
-    components = {c["bom-ref"]: c for c in sbom["components"]}
-    if len(components) != len(sbom["components"]):
+    installed = inventory_components(sbom)
+    components = {c["bom-ref"]: c for c in installed}
+    if len(components) != len(installed):
         raise ValueError("duplicate inventory identity")
     findings = {}
     for match in report["matches"]:
@@ -109,7 +120,7 @@ def exposure_bindings(component, locations, sbom):
     if props.get("xo-nixpkg:manifestPath"):
         root = "/".join(props["xo-nixpkg:manifestPath"].split("/")[:4])
         producers = []
-        for candidate in sbom["components"]:
+        for candidate in inventory_components(sbom):
             candidate_props = {p["name"]: p["value"] for p in candidate.get("properties", [])}
             if candidate_props.get("nix:output_path", candidate_props.get("nix:storePath")) == root and candidate_props.get("maestro:outputName", candidate_props.get("xo-nixpkg:outputName")):
                 candidate_props["maestro:outputName"] = candidate_props.get("maestro:outputName", candidate_props.get("xo-nixpkg:outputName"))
@@ -128,7 +139,7 @@ def exposure_bindings(component, locations, sbom):
 def observations(report, sbom):
     # Validate the complete inventory and existing immutable match bindings first.
     legacy = normalize(report, sbom, {})
-    components = {c["bom-ref"]: c for c in sbom["components"]}
+    components = {c["bom-ref"]: c for c in inventory_components(sbom)}
     bindings = {(f["advisory"], f["binding"]["component_ref"]): f["binding"] for f in legacy}
     exposures = {}
     result = []
@@ -204,7 +215,7 @@ def rust_observations(audit, sbom):
         raise ValueError("missing RustSec observations")
     if not entries:
         return []
-    menus = [c for c in sbom["components"] if c.get("name") == "maestro-menu"]
+    menus = [c for c in inventory_components(sbom) if c.get("name") == "maestro-menu"]
     if len(menus) != 1:
         raise ValueError("RustSec requires the exact shipped maestro-menu component")
     locations = component_locations(menus[0])
@@ -253,7 +264,7 @@ def security_context(sbom):
         if not match:
             return value  # Ambiguous policies remain exact, never silently equivalent.
         candidates = []
-        for component in sbom["components"]:
+        for component in inventory_components(sbom):
             cp = {p["name"]: p["value"] for p in component.get("properties", [])}
             if cp.get("nix:output_path", cp.get("nix:storePath")) == match[1] and cp.get("maestro:outputName"):
                 purl = component.get("purl", "")
@@ -306,7 +317,7 @@ def security_result(report, sbom, audit, database, started, evidence):
     # A zero-match scan still needs complete installed identities. Validate
     # coverage before finding selection, so absent packages cannot look clean.
     npm_count = 0
-    for component in sbom["components"]:
+    for component in inventory_components(sbom):
         if component.get("type") == "file":
             continue
         purl = component.get("purl", "")

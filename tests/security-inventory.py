@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import tempfile
 from unittest.mock import patch as mock_patch
+from unittest.mock import mock_open
 
 
 def module(name):
@@ -207,6 +208,10 @@ with tempfile.TemporaryDirectory() as temporary:
 
     # Exercise the complete CLI entry point, not just the envelope decoder.
     modern_system = deepcopy(system)
+    # The raw serializer groups one component per derivation; two components
+    # claiming the exact same output are invalid, not a modern-CLI fixture.
+    modern_system["components"] = modern_system["components"][:1]
+    modern_system["dependencies"][0]["dependsOn"] = [modern_system["components"][0]["bom-ref"]]
     for component in modern_system["components"]:
         component["properties"][0]["value"] = drv_path
         component["properties"].append({"name": "nix:output_path", "value": out_path})
@@ -232,3 +237,87 @@ with tempfile.TemporaryDirectory() as temporary:
     assert props["maestro:outputName"] == "out"
     assert json.loads(props["maestro:patches"])[0]["path"] == str(patch)
 print("Security identity, inventory, drift, expiry and severity fixtures passed")
+
+# Match the real sbomnix representation: one drv component advertises every
+# env.outputs path, including unshipped/unrealized dev/man outputs.
+bin_path = out_path + "-bin"
+unshipped = out_path + "-dev"
+multi = {"bom-ref": "openssl-drv", "type": "library", "name": "openssl", "version": "3.5.9",
+         "properties": [{"name": "nix:drv_path", "value": drv_path}] +
+                       [{"name": "nix:output_path", "value": p} for p in [out_path, bin_path, unshipped]]}
+graph = {"components": [deepcopy(multi)], "metadata": {"component": {"bom-ref": "root"}},
+         "dependencies": [{"ref": "root", "dependsOn": ["openssl-drv"]},
+                          {"ref": "openssl-drv", "dependsOn": ["root"]}]}
+inventory.expand_runtime_outputs(graph, {out_path: {}, bin_path: {}})
+assert len(graph["components"]) == 2
+refs = {c["bom-ref"] for c in graph["components"]}
+assert len(refs) == 2 and "openssl-drv" not in refs
+assert {inventory.properties(c)["nix:output_path"] for c in graph["components"]} == {out_path, bin_path}
+assert next(d for d in graph["dependencies"] if d["ref"] == "root")["dependsOn"] == sorted(refs)
+assert all(d["dependsOn"] == ["root"] for d in graph["dependencies"] if d["ref"] in refs)
+# Metadata can itself represent a multi-output producer. Every old graph alias
+# must map to all actual outputs, with exactly one selected metadata component.
+metadata_graph = {"components": [], "metadata": {"component": deepcopy(multi)},
+                  "dependencies": [{"ref": "openssl-drv", "dependsOn": ["openssl-drv"]}]}
+inventory.expand_runtime_outputs(metadata_graph, {out_path: {}, bin_path: {}})
+all_refs = {metadata_graph["metadata"]["component"]["bom-ref"], metadata_graph["components"][0]["bom-ref"]}
+assert len(all_refs) == 2
+assert {d["ref"] for d in metadata_graph["dependencies"]} == all_refs
+assert all(set(d["dependsOn"]) == all_refs for d in metadata_graph["dependencies"])
+metadata_graph["bomFormat"] = "CycloneDX"
+native_record = {"env": {"pname": "openssl", "version": "3.5.9", "patches": [], "out": out_path, "bin": bin_path},
+                 "outputs": {"out": {"path": out_path}, "bin": {"path": bin_path}}}
+metadata_result = inventory.enrich(metadata_graph, supply, {}, {drv_path: native_record})
+outputs = [metadata_result["metadata"]["component"], metadata_result["components"][0]]
+assert {inventory.properties(c)["maestro:outputName"] for c in outputs} == {"out", "bin"}
+assert all(c["purl"] == "pkg:nix/openssl@3.5.9" for c in outputs)
+union = {"bomFormat": "CycloneDX", "components": [deepcopy(multi)],
+         "metadata": {"component": {"bom-ref": "union", "name": "union", "version": "", "properties": [
+             {"name": "nix:drv_path", "value": producer_path}, {"name": "nix:output_path", "value": patch_path}]}},
+         "dependencies": [{"ref": "union", "dependsOn": ["openssl-drv"]}]}
+inventory.expand_runtime_outputs(union, {out_path: {}, bin_path: {}, patch_path: {}})
+union_record = {"env": {"name": "distribution-inventory", "out": patch_path}, "outputs": {"out": {"path": patch_path}}}
+assert inventory.enrich(union, supply, {}, {drv_path: native_record, producer_path: union_record})["metadata"]["component"]["type"] == "file"
+for extra in [{"name": "nix:drv_path", "value": drv_path},
+              {"name": "nix:drv_path", "value": producer_path},
+              {"name": "nix:storePath", "value": patch_path},
+              {"name": "nix:output_path", "value": out_path},
+              {"name": "maestro:staticSource", "value": "true"}]:
+    invalid = deepcopy(multi)
+    invalid["properties"].append(extra)
+    reject(lambda: inventory.expand_runtime_outputs({"components": [invalid], "dependencies": []}, {out_path: {}, bin_path: {}}))
+reject(lambda: inventory.properties({"properties": [{"name": "nix:storePath", "value": out_path}] * 2}))
+
+nar = "sha256-" + "A" * 43 + "="
+record = {"narHash": nar}
+with mock_patch.object(inventory.subprocess, "check_output", return_value=""), \
+        mock_patch.object(inventory.Path, "is_symlink", return_value=False), \
+        mock_patch.object(inventory.Path, "is_file", return_value=True), \
+        mock_patch.object(inventory.Path, "open", mock_open(read_data=b'{"schema":1}')):
+    source = inventory.static_source(patch_path, record)
+    assert source["type"] == "file" and "purl" not in source and "version" not in source
+    assert inventory.properties(source)["maestro:narHash"] == nar
+    reject(lambda: inventory.static_source(patch_path, {**record, "deriver": drv_path}))
+    reject(lambda: inventory.static_source(patch_path, {}))
+for magic in [b"\x7fELF", b"MZxx", b"\x00asm", b"\xfe\xed\xfa\xce", b"\xce\xfa\xed\xfe",
+              b"\xfe\xed\xfa\xcf", b"\xcf\xfa\xed\xfe", b"\xca\xfe\xba\xbe", b"\xbe\xba\xfe\xca",
+              b"\xca\xfe\xba\xbf", b"\xbf\xba\xfe\xca"]:
+    with mock_patch.object(inventory.subprocess, "check_output", return_value=""), \
+            mock_patch.object(inventory.Path, "is_symlink", return_value=False), \
+            mock_patch.object(inventory.Path, "is_file", return_value=True), \
+            mock_patch.object(inventory.Path, "open", mock_open(read_data=magic)):
+        reject(lambda: inventory.static_source(patch_path, record))
+        # A represented type=file or fake version/purl is not negative proof.
+        for claimed in [{"type": "file"}, {"type": "library", "version": "1", "purl": "pkg:nix/fake@1"}]:
+            represented = {"components": [{"bom-ref": "unverified", "properties": [{"name": "nix:output_path", "value": patch_path}], **claimed}],
+                           "metadata": {"component": {"bom-ref": "root"}}, "dependencies": []}
+            with mock_patch.object(inventory.subprocess, "check_output", side_effect=[json.dumps({patch_path: record}).encode(), ""]):
+                reject(lambda: inventory.bind_inventory_roots(represented, [{"storePath": patch_path, "narHash": nar}]))
+for symlink, regular in [(True, True), (False, False)]:
+    with mock_patch.object(inventory.subprocess, "check_output", return_value=""), \
+            mock_patch.object(inventory.Path, "is_symlink", return_value=symlink), \
+            mock_patch.object(inventory.Path, "is_file", return_value=regular):
+        reject(lambda: inventory.static_source(patch_path, record))
+with mock_patch.object(inventory.subprocess, "check_output", return_value=drv_path):
+    reject(lambda: inventory.static_source(patch_path, record))
+print("Actual-output expansion, graph aliases and strict immutable plain-file provenance fixtures passed")

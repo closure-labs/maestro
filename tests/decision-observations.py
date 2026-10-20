@@ -27,7 +27,8 @@ context = {'schemaVersion': 2, 'runtime': {
     'storage': {'enableNFS': True, 'enableCIFS': False, 'enableVHD': False, 'mountsDir': '/run/xo'},
     'fileRestore': {'enable': False}, 'sudo': [{'users': ['xo'], 'commands': [{'command': root + '/bin/helper', 'options': ['NOPASSWD']}]}]}}
 component = {'name': 'fixture', 'version': '1', 'type': 'library', 'bom-ref': 'fixture', 'purl': 'pkg:nix/fixture@1',
-             'properties': [{'name': 'nix:output_path', 'value': root}, {'name': 'maestro:outputName', 'value': 'lib'},
+             'properties': [{'name': 'nix:output_path', 'value': root}, {'name': 'nix:drv_path', 'value': root + '.drv'},
+                            {'name': 'maestro:outputName', 'value': 'lib'},
                             {'name': 'maestro:patches', 'value': '[]'}, {'name': 'maestro:source', 'value': '"immutable-source"'}]}
 subjects = [{'storePath': root, 'narHash': 'sha256-' + 'A' * 43 + '='}]
 sbom = {'bomFormat': 'CycloneDX', 'components': [component], 'dependencies': [], 'properties': [

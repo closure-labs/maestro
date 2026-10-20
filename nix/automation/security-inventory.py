@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Enrich the runtime SBOM using exact derivations, never guessed versions."""
 import hashlib
+from copy import deepcopy
 import json
 import os
 from pathlib import Path
@@ -17,7 +18,86 @@ def digest(value):
 
 
 def properties(component):
-    return {p["name"]: p["value"] for p in component.get("properties", [])}
+    result = {}
+    for prop in component.get("properties", []):
+        name, value = prop["name"], prop["value"]
+        if name in result and name != "nix:output_path":
+            raise ValueError("duplicate singleton inventory property: " + name)
+        result[name] = value
+    return result
+
+
+def expand_runtime_outputs(system, records):
+    """sbomnix groups by derivation and advertises even unrealized outputs."""
+    aliases, owners = {}, {}
+    def expand(component):
+        ref = component["bom-ref"]
+        if ref in aliases:
+            raise ValueError("duplicate raw component reference")
+        props = properties(component)
+        if "maestro:staticSource" in props:
+            raise ValueError("raw inventory cannot assert validated static source provenance")
+        paths = [store_path(p["value"]) for p in component.get("properties", []) if p["name"] == "nix:output_path"]
+        if len(paths) != len(set(paths)):
+            raise ValueError("duplicate advertised inventory output")
+        if "nix:storePath" in props:
+            path = store_path(props["nix:storePath"])
+            if paths and set(paths) != {path}:
+                raise ValueError("conflicting immutable component output identities")
+            paths = [path]
+        if not paths:
+            aliases[ref] = [ref]
+            return [component]
+        actual = sorted(set(paths) & records.keys())
+        result = []
+        for path in actual:
+            if path in owners:
+                raise ValueError("runtime output belongs to multiple components")
+            owners[path] = ref
+            value = deepcopy(component)
+            value["bom-ref"] = ref if len(actual) == 1 else "maestro:output:" + path
+            value["properties"] = [p for p in value.get("properties", []) if p["name"] not in ("nix:output_path", "nix:storePath")]
+            value["properties"].append({"name": "nix:output_path", "value": path})
+            result.append(value)
+        aliases[ref] = [value["bom-ref"] for value in result]
+        return result
+    expanded = [value for component in system["components"] for value in expand(component)]
+    metadata = system.get("metadata", {}).get("component")
+    if metadata:
+        values = expand(metadata)
+        if not values:
+            raise ValueError("inventory metadata root is outside actual runtime closure")
+        system["metadata"]["component"] = values[0]
+        expanded.extend(values[1:])
+    system["components"] = expanded
+    dependencies = {}
+    for entry in system.get("dependencies", []):
+        for ref in aliases.get(entry["ref"], [entry["ref"]]):
+            values = dependencies.setdefault(ref, set())
+            for target in entry.get("dependsOn", []):
+                values.update(aliases.get(target, [target]))
+    system["dependencies"] = [{"ref": ref, "dependsOn": sorted(values)} for ref, values in sorted(dependencies.items())]
+
+
+def static_source(path, record):
+    """Literal source/data files are omitted by sbomnix, never native packages."""
+    valid = subprocess.check_output(["nix-store", "--query", "--valid-derivers", path], text=True).strip()
+    if valid or record.get("deriver") not in (None, "", "unknown-deriver"):
+        raise ValueError("unrepresented runtime output has a native producer: " + path)
+    source = Path(path)
+    if source.is_symlink() or not source.is_file():
+        raise ValueError("unrepresented runtime source is not a regular plain file: " + path)
+    with source.open("rb") as stream:
+        magic = stream.read(4)
+    if magic[:2] == b"MZ" or magic in (b"\x7fELF", b"\x00asm", b"\xfe\xed\xfa\xce", b"\xce\xfa\xed\xfe", b"\xfe\xed\xfa\xcf", b"\xcf\xfa\xed\xfe", b"\xca\xfe\xba\xbe", b"\xbe\xba\xfe\xca", b"\xca\xfe\xba\xbf", b"\xbf\xba\xfe\xca"):
+        raise ValueError("unrepresented native code lacks package provenance: " + path)
+    nar_hash = record.get("narHash")
+    if not isinstance(nar_hash, str) or not re.fullmatch(r"sha256-[A-Za-z0-9+/]{43}=", nar_hash):
+        raise ValueError("immutable source NAR evidence is missing")
+    return {"type": "file", "name": source.name, "bom-ref": "maestro:source:" + path,
+            "properties": [{"name": "nix:output_path", "value": path},
+                           {"name": "maestro:staticSource", "value": "true"},
+                           {"name": "maestro:narHash", "value": nar_hash}]}
 
 
 def store_path(value):
@@ -184,8 +264,14 @@ def enrich(system, supply, context, derivations):
     npm = [c for c in supply["components"] if c.get("purl", "").startswith("pkg:npm/")]
     if not npm or any(not c.get("version") for c in npm):
         raise ValueError("XO supply inventory has no versioned installed npm packages")
-    for component in system["components"]:
+    metadata = system.get("metadata", {}).get("component", {})
+    native_components = [*system["components"]]
+    if properties(metadata).get("nix:drv_path"):
+        native_components.append(metadata)
+    for component in native_components:
         props = properties(component)
+        if props.get("maestro:staticSource") == "true":
+            continue
         drv = props.get("nix:drv_path")
         if not drv or drv not in derivations:
             raise ValueError(f"missing derivation metadata: {component.get('bom-ref')}")
@@ -243,7 +329,7 @@ def enrich(system, supply, context, derivations):
             dep["dependsOn"] = sorted(set(dep.get("dependsOn", [])) | {xo_root})
         if dep["ref"] not in refs and dep["ref"] != root:
             raise ValueError("dependency references an unknown component")
-        if not set(dep.get("dependsOn", [])) <= refs:
+        if not set(dep.get("dependsOn", [])) <= refs | {root}:
             raise ValueError("dependency edge references an unknown component")
     if not root or not xo_root:
         raise ValueError("missing inventory root identity")
@@ -279,14 +365,39 @@ def bind_inventory_roots(system, roots):
     for path, nar_hash in expected.items():
         if records.get(path, {}).get("narHash") != nar_hash:
             raise ValueError("publication root differs from expected NAR identity")
+    expand_runtime_outputs(system, records)
+    for component in [*system["components"], system.get("metadata", {}).get("component", {})]:
+        props = properties(component)
+        path = props.get("nix:output_path", props.get("nix:storePath"))
+        if path and not props.get("nix:drv_path"):
+            source = static_source(path, records[path])
+            source["bom-ref"] = component["bom-ref"]
+            component.clear()
+            component.update(source)
     represented = set()
     for component in [*system["components"], system.get("metadata", {}).get("component", {})]:
         props = properties(component)
         path = props.get("nix:output_path", props.get("nix:storePath"))
         if path:
             represented.add(store_path(path))
-    if not records.keys() <= represented:
-        raise ValueError("system inventory omits publication closure outputs")
+    missing = sorted(records.keys() - represented)
+    # Keep the failure diagnostic bounded. Never turn absent native packages
+    # into guessed file identities, or fetch/build advertised unshipped outputs.
+    for path in missing:
+        try:
+            component = static_source(path, records[path])
+        except ValueError as error:
+            raise ValueError("system inventory omits publication closure outputs: " +
+                             json.dumps(missing[:20]) + (" (truncated)" if len(missing) > 20 else "")) from error
+        system["components"].append(component)
+        root = system.get("metadata", {}).get("component", {}).get("bom-ref")
+        if not root:
+            raise ValueError("static source evidence requires an inventory root")
+        dependencies = next((entry for entry in system.setdefault("dependencies", []) if entry["ref"] == root), None)
+        if dependencies is None:
+            dependencies = {"ref": root, "dependsOn": []}
+            system["dependencies"].append(dependencies)
+        dependencies.setdefault("dependsOn", []).append(component["bom-ref"])
     system.setdefault("properties", []).append({"name": "maestro:inventoryRoots", "value": json.dumps(roots, sort_keys=True)})
 
 
@@ -309,7 +420,8 @@ def main():
             raise ValueError("publication root metadata does not match expected outputs")
         roots = [{"storePath": path, "narHash": records[path]["narHash"]} for path in paths]
     bind_inventory_roots(system, roots)
-    drvs = sorted({properties(c)["nix:drv_path"] for c in system["components"]})
+    candidates = [*system["components"], system.get("metadata", {}).get("component", {})]
+    drvs = sorted({properties(c)["nix:drv_path"] for c in candidates if properties(c).get("nix:drv_path") and properties(c).get("maestro:staticSource") != "true"})
     derivations = read_derivations(drvs)
     realize_patch_inputs(derivations, context["packageSourceRoots"])
     result = enrich(system, json.loads(supply_path.read_text()), context, derivations)
