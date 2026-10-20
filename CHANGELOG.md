@@ -42,6 +42,12 @@ correspond to published GitHub tags.
 
 ### Fixed
 
+- Keep immutable decision packet references stable when uploading identical
+  evidence again, while preserving producer and scan timestamps.
+- Authenticate complete security decision ledgers up to 16 MiB with bounded
+  GitHub API output and exact Git object verification.
+- Exclude only canonical security finding identity lines from generic secret
+  detection; preserve credential detection and review changes to scanner rules.
 - Preserve each shipped Nix output in the security inventory and retain plain
   schema and patch inputs by immutable file identity.
 - Validate inventory aggregation links while preserving complete appliance and

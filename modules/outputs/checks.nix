@@ -303,6 +303,7 @@ in {
           bash ./tests/security-scan.sh
           bash ./tests/codeql-rust-toolchain.sh ${lib.getExe packages.maestro-ci-codeql-rust-toolchain}
           PYTHONDONTWRITEBYTECODE=1 python3 tests/decision-observations.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/test_secret_inventory.py
           PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests/decisions -p '*.py'
           PYTHONDONTWRITEBYTECODE=1 python3 tests/publication-journal.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/distribution-cache.py
@@ -310,7 +311,7 @@ in {
           PYTHONDONTWRITEBYTECODE=1 python3 tests/installer-coverage.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/decision-operations.py
         '';
-        nativeBuildInputs = fixtureInputs ++ [pkgs.openssh pkgs.python3];
+        nativeBuildInputs = fixtureInputs ++ [pkgs.openssh pkgs.python3 pkgs.gitleaks];
       };
 
       packer-policy = mkSourceCheck {
