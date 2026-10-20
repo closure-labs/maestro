@@ -141,3 +141,20 @@ Rollback keeps publication frozen while restoring reviewed, mutually compatible
 controllers and policies. It never restores the former ungated cache writer or
 report-only release path. Remote policy/App changes and real release publication
 are operational activation work, not side effects of a local test run.
+
+## Closure transport performance
+
+Retained Nix closures use Zstandard level 3. Compression changes transport bytes,
+not expected product NAR hashes or admission. Import still authenticates the
+manifest and verifies the complete bounded archive and exact requested roots.
+NAR and ISO artifact uploads use compression level zero to avoid recompressing
+already compressed payloads. Existing unchanged-media reuse remains in place.
+
+A local matched-input XO closure export measured 15.51 seconds with Zstandard
+versus 1,378.87 seconds with the old XZ default, with 43% more compressed archive
+bytes. An actual empty-store restore preserved all 74 path hashes and passed
+physical verification without builds. These measurements exclude hosted transfer
+time; artifact storage and network cost must be included in hosted comparisons.
+Maestro's scanner already processes its combined inventory with one database;
+XO's separate profiles now share one fresh verified run-local database. Neither
+optimization skips current scanner or runtime contracts.
