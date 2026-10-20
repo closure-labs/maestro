@@ -9,6 +9,13 @@ correspond to published GitHub tags.
 
 ## [Unreleased]
 
+### Changed
+
+- Export retained Nix closures with Zstandard to reduce CI transport preparation
+  time while preserving exact product hashes, authenticated restore, and release
+  approval. Already compressed NAR and installer uploads remain uncompressed by
+  the artifact service.
+
 ## [3.0.1] - 2026-10-19
 
 ### Security
