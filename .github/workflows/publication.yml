@@ -1,0 +1,116 @@
+# SPDX-License-Identifier: Apache-2.0
+name: Publish admitted Maestro candidate
+on:
+  workflow_run: # zizmor: ignore[dangerous-triggers] Trusted main controller; downloaded candidates are data only.
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      candidate_run:
+        description: Completed protected candidate run; empty resolves the latest retained candidate
+        type: string
+        default: ''
+  schedule:
+    - cron: '19 * * * *'
+permissions:
+  contents: read
+concurrency:
+  group: maestro-publication
+  queue: max
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: publication
+    permissions:
+      actions: read
+      packages: read
+      attestations: read
+      contents: read
+      id-token: write
+    steps:
+      - name: Monitor hosted runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2
+        with:
+          egress-policy: audit
+      - name: Checkout trusted controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Set up Nix
+        uses: $/.github/actions/setup-nix
+      - name: Download completed protected candidate data
+        id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN: ${{ inputs.candidate_run || '' }}
+          CANDIDATE_WORKFLOW: .github/workflows/ci.yml
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:download
+      - name: Create repository-scoped authority reader
+        id: authority
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.DECIDER_CLIENT }}
+          private-key: ${{ secrets.DECIDER_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: read
+          permission-pull-requests: read
+          permission-administration: read
+          permission-members: read
+          permission-actions: read
+      - name: Verify live admission and exact distribution roots
+        env:
+          GH_TOKEN: ${{ steps.authority.outputs.token }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:publication
+      - name: Mint independently scoped upstream authority reader
+        id: upstream
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.DECIDER_CLIENT }}
+          private-key: ${{ secrets.DECIDER_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: xo-nixpkg
+          permission-contents: read
+          permission-pull-requests: read
+          permission-members: read
+          permission-administration: read
+          permission-actions: read
+      - name: Restore authenticated qualified Nix closures without builders
+        env:
+          GH_TOKEN: ${{ steps.authority.outputs.token }}
+          PUBLICATION_PURPOSE: rolling
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:distribution:restore
+      - name: Verify pinned upstream handoff against actual appliance exposure
+        env:
+          GH_TOKEN: ${{ steps.authority.outputs.token }}
+          XO_AUTHORITY_TOKEN: ${{ steps.upstream.outputs.token }}
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:handoff
+      - name: Publish verified realized closures
+        env:
+          GH_TOKEN: ${{ steps.authority.outputs.token }}
+          XO_AUTHORITY_TOKEN: ${{ steps.upstream.outputs.token }}
+          REGISTRY_TOKEN: ${{ github.token }}
+          CACHIX_MAESTRO_AUTH_TOKEN: ${{ secrets.CACHIX_MAESTRO_AUTH_TOKEN }}
+          CACHIX_MAESTRO_PUBKEY: ${{ vars.CACHIX_MAESTRO_PUBKEY }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:publish
+      - name: Recheck live admission before FlakeHub publication
+        env:
+          GH_TOKEN: ${{ steps.authority.outputs.token }}
+          XO_AUTHORITY_TOKEN: ${{ steps.upstream.outputs.token }}
+          REGISTRY_TOKEN: ${{ github.token }}
+          DECISION_REQUIRE_HANDOFF: 'true'
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:publication
+      - name: Publish exact admitted rolling revision
+        uses: DeterminateSystems/flakehub-push@99ef15d19ce5deb24d62f5d1d6f5a81d9bf03567 # main, Node.js 24
+        with:
+          visibility: public
+          name: closure-labs/maestro
+          rolling: true
+          rolling-minor: 2
+          rev: ${{ steps.candidate.outputs.source_sha }}
+          include-output-paths: true

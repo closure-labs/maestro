@@ -2,53 +2,154 @@
   "validation": {
     "name": "maestro-validation",
     "targets": [
-      {"name": "metadata", "attribute": "checks.x86_64-linux.metadata"},
-      {"name": "maestro-ci-repository-audit", "attribute": "checks.x86_64-linux.maestro-ci-repository-audit"},
-      {"name": "maestroctl", "attribute": "checks.x86_64-linux.maestroctl"},
-      {"name": "flake-plan-runner", "attribute": "checks.x86_64-linux.flake-plan-runner"},
-      {"name": "eval-smoke", "attribute": "checks.x86_64-linux.eval-smoke"},
-      {"name": "workflow-policy", "attribute": "checks.x86_64-linux.workflow-policy"},
-      {"name": "devenv-contract", "attribute": "checks.x86_64-linux.devenv-contract"},
-      {"name": "shell-lint", "attribute": "checks.x86_64-linux.shell-lint"},
-      {"name": "automation-fixtures", "attribute": "checks.x86_64-linux.automation-fixtures"},
-      {"name": "qualification-input-fixtures", "attribute": "checks.x86_64-linux.qualification-input-fixtures"},
-      {"name": "release-fixtures", "attribute": "checks.x86_64-linux.release-fixtures"},
-      {"name": "secretspec-contract", "attribute": "checks.x86_64-linux.secretspec-contract"},
-      {"name": "operator-fixtures", "attribute": "checks.x86_64-linux.operator-fixtures"},
-      {"name": "repository-policy", "attribute": "checks.x86_64-linux.repository-policy"},
-      {"name": "configuration", "attribute": "checks.x86_64-linux.configuration"},
-      {"name": "ci-plan-contract", "attribute": "checks.x86_64-linux.ci-plan-contract"},
-      {"name": "security-fixtures", "attribute": "checks.x86_64-linux.security-fixtures"},
-      {"name": "runtime-security", "attribute": "checks.x86_64-linux.runtime-security"},
-      {"name": "packer-policy", "attribute": "checks.x86_64-linux.packer-policy"}
+      {
+        "name": "metadata",
+        "attribute": "checks.x86_64-linux.metadata"
+      },
+      {
+        "name": "maestro-ci-repository-audit",
+        "attribute": "checks.x86_64-linux.maestro-ci-repository-audit"
+      },
+      {
+        "name": "maestroctl",
+        "attribute": "checks.x86_64-linux.maestroctl"
+      },
+      {
+        "name": "flake-plan-runner",
+        "attribute": "checks.x86_64-linux.flake-plan-runner"
+      },
+      {
+        "name": "eval-smoke",
+        "attribute": "checks.x86_64-linux.eval-smoke"
+      },
+      {
+        "name": "workflow-policy",
+        "attribute": "checks.x86_64-linux.workflow-policy"
+      },
+      {
+        "name": "devenv-contract",
+        "attribute": "checks.x86_64-linux.devenv-contract"
+      },
+      {
+        "name": "shell-lint",
+        "attribute": "checks.x86_64-linux.shell-lint"
+      },
+      {
+        "name": "automation-fixtures",
+        "attribute": "checks.x86_64-linux.automation-fixtures"
+      },
+      {
+        "name": "qualification-input-fixtures",
+        "attribute": "checks.x86_64-linux.qualification-input-fixtures"
+      },
+      {
+        "name": "release-fixtures",
+        "attribute": "checks.x86_64-linux.release-fixtures"
+      },
+      {
+        "name": "secretspec-contract",
+        "attribute": "checks.x86_64-linux.secretspec-contract"
+      },
+      {
+        "name": "operator-fixtures",
+        "attribute": "checks.x86_64-linux.operator-fixtures"
+      },
+      {
+        "name": "repository-policy",
+        "attribute": "checks.x86_64-linux.repository-policy"
+      },
+      {
+        "name": "configuration",
+        "attribute": "checks.x86_64-linux.configuration"
+      },
+      {
+        "name": "ci-plan-contract",
+        "attribute": "checks.x86_64-linux.ci-plan-contract"
+      },
+      {
+        "name": "security-fixtures",
+        "attribute": "checks.x86_64-linux.security-fixtures"
+      },
+      {
+        "name": "runtime-security",
+        "attribute": "checks.x86_64-linux.runtime-security"
+      },
+      {
+        "name": "packer-policy",
+        "attribute": "checks.x86_64-linux.packer-policy"
+      },
+      {
+        "name": "source-security",
+        "attribute": "checks.x86_64-linux.source-security"
+      }
     ]
   },
   "media": {
     "name": "maestro-media-qualification",
     "targets": [
-      {"name": "installer-iso", "attribute": "packages.x86_64-linux.installer-iso", "link": "result-installer"}
+      {
+        "name": "installer-iso",
+        "attribute": "packages.x86_64-linux.installer-iso",
+        "link": "result-installer"
+      }
     ]
   },
   "evidence": {
     "name": "maestro-evidence-qualification",
     "targets": [
-      {"name": "toplevel", "attribute": "nixosConfigurations.maestro.config.system.build.toplevel"},
-      {"name": "sbomnix", "attribute": "packages.x86_64-linux.sbomnix"},
-      {"name": "sbomnix-runtime", "attribute": "checks.x86_64-linux.sbomnix-runtime"},
-      {"name": "xen-orchestra-ce", "attribute": "packages.x86_64-linux.xen-orchestra-ce"},
-      {"name": "xen-orchestra-supply-protector", "attribute": "packages.x86_64-linux.xen-orchestra-supply-protector"}
+      {
+        "name": "toplevel",
+        "attribute": "nixosConfigurations.maestro.config.system.build.toplevel"
+      },
+      {
+        "name": "sbomnix",
+        "attribute": "packages.x86_64-linux.sbomnix"
+      },
+      {
+        "name": "sbomnix-runtime",
+        "attribute": "checks.x86_64-linux.sbomnix-runtime"
+      },
+      {
+        "name": "xen-orchestra-ce",
+        "attribute": "packages.x86_64-linux.xen-orchestra-ce"
+      },
+      {
+        "name": "xen-orchestra-supply-protector",
+        "attribute": "packages.x86_64-linux.xen-orchestra-supply-protector"
+      }
     ]
   },
   "publish": {
     "name": "maestro-publish",
     "targets": [
-      {"name": "maestro-ci-toolchain", "attribute": "packages.x86_64-linux.maestro-ci-toolchain"},
-      {"name": "sbomnix", "attribute": "packages.x86_64-linux.sbomnix"},
-      {"name": "toplevel", "attribute": "nixosConfigurations.maestro.config.system.build.toplevel"},
-      {"name": "deploy-template", "attribute": "packages.x86_64-linux.deploy-template"},
-      {"name": "metadata", "attribute": "packages.x86_64-linux.metadata"},
-      {"name": "maestro-menu", "attribute": "packages.x86_64-linux.maestro-menu"},
-      {"name": "maestroctl", "attribute": "packages.x86_64-linux.maestroctl"}
+      {
+        "name": "maestro-ci-toolchain",
+        "attribute": "packages.x86_64-linux.maestro-ci-toolchain"
+      },
+      {
+        "name": "sbomnix",
+        "attribute": "packages.x86_64-linux.sbomnix"
+      },
+      {
+        "name": "toplevel",
+        "attribute": "nixosConfigurations.maestro.config.system.build.toplevel"
+      },
+      {
+        "name": "deploy-template",
+        "attribute": "packages.x86_64-linux.deploy-template"
+      },
+      {
+        "name": "metadata",
+        "attribute": "packages.x86_64-linux.metadata"
+      },
+      {
+        "name": "maestro-menu",
+        "attribute": "packages.x86_64-linux.maestro-menu"
+      },
+      {
+        "name": "maestroctl",
+        "attribute": "packages.x86_64-linux.maestroctl"
+      }
     ]
   }
 }

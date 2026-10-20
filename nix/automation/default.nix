@@ -7,6 +7,8 @@
   lockFile,
   packageSourceRoots,
   applicabilityCommand,
+  distributionRoots,
+  installerQualification,
 }: let
   mkCommand = {
     name,
@@ -54,6 +56,209 @@
   };
 
   commands = {
+    codeql-rust-toolchain = let
+      toolchain = pkgs.runCommand "maestro-codeql-rust-toolchain" {} ''
+        mkdir -p "$out/bin" "$out/lib/rustlib/src/rust"
+        ln -s ${pkgs.cargo}/bin/cargo "$out/bin/cargo"
+        ln -s ${pkgs.rustc}/bin/rustc "$out/bin/rustc"
+        ln -s ${pkgs.rustc}/bin/rustdoc "$out/bin/rustdoc"
+        ln -s ${pkgs.rustPlatform.rustLibSrc} "$out/lib/rustlib/src/rust/library"
+      '';
+    in
+      mkCommand {
+        name = "codeql-rust-toolchain";
+        prefix = ''
+          MAESTRO_CODEQL_RUST_TOOLCHAIN=${toolchain}
+          MAESTRO_CODEQL_RUSTUP=${pkgs.rustup}/bin/rustup
+          MAESTRO_CODEQL_RUST_SRC=${pkgs.rustPlatform.rustLibSrc}
+          export MAESTRO_CODEQL_RUST_TOOLCHAIN MAESTRO_CODEQL_RUSTUP MAESTRO_CODEQL_RUST_SRC
+        '';
+        runtimeInputs = commonInputs ++ [pkgs.rustup];
+        source = ./codeql-rust-toolchain.sh;
+      };
+    qualification-restore = mkCommand {
+      name = "qualification-restore";
+      prefix = ''
+        MAESTRO_DECISION_CORE=${./decisions}
+        MAESTRO_DISTRIBUTION_CACHE_SOURCE=${./distribution-cache.py}
+        MAESTRO_QUALIFICATION_RESTORE_SOURCE=${./qualification-restore.py}
+        export MAESTRO_DECISION_CORE MAESTRO_DISTRIBUTION_CACHE_SOURCE MAESTRO_QUALIFICATION_RESTORE_SOURCE
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.python3];
+      source = ./qualification-restore.sh;
+    };
+    security-native-check = mkCommand {
+      name = "security-native-check";
+      prefix = ''
+        MAESTRO_DECISION_CORE=${./decisions}
+        MAESTRO_SECURITY_NATIVE_CHECK_SOURCE=${./security-native-check.py}
+        export MAESTRO_DECISION_CORE MAESTRO_SECURITY_NATIVE_CHECK_SOURCE
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.python3];
+      source = ./security-native-check.sh;
+    };
+    distribution-restore = mkCommand {
+      name = "distribution-restore";
+      prefix = ''
+        MAESTRO_DECISION_CORE=${./decisions}
+        MAESTRO_DISTRIBUTION_CACHE_SOURCE=${./distribution-cache.py}
+        MAESTRO_DISTRIBUTION_RESTORE_SOURCE=${./distribution-restore.py}
+        export MAESTRO_DECISION_CORE MAESTRO_DISTRIBUTION_CACHE_SOURCE MAESTRO_DISTRIBUTION_RESTORE_SOURCE
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.python3];
+      source = ./distribution-restore.sh;
+    };
+    decision-refresh = mkCommand {
+      name = "decision-refresh";
+      prefix = ''
+        MAESTRO_DECISION_CORE=${./decisions}
+        MAESTRO_DISTRIBUTION_CACHE_SOURCE=${./distribution-cache.py}
+        export MAESTRO_DISTRIBUTION_CACHE_SOURCE
+        MAESTRO_DECISION_OPERATIONS_SOURCE=${./decision-refresh.py}
+        export MAESTRO_DECISION_CORE MAESTRO_DECISION_OPERATIONS_SOURCE
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.python3 pkgs.oras commands.security-scan];
+      source = ./decision-refresh.sh;
+    };
+    decision-health = mkCommand {
+      name = "decision-health";
+      prefix = ''
+        MAESTRO_DECISION_CORE=${./decisions}
+        MAESTRO_DECISION_OPERATIONS_SOURCE=${./decision-health.py}
+        export MAESTRO_DECISION_CORE MAESTRO_DECISION_OPERATIONS_SOURCE
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.python3 pkgs.oras];
+      source = ./decision-health.sh;
+    };
+    decision-handoff-fetch = mkCommand {
+      name = "decision-handoff-fetch";
+      prefix = ''
+        MAESTRO_DECISION_CORE=${./decisions}
+        MAESTRO_DECISION_OPERATIONS_SOURCE=${./decision-handoff-fetch.py}
+        export MAESTRO_DECISION_CORE MAESTRO_DECISION_OPERATIONS_SOURCE
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.python3 pkgs.oras];
+      source = ./decision-handoff-fetch.sh;
+    };
+    publication-journal = mkCommand {
+      name = "publication-journal";
+      prefix = ''
+        MAESTRO_DECISIONS_SOURCE=${./decisions}
+        MAESTRO_PUBLICATION_JOURNAL_SOURCE=${./publication-journal.py}
+        MAESTRO_PUBLICATION_ASSETS_SOURCE=${./publication-assets.py}
+        export MAESTRO_DECISIONS_SOURCE MAESTRO_PUBLICATION_JOURNAL_SOURCE MAESTRO_PUBLICATION_ASSETS_SOURCE
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.python3 pkgs.oras];
+      source = ./publication-journal.sh;
+    };
+    publication-assets = mkCommand {
+      name = "publication-assets";
+      prefix = ''
+        MAESTRO_DECISIONS_SOURCE=${./decisions}
+        MAESTRO_PUBLICATION_JOURNAL_SOURCE=${./publication-journal.py}
+        MAESTRO_PUBLICATION_ASSETS_SOURCE=${./publication-assets.py}
+        export MAESTRO_DECISIONS_SOURCE MAESTRO_PUBLICATION_JOURNAL_SOURCE MAESTRO_PUBLICATION_ASSETS_SOURCE
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.python3 pkgs.oras commands.decision-handoff];
+      source = ./publication-assets.sh;
+    };
+    release-retain = mkCommand {
+      name = "release-retain";
+      runtimeInputs = commonInputs;
+      source = ./release-retain.sh;
+    };
+    decision-download = mkCommand {
+      name = "decision-download";
+      prefix = ''
+        MAESTRO_DECISION_CORE=${./decisions}
+        MAESTRO_DECISION_RETAINED_SOURCE=${./decision-retained.py}
+        export MAESTRO_DECISION_CORE MAESTRO_DECISION_RETAINED_SOURCE
+        MAESTRO_DECISION_DOWNLOAD_SOURCE=${./decision-download.py}
+        export MAESTRO_DECISION_DOWNLOAD_SOURCE
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.python3 pkgs.oras];
+      source = ./decision-download.sh;
+    };
+    decision-candidate = mkCommand {
+      name = "decision-candidate";
+      prefix = ''
+        MAESTRO_DISTRIBUTION_CACHE_SOURCE=${./distribution-cache.py}
+        export MAESTRO_DISTRIBUTION_CACHE_SOURCE
+        MAESTRO_DECISION_CANDIDATE_SOURCE=${./decision-candidate.py}
+        export MAESTRO_DECISION_CANDIDATE_SOURCE
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.python3];
+      source = ./decision-candidate.sh;
+    };
+    source-security = mkCommand {
+      name = "source-security";
+      runtimeInputs = commonInputs ++ [pkgs.gitleaks];
+      source = ./source-security.sh;
+    };
+    decision-event = mkCommand {
+      name = "decision-event";
+      runtimeInputs = commonInputs;
+      source = ./decision-event.sh;
+    };
+    decision-admission = mkCommand {
+      name = "decision-admission";
+      prefix = ''
+        MAESTRO_DECISIONS_SOURCE=${./decisions}
+        export MAESTRO_DECISIONS_SOURCE
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.python3 pkgs.oras];
+      source = ./decision-admission.sh;
+    };
+    decision-publication = mkCommand {
+      name = "decision-publication";
+      prefix = ''
+        MAESTRO_DECISIONS_SOURCE=${./decisions}
+        export MAESTRO_DECISIONS_SOURCE
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.python3 pkgs.oras commands.decision-handoff];
+      source = ./decision-publication.sh;
+    };
+    decision-readiness = mkCommand {
+      name = "decision-readiness";
+      prefix = ''
+        MAESTRO_DECISIONS_SOURCE=${./decisions}
+        export MAESTRO_DECISIONS_SOURCE
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.python3 pkgs.oras];
+      source = ./decision-readiness.sh;
+    };
+    decision-reconcile = mkCommand {
+      name = "decision-reconcile";
+      prefix = ''
+        MAESTRO_DECISIONS_SOURCE=${./decisions}
+        export MAESTRO_DECISIONS_SOURCE
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.python3 pkgs.oras];
+      source = ./decision-reconcile.sh;
+    };
+    decision-check = mkCommand {
+      name = "decision-check";
+      prefix = ''
+        MAESTRO_DECISIONS_SOURCE=${./decisions}
+        export MAESTRO_DECISIONS_SOURCE
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.python3 pkgs.oras];
+      source = ./decision-check.sh;
+    };
+    decision-recovery = mkCommand {
+      name = "decision-recovery";
+      prefix = ''
+        MAESTRO_DECISIONS_SOURCE=${./decisions}
+        export MAESTRO_DECISIONS_SOURCE
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.python3 pkgs.oras];
+      source = ./decision-recovery.sh;
+    };
+    decision-handoff = mkCommand {
+      name = "decision-handoff";
+      runtimeInputs = commonInputs ++ [commands.decision-handoff-fetch];
+      source = ./decision-handoff.sh;
+    };
     release-attestations = mkCommand {
       name = "release-attestations";
       runtimeInputs = commonInputs;
@@ -87,6 +292,8 @@
           # task loading must not build the appliance before cache preflight;
           # the qualification plan materializes these outputs explicitly.
           system = builtins.unsafeDiscardStringContext appliance.system.build.toplevel.outPath;
+          distributionRoots = map builtins.unsafeDiscardStringContext distributionRoots;
+          installerQualification = builtins.fromJSON (builtins.unsafeDiscardStringContext (builtins.toJSON installerQualification));
           lockDigest = builtins.hashFile "sha256" lockFile;
           inherit packageSourceRoots;
           inventoryDigest = builtins.hashFile "sha256" ./security-inventory.py;
@@ -96,6 +303,7 @@
             managementCIDRs = appliance.maestro.operator.managementCIDRs;
             ssh = appliance.services.openssh.settings;
             xoPackage = builtins.unsafeDiscardStringContext appliance.maestro.xo.package.outPath;
+            xoChannel = appliance.maestro.xo.channel;
             xoUser = appliance.maestro.xo.user;
             fileRestore = {
               inherit (appliance.maestro.xo.fileRestore) enable;
@@ -238,7 +446,7 @@
         MAESTRO_CI_PLAN_CONTRACT=${../ci-plans.json}
         export MAESTRO_CI_PLAN_CONTRACT
       '';
-      runtimeInputs = commonInputs ++ [pkgs.cachix];
+      runtimeInputs = commonInputs ++ [pkgs.cachix commands.decision-publication commands.decision-handoff];
       source = ./cache-validation.sh;
     };
     repository-audit = mkCommand {
@@ -289,7 +497,7 @@
     };
     publish = mkCommand {
       name = "publish";
-      runtimeInputs = commonInputs ++ [pkgs.cachix planRunner];
+      runtimeInputs = commonInputs ++ [pkgs.cachix pkgs.python3 commands.decision-publication commands.distribution-restore commands.decision-handoff];
       source = ./publish.sh;
     };
     queue = mkCommand {
@@ -307,6 +515,7 @@
           commands.release-notes
           commands.release-stage
           commands.release-version
+          commands.publication-assets
           commands.trusted-update
           commands.validate-state
           commands.verify-inventory

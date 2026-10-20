@@ -77,8 +77,34 @@ in {
       ci-plan-contract = let
         plans = inputs.self.lib.ciPlans.${system};
         qualificationInputs = inputs.self.lib.ciQualificationInputs.${system};
+        unsupportedInstaller = initrd:
+          builtins.tryEval (import ./_installer-qualification.nix {
+            inherit lib;
+            installerIso = null;
+            installerSystem = {
+              inherit pkgs;
+              config = {
+                boot = {inherit initrd;};
+                specialisation = {};
+              };
+            };
+          });
       in
+        assert !(unsupportedInstaller {
+          systemd.enable = false;
+          prepend = [];
+        }).success;
+        assert !(unsupportedInstaller {
+          systemd.enable = true;
+          prepend = ["unattributed-archive"];
+        }).success;
+        assert builtins.length plans.publish.targets == 7;
+        assert builtins.attrNames inputs.self.nixosConfigurations == ["maestro"];
+        assert packages.distribution-inventory.qualification.system != appliance.system.build.toplevel.outPath;
+        assert builtins.all (binding: builtins.elem binding.root (builtins.attrValues packages.distribution-inventory.qualification.roots)) packages.distribution-inventory.qualification.bindings;
         assert qualificationInputs.evidence.toplevel == inputs.self.nixosConfigurations.maestro.config.system.build.toplevel.outPath;
+        assert qualificationInputs.media.dependencies.installerIso == packages.installer-iso.outPath;
+        assert !(qualificationInputs.media ? source);
           pkgs.runCommandLocal "maestro-ci-plan-contract" {
             nativeBuildInputs = [pkgs.jq];
           } ''
@@ -86,7 +112,7 @@ in {
             jq -e '
               (.validation.schemaVersion == 2) and
               (.validation.name == "maestro-validation") and
-              (.validation.targets | length == 19) and
+              (.validation.targets | length == 20) and
               (.media.schemaVersion == 2) and
               (.media.name == "maestro-media-qualification") and
               (.media.targets | length == 1) and
@@ -97,10 +123,6 @@ in {
               (.publish.name == "maestro-publish") and
               (.publish.targets | length == 7)
             ' plans.json >/dev/null
-            test -e ${qualificationInputs.media.source}/installer/default.nix
-            test -e ${qualificationInputs.media.source}/modules/outputs/packages.nix
-            ! test -e ${qualificationInputs.media.source}/docs
-            ! test -e ${qualificationInputs.media.source}/.github
             touch "$out"
           '';
 
@@ -135,7 +157,7 @@ in {
           # pinned $/ references on the actual source below, without waivers.
           cp -R source legacy-source
           chmod -R u+w legacy-source
-          sed -i 's@^\([[:space:]]*uses: \)\$/@\1./@' \
+          sed -i 's@^\([[:space:]]*\(- \)\?uses: \)\$/@\1./@' \
             legacy-source/.github/workflows/*.yml \
             legacy-source/.github/actions/*/action.yml
           (
@@ -156,7 +178,7 @@ in {
                 ;;
             esac
             case "$action" in
-              '$/'* | actions/checkout@* | actions/upload-artifact@* | actions/download-artifact@* | actions/attest@* | actions/create-github-app-token@* | DeterminateSystems/determinate-nix-action@* | DeterminateSystems/flakehub-push@*) ;;
+              '$/'* | actions/checkout@* | actions/upload-artifact@* | actions/download-artifact@* | actions/attest@* | actions/create-github-app-token@* | DeterminateSystems/determinate-nix-action@* | DeterminateSystems/flakehub-push@* | step-security/harden-runner@* | github/codeql-action/*@*) ;;
               *)
                 printf 'Action is not an approved GitHub-platform boundary: %s\n' "$action" >&2
                 exit 1
@@ -262,18 +284,34 @@ in {
         '';
       };
 
+      source-security = mkSourceCheck {
+        name = "source-security";
+        command = "${lib.getExe packages.maestro-ci-source-security}";
+        nativeBuildInputs = fixtureInputs ++ [packages.maestro-ci-source-security];
+      };
+
       security-fixtures = mkSourceCheck {
         name = "security-fixtures";
         command = ''
           PYTHONDONTWRITEBYTECODE=1 python3 ./tests/security-inventory.py
+          PYTHONDONTWRITEBYTECODE=1 python3 ./tests/security-components.py
           PYTHONDONTWRITEBYTECODE=1 python3 ./tests/file-restore.py
           bash ./tests/policy-drift.sh
           bash ./tests/security-contracts.sh
           bash ./tests/evidence-download.sh
           bash ./tests/provenance-requests.sh
           bash ./tests/security-scan.sh
+          bash ./tests/codeql-rust-toolchain.sh ${lib.getExe packages.maestro-ci-codeql-rust-toolchain}
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/decision-observations.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/test_secret_inventory.py
+          PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests/decisions -p '*.py'
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/publication-journal.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/distribution-cache.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/qualification-restore.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/installer-coverage.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/decision-operations.py
         '';
-        nativeBuildInputs = fixtureInputs ++ [pkgs.openssh pkgs.python3];
+        nativeBuildInputs = fixtureInputs ++ [pkgs.openssh pkgs.python3 pkgs.gitleaks];
       };
 
       packer-policy = mkSourceCheck {
@@ -316,7 +354,7 @@ in {
             --file ${inputs.self}/secretspec.toml \
             --profile github-queue \
             --output queue-schema.json
-          jq -e '.required == ["CACHIX_MAESTRO_PUBKEY", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS", "MERGE_QUEUE_PAT"]' queue-schema.json >/dev/null
+          jq -e '.required == ["CACHIX_MAESTRO_PUBKEY", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS", "MERGE_QUEUE_TOKEN"]' queue-schema.json >/dev/null
           secretspec schema \
             --file ${inputs.self}/secretspec.toml \
             --profile github-publish \

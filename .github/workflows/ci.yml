@@ -119,9 +119,9 @@ jobs:
   qualification:
     name: Qualify installer media and evidence
     needs: route
-    if: contains(fromJSON('["refresh-evidence","qualify-media-reuse-evidence","qualify-media"]'), fromJSON(needs.route.outputs.plan).qualification.mode)
+    if: fromJSON(needs.route.outputs.plan).qualification.required
     runs-on: ubuntu-24.04
-    timeout-minutes: 165
+    timeout-minutes: 240
     permissions:
       actions: read
       attestations: read
@@ -145,7 +145,7 @@ jobs:
           run-id: ${{ fromJSON(needs.route.outputs.plan).qualification.media_run_id }}
 
       - name: Download reusable supply evidence
-        if: fromJSON(needs.route.outputs.plan).qualification.mode == 'qualify-media-reuse-evidence'
+        if: contains(fromJSON('["reuse","qualify-media-reuse-evidence"]'), fromJSON(needs.route.outputs.plan).qualification.mode)
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           github-token: ${{ github.token }}
@@ -154,6 +154,7 @@ jobs:
           run-id: ${{ fromJSON(needs.route.outputs.plan).qualification.evidence_run_id }}
 
       - name: Assemble qualified media and evidence
+        if: fromJSON(needs.route.outputs.plan).qualification.mode != 'reuse'
         env:
           EXPECTED_MEDIA_INPUT: ${{ fromJSON(needs.route.outputs.plan).qualification.media_input }}
           EXPECTED_EVIDENCE_INPUT: ${{ fromJSON(needs.route.outputs.plan).qualification.evidence_input }}
@@ -161,6 +162,22 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           QUALIFICATION_MODE: ${{ fromJSON(needs.route.outputs.plan).qualification.mode }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:qualification:assemble
+
+      - name: Download previously qualified distribution transport
+        if: fromJSON(needs.route.outputs.plan).qualification.mode == 'reuse'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          github-token: ${{ github.token }}
+          name: maestro-security-report
+          path: qualified-distribution
+          run-id: ${{ fromJSON(needs.route.outputs.plan).qualification.evidence_run_id }}
+
+      - name: Authenticate original producer and restore exact outputs for rescanning
+        if: fromJSON(needs.route.outputs.plan).qualification.mode == 'reuse'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SECURITY_INVENTORY: reused-evidence
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:qualification:restore
 
       - name: Boot the installer ISO
         if: contains(fromJSON('["qualify-media-reuse-evidence","qualify-media"]'), fromJSON(needs.route.outputs.plan).qualification.mode)
@@ -185,6 +202,7 @@ jobs:
           path: .
 
       - name: Upload installer and SBOM assets
+        if: fromJSON(needs.route.outputs.plan).qualification.mode != 'reuse'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: maestro-installer
@@ -207,6 +225,7 @@ jobs:
           retention-days: 90
 
       - name: Upload reusable supply evidence
+        if: fromJSON(needs.route.outputs.plan).qualification.mode != 'reuse'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: maestro-evidence
@@ -225,6 +244,29 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
+      - name: Scan current databases beside the realized qualification outputs
+        env:
+          SECURITY_INVENTORY: ${{ fromJSON(needs.route.outputs.plan).qualification.mode == 'reuse' && 'reused-evidence' || '.' }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:security:scan
+
+      - name: Bind exact scanned distribution and retain its closure transport
+        if: github.ref == 'refs/heads/main' && contains(fromJSON('["push","schedule","workflow_dispatch"]'), github.event_name)
+        env:
+          SECURITY_INVENTORY: ${{ fromJSON(needs.route.outputs.plan).qualification.mode == 'reuse' && 'reused-evidence' || '.' }}
+          DECISION_PRODUCER_WORKFLOW: .github/workflows/ci.yml
+          GH_TOKEN: ${{ github.token }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:candidate
+
+      - name: Upload native scan and exact distribution transport
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-security-report
+          path: security-report
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90
+
   security:
     name: Scan qualified dependency inventories
     needs: [route, qualification]
@@ -237,6 +279,9 @@ jobs:
     permissions:
       contents: read
       actions: read
+      attestations: write
+      id-token: write
+      artifact-metadata: write
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -246,25 +291,23 @@ jobs:
       - name: Set up Nix
         uses: $/.github/actions/setup-nix
 
-      - name: Download qualification evidence
+      - name: Download this run's native qualification report
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           github-token: ${{ github.token }}
-          name: maestro-evidence
-          path: candidate
-          run-id: ${{ fromJSON(needs.route.outputs.plan).qualification.artifact_run_id }}
-
-      - name: Scan current vulnerability databases
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:security:scan
-
-      - name: Upload security findings
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
           name: maestro-security-report
           path: security-report
-          if-no-files-found: error
-          retention-days: 30
+
+      - name: Validate complete fresh native qualification without importing candidate code
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:security:verify-native
+
+      - name: Attest native evidence and immutable product identity
+        if: github.ref == 'refs/heads/main' && contains(fromJSON('["push","schedule","workflow_dispatch"]'), github.event_name)
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            security-report/scans.json
+            security-report/product.json
 
   signing:
     name: Sign protected-main qualification
@@ -362,52 +405,6 @@ jobs:
           MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS: ${{ vars.MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS || '[]' }}
           RELEASE_REQUEST_RUN_ID: ${{ inputs.release_request_id }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:signal
-
-  publish:
-    name: Publish reusable main outputs
-    needs:
-      - route
-      - qualification
-      - signing
-    if: >-
-      !cancelled() &&
-      needs.route.result == 'success' &&
-      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-      needs.signing.result == 'success' &&
-      fromJSON(needs.route.outputs.plan).publish_required &&
-      (needs.qualification.result == 'success' || needs.qualification.result == 'skipped')
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    concurrency:
-      group: maestro-publication
-      queue: max
-      cancel-in-progress: false
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Set up Nix
-        uses: $/.github/actions/setup-nix
-
-      - name: Publish exact planned closures to Cachix
-        env:
-          CACHIX_MAESTRO_AUTH_TOKEN: ${{ secrets.CACHIX_MAESTRO_AUTH_TOKEN }}
-          CACHIX_MAESTRO_PUBKEY: ${{ vars.CACHIX_MAESTRO_PUBKEY }}
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:publish
-
-      - name: Publish the rolling flake to FlakeHub
-        uses: DeterminateSystems/flakehub-push@99ef15d19ce5deb24d62f5d1d6f5a81d9bf03567 # main, Node.js 24 (post-v6)
-        with:
-          visibility: public
-          name: closure-labs/maestro
-          rolling: true
-          rolling-minor: 2
-          include-output-paths: true
 
   verdict:
     name: Required CI verdict

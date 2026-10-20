@@ -6,7 +6,9 @@ set -euo pipefail
 : "${GH_TOKEN:?GH_TOKEN must be set}"
 : "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY must be set}"
 : "${DEFAULT_BRANCH:?DEFAULT_BRANCH must be set}"
-: "${MERGE_QUEUE_PAT:?MERGE_QUEUE_PAT must be configured for protected queue admission}"
+: "${MERGE_QUEUE_TOKEN:?MERGE_QUEUE_TOKEN must be configured for protected queue admission}"
+
+bot_login=$(jq -er .botLogin "${MAESTRO_SYSTEM_ROOT:-$PWD}/nix/automation/decision-policy.json")
 
 pull_requests=$(gh api --paginate \
   "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=100" \
@@ -14,12 +16,12 @@ pull_requests=$(gh api --paginate \
 
 jq -c \
   --arg branch "$DEFAULT_BRANCH" \
-  --arg repository "$GITHUB_REPOSITORY" '
+  --arg repository "$GITHUB_REPOSITORY" --arg bot "$bot_login" '
     add[] |
     select(.draft == false) |
     select(.head.repo.full_name == $repository) |
     select(.base.ref == $branch) |
-    select(.user.login == "dependabot[bot]" or .user.login == "github-actions[bot]") |
+    select(.user.login == "dependabot[bot]" or .user.login == "github-actions[bot]" or .user.login == $bot) |
     {rest_author:.user.login,branch:.head.ref,number,title}
   ' <<<"$pull_requests" |
 while IFS= read -r pull_request; do
@@ -34,8 +36,8 @@ while IFS= read -r pull_request; do
   if [[ "$rest_author" == 'dependabot[bot]' ]]; then
     [[ $EXPECTED_BRANCH == dependabot/cargo/pkgs/maestro-menu/* ]] || continue
     EXPECTED_AUTHOR=dependabot
-  elif [[ "$rest_author" == 'github-actions[bot]' ]]; then
-    EXPECTED_AUTHOR=github-actions
+  elif [[ "$rest_author" == 'github-actions[bot]' || "$rest_author" == "$bot_login" ]]; then
+    EXPECTED_AUTHOR=${rest_author%\[bot\]}
     if [[ "$EXPECTED_BRANCH" == automation/weekly-flake-input-refresh &&
           "$EXPECTED_TITLE" == 'locks: refresh Nix and devenv inputs' ]]; then
       EXPECTED_CHANGE_KIND=flake-lock

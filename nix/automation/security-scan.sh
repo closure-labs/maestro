@@ -5,12 +5,15 @@ set -euo pipefail
 inventory=${SECURITY_INVENTORY:-candidate}
 output=${SECURITY_OUTPUT:-security-report}
 repo_root=${MAESTRO_SYSTEM_ROOT:-$PWD}
+cargo_lock=${SECURITY_CARGO_LOCK:-$repo_root/pkgs/maestro-menu/Cargo.lock}
+scan_started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 mkdir -p "$output"
 # Reusing an output directory must not leave a previous successful verdict or
 # database status behind when the current invocation fails before replacing it.
 rm -f -- "$output/grype-database.json" "$output/findings.json" \
   "$output/grype-findings.json" "$output/critical-applicability.json" \
-  "$output/effective-policy.json" "$output/new-high-critical.json" "$output/inputs.sha256"
+  "$output/effective-policy.json" "$output/new-high-critical.json" "$output/inputs.sha256" \
+  "$output/security-result.json"
 work=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/maestro-scan.XXXXXX")
 printf '{}\n' >"$work/grype.yaml"
 # Local configuration must not disable database updates, hide findings, or
@@ -34,7 +37,7 @@ export GRYPE_DB_VALIDATE_AGE=true
 export GRYPE_DB_AUTO_UPDATE=true
 export GRYPE_DB_REQUIRE_UPDATE_CHECK=true
 run_grype version -o json >"$output/grype-version.json"
-cargo audit --version >"$output/cargo-audit-version.txt"
+cargo-audit audit --version >"$output/cargo-audit-version.txt"
 # Prove that both native and JavaScript identities reach the active database.
 # Reuse this invocation's fresh database; never run an extra local download.
 cat >"$work/scanner-check.cdx.json" <<'JSON'
@@ -57,12 +60,19 @@ jq -e '.valid == true' "$output/grype-database.json" >/dev/null
 python3 "$MAESTRO_SECURITY_NORMALIZE_SOURCE" "$output/$component.grype.json" "$sbom" \
   "$output/grype-version.json" "$work/$component.findings.json"
 audit_status=0
-cargo audit --file "$repo_root/pkgs/maestro-menu/Cargo.lock" --db "$work/rustsec" --json \
+cargo-audit audit --file "$cargo_lock" --db "$work/rustsec" --json \
   >"$output/cargo-audit.json" || audit_status=$?
 [[ $audit_status == 0 || $audit_status == 1 ]]
 jq -e '.vulnerabilities.list | type == "array"' "$output/cargo-audit.json" >/dev/null
+# A fresh temporary database is fetched by this exact cargo-audit invocation.
+# Record the native revision rather than assigning freshness to reused bytes.
+rustsec_revision=$(git -C "$work/rustsec" rev-parse HEAD)
+[[ $rustsec_revision =~ ^[a-f0-9]{40}$ ]]
+jq -n --arg revision "$rustsec_revision" --arg fetchedAt "$scan_started" \
+  '{source:"https://github.com/RustSec/advisory-db.git",revision:$revision,fetchedAt:$fetchedAt}' \
+  >"$output/rustsec-database.json"
 # RustSec CVSS vectors become severity through the declared Python CVSS library.
-python3 - "$output/cargo-audit.json" "$work/cargo.findings.json" "$repo_root/pkgs/maestro-menu/Cargo.lock" \
+python3 - "$output/cargo-audit.json" "$work/cargo.findings.json" "$cargo_lock" \
   "$output/cargo-audit-version.txt" "$sbom" "${BASH_SOURCE[0]}" <<'PYTHON'
 import hashlib
 import json
@@ -122,7 +132,10 @@ jq --slurpfile applicability "$output/critical-applicability.json" '
     select(key as $candidate | $reviewed | index($candidate) | not)]
 ' "$MAESTRO_SECURITY_POLICY" >"$output/effective-policy.json"
 sha256sum "$inventory/maestro-system.cdx.json" "$inventory/xen-orchestra-supply.cdx.json" \
-  "$repo_root/pkgs/maestro-menu/Cargo.lock" >"$output/inputs.sha256"
+  "$cargo_lock" >"$output/inputs.sha256"
+# This is native technical evidence, independent of the historical report-mode
+# policy. Publication must separately require authenticated human admission.
+python3 "$MAESTRO_SECURITY_NORMALIZE_SOURCE" --result "$output" "$sbom" "$scan_started"
 maestro-ci-security-verdict "$output/findings.json" "$output/effective-policy.json" >"$output/new-high-critical.json"
 if [[ -n ${GITHUB_STEP_SUMMARY:-} ]]; then
   printf 'Security scan: %s findings; policy mode %s. Unscored advisories require triage.\n' \

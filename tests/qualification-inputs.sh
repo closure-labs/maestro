@@ -48,6 +48,18 @@ seed_change=$(resolve '{"media":{"source":"same","dependencies":{"applianceTople
 [[ $(jq -r .media_input <<<"$seed_change") != $(jq -r .media_input <<<"$seed_baseline") ]]
 [[ $(jq -r .evidence_input <<<"$seed_change") != $(jq -r .evidence_input <<<"$seed_baseline") ]]
 
+# Only evaluated media and boot acceptance affect the media identity. Evidence
+# tool changes can refresh scans without invalidating already booted ISO bytes.
+exact_baseline=$(resolve '{"media":{"dependencies":{"installerIso":"/nix/store/iso-a","applianceToplevel":"/nix/store/system-a"},"bootPolicy":"boot-a"},"evidence":{"distribution":"/nix/store/tools-a"}}')
+exact_tools=$(resolve '{"media":{"dependencies":{"installerIso":"/nix/store/iso-a","applianceToplevel":"/nix/store/system-a"},"bootPolicy":"boot-a"},"evidence":{"distribution":"/nix/store/tools-b"}}')
+[[ $(jq -r .media_input <<<"$exact_baseline") == $(jq -r .media_input <<<"$exact_tools") ]]
+for media in \
+  '{"dependencies":{"installerIso":"/nix/store/iso-b","applianceToplevel":"/nix/store/system-a"},"bootPolicy":"boot-a"}' \
+  '{"dependencies":{"installerIso":"/nix/store/iso-a","applianceToplevel":"/nix/store/system-a"},"bootPolicy":"boot-b"}'; do
+  changed=$(resolve "{\"media\":$media,\"evidence\":{\"distribution\":\"/nix/store/tools-a\"}}")
+  [[ $(jq -r .media_input <<<"$changed") != $(jq -r .media_input <<<"$exact_baseline") ]]
+done
+
 if resolve '{"media":null,"evidence":{}}' >/dev/null 2>&1; then
   printf 'Qualification input resolver accepted an invalid Nix graph.\n' >&2
   exit 1

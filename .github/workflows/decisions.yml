@@ -1,0 +1,100 @@
+# SPDX-License-Identifier: Apache-2.0
+name: Reconcile maintainer decisions
+on:
+  workflow_run: # zizmor: ignore[dangerous-triggers] Trusted main validates completed native producers independently.
+    workflows: [CI, Security maintenance, Release Maestro, Continue Maestro release]
+    types: [completed]
+  push:
+    branches: [main]
+    paths: ['automation/decisions/**']
+  schedule:
+    - cron: '37 * * * *'
+  workflow_dispatch:
+    inputs:
+      candidate_run:
+        description: Completed protected native producer; empty discovers retained evidence
+        type: string
+        default: ''
+      kind:
+        type: choice
+        options: [security-findings, release-product]
+        default: security-findings
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: maestro-decision-reconciliation
+  cancel-in-progress: false
+jobs:
+  health:
+    if: github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: $/.github/actions/setup-nix
+      - name: Mint scoped health reporter
+        id: health
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.DECIDER_CLIENT }}
+          private-key: ${{ secrets.DECIDER_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: read
+          permission-actions: read
+          permission-pull-requests: read
+          permission-issues: write
+      - name: Reconcile audit and human decision health
+        env:
+          GH_TOKEN: ${{ steps.health.outputs.token }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:health
+  reconcile:
+    permissions:
+      contents: read
+      actions: read
+      packages: write
+    if: github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: $/.github/actions/setup-nix
+      - name: Resolve immutable completed producer data
+        id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN: ${{ inputs.candidate_run || '' }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:download
+      - name: Mint scoped proposal-author token
+        id: proposer
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.DECIDER_CLIENT }}
+          private-key: ${{ secrets.DECIDER_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-actions: read
+          permission-administration: read
+          permission-members: read
+      - name: Propose uncovered findings from complete authenticated evidence
+        env:
+          GH_TOKEN: ${{ steps.proposer.outputs.token }}
+          REGISTRY_TOKEN: ${{ github.token }}
+          DECISION_KIND: security-findings
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:reconcile
+      - name: Propose approval of exact official product bytes
+        if: steps.candidate.outputs.release == 'true' || inputs.kind == 'release-product'
+        env:
+          GH_TOKEN: ${{ steps.proposer.outputs.token }}
+          REGISTRY_TOKEN: ${{ github.token }}
+          DECISION_KIND: release-product
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:reconcile

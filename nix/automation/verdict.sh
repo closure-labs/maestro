@@ -54,10 +54,10 @@ jq -e '
 
 mode=$(jq -er '.qualification.mode' <<<"$CI_PLAN")
 case "$mode" in
-  refresh-evidence|qualify-media-reuse-evidence|qualify-media)
+  reuse|refresh-evidence|qualify-media-reuse-evidence|qualify-media)
     test "${QUALIFICATION_RESULT:?}" = success
     ;;
-  skip|reuse)
+  skip)
     test "${QUALIFICATION_RESULT:?}" = skipped
     ;;
   *)

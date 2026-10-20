@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "mode": "official",
+  "repository": "closure-labs/xo-nixpkg",
+  "revision": "6e49a69b5ee9a9ef939ea97e39c08b7045adf153",
+  "channel": "xo-latest",
+  "storePath": "/nix/store/k03ang69fdb55fj37v78rpvm6wl4l8n9-xen-orchestra-ce-6.9.1",
+  "narHash": "sha256-h5awUSIkX7KwtINzJTRiaifjyJketx7c5ypH1mtViZc=",
+  "packet": {
+    "reference": "ghcr.io/closure-labs/xo-nixpkg-products@sha256:b777568f75af744b64996a8b87d137b2e59c56861eb21941e0e91dad3a5358f7",
+    "sha256": "6f498673a36ae4327833a4317a3dc047003c2f0dc2780511c05c8953dce6636b"
+  }
+}

@@ -59,3 +59,9 @@ packer/*.pkrvars.json
 *.log
 .claude/
 .codex
+
+# Python bytecode and local candidate transport
+__pycache__/
+*.py[cod]
+/candidate-evidence/
+/prepared/

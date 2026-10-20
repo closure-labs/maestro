@@ -16,6 +16,26 @@ export GITHUB_ACTIONS=false
 # without relying on fixture-only subsets of the actual repository plan.
 first=/nix/store/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-validation-one
 second=/nix/store/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb-validation-two
+export DECISION_PRODUCT="$temporary/product.json" DECISION_SCANS="$temporary/scans.json"
+jq -n --arg first "$first" --arg second "$second" '{products:{maestro:{storePath:$first}},roots:{auxiliary:{storePath:$second}}}' >"$DECISION_PRODUCT"
+printf '{}\n' >"$DECISION_SCANS"
+cat >"$temporary/bin/maestro-ci-decision-publication" <<'ADMISSION'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ ${PUBLICATION_PURPOSE:?} == rolling ]]
+[[ ${FAIL_ADMISSION:-false} != true ]]
+printf 'admitted\n' >>"${FAKE_CACHE_FIXTURE:?}/admission"
+ADMISSION
+sed -i "1c#!${BASH}" "$temporary/bin/maestro-ci-decision-publication"
+chmod +x "$temporary/bin/maestro-ci-decision-publication"
+cat >"$temporary/bin/maestro-ci-decision-handoff" <<'HANDOFF'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ ${FAIL_HANDOFF:-false} != true ]]
+printf 'verified\n' >>"${FAKE_CACHE_FIXTURE:?}/handoff"
+HANDOFF
+sed -i "1c#!${BASH}" "$temporary/bin/maestro-ci-decision-handoff"
+chmod +x "$temporary/bin/maestro-ci-decision-handoff"
 jq -n --slurpfile contract "$root/nix/ci-plans.json" --arg first "$first" --arg second "$second" '
   {schemaVersion:2,plan:"maestro-validation",flake:"path:/fixture",failureCount:0,
    targetCount:($contract[0].validation.targets | length),
@@ -51,6 +71,9 @@ reject() {
   fi
   [[ ! -e $temporary/published ]]
 }
+FAIL_ADMISSION=true reject "$MAESTRO_CI_CACHE_VALIDATION" "$temporary/valid.json"
+[[ ! -e $temporary/queried ]]
+FAIL_HANDOFF=true reject "$MAESTRO_CI_CACHE_VALIDATION" "$temporary/valid.json"
 for alteration in \
   '.schemaVersion=1' \
   '.plan="maestro-publish"' \

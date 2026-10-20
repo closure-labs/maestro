@@ -9,30 +9,73 @@ correspond to published GitHub tags.
 
 ## [Unreleased]
 
+### Changed
+
+- Export retained Nix closures with Zstandard to reduce CI transport preparation
+  time while preserving exact product hashes, authenticated restore, and release
+  approval. Already compressed NAR and installer uploads remain uncompressed by
+  the artifact service.
+
+## [3.0.1] - 2026-10-19
+
+### Security
+
+- Require current Super Admin approval of complete security findings before
+  distributing candidates, and a separate approval of each official release's
+  exact product bytes. Preserve findings at every severity and block incomplete,
+  stale, or unhealthy scanner evidence.
+- Inventory all distributed appliance and operator/tool closures, including
+  installed npm dependencies and RustSec findings. Recheck runtime exposure and
+  independently verify the pinned XO product's provenance and current admission.
+- Include installer runtime, initrd, and bootloader origins in retained security
+  evidence, and require review of installer access-policy changes even when no
+  vulnerabilities are reported.
+- Use the organization Decider App for authority checks and short-lived queue
+  credentials, with a separate read-only administration audit App.
+- Run pinned CodeQL analysis for Actions, JavaScript/TypeScript, Python, and Rust;
+  select the native Nix Rust toolchain for extractor subprocesses.
+
+### Changed
+
+- Refresh the XO input to use Nixpkgs' cached Node 22.23.3 and OpenSSL 3.5.9
+  runtime without rebuilding the crypto stack.
+- Separate qualification from publication. Retain authenticated Nix closures and
+  immutable release assets so publishers can restore verified products without
+  builders and resume interrupted publication without replacing existing bytes.
+- Rescan retained products daily while preserving their original product identity
+  and approvals. Require review when findings or runtime exposure increase.
+- Ship the publication controls disabled until the initial human baselines and
+  official XO handoff are configured; see `docs/ci-security.md` for activation.
+
 ### Fixed
 
-- Accept the locked XO publication from either the upstream cache or the trusted
-  Maestro mirror during qualification. Preserve signature and supply-provenance
-  checks and fail when both caches lack the exact output.
-- Open a new weekly dependency update PR when earlier PRs for its reused branch
-  are merged or closed. Edit only an existing open PR and fail on lookup errors.
-- Pin same-repository actions and the reusable release workflow to the running
-  workflow commit with GitHub's self-repository references. Preserve workflow
-  validation with both the current and refreshed native linters.
-- Explicitly enqueue ready trusted bot updates, preserving the protected merge
-  queue when auto-merge alone leaves an update waiting outside it. Release
-  version preparation and advancement wait for successful exact-head CI before
-  requesting queue entry; pending ordinary bot updates remain asynchronous.
-- Use the scoped `MERGE_QUEUE_PAT` personal token for queue admission so
-  GitHub emits native merge-group checks. Keep other automation requests on the
-  job token and reject missing queue credentials before requesting auto-merge.
-- Allow the latest daily vulnerability database through its publication window
-  with a 48-hour age limit and mandatory update checks. Isolate Grype settings
-  from ambient configuration, retain database diagnostics and preserve scanner
-  coverage and finding gates.
-- Propagate every security fixture failure, use the native sandbox interpreter
-  for the policy fixture, and align the scanner fixture with the runtime context
-  schema. Correct the security policy's management defaults to include IPv6.
+- Authenticate completed GitHub merge events when queued PR metadata retains
+  a stale preview SHA, while preserving content, ancestry and human review.
+
+- Keep immutable decision packet references stable when uploading identical
+  evidence again, while preserving producer and scan timestamps.
+- Authenticate complete security decision ledgers up to 16 MiB with bounded
+  GitHub API output and exact Git object verification.
+- Exclude only canonical security finding identity lines from generic secret
+  detection; preserve credential detection and review changes to scanner rules.
+- Preserve each shipped Nix output in the security inventory and retain plain
+  schema and patch inputs by immutable file identity.
+- Validate inventory aggregation links while preserving complete appliance and
+  installer coverage in the distributed package evidence.
+- Match imported XO native package identities to their exact validated Nix
+  outputs while retaining the original supply evidence and dependency links.
+- Run RustSec audits with the packaged audit binary without requiring Cargo in
+  the scanner's environment.
+- Verify the complete locked XO closure across the official NixOS, XO, and
+  Maestro caches, with signature and content checks and all builders disabled.
+- Reuse unchanged installer media by its evaluated ISO and boot-policy identities
+  while allowing current supply evidence to refresh independently.
+- Reopen weekly dependency update proposals after an earlier reused branch was
+  merged or closed, and explicitly enqueue ready trusted updates with exact-head
+  checks.
+- Keep pinned local Actions compatible with the native workflow linters, retain
+  fresh daily vulnerability databases through their publication window, and
+  propagate scanner fixture failures.
 
 ## [3.0.0] - 2026-10-14
 

@@ -2,21 +2,6 @@
   system = "x86_64-linux";
   mkPlan = inputs.xen-orchestra-ce.lib.mkCiPlan;
   definitions = builtins.fromJSON (builtins.readFile ../../nix/ci-plans.json);
-  mediaSource = inputs.nixpkgs.lib.fileset.toSource {
-    root = ../..;
-    fileset = inputs.nixpkgs.lib.fileset.unions [
-      ../../flake.nix
-      ../../installer
-      ../../modules/_homeManager
-      ../../modules/_nixos
-      ../../modules/aspects
-      ../../modules/den-defaults.nix
-      ../../modules/dendritic.nix
-      ../../modules/host.nix
-      ../../modules/outputs/packages.nix
-      ../../pkgs/maestro-menu
-    ];
-  };
   validTarget = target:
     target ? name
     && builtins.isString target.name
@@ -30,6 +15,7 @@
     && builtins.isList plan.targets
     && builtins.all validTarget plan.targets;
 in {
+  flake.lib.ciInstallerQualification.${system} = inputs.self.packages.${system}.distribution-inventory.qualification;
   flake.lib.ciPlans.${system} = assert builtins.all validPlan (builtins.attrValues definitions);
     builtins.mapAttrs (_: mkPlan) definitions;
 
@@ -38,8 +24,10 @@ in {
   # exact output requested by the current source tree.
   flake.lib.ciQualificationInputs.${system} = {
     media = {
-      source = mediaSource;
       dependencies = {
+        # Exact evaluated media captures every material recipe/input change.
+        # Source-only edits elsewhere in packages.nix must not rebuild an ISO.
+        installerIso = inputs.self.packages.${system}.installer-iso.outPath;
         # Installer media embeds this closure, including host management policy.
         applianceToplevel = inputs.self.nixosConfigurations.maestro.config.system.build.toplevel.outPath;
         den = inputs.den.outPath;
@@ -52,6 +40,7 @@ in {
       bootPolicy = builtins.hashFile "sha256" ../../nix/automation/boot-media.sh;
     };
     evidence = {
+      distribution = inputs.self.packages.${system}.distribution-inventory.outPath;
       toplevel = inputs.self.nixosConfigurations.maestro.config.system.build.toplevel.outPath;
       sbomnix = inputs.self.packages.${system}.sbomnix.outPath;
       xenOrchestra = inputs.self.packages.${system}.xen-orchestra-ce.outPath;

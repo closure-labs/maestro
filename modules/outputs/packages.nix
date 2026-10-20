@@ -24,6 +24,14 @@ in {
         appliance = inputs.self.nixosConfigurations.maestro.config;
         lockFile = ../../flake.lock;
         packageSourceRoots = [inputs.nixpkgs.outPath inputs.xen-orchestra-ce.inputs.nixpkgs.outPath];
+        distributionRoots =
+          map (
+            target:
+              (lib.attrByPath (lib.splitString "." target.attribute) null inputs.self).outPath
+          )
+          (builtins.fromJSON (builtins.readFile ../../nix/ci-plans.json)).publish.targets
+          ++ builtins.attrValues installerQualification.roots;
+        inherit installerQualification;
       };
       automationPackages =
         lib.mapAttrs' (
@@ -54,10 +62,23 @@ in {
       assert builtins.elem maestroMenu installerSystem.config.isoImage.storeContents;
       assert builtins.elem xenOrchestraCe installerSystem.config.isoImage.storeContents;
         installerSystem.config.system.build.isoImage;
+      installerQualification = import ./_installer-qualification.nix {
+        inherit lib installerSystem installerIso;
+      };
     in
       {
         xen-orchestra-ce = xenOrchestraCe;
         xen-orchestra-supply-protector = xenOrchestraSupplyProtector;
+        # One inventory root covers every closure distributed by this flake,
+        # including CI/operator tools outside the installed appliance closure.
+        distribution-inventory = (pkgs.linkFarm "maestro-distribution-inventory" (
+          map (target: {
+            inherit (target) name;
+            path = lib.attrByPath (lib.splitString "." target.attribute) null inputs.self;
+          })
+          (builtins.fromJSON (builtins.readFile ../../nix/ci-plans.json)).publish.targets
+          ++ lib.mapAttrsToList (name: path: {inherit name path;}) installerQualification.roots
+        )).overrideAttrs (_: {passthru.qualification = installerQualification;});
         flake-plan-runner = planRunner;
         sbomnix = import ../../nix/pkgs/sbomnix.nix {inherit pkgs ciNix;};
         maestro-ci-toolchain = pkgs.buildEnv {

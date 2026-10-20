@@ -6,6 +6,13 @@ set -euo pipefail
 TEST_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly TEST_ROOT
 
+# Exact-head approval reads private evidence using the package token while the
+# separate App token supplies organization membership and check authority.
+yq -e '.permissions.packages == "read"' "$TEST_ROOT/.github/workflows/decision-authority.yml" >/dev/null
+# shellcheck disable=SC2016
+grep -Fq 'REGISTRY_TOKEN: ${{ github.token }}' "$TEST_ROOT/.github/workflows/decision-authority.yml"
+grep -Fq 'oras login ghcr.io' "$TEST_ROOT/nix/automation/decision-check.sh"
+
 fail() {
   printf 'FAIL: %s\n' "$1" >&2
   exit 1
@@ -237,18 +244,18 @@ route_outputs=$(yq -r '.jobs.route.outputs | keys | join(",")' \
   "$TEST_ROOT/.github/workflows/ci.yml")
 assert_eq "$route_outputs" plan
 yq -e \
-  '.jobs.publish.concurrency.group == "maestro-publication" and
-   .jobs.publish.concurrency.queue == "max" and
-   .jobs.publish.concurrency.cancel-in-progress == false' \
-  "$TEST_ROOT/.github/workflows/ci.yml" >/dev/null \
+  '.concurrency.group == "maestro-publication" and
+   .concurrency.queue == "max" and
+   .concurrency.cancel-in-progress == false' \
+  "$TEST_ROOT/.github/workflows/publication.yml" >/dev/null \
   || fail "the durable rolling publication queue is not configured"
 yq -e \
-  '.concurrency.group == "maestro-release" and .concurrency.cancel-in-progress == false and
-   .jobs.release.concurrency.group == "maestro-publication" and
-   .jobs.release.concurrency.queue == "max" and
-   .jobs.release.concurrency.cancel-in-progress == false' \
+  '.concurrency.group == "maestro-release" and .concurrency.cancel-in-progress == false' \
   "$TEST_ROOT/.github/workflows/release.yml" >/dev/null \
   || fail "release orchestration and durable publication do not use distinct queues"
+yq -e '.concurrency.group == "maestro-publication" and .concurrency.queue == "max" and .concurrency.cancel-in-progress == false' \
+  "$TEST_ROOT/.github/workflows/release-publication.yml" >/dev/null \
+  || fail "official and rolling publication do not share the durable queue"
 yq -e \
   '.on.workflow_dispatch.inputs.release_candidate.type == "boolean" and
    .on.workflow_dispatch.inputs.release_candidate.default == false and
@@ -278,12 +285,12 @@ grep -Fq -- '--no-build --print-build-logs' \
 # GitHub and shell expressions must remain literal in the source contract.
 # shellcheck disable=SC2016
 grep -Fq 'CACHIX_MAESTRO_AUTH_TOKEN: ${{ secrets.CACHIX_MAESTRO_AUTH_TOKEN }}' \
-  "$TEST_ROOT/.github/workflows/ci.yml" \
+  "$TEST_ROOT/.github/workflows/publication.yml" \
   || fail "protected publication does not receive the Cachix token"
 # shellcheck disable=SC2016
-grep -Fq 'jq -r '\''.results[].outputs[]'\'' "$manifest"' \
+grep -Fq '.products[].storePath, .roots[].storePath' \
   "$TEST_ROOT/nix/automation/publish.sh" \
-  || fail "Cachix publication does not use the exact publish-plan manifest"
+  || fail "Cachix publication does not use the attested exact distribution roots"
 # Dependabot owns action revisions. Assert the action and immutable pin at its
 # call site without duplicating a revision that every update would invalidate.
 yq -o=json '.jobs.qualification.steps' "$TEST_ROOT/.github/workflows/ci.yml" | jq -e '
@@ -301,9 +308,9 @@ grep -Fq 'contains(fromJSON' \
 grep -Fq 'if: fromJSON(steps.plan.outputs.plan).qualification.required' \
   "$TEST_ROOT/.github/workflows/ci.yml" \
   || fail "installer state upload does not consume the authoritative route plan"
-grep -Fq 'fromJSON(needs.route.outputs.plan).publish_required' \
-  "$TEST_ROOT/.github/workflows/ci.yml" \
-  || fail "publication does not consume the authoritative route plan"
+grep -Fq "'' ci:decision:publication" \
+  "$TEST_ROOT/.github/workflows/publication.yml" \
+  || fail "publication does not require live human admission"
 grep -Fq 'name: maestro-qualification-state' \
   "$TEST_ROOT/.github/workflows/ci.yml" \
   || fail "installer workflow does not publish its immutable state pointer"
@@ -333,12 +340,12 @@ grep -Fq 'maestro-system.cdx.json' \
 grep -Fq 'xen-orchestra-supply.assertion.json' \
   "$TEST_ROOT/.github/workflows/ci.yml" \
   || fail "installer artifact omits the verified upstream XO evidence"
-yq -o=json '.jobs.publish.steps' "$TEST_ROOT/.github/workflows/ci.yml" | jq -e '
+yq -o=json '.jobs.publish.steps' "$TEST_ROOT/.github/workflows/publication.yml" | jq -e '
   any(.[]; (.uses // "") | test("^DeterminateSystems/flakehub-push@[0-9a-f]{40}$"))
 ' >/dev/null \
   || fail "rolling FlakeHub publication does not use an immutable action"
 grep -Fq 'rolling-minor: 2' \
-  "$TEST_ROOT/.github/workflows/ci.yml" \
+  "$TEST_ROOT/.github/workflows/publication.yml" \
   || fail "rolling FlakeHub publication does not avoid the legacy version line"
 grep -Fq -- '--status success' \
   "$TEST_ROOT/nix/automation/qualification-resolve.sh" \
@@ -388,10 +395,10 @@ grep -Fq 'if [[ $dispatched == false && $attempt -ge 2 ]]' \
   || fail "trusted updates do not wait for pull-request CI before fallback dispatch"
 # The variable references must remain literal in the workflow source.
 # shellcheck disable=SC2016
-grep -Fq 'git merge-base --is-ancestor "$draft_target" "$SOURCE_SHA"' \
-  "$TEST_ROOT/nix/automation/release-manager.sh" \
-  || fail "release workflow cannot safely refresh a failed draft from newer main"
-grep -Fq -- '--draft' "$TEST_ROOT/nix/automation/release-manager.sh" \
+grep -Fq 'Existing release tag points at another source' \
+  "$TEST_ROOT/nix/automation/publication-assets.py" \
+  || fail "release workflow does not reject an incompatible reserved tag"
+grep -Fq "'draft': True" "$TEST_ROOT/nix/automation/publication-assets.py" \
   || fail "release workflow does not stage assets in a draft"
 # The variable reference must remain literal in the workflow source.
 # shellcheck disable=SC2016
@@ -400,8 +407,8 @@ grep -Fq 'maestro-ci-release-notes "$RELEASE_VERSION" CHANGELOG.md' \
   || fail "release workflow does not use the curated changelog entry"
 # The variable reference must remain literal in the workflow source.
 # shellcheck disable=SC2016
-grep -Fq -- '--notes-file "$notes_file"' \
-  "$TEST_ROOT/nix/automation/release-manager.sh" \
+grep -Fq "'body': notes" \
+  "$TEST_ROOT/nix/automation/publication-assets.py" \
   || fail "release workflow does not publish curated release notes"
 if grep -Fq -- '--generate-notes' "$TEST_ROOT/nix/automation/release-manager.sh"; then
   fail "release workflow still substitutes generated notes for the changelog"
@@ -431,8 +438,8 @@ yq -o=json '.jobs.release.steps' "$TEST_ROOT/.github/workflows/release.yml" | jq
   || fail "release publication does not use an immutable artifact downloader"
 # The variable reference must remain literal in the workflow source.
 # shellcheck disable=SC2016
-grep -Fq 'gh release edit "$RELEASE_TAG" --draft=false --latest' \
-  "$TEST_ROOT/nix/automation/release-manager.sh" \
+grep -Fq "'PATCH', {'draft': False}" \
+  "$TEST_ROOT/nix/automation/publication-assets.py" \
   || fail "release workflow does not publish the verified immutable draft"
 # The variable reference must remain literal in the workflow source.
 # shellcheck disable=SC2016

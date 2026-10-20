@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "enabled": false,
+  "repository": "closure-labs/maestro",
+  "botLogin": "cl-decider[bot]",
+  "appId": 5384448,
+  "profiles": ["maestro"],
+  "requiredCoverage": {"maestro": "maestro-distribution-v2"},
+  "decisionRoot": "automation/decisions",
+  "policyPath": "nix/automation/decision-policy.json",
+  "requiredAuthorityCheck": "Maintainer decision authority",
+  "producerWorkflows": [".github/workflows/ci.yml", ".github/workflows/security.yml", ".github/workflows/release.yml", ".github/workflows/release-continuation.yml"],
+  "maxDatabaseAgeHours": 48,
+  "maxEvidenceAgeHours": 24
+}

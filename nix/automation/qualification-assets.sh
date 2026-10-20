@@ -52,6 +52,8 @@ esac
 
 manifest=$(mktemp "${runner_temp}/maestro-plan.XXXXXX")
 flake-plan-runner --flake "path:$repo_root" --plan lib.ciPlans.x86_64-linux.evidence --manifest "$manifest"
+# Native scans open every distributed output on this same qualification runner.
+nix build --accept-flake-config --no-link "path:$repo_root#packages.x86_64-linux.distribution-inventory"
 
 sbomnix_out=$(jq -er '.results[] | select(.name == "sbomnix") | .outputs | select(length == 1) | .[0]' "$manifest")
 manifest_xo_out=$(jq -er '.results[] | select(.name == "xen-orchestra-ce") | .outputs | select(length == 1) | .[0]' "$manifest")
@@ -80,7 +82,7 @@ else
   sbom_work=$(mktemp -d "${runner_temp}/maestro-sbom.XXXXXX")
   (
     cd "$sbom_work"
-    "$sbomnix_out/bin/sbomnix" "path:${repo_root}#nixosConfigurations.maestro.config.system.build.toplevel"
+    "$sbomnix_out/bin/sbomnix" "path:${repo_root}#packages.x86_64-linux.distribution-inventory"
   )
   mv "$sbom_work/sbom.spdx.json" maestro-system.spdx.json
   mv "$sbom_work/sbom.cdx.json" maestro-system.cdx.json
