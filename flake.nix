@@ -32,7 +32,7 @@
 
   inputs = {
     den.url = "github:denful/den/v0.16.0";
-    devenv.url = "github:cachix/devenv/v2.2.2";
+    devenv.url = "github:cachix/devenv/v2.4.0";
     determinate.url = "https://flakehub.com/f/DeterminateSystems/determinate/*";
     # FlakeHub's /0 selectors track the latest stable release train. The /0.1
     # selectors are rolling and follow nixos-unstable.

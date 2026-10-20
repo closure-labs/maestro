@@ -9,6 +9,11 @@ correspond to published GitHub tags.
 
 ## [Unreleased]
 
+### Changed
+
+- Update the pinned native devenv CLI and modules to 2.4.0, retaining synchronized
+  flake and devenv locks without refreshing the appliance package inputs.
+
 ### Fixed
 
 - Retry bounded temporary GitHub authority read failures and report typed
