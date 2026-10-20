@@ -9,17 +9,13 @@ correspond to published GitHub tags.
 
 ## [Unreleased]
 
-### Changed
-
-- Export retained Nix closures with Zstandard to reduce CI transport preparation
-  time while preserving exact product hashes, authenticated restore, and release
-  approval. Already compressed NAR and installer uploads remain uncompressed by
-  the artifact service.
-
-## [3.0.1] - 2026-10-19
+## [3.0.1] - 2026-10-20
 
 ### Security
 
+- Enable protected publication after the initial appliance security baseline
+  and official upstream handoff are verified; retain independent exact-product
+  release approval and live admission checks.
 - Require current Super Admin approval of complete security findings before
   distributing candidates, and a separate approval of each official release's
   exact product bytes. Preserve findings at every severity and block incomplete,
@@ -37,21 +33,33 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Export retained Nix closures with Zstandard to reduce CI transport preparation
+  time while preserving exact product hashes, authenticated restore, and release
+  approval. Already compressed NAR and installer uploads remain uncompressed by
+  the artifact service.
 - Refresh the XO input to use Nixpkgs' cached Node 22.23.3 and OpenSSL 3.5.9
   runtime without rebuilding the crypto stack.
+- Pin the optimized XO runtime, removing native-addon build scaffolding while
+  preserving validated Argon2, LevelDB, and FUSE support.
 - Separate qualification from publication. Retain authenticated Nix closures and
   immutable release assets so publishers can restore verified products without
   builders and resume interrupted publication without replacing existing bytes.
 - Rescan retained products daily while preserving their original product identity
   and approvals. Require review when findings or runtime exposure increase.
-- Ship the publication controls disabled until the initial human baselines and
-  official XO handoff are configured; see `docs/ci-security.md` for activation.
+- Keep publication frozen during bootstrap until the initial human baselines
+  and official XO handoff are configured; see `docs/ci-security.md` for activation.
 
 ### Fixed
 
+- Enforce the public CI cache baseline after Determinate configuration while
+  preserving explicitly accepted project caches and runtime-only credentials.
+
+- Recover pending decision packets using GitHub's complete PR detail response,
+  preserving exact-head and single-file checks when list responses omit counts.
+- Diagnose private evidence registry failures with bounded error categories
+  while keeping credentials and raw registry responses out of logs.
 - Authenticate completed GitHub merge events when queued PR metadata retains
   a stale preview SHA, while preserving content, ancestry and human review.
-
 - Keep immutable decision packet references stable when uploading identical
   evidence again, while preserving producer and scan timestamps.
 - Authenticate complete security decision ledgers up to 16 MiB with bounded

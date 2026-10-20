@@ -6,8 +6,10 @@ replaces the earlier report-only publication model. The historical dated securit
 reviews and orchestration benchmarks describe the earlier implementation.
 
 The checked policy pins the `cl-decider` App integration ID `5384448` and
-deliberately starts with `enabled=false` and an unconfigured XO handoff.
-Publication remains frozen until the coordinated cutover below is completed.
+enables publication only after the initial security baseline has been accepted.
+The official XO handoff pins the independently admitted upstream product.
+Every publication still requires current admission and exact-product release
+approval.
 Shared App keys and client IDs are inherited from organization settings; the
 public App ID is also declared as a repository variable in both repositories.
 

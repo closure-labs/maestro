@@ -29,6 +29,37 @@ retained = module('decision-retained')
 
 
 class Operations(unittest.TestCase):
+    def test_pending_discovery_reads_detail_count_and_rejects_changed_heads_or_extra_files(self):
+        repository = 'closure-labs/maestro'
+        cfg = {'repository': repository, 'botLogin': 'review[bot]'}
+        proposal = {'schema': 1, 'kind': 'security-findings', 'payload': {}}
+        path = retained.authority.proposal_path(proposal)
+        # GitHub's PR-list response intentionally has no changed_files field.
+        pull = {'number': 7, 'user': {'login': 'review[bot]', 'type': 'Bot'},
+                'head': {'sha': 'a' * 40, 'ref': 'automation/decision-test',
+                         'repo': {'full_name': repository}}}
+        detail = dict(pull, state='open', base={'ref': 'main'}, changed_files=1)
+        files = [{'filename': path, 'status': 'added'}]
+
+        def collection(api, endpoint):
+            return files if endpoint.endswith('/files') else [pull]
+
+        with patch.object(retained.authority, 'collection', side_effect=collection), \
+             patch.object(retained.authority, 'github_api', return_value=detail) as api, \
+             patch.object(retained.authority, 'document_at', return_value=proposal) as document:
+            self.assertEqual(retained.pending(cfg), {retained.canonical_hash(proposal): proposal})
+            api.assert_called_once_with(f'repos/{repository}/pulls/7')
+            self.assertEqual(document.call_args.args[-1], 'a' * 40)
+            for count in (None, True, 2):
+                with self.subTest(changed_files=count):
+                    detail['changed_files'] = count
+                    with self.assertRaisesRegex(ValueError, 'unexpected files'):
+                        retained.pending(cfg)
+            detail['changed_files'] = 1
+            detail['head'] = dict(pull['head'], sha='b' * 40)
+            with self.assertRaisesRegex(ValueError, 'changed during discovery'):
+                retained.pending(cfg)
+
     def test_retained_input_hashes_bind_all_three_original_documents(self):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)

@@ -43,6 +43,6 @@
     import-tree.url = "github:vic/import-tree";
     nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0";
     # Pin the reviewed XO runtime and shared admission evaluator together.
-    xen-orchestra-ce.url = "github:closure-labs/xo-nixpkg/6e49a69b5ee9a9ef939ea97e39c08b7045adf153";
+    xen-orchestra-ce.url = "github:closure-labs/xo-nixpkg/cc71a6c82674a26557271b5d4e730e2f05a8cf03";
   };
 }

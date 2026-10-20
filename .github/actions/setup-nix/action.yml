@@ -25,7 +25,8 @@ runs:
         printf '%s\n' "$runner_budget" | sudo tee -a /etc/nix/nix.custom.conf >/dev/null
         max_jobs=$(awk '$1 == "max-jobs" {print $3}' <<<"$runner_budget")
         cores=$(awk '$1 == "cores" {print $3}' <<<"$runner_budget")
-        bash "$GITHUB_ACTION_PATH/export-runtime.sh" "$nix_cli" "$max_jobs" "$cores"
+        public_config=$(bash "$GITHUB_ACTION_PATH/export-runtime.sh" "$nix_cli" "$max_jobs" "$cores")
+        export NIX_CONFIG="$public_config"
         sudo systemctl restart nix-daemon.service
         substituters=$(nix config show substituters)
         printf 'CI substituters: %s\n' "$substituters"
