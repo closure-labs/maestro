@@ -62,6 +62,17 @@ def prepare(native, root, revision, run, attempt, workflow, now=None):
         if path not in identities:
             raise ValueError("A distribution root is absent from the native inventory")
         roots[target["name"]] = {**identities[path], "profile": "maestro"}
+    qualification = json.loads(command("nix", "eval", "--accept-flake-config", "--json",
+                                      f"path:{root}#lib.ciInstallerQualification.x86_64-linux"))
+    coverage = native.get("coverage", {})
+    if coverage.get("contract") != "maestro-distribution-v2" or coverage.get("manifest") != qualification:
+        raise ValueError("Native installer coverage differs from evaluated qualification manifest")
+    for name, path in qualification["roots"].items():
+        if path not in identities or name in roots:
+            raise ValueError("Installer qualification root is missing or collides with publication roots")
+        roots[name] = {**identities[path], "profile": "maestro"}
+    if set(identities) != {primary, *(value["storePath"] for value in roots.values())}:
+        raise ValueError("Native subjects differ from exact complete distribution")
     product = {"schema": 1, "repository": "closure-labs/maestro", "revision": revision,
                "products": {"maestro": identities[primary]}, "roots": roots, "assets": {}}
     return scans, product

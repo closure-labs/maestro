@@ -5,6 +5,7 @@
   "botLogin": "cl-decider[bot]",
   "appId": 5384448,
   "profiles": ["maestro"],
+  "requiredCoverage": {"maestro": "maestro-distribution-v2"},
   "decisionRoot": "automation/decisions",
   "policyPath": "nix/automation/decision-policy.json",
   "requiredAuthorityCheck": "Maintainer decision authority",

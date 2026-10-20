@@ -56,6 +56,13 @@ with tempfile.TemporaryDirectory() as temporary:
         assert events == [('authenticated-scan', {'allow_expired': True}), 'authenticated-product', 'import']
         transfer.restore.assert_called_once_with(directory, scans['transport'], roots)
         transfer.restore.reset_mock()
+        # Old seven-root products retain their original authenticated bytes for
+        # historical audit. Import never upgrades them to installer coverage.
+        historical = restore.restore({}, directory, directory, {ROOT, ROOT + '-installer'}, transfer,
+                                     legacy_paths={ROOT})
+        assert historical['coverage'] == 'historical-only'
+        assert 'coverage' not in scans['profiles']['maestro']
+        transfer.restore.reset_mock()
         reject(lambda: restore.restore({}, directory, directory, {ROOT + '-other'}, transfer), 'current evaluated')
         reject(lambda: restore.restore({}, directory, directory, {ROOT}, transfer, 'c' * 40), 'exact candidate')
         path.write_text(json.dumps({'properties': []}))

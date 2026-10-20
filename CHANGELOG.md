@@ -20,6 +20,9 @@ correspond to published GitHub tags.
 - Inventory all distributed appliance and operator/tool closures, including
   installed npm dependencies and RustSec findings. Recheck runtime exposure and
   independently verify the pinned XO product's provenance and current admission.
+- Include installer runtime, initrd, and bootloader origins in retained security
+  evidence, and require review of installer access-policy changes even when no
+  vulnerabilities are reported.
 - Use the organization Decider App for authority checks and short-lived queue
   credentials, with a separate read-only administration audit App.
 - Run pinned CodeQL analysis for Actions, JavaScript/TypeScript, Python, and Rust;

@@ -342,7 +342,7 @@ def enrich(system, supply, context, derivations):
     return system
 
 
-def bind_inventory_roots(system, roots):
+def bind_inventory_roots(system, roots, qualification=None):
     if not isinstance(roots, list) or not roots:
         raise ValueError("publication inventory roots are required")
     expected = {}
@@ -365,6 +365,8 @@ def bind_inventory_roots(system, roots):
     for path, nar_hash in expected.items():
         if records.get(path, {}).get("narHash") != nar_hash:
             raise ValueError("publication root differs from expected NAR identity")
+    if qualification is not None and not set(qualification["roots"].values()) <= expected.keys():
+        raise ValueError("installer qualification roots are absent from inventory subjects")
     expand_runtime_outputs(system, records)
     for component in [*system["components"], system.get("metadata", {}).get("component", {})]:
         props = properties(component)
@@ -405,6 +407,19 @@ def main():
     system_path, supply_path, context_path = map(Path, sys.argv[1:])
     system = json.loads(system_path.read_text())
     context = json.loads(context_path.read_text())
+    qualification = context.get("installerQualification")
+    if qualification is not None:
+        if (qualification.get("schema") != 1 or not isinstance(qualification.get("roots"), dict)
+                or not qualification["roots"] or not isinstance(qualification.get("bindings"), list)
+                or not qualification["bindings"] or not isinstance(qualification.get("policy"), dict)):
+            raise ValueError("incomplete installer qualification manifest")
+        store_path(qualification["iso"])
+        declared = set(qualification["roots"].values())
+        if qualification.get("system") not in declared:
+            raise ValueError("installer system absent from qualification roots")
+        for binding in qualification["bindings"]:
+            if binding.get("root") not in declared or not (binding.get("source") == binding["root"] or binding.get("source", "").startswith(binding["root"] + "/")):
+                raise ValueError("installer content lacks retained native origin")
     roots_path = os.environ.get("DECISION_ROOTS_JSON")
     if roots_path:
         roots = json.loads(Path(roots_path).read_text())
@@ -419,7 +434,10 @@ def main():
         if not isinstance(records, dict) or records.keys() != set(paths):
             raise ValueError("publication root metadata does not match expected outputs")
         roots = [{"storePath": path, "narHash": records[path]["narHash"]} for path in paths]
-    bind_inventory_roots(system, roots)
+    bind_inventory_roots(system, roots, qualification)
+    if qualification is not None:
+        system.setdefault("properties", []).append({"name": "maestro:qualificationCoverage", "value": json.dumps({
+            "contract": "maestro-distribution-v2", "manifest": qualification}, sort_keys=True)})
     candidates = [*system["components"], system.get("metadata", {}).get("component", {})]
     drvs = sorted({properties(c)["nix:drv_path"] for c in candidates if properties(c).get("nix:drv_path") and properties(c).get("maestro:staticSource") != "true"})
     derivations = read_derivations(drvs)

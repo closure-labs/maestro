@@ -15,6 +15,7 @@
     && builtins.isList plan.targets
     && builtins.all validTarget plan.targets;
 in {
+  flake.lib.ciInstallerQualification.${system} = inputs.self.packages.${system}.distribution-inventory.qualification;
   flake.lib.ciPlans.${system} = assert builtins.all validPlan (builtins.attrValues definitions);
     builtins.mapAttrs (_: mkPlan) definitions;
 

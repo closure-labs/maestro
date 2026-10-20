@@ -18,6 +18,12 @@ public App ID is also declared as a repository variable in both repositories.
   `scans.json` and `product.json`. Its signatures establish producer identity;
   they grant no risk acceptance. The inventory includes the appliance, CLI/TUI,
   deployment tools, SBOM generator, and CI toolchain.
+- Installer coverage also retains its runtime system, helpers, effective initrd
+  sources, and enabled BIOS/EFI/memtest origins in an internal manifest bound to
+  the exact ISO. These are qualification roots, not additional public targets.
+  The `maestro-distribution-v2` contract requires every manifest root in both the
+  authenticated inventory and retained product. Older products remain available
+  for historical recovery but need complete fresh coverage before publication.
 - Native evidence retains actual installed npm dependencies, native derivation
   and patch metadata, RustSec results, raw scanner observations, database age,
   immutable root NAR hashes, and stable shipped-file exposure bindings. Runtime
@@ -64,6 +70,11 @@ Explicit rejection, supersession, revocation, and maintainer reaffirmation are
 supported. Historical merged provenance never substitutes for current active
 human authority. Scanner errors, incomplete coverage, stale evidence, and API
 failures cannot be accepted as vulnerability risk.
+
+Baseline decisions retain profile security contexts even when their findings
+are empty. Installer access, passwords, boot modes, kernel parameters, and
+emergency-shell policy are reviewed as a conservative policy projection;
+password hashes and changing store identities are excluded from that projection.
 
 Hourly reconciliation proposes uncovered findings and resumes approved work.
 Daily audits rescan retained products and compare live repository policy.

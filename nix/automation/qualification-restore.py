@@ -11,17 +11,22 @@ sys.path.insert(0, os.environ.get('MAESTRO_DECISION_CORE', str(Path(__file__).wi
 import common
 
 
-def expected_paths(root):
+def expected_paths(root, include_installer=True):
     values = [common.command(['nix', 'eval', '--accept-flake-config', '--raw',
                              f'path:{root}#nixosConfigurations.maestro.config.system.build.toplevel.outPath']).strip()]
     plan = common.load_json(root / 'nix/ci-plans.json')['publish']['targets']
     for target in plan:
         values.append(common.command(['nix', 'eval', '--accept-flake-config', '--raw',
                                       f'path:{root}#{target["attribute"]}.outPath']).strip())
+    if include_installer:
+        import json
+        manifest = json.loads(common.command(['nix', 'eval', '--accept-flake-config', '--json',
+                                              f'path:{root}#lib.ciInstallerQualification.x86_64-linux']))
+        values.extend(manifest['roots'].values())
     return set(values)
 
 
-def restore(cfg, evidence, inventory, paths, transfer, source_sha=None):
+def restore(cfg, evidence, inventory, paths, transfer, source_sha=None, legacy_paths=None):
     # These checks authenticate protected-main producer provenance and native
     # technical health, not risk acceptance. Expired observations can restore
     # their original bytes so a fresh native scan can be produced.
@@ -32,7 +37,9 @@ def restore(cfg, evidence, inventory, paths, transfer, source_sha=None):
         common.require(product['revision'] == source_sha, 'Qualification source differs from exact candidate')
     identities = {value['storePath']: {'storePath': value['storePath'], 'narHash': value['narHash']}
                   for value in [*product['products'].values(), *product.get('roots', {}).values()]}
-    common.require(set(identities) == set(paths), 'Candidate roots differ from current evaluated qualification outputs')
+    current = set(identities) == set(paths)
+    historical = legacy_paths is not None and set(identities) == set(legacy_paths)
+    common.require(current or historical, 'Candidate roots differ from current evaluated qualification outputs')
     sbom = inventory / 'maestro-system.cdx.json'
     common.require(sbom.is_file() and not sbom.is_symlink(), 'Regular native inventory required')
     with sbom.open('rb') as stream:
@@ -51,7 +58,8 @@ def restore(cfg, evidence, inventory, paths, transfer, source_sha=None):
     else:
         transfer.restore(evidence, scans['transport'], list(identities.values()))
     return {'schema': 1, 'status': 'restored-for-native-qualification',
-            'revision': product['revision'], 'roots': sorted(identities)}
+            'revision': product['revision'], 'roots': sorted(identities),
+            'coverage': 'current' if current else 'historical-only'}
 
 
 def main():
@@ -62,7 +70,7 @@ def main():
     spec.loader.exec_module(transfer)
     result = restore(cfg, Path(os.environ.get('QUALIFICATION_EVIDENCE', 'qualified-distribution')),
                      Path(os.environ.get('SECURITY_INVENTORY', 'candidate')), expected_paths(root), transfer,
-                     os.environ.get('QUALIFICATION_SOURCE_SHA'))
+                     os.environ.get('QUALIFICATION_SOURCE_SHA'), expected_paths(root, include_installer=False))
     common.emit(result)
 
 

@@ -8,6 +8,7 @@
   packageSourceRoots,
   applicabilityCommand,
   distributionRoots,
+  installerQualification,
 }: let
   mkCommand = {
     name,
@@ -292,6 +293,7 @@
           # the qualification plan materializes these outputs explicitly.
           system = builtins.unsafeDiscardStringContext appliance.system.build.toplevel.outPath;
           distributionRoots = map builtins.unsafeDiscardStringContext distributionRoots;
+          installerQualification = builtins.fromJSON (builtins.unsafeDiscardStringContext (builtins.toJSON installerQualification));
           lockDigest = builtins.hashFile "sha256" lockFile;
           inherit packageSourceRoots;
           inventoryDigest = builtins.hashFile "sha256" ./security-inventory.py;

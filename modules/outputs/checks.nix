@@ -77,7 +77,31 @@ in {
       ci-plan-contract = let
         plans = inputs.self.lib.ciPlans.${system};
         qualificationInputs = inputs.self.lib.ciQualificationInputs.${system};
+        unsupportedInstaller = initrd:
+          builtins.tryEval (import ./_installer-qualification.nix {
+            inherit lib;
+            installerIso = null;
+            installerSystem = {
+              inherit pkgs;
+              config = {
+                boot = {inherit initrd;};
+                specialisation = {};
+              };
+            };
+          });
       in
+        assert !(unsupportedInstaller {
+          systemd.enable = false;
+          prepend = [];
+        }).success;
+        assert !(unsupportedInstaller {
+          systemd.enable = true;
+          prepend = ["unattributed-archive"];
+        }).success;
+        assert builtins.length plans.publish.targets == 7;
+        assert builtins.attrNames inputs.self.nixosConfigurations == ["maestro"];
+        assert packages.distribution-inventory.qualification.system != appliance.system.build.toplevel.outPath;
+        assert builtins.all (binding: builtins.elem binding.root (builtins.attrValues packages.distribution-inventory.qualification.roots)) packages.distribution-inventory.qualification.bindings;
         assert qualificationInputs.evidence.toplevel == inputs.self.nixosConfigurations.maestro.config.system.build.toplevel.outPath;
         assert qualificationInputs.media.dependencies.installerIso == packages.installer-iso.outPath;
         assert !(qualificationInputs.media ? source);
@@ -283,6 +307,7 @@ in {
           PYTHONDONTWRITEBYTECODE=1 python3 tests/publication-journal.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/distribution-cache.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/qualification-restore.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/installer-coverage.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/decision-operations.py
         '';
         nativeBuildInputs = fixtureInputs ++ [pkgs.openssh pkgs.python3];

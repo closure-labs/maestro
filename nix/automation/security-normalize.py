@@ -245,7 +245,8 @@ def rust_observations(audit, sbom):
 
 def security_context(sbom):
     props = {p["name"]: p["value"] for p in sbom["properties"]}
-    runtime = json.loads(props["maestro:runtimeContext"]).get("runtime")
+    native_context = json.loads(props["maestro:runtimeContext"])
+    runtime = native_context.get("runtime")
     if runtime is None:
         return None
     required = {"allowedTCPPorts", "allowedUDPPorts", "managementCIDRs", "ssh", "xoUser", "User", "Group",
@@ -295,11 +296,15 @@ def security_context(sbom):
     cidrs = runtime["managementCIDRs"]
     if not isinstance(cidrs, list) or not cidrs:
         raise ValueError("missing native management ranges")
-    return {"schema": 1, "tcpPorts": ports("allowedTCPPorts"), "udpPorts": ports("allowedUDPPorts"),
+    result = {"schema": 1, "tcpPorts": ports("allowedTCPPorts"), "udpPorts": ports("allowedUDPPorts"),
             "managementCIDRs": sorted({str(ipaddress.ip_network(value, strict=False)) for value in cidrs}),
             "ssh": privilege(runtime["ssh"]), "execution": {key: runtime[key] for key in ("xoUser", "User", "Group")},
             "capabilities": caps("CapabilityBoundingSet"), "ambientCapabilities": caps("AmbientCapabilities"),
             "helpers": flags, "sudo": privilege(runtime["sudo"]), "mountsDir": storage["mountsDir"]}
+    if "installerQualification" in native_context:
+        result["schema"] = 2
+        result["installer"] = privilege(native_context["installerQualification"]["policy"])
+    return result
 
 
 def security_result(report, sbom, audit, database, started, evidence):
@@ -348,6 +353,14 @@ def security_result(report, sbom, audit, database, started, evidence):
     if context is None:
         raise ValueError("Maestro native evidence requires actual runtime security policy")
     result["securityContext"] = context
+    if "maestro:qualificationCoverage" in props:
+        coverage = json.loads(props["maestro:qualificationCoverage"])
+        native_context = json.loads(props["maestro:runtimeContext"])
+        if (coverage.get("contract") != "maestro-distribution-v2"
+                or coverage.get("manifest") != native_context.get("installerQualification")
+                or not set(coverage["manifest"]["roots"].values()) <= {value["storePath"] for value in subjects}):
+            raise ValueError("installer coverage is incomplete or differs from native context")
+        result["coverage"] = coverage
     return result
 
 
