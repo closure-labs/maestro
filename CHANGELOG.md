@@ -42,6 +42,9 @@ correspond to published GitHub tags.
 
 ### Fixed
 
+- Authenticate completed GitHub merge events when queued PR metadata retains
+  a stale preview SHA, while preserving content, ancestry and human review.
+
 - Keep immutable decision packet references stable when uploading identical
   evidence again, while preserving producer and scan timestamps.
 - Authenticate complete security decision ledgers up to 16 MiB with bounded
