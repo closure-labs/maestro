@@ -628,17 +628,17 @@
         "xo-stable": "xo-stable"
       },
       "locked": {
-        "lastModified": 1792464896,
-        "narHash": "sha256-NQBrgCyoxPsjO28z/AhqTc+Dl0D+fBGy35M7V/s9Cvk=",
+        "lastModified": 1792471183,
+        "narHash": "sha256-hNUACPJ+/r7apu/erPZBtsfYoXGzE0cpBzZgHTCU+Ek=",
         "owner": "closure-labs",
         "repo": "xo-nixpkg",
-        "rev": "3bbc8743ba999a9200ba06a403c96b967a8b4949",
+        "rev": "6e49a69b5ee9a9ef939ea97e39c08b7045adf153",
         "type": "github"
       },
       "original": {
         "owner": "closure-labs",
         "repo": "xo-nixpkg",
-        "rev": "3bbc8743ba999a9200ba06a403c96b967a8b4949",
+        "rev": "6e49a69b5ee9a9ef939ea97e39c08b7045adf153",
         "type": "github"
       }
     },
