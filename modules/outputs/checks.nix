@@ -274,6 +274,7 @@ in {
 
       automation-fixtures = mkSourceCheck {
         name = "automation-fixtures";
+        nativeBuildInputs = fixtureInputs ++ [(import ../../nix/ci-nix.nix {inherit pkgs;})];
         command = ''
           bash ./tests/ci-helpers.sh
           bash ./tests/update-pr.sh
@@ -375,7 +376,7 @@ in {
       operator-fixtures = mkSourceCheck {
         name = "operator-fixtures";
         command = "MAESTRO_SKIP_EVAL=1 bash ./tests/run.sh";
-        nativeBuildInputs = fixtureInputs ++ [pkgs.yq-go pkgs.openssh pkgs.gh];
+        nativeBuildInputs = fixtureInputs ++ [pkgs.yq-go pkgs.openssh pkgs.gh (import ../../nix/ci-nix.nix {inherit pkgs;})];
       };
 
       repository-policy = import ../../nix/checks/repository-policy.nix {

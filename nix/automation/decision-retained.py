@@ -41,8 +41,20 @@ def pending(cfg):
                 or pull.get('head', {}).get('repo', {}).get('full_name') != repository
                 or not pull.get('head', {}).get('ref', '').startswith('automation/decision-')):
             continue
+        # The list endpoint omits changed_files. Bind the detail response to
+        # the discovered head before checking its complete changed-file count.
+        detail = authority.github_api(f'repos/{repository}/pulls/{pull["number"]}')
+        common.require(detail.get('number') == pull['number'] and detail.get('state') == 'open'
+                       and detail.get('user', {}).get('login') == cfg['botLogin']
+                       and detail.get('user', {}).get('type') == 'Bot'
+                       and detail.get('head', {}).get('sha') == pull['head']['sha']
+                       and detail.get('head', {}).get('ref') == pull['head']['ref']
+                       and detail.get('head', {}).get('repo', {}).get('full_name') == repository
+                       and detail.get('base', {}).get('ref') == 'main',
+                       'Pending App proposal changed during discovery')
         files = authority.collection(authority.github_api, f'repos/{repository}/pulls/{pull["number"]}/files')
-        common.require(len(files) == pull.get('changed_files') == 1 and files[0].get('status') == 'added',
+        common.require(type(detail.get('changed_files')) is int
+                       and len(files) == detail['changed_files'] == 1 and files[0].get('status') == 'added',
                        'Pending App proposal changes unexpected files')
         path = files[0].get('filename', '')
         common.require(re.fullmatch(r'automation/decisions/(security|releases)/[0-9a-f]{64}\.json', path),
