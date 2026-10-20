@@ -321,3 +321,134 @@ for symlink, regular in [(True, True), (False, False)]:
 with mock_patch.object(inventory.subprocess, "check_output", return_value=drv_path):
     reject(lambda: inventory.static_source(patch_path, record))
 print("Actual-output expansion, graph aliases and strict immutable plain-file provenance fixtures passed")
+
+# The inventory-only linkFarm is not a publication subject. Verify its actual
+# filesystem and producer evidence before preserving it as graph metadata.
+aggregate_name = "maestro-distribution-inventory"
+aggregate_path = "/nix/store/" + "f" * 32 + "-" + aggregate_name
+aggregate_drv = "/nix/store/" + "g" * 32 + "-" + aggregate_name + ".drv"
+with tempfile.TemporaryDirectory() as temporary:
+    aggregate_directory = Path(temporary) / aggregate_name
+    aggregate_directory.mkdir()
+    for index, target in enumerate((out_path, bin_path)):
+        (aggregate_directory / str(index)).symlink_to(target)
+    aggregate_component = {"bom-ref": "structural-root", "type": "library", "name": aggregate_name,
+                           "version": "", "purl": "pkg:nix/" + aggregate_name,
+                           "properties": [{"name": "nix:drv_path", "value": aggregate_drv},
+                                          {"name": "nix:output_path", "value": aggregate_path}]}
+    aggregate_system = {"bomFormat": "CycloneDX", "components": [deepcopy(multi)],
+                        "metadata": {"component": aggregate_component},
+                        "dependencies": [{"ref": "structural-root", "dependsOn": [multi["bom-ref"]]}]}
+    subjects = [{"storePath": path, "narHash": nar} for path in (out_path, bin_path)]
+    closure = {path: {"narHash": nar, "references": []} for path in (out_path, bin_path)}
+    aggregate_record = {"narHash": nar, "references": [out_path, bin_path], "deriver": aggregate_drv}
+    aggregate_producer = {"env": {"name": aggregate_name, "out": aggregate_path},
+                          "outputs": {"out": {"path": aggregate_path}}, "inputDrvs": {}}
+
+    aggregate_document_override = None
+
+    def aggregate_query(command, **kwargs):
+        if command[:4] == ["nix", "path-info", "--json", "--recursive"]:
+            assert command[4:] == sorted(closure)
+            value = json.dumps(closure)
+        elif command == ["nix", "path-info", "--json", aggregate_path]:
+            value = json.dumps({aggregate_path: aggregate_record} if aggregate_document_override is None else aggregate_document_override)
+        elif command == ["nix", "derivation", "show", aggregate_drv]:
+            value = json.dumps({aggregate_drv: aggregate_producer})
+        elif command == ["nix", "hash", "path", "--type", "sha256", "--sri", aggregate_path]:
+            value = nar + "\n"
+        else:
+            raise AssertionError(command)
+        return value if kwargs.get("text") else value.encode()
+
+    def bind_aggregate(document=None):
+        result = deepcopy(aggregate_system if document is None else document)
+        with mock_patch.object(inventory, "Path", side_effect=lambda path: aggregate_directory if str(path) == aggregate_path else Path(path)), \
+                mock_patch.object(inventory.subprocess, "check_output", side_effect=aggregate_query):
+            inventory.bind_inventory_roots(result, subjects)
+        return result
+
+    verified = bind_aggregate()
+    metadata = verified["metadata"]["component"]
+    assert metadata["bom-ref"] == "structural-root" and metadata["type"] == "file"
+    assert not any(field in metadata for field in ("purl", "cpe", "version"))
+    assert not any(prop["name"].startswith("nix:") for prop in metadata["properties"])
+    receipt = json.loads(inventory.properties(metadata)["maestro:inventoryAggregate"])
+    assert receipt == {"schema": 1, "storePath": aggregate_path, "narHash": nar,
+                       "derivation": aggregate_drv, "roots": sorted(subjects, key=lambda root: root["storePath"])}
+    assert json.loads(next(p["value"] for p in verified["properties"] if p["name"] == "maestro:inventoryRoots")) == subjects
+    assert {inventory.properties(c)["nix:output_path"] for c in verified["components"]} == set(closure)
+    expected_refs = {c["bom-ref"] for c in verified["components"]}
+    assert set(next(d["dependsOn"] for d in verified["dependencies"] if d["ref"] == "structural-root")) == expected_refs
+
+    # Native children and their provenance are unchanged by the graph parent.
+    enriched = inventory.enrich(deepcopy(verified), deepcopy(supply), {}, {drv_path: native_record})
+    assert enriched["metadata"]["component"] == metadata
+    native = [c for c in enriched["components"] if inventory.properties(c).get("nix:drv_path") == drv_path]
+    assert len(native) == 2 and all(c["purl"] == "pkg:nix/openssl@3.5.9" for c in native)
+    reject(lambda: inventory.enrich(deepcopy(verified), deepcopy(supply), {}, {}))
+
+    for field, value in [("name", "arbitrary-native-parent"), ("version", "1.0"),
+                         ("purl", "pkg:nix/maestro-distribution-inventory@1"),
+                         ("cpe", "cpe:2.3:a:native:native:1:*:*:*:*:*:*:*"), ("bom-ref", "")]:
+        invalid = deepcopy(aggregate_system)
+        invalid["metadata"]["component"][field] = value
+        reject(lambda: bind_aggregate(invalid))
+    for prop in [{"name": "nix:output_path", "value": aggregate_path},
+                 {"name": "nix:output_path", "value": out_path},
+                 {"name": "nix:storePath", "value": out_path},
+                 {"name": "maestro:inventoryAggregate", "value": "{}"},
+                 {"name": "maestro:staticSource", "value": "true"}]:
+        invalid = deepcopy(aggregate_system)
+        invalid["metadata"]["component"]["properties"].append(prop)
+        reject(lambda: bind_aggregate(invalid))
+    for target in (patch_path, Path(out_path).name, out_path + "/nested"):
+        link = aggregate_directory / "1"
+        link.unlink()
+        link.symlink_to(target)
+        reject(bind_aggregate)
+        link.unlink()
+        link.symlink_to(bin_path)
+    extra = aggregate_directory / "extra"
+    extra.symlink_to(out_path)
+    reject(bind_aggregate)
+    extra.unlink()
+    link = aggregate_directory / "1"
+    link.unlink()
+    reject(bind_aggregate)
+    link.write_bytes(b"\x7fELFnative code is never structural metadata")
+    reject(bind_aggregate)
+    link.unlink()
+    link.symlink_to(bin_path)
+    outside_parent = Path(temporary) / "aliased-parent"
+    outside_parent.symlink_to(aggregate_directory)
+    with mock_patch.object(inventory, "Path", side_effect=lambda path: outside_parent if str(path) == aggregate_path else Path(path)), \
+            mock_patch.object(inventory.subprocess, "check_output", side_effect=aggregate_query):
+        reject(lambda: inventory.bind_inventory_roots(deepcopy(aggregate_system), subjects))
+
+    original_record = deepcopy(aggregate_record)
+    for field, value in [("references", [out_path]), ("references", [out_path, bin_path, patch_path]),
+                         ("references", [out_path, out_path]), ("references", "not-a-list"),
+                         ("narHash", "invalid"), ("narHash", "sha256-" + "B" * 43 + "="),
+                         ("deriver", drv_path), ("deriver", "unknown-deriver"), ("path", patch_path)]:
+        aggregate_record[field] = value
+        reject(bind_aggregate)
+        aggregate_record.clear()
+        aggregate_record.update(deepcopy(original_record))
+    for aggregate_document_override in ([], [0], [{"path": patch_path}], {},
+                                        {aggregate_path: []}, {aggregate_path: original_record, patch_path: original_record}):
+        reject(bind_aggregate)
+    aggregate_document_override = None
+    original_producer = deepcopy(aggregate_producer)
+    for mutate in [lambda record: record["env"].update(name="native"),
+                   lambda record: record["env"].update(version="1.0"),
+                   lambda record: record["env"].update(pname="native"),
+                   lambda record: record["env"].update(out=patch_path),
+                   lambda record: record["outputs"].update(other={"path": aggregate_path}),
+                   lambda record: record.update(outputs={"other": {"path": aggregate_path}})]:
+        mutate(aggregate_producer)
+        reject(bind_aggregate)
+        aggregate_producer.clear()
+        aggregate_producer.update(deepcopy(original_producer))
+    assert bind_aggregate()["metadata"]["component"] == metadata
+print("Verified structural inventory parent, unchanged publication roots and hostile provenance fixtures passed")

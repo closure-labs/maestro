@@ -342,6 +342,84 @@ def enrich(system, supply, context, derivations):
     return system
 
 
+def bind_structural_inventory_metadata(system, expected, records):
+    metadata = system.get("metadata", {}).get("component")
+    if not metadata:
+        return
+    props = properties(metadata)
+    advertised = [store_path(prop["value"]) for prop in metadata.get("properties", [])
+                  if prop["name"] == "nix:output_path"]
+    if "nix:storePath" in props:
+        path = store_path(props["nix:storePath"])
+        if advertised and set(advertised) != {path}:
+            raise ValueError("conflicting structural inventory output identities")
+        if not advertised:
+            advertised = [path]
+    # Ordinary runtime metadata still follows multi-output expansion. Only an
+    # entirely external graph parent is eligible for this structural proof.
+    name = "maestro-distribution-inventory"
+    if not advertised or set(advertised) & records.keys():
+        if metadata.get("name") == name:
+            raise ValueError("structural inventory parent must be outside publication subjects")
+        return
+    if (len(advertised) != 1 or metadata.get("name") != name
+            or metadata.get("version") not in (None, "")
+            or metadata.get("purl") not in (None, "", "pkg:nix/" + name)
+            or metadata.get("cpe") not in (None, "", f"cpe:2.3:a:{name}:{name}::*:*:*:*:*:*:*")
+            or not isinstance(metadata.get("bom-ref"), str) or not metadata["bom-ref"]):
+        raise ValueError("external inventory metadata is not the known structural parent")
+    path = advertised[0]
+    if not path.endswith("-" + name):
+        raise ValueError("structural inventory output name differs")
+    drv = store_path(props.get("nix:drv_path"))
+    if not drv.endswith(".drv"):
+        raise ValueError("structural inventory producer is invalid")
+    directory = Path(path)
+    if directory.is_symlink() or not directory.is_dir():
+        raise ValueError("structural inventory parent is not a real directory")
+    entries = list(directory.iterdir())
+    if len(entries) != len(expected) or any(not entry.is_symlink() for entry in entries):
+        raise ValueError("structural inventory entries are not exactly subject symlinks")
+    targets = [os.readlink(entry) for entry in entries]
+    if (any(target != store_path(target) for target in targets)
+            or len(set(targets)) != len(targets) or set(targets) != expected.keys()):
+        raise ValueError("structural inventory links differ from publication subjects")
+    document = json.loads(subprocess.check_output(["nix", "path-info", "--json", path]))
+    if isinstance(document, list):
+        if len(document) != 1 or not isinstance(document[0], dict) or document[0].get("path") != path:
+            raise ValueError("structural inventory Nix metadata differs")
+        record = document[0]
+    elif isinstance(document, dict) and set(document) == {path}:
+        record = document[path]
+    else:
+        raise ValueError("structural inventory Nix metadata differs")
+    if not isinstance(record, dict) or record.get("path", path) != path or record.get("deriver") != drv:
+        raise ValueError("structural inventory producer metadata differs")
+    references = record.get("references")
+    if (not isinstance(references, list) or len(references) != len(expected)
+            or any(reference != store_path(reference) for reference in references)
+            or set(references) != expected.keys()):
+        raise ValueError("structural inventory references differ from publication subjects")
+    nar_hash = record.get("narHash")
+    if not isinstance(nar_hash, str) or not re.fullmatch(r"sha256-[A-Za-z0-9+/]{43}=", nar_hash):
+        raise ValueError("structural inventory NAR identity is invalid")
+    actual_nar = subprocess.check_output(["nix", "hash", "path", "--type", "sha256", "--sri", path], text=True).strip()
+    if actual_nar != nar_hash:
+        raise ValueError("structural inventory content differs from its NAR identity")
+    producer = read_derivations([drv])[drv]
+    attrs = attributes(producer)
+    if (attrs.get("name") != name or attrs.get("pname") not in (None, "", name)
+            or attrs.get("version") not in (None, "") or set(producer["outputs"]) != {"out"}
+            or output_path(producer, "out", producer["outputs"]["out"]) != path):
+        raise ValueError("structural inventory derivation does not declare the known parent")
+    receipt = {"schema": 1, "storePath": path, "narHash": nar_hash, "derivation": drv,
+               "roots": [{"storePath": root, "narHash": expected[root]} for root in sorted(expected)]}
+    ref = metadata["bom-ref"]
+    metadata.clear()
+    metadata.update({"type": "file", "name": name, "bom-ref": ref,
+                     "properties": [{"name": "maestro:inventoryAggregate", "value": json.dumps(receipt, sort_keys=True)}]})
+
+
 def bind_inventory_roots(system, roots, qualification=None):
     if not isinstance(roots, list) or not roots:
         raise ValueError("publication inventory roots are required")
@@ -367,6 +445,11 @@ def bind_inventory_roots(system, roots, qualification=None):
             raise ValueError("publication root differs from expected NAR identity")
     if qualification is not None and not set(qualification["roots"].values()) <= expected.keys():
         raise ValueError("installer qualification roots are absent from inventory subjects")
+    for component in [*system["components"], system.get("metadata", {}).get("component", {})]:
+        props = properties(component)
+        if "maestro:inventoryAggregate" in props or "maestro:staticSource" in props:
+            raise ValueError("raw inventory cannot assert validated structural provenance")
+    bind_structural_inventory_metadata(system, expected, records)
     expand_runtime_outputs(system, records)
     for component in [*system["components"], system.get("metadata", {}).get("component", {})]:
         props = properties(component)

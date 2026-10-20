@@ -44,6 +44,10 @@ correspond to published GitHub tags.
 
 - Preserve each shipped Nix output in the security inventory and retain plain
   schema and patch inputs by immutable file identity.
+- Validate inventory aggregation links while preserving complete appliance and
+  installer coverage in the distributed package evidence.
+- Run RustSec audits with the packaged audit binary without requiring Cargo in
+  the scanner's environment.
 - Verify the complete locked XO closure across the official NixOS, XO, and
   Maestro caches, with signature and content checks and all builders disabled.
 - Reuse unchanged installer media by its evaluated ISO and boot-policy identities
