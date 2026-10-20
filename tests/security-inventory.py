@@ -452,3 +452,74 @@ with tempfile.TemporaryDirectory() as temporary:
         aggregate_producer.update(deepcopy(original_producer))
     assert bind_aggregate()["metadata"]["component"] == metadata
 print("Verified structural inventory parent, unchanged publication roots and hostile provenance fixtures passed")
+
+# The shipped XO supply document includes legacy native identities for outputs
+# already proven independently by sbomnix + exact derivation enrichment. Merge
+# their graph aliases, never scan guessed output-suffixed package versions.
+def native_supply_fixture():
+    primary = {"bomFormat": "CycloneDX", "components": [deepcopy(multi)],
+               "metadata": {"component": {"bom-ref": "primary-root"}},
+               "dependencies": [{"ref": "primary-root", "dependsOn": [multi["bom-ref"]]}]}
+    inventory.expand_runtime_outputs(primary, {out_path: {}, bin_path: {}})
+    imported = deepcopy(supply)
+    imported["components"] += [
+        {"bom-ref": ref, "type": "library", "name": "openssl", "version": version,
+         "purl": "pkg:nix/openssl@" + version,
+         "properties": [{"name": "nix:storePath", "value": path}]}
+        for ref, path, version in [("legacy-out", out_path, "3.5.9"), ("legacy-bin", bin_path, "3.5.9-bin")]]
+    imported["metadata"]["component"] = deepcopy(imported["components"][-1])
+    imported["dependencies"] = [{"ref": "legacy-bin", "dependsOn": ["legacy-out", "npm:lodash"]},
+                                {"ref": "legacy-out", "dependsOn": ["legacy-bin"]},
+                                {"ref": "npm:lodash", "dependsOn": ["legacy-bin"]}]
+    return primary, imported, {drv_path: deepcopy(native_record)}
+
+primary, imported, producers = native_supply_fixture()
+original_supply = deepcopy(imported)
+canonical = inventory.enrich(primary, imported, {}, producers)
+assert imported == original_supply  # raw immutable XO evidence is never rewritten
+assert len(canonical["components"]) == 3
+natives = [c for c in canonical["components"] if c.get("purl", "").startswith("pkg:nix/")]
+assert len(natives) == 2 and all(c["purl"] == "pkg:nix/openssl@3.5.9" for c in natives)
+by_output = {inventory.properties(c)["maestro:outputName"]: c for c in natives}
+out_ref, bin_ref = [by_output[name]["bom-ref"] for name in ("out", "bin")]
+assert json.loads(inventory.properties(by_output["bin"])["maestro:supplyNativeAliases"])[0]["component"] == original_supply["components"][-1]
+edges = {entry["ref"]: set(entry["dependsOn"]) for entry in canonical["dependencies"]}
+assert edges["primary-root"] == {out_ref, bin_ref}
+assert edges[bin_ref] == {out_ref, "npm:lodash"} and edges[out_ref] == {bin_ref}
+assert edges["npm:lodash"] == {bin_ref}
+assert not any("legacy" in ref for entry in canonical["dependencies"] for ref in [entry["ref"], *entry["dependsOn"]])
+assert next(p["value"] for p in canonical["properties"] if p["name"] == "maestro:installedNpmCount") == "1"
+
+for mutate in [
+    lambda p, s, d: s["components"][-1]["properties"].__setitem__(0, {"name": "nix:storePath", "value": patch_path}),
+    lambda p, s, d: s["components"][-1]["properties"].__setitem__(0, {"name": "nix:storePath", "value": bin_path + "/bin/openssl"}),
+    lambda p, s, d: p["components"].append({**deepcopy(p["components"][-1]), "bom-ref": "ambiguous-primary"}),
+    lambda p, s, d: s["components"][-1].update(name="different-package"),
+    lambda p, s, d: s["components"][-1].update(version="9.9", purl="pkg:nix/openssl@9.9"),
+    lambda p, s, d: s["components"][-1].update(version="3.5.9-dev", purl="pkg:nix/openssl@3.5.9-dev"),
+    lambda p, s, d: s["components"][-1]["properties"].append({"name": "xo-nixpkg:outputName", "value": "out"}),
+    lambda p, s, d: s["components"][-1]["properties"].append({"name": "nix:derivation", "value": producer_path}),
+    lambda p, s, d: s["components"][-1]["properties"].append({"name": "nix:output_path", "value": out_path}),
+    lambda p, s, d: s["dependencies"][0]["dependsOn"].append("missing-legacy"),
+    lambda p, s, d: s["dependencies"].append({"ref": "missing-legacy", "dependsOn": []}),
+    lambda p, s, d: s["components"].append(deepcopy(s["components"][-1])),
+    lambda p, s, d: s["metadata"]["component"]["properties"][0].update(value=out_path),
+    lambda p, s, d: d[drv_path]["outputs"].pop("bin"),
+]:
+    primary, imported, producers = native_supply_fixture()
+    mutate(primary, imported, producers)
+    reject(lambda: inventory.enrich(primary, imported, {}, producers))
+
+# A primary derivation version (not an output basename) is authoritative even
+# for a legacy GCC libgcc output. The old suffix stays only in evidence.
+primary, imported, producers = native_supply_fixture()
+producers[drv_path]["env"].update(pname="gcc", version="16.2.0")
+producers[drv_path]["env"]["libgcc"] = producers[drv_path]["env"].pop("bin")
+producers[drv_path]["outputs"]["libgcc"] = producers[drv_path]["outputs"].pop("bin")
+for component, version in zip(imported["components"][-2:], ["16.2.0", "16.2.0-libgcc"]):
+    component.update(name="gcc", version=version, purl="pkg:nix/gcc@" + version)
+imported["metadata"]["component"] = deepcopy(imported["components"][-1])
+canonical = inventory.enrich(primary, imported, {}, producers)
+assert all(c["version"] == "16.2.0" for c in canonical["components"] if c.get("purl", "").startswith("pkg:nix/"))
+assert {inventory.properties(c)["maestro:outputName"] for c in canonical["components"] if c.get("purl", "").startswith("pkg:nix/")} == {"out", "libgcc"}
+print("Canonical exact-output native supply aliases, suffix evidence and complete graph fixtures passed")

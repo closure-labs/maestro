@@ -46,6 +46,8 @@ correspond to published GitHub tags.
   schema and patch inputs by immutable file identity.
 - Validate inventory aggregation links while preserving complete appliance and
   installer coverage in the distributed package evidence.
+- Match imported XO native package identities to their exact validated Nix
+  outputs while retaining the original supply evidence and dependency links.
 - Run RustSec audits with the packaged audit binary without requiring Cargo in
   the scanner's environment.
 - Verify the complete locked XO closure across the official NixOS, XO, and

@@ -313,26 +313,7 @@ def enrich(system, supply, context, derivations):
         ])
         if outputs:
             component["properties"].append({"name": "maestro:outputName", "value": outputs[0]})
-    refs = {c["bom-ref"] for c in system["components"]}
-    for component in supply["components"]:
-        if not component.get("purl") or (component.get("type") == "library" and not component.get("version") and not component["purl"].startswith("pkg:github/")):
-            raise ValueError("unscannable XO library component")
-        if component["bom-ref"] in refs:
-            raise ValueError("colliding supply component identity")
-        system["components"].append(component)
-        refs.add(component["bom-ref"])
-    system.setdefault("dependencies", []).extend(supply.get("dependencies", []))
-    root = system.get("metadata", {}).get("component", {}).get("bom-ref")
-    xo_root = supply.get("metadata", {}).get("component", {}).get("bom-ref")
-    for dep in system["dependencies"]:
-        if dep["ref"] == root:
-            dep["dependsOn"] = sorted(set(dep.get("dependsOn", [])) | {xo_root})
-        if dep["ref"] not in refs and dep["ref"] != root:
-            raise ValueError("dependency references an unknown component")
-        if not set(dep.get("dependsOn", [])) <= refs | {root}:
-            raise ValueError("dependency edge references an unknown component")
-    if not root or not xo_root:
-        raise ValueError("missing inventory root identity")
+    merge_supply_inventory(system, supply)
     system.setdefault("properties", []).extend([
         {"name": "maestro:inventoryVersion", "value": "2"},
         {"name": "maestro:runtimeContext", "value": json.dumps(context, sort_keys=True)},
@@ -340,6 +321,97 @@ def enrich(system, supply, context, derivations):
         {"name": "maestro:installedNpmCount", "value": str(len(npm))},
     ])
     return system
+
+
+def merge_supply_inventory(system, supply):
+    """Alias imported native outputs to independently validated exact producers."""
+    primary = [*system["components"], system.get("metadata", {}).get("component", {})]
+    refs, by_path = set(), {}
+    for component in primary:
+        ref = component.get("bom-ref")
+        if not isinstance(ref, str) or not ref or ref in refs:
+            raise ValueError("duplicate or missing primary component identity")
+        refs.add(ref)
+        props = properties(component)
+        path = props.get("nix:output_path", props.get("nix:storePath"))
+        if path:
+            by_path.setdefault(store_path(path), []).append(component)
+    root = system.get("metadata", {}).get("component", {}).get("bom-ref")
+    metadata = supply.get("metadata", {}).get("component", {})
+    imported = list(supply["components"])
+    source_refs = {}
+    for component in imported:
+        ref = component.get("bom-ref")
+        if not isinstance(ref, str) or not ref or ref in source_refs or ref in refs:
+            raise ValueError("colliding supply component identity")
+        source_refs[ref] = component
+    xo_root = metadata.get("bom-ref")
+    if not root or not isinstance(xo_root, str) or not xo_root:
+        raise ValueError("missing inventory root identity")
+    if xo_root in source_refs:
+        if any(metadata[key] != source_refs[xo_root].get(key) for key in ("name", "version", "purl", "properties") if key in metadata):
+            raise ValueError("supply metadata conflicts with its component")
+    elif metadata.get("purl", "").startswith("pkg:nix/") and xo_root not in refs:
+        imported.append(metadata)
+        source_refs[xo_root] = metadata
+    else:
+        raise ValueError("supply metadata references an unknown component")
+    aliases, receipts = {}, {}
+    for component in imported:
+        purl = component.get("purl")
+        if not isinstance(purl, str) or not purl or (component.get("type") == "library" and not component.get("version") and not purl.startswith("pkg:github/")):
+            raise ValueError("unscannable XO library component")
+        ref = component["bom-ref"]
+        if not purl.startswith("pkg:nix/"):
+            aliases[ref] = ref
+            system["components"].append(deepcopy(component))
+            refs.add(ref)
+            continue
+        props = properties(component)
+        paths = [store_path(prop["value"]) for prop in component.get("properties", [])
+                 if prop["name"] in ("nix:output_path", "nix:storePath")]
+        if not paths or len(set(paths)) != 1:
+            raise ValueError("native supply component lacks one exact immutable output")
+        path = paths[0]
+        candidates = by_path.get(path, [])
+        if len(candidates) != 1:
+            raise ValueError("native supply output has no unique validated primary component: " + path)
+        canonical = candidates[0]
+        bound = properties(canonical)
+        name, version = canonical.get("name"), canonical.get("version")
+        output, drv = bound.get("maestro:outputName"), bound.get("maestro:derivation")
+        if (not all(isinstance(value, str) and value for value in (name, version, output, drv))
+                or canonical.get("purl") != "pkg:nix/" + quote(name, safe="") + "@" + quote(version, safe="")
+                or bound.get("nix:drv_path") != drv or not bound.get("maestro:derivationDigest")):
+            raise ValueError("native supply primary lacks validated package/output provenance")
+        legacy_version = component.get("version")
+        # Only the observed legacy serializer's exact output suffix is allowed
+        # as noncanonical evidence. It never becomes a scanned package version.
+        if (component.get("name") != name or legacy_version not in (version, version + "-" + output)
+                or purl != "pkg:nix/" + quote(name, safe="") + "@" + quote(legacy_version, safe="")):
+            raise ValueError("native supply identity conflicts with its exact primary output")
+        if (any(props[key] != output for key in ("maestro:outputName", "xo-nixpkg:outputName") if key in props)
+                or any(props[key] != drv for key in ("maestro:derivation", "nix:derivation", "nix:drv_path") if key in props)
+                or ("nix:storeHash" in props and props["nix:storeHash"] != Path(path).name[:32])):
+            raise ValueError("native supply provenance conflicts with its exact primary output")
+        aliases[ref] = canonical["bom-ref"]
+        receipts.setdefault(canonical["bom-ref"], []).append({"component": deepcopy(component)})
+    for component in primary:
+        if component["bom-ref"] in receipts:
+            component.setdefault("properties", []).append({"name": "maestro:supplyNativeAliases",
+                "value": json.dumps(receipts[component["bom-ref"]], sort_keys=True)})
+    dependencies = {}
+    for source, entries in ((False, system.get("dependencies", [])), (True, supply.get("dependencies", []))):
+        for entry in entries:
+            ref, targets = entry.get("ref"), entry.get("dependsOn", [])
+            allowed = source_refs.keys() if source else refs
+            if not isinstance(ref, str) or ref not in allowed or not isinstance(targets, list) or any(not isinstance(target, str) or target not in allowed for target in targets):
+                raise ValueError("dependency references an unknown component")
+            target_ref = aliases[ref] if source else ref
+            dependencies.setdefault(target_ref, set()).update(aliases[target] if source else target for target in targets)
+    dependencies.setdefault(root, set()).add(aliases[xo_root])
+    system["dependencies"] = [{"ref": ref, "dependsOn": sorted(targets)} for ref, targets in sorted(dependencies.items())]
+    system.setdefault("properties", []).append({"name": "maestro:supplyInventoryDigest", "value": digest(supply)})
 
 
 def bind_structural_inventory_metadata(system, expected, records):
