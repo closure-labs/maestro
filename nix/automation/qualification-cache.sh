@@ -8,17 +8,40 @@ if (($# != 1)) || [[ ! "$1" =~ ^/nix/store/[0-9abcdfghijklmnpqrsvwxyz]{32}-xen-o
   exit 2
 fi
 
-# Metadata alone does not prove that a cache still has its advertised NARs.
-# Copy the entire closure without builders, preserving normal signature checks.
-# An incomplete publication must not silently trigger upstream source rebuilds.
-for cache in https://xen-orchestra-ce.cachix.org https://maestro.cachix.org; do
-  if nix path-info --option narinfo-cache-negative-ttl 0 --option narinfo-cache-positive-ttl 0 --store "$cache" "$1"; then
-    if nix copy --option narinfo-cache-negative-ttl 0 --option narinfo-cache-positive-ttl 0 --from "$cache" "$1"; then
-      printf 'Locked XO closure was verified and substituted from %s\n' "$cache"
-      exit 0
-    fi
-    printf 'Cache %s advertises the locked XO output but cannot supply its complete closure.\n' "$cache" >&2
+# Child commands do not inherit an outer `nix run --accept-flake-config`.
+# Keep this exact public cache/key allowlist aligned with flake.nix. Application
+# caches need not duplicate stock nixpkgs dependencies from cache.nixos.org.
+caches=(https://cache.nixos.org https://xen-orchestra-ce.cachix.org https://maestro.cachix.org)
+keys='cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= xen-orchestra-ce.cachix.org-1:WAOajkFLXWTaFiwMbLidlGa5kWB7Icu29eJnYbeMG7E= maestro.cachix.org-1:fGFZFVwe2ZHEBENWZLHVzERZrz2c50ru+g0UewH68I0='
+options=(--option narinfo-cache-negative-ttl 0 --option narinfo-cache-positive-ttl 0
+  --option substituters "${caches[*]}" --option trusted-public-keys "$keys"
+  --option require-sigs true --option substitute true
+  --option max-jobs 0 --option builders '' --option fallback false)
+
+advertised=false
+for cache in "${caches[@]:1}"; do
+  if nix path-info "${options[@]}" --store "$cache" "$1"; then
+    advertised=true
+    break
   fi
 done
-echo 'Locked XO closure is not fully substitutable from either approved publication cache; repair or republish the admitted closure upstream before qualification.' >&2
-exit 1
+if [[ "$advertised" != true ]]; then
+  echo 'Locked XO output is not advertised by either approved application cache; repair or republish the admitted output upstream before qualification.' >&2
+  exit 1
+fi
+
+# This is an output path, never a derivation: realise only substitutes its
+# closure. Disable local/remote builders and fallback independently as well.
+# A source-store copy would incorrectly require every dependency in one cache.
+if ! nix-store --realise "${options[@]}" "$1"; then
+  echo 'Locked XO closure cannot be substituted from the approved public caches; source builds are disabled.' >&2
+  exit 1
+fi
+# Check actual recursive bytes and signed provenance, including a warm local
+# store. Cache signatures may authenticate previously locally built paths.
+signatures=()
+for cache in "${caches[@]}"; do
+  signatures+=(--substituter "$cache")
+done
+nix store verify "${options[@]}" --recursive --sigs-needed 1 "${signatures[@]}" "$1"
+printf 'Locked XO closure bytes and signatures verified across the approved public caches.\n'

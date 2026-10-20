@@ -37,9 +37,8 @@ correspond to published GitHub tags.
 
 ### Fixed
 
-- Verify that approved XO caches can supply the complete locked closure, trying
-  the Maestro mirror when upstream archives are missing and diagnosing failure
-  before an implicit dependency rebuild.
+- Verify the complete locked XO closure across the official NixOS, XO, and
+  Maestro caches, with signature and content checks and all builders disabled.
 - Reuse unchanged installer media by its evaluated ISO and boot-policy identities
   while allowing current supply evidence to refresh independently.
 - Reopen weekly dependency update proposals after an earlier reused branch was
