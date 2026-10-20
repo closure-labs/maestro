@@ -9,30 +9,45 @@ correspond to published GitHub tags.
 
 ## [Unreleased]
 
+## [3.0.1] - 2026-10-19
+
+### Security
+
+- Require current Super Admin approval of complete security findings before
+  distributing candidates, and a separate approval of each official release's
+  exact product bytes. Preserve findings at every severity and block incomplete,
+  stale, or unhealthy scanner evidence.
+- Inventory all distributed appliance and operator/tool closures, including
+  installed npm dependencies and RustSec findings. Recheck runtime exposure and
+  independently verify the pinned XO product's provenance and current admission.
+- Use the organization Decider App for authority checks and short-lived queue
+  credentials, with a separate read-only administration audit App.
+- Run pinned CodeQL analysis for Actions, JavaScript/TypeScript, Python, and Rust;
+  select the native Nix Rust toolchain for extractor subprocesses.
+
+### Changed
+
+- Separate qualification from publication. Retain authenticated Nix closures and
+  immutable release assets so publishers can restore verified products without
+  builders and resume interrupted publication without replacing existing bytes.
+- Rescan retained products daily while preserving their original product identity
+  and approvals. Require review when findings or runtime exposure increase.
+- Ship the publication controls disabled until the initial human baselines and
+  official XO handoff are configured; see `docs/ci-security.md` for activation.
+
 ### Fixed
 
-- Accept the locked XO publication from either the upstream cache or the trusted
-  Maestro mirror during qualification. Preserve signature and supply-provenance
-  checks and fail when both caches lack the exact output.
-- Open a new weekly dependency update PR when earlier PRs for its reused branch
-  are merged or closed. Edit only an existing open PR and fail on lookup errors.
-- Pin same-repository actions and the reusable release workflow to the running
-  workflow commit with GitHub's self-repository references. Preserve workflow
-  validation with both the current and refreshed native linters.
-- Explicitly enqueue ready trusted bot updates, preserving the protected merge
-  queue when auto-merge alone leaves an update waiting outside it. Release
-  version preparation and advancement wait for successful exact-head CI before
-  requesting queue entry; pending ordinary bot updates remain asynchronous.
-- Use the scoped `MERGE_QUEUE_PAT` personal token for queue admission so
-  GitHub emits native merge-group checks. Keep other automation requests on the
-  job token and reject missing queue credentials before requesting auto-merge.
-- Allow the latest daily vulnerability database through its publication window
-  with a 48-hour age limit and mandatory update checks. Isolate Grype settings
-  from ambient configuration, retain database diagnostics and preserve scanner
-  coverage and finding gates.
-- Propagate every security fixture failure, use the native sandbox interpreter
-  for the policy fixture, and align the scanner fixture with the runtime context
-  schema. Correct the security policy's management defaults to include IPv6.
+- Verify that approved XO caches can supply the complete locked closure, trying
+  the Maestro mirror when upstream archives are missing and diagnosing failure
+  before an implicit dependency rebuild.
+- Reuse unchanged installer media by its evaluated ISO and boot-policy identities
+  while allowing current supply evidence to refresh independently.
+- Reopen weekly dependency update proposals after an earlier reused branch was
+  merged or closed, and explicitly enqueue ready trusted updates with exact-head
+  checks.
+- Keep pinned local Actions compatible with the native workflow linters, retain
+  fresh daily vulnerability databases through their publication window, and
+  propagate scanner fixture failures.
 
 ## [3.0.0] - 2026-10-14
 

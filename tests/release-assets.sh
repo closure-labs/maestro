@@ -16,10 +16,10 @@ trap 'rm -rf -- "$temporary"' EXIT
 # eventual development update. Refuse before accessing GitHub or mutating it.
 if env GITHUB_REF=refs/heads/main GITHUB_SHA=fixture GITHUB_REPOSITORY=example/maestro \
   DEFAULT_BRANCH=main EXPECTED_AUTHOR=github-actions REQUESTED_BUMP=auto \
-  MERGE_QUEUE_PAT= "$MAESTRO_CI_RELEASE_MANAGER" prepare >"$temporary/missing-release-queue-token.log" 2>&1; then
+  MERGE_QUEUE_TOKEN= "$MAESTRO_CI_RELEASE_MANAGER" prepare >"$temporary/missing-release-queue-token.log" 2>&1; then
   echo 'Release preparation accepted a missing queue token.' >&2; exit 1
 fi
-grep -Fq 'MERGE_QUEUE_PAT must be configured before preparing a release' \
+grep -Fq 'MERGE_QUEUE_TOKEN must be configured before preparing a release' \
   "$temporary/missing-release-queue-token.log"
 
 mkdir -p "$temporary/bin"
@@ -55,6 +55,7 @@ cmp "$temporary/installer.iso" "$temporary/reconstructed.iso"
 fixture="$temporary/release-state"
 mkdir -p "$fixture/candidate/result-installer/iso" "$fixture/candidate-state"
 printf '%s\n' '1.1.2' >"$fixture/VERSION"
+printf '## [1.1.2] - 2026-10-19\n\nCurated fixture release notes.\n' >"$fixture/CHANGELOG.md"
 printf 'fixture installer\n' >"$fixture/candidate/result-installer/iso/maestro-installer.iso"
 printf '%s\n' '{"spdxVersion":"SPDX-2.3"}' >"$fixture/candidate/maestro-system.spdx.json"
 printf '%s\n' '{"bomFormat":"CycloneDX"}' >"$fixture/candidate/maestro-system.cdx.json"
@@ -117,6 +118,7 @@ jq -e \
     .assets.spdx.name == "maestro-v1.1.2.spdx.json.gz" and
     .assets.cyclonedx.name == "maestro-v1.1.2.cdx.json.gz"
   ' "$fixture/release/release-manifest.json" >/dev/null
+grep -Fxq 'Curated fixture release notes.' "$fixture/release/release-notes.md"
 
 # Exercise release qualification dispatch through the same packaged command
 # used by GitHub. A release-owned run must not share main's replaceable pending

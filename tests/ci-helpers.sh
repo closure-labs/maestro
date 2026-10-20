@@ -68,7 +68,7 @@ media_plan='{"schema_version":3,"qualification":{"required":true,"mode":"qualify
 env ROUTE_RESULT=success SECURITY_RESULT=skipped CI_PLAN="$skip_plan" \
   QUALIFICATION_RESULT=skipped "$MAESTRO_CI_VERDICT"
 env ROUTE_RESULT=success SECURITY_RESULT=success CI_PLAN="$reuse_plan" \
-  QUALIFICATION_RESULT=skipped "$MAESTRO_CI_VERDICT"
+  QUALIFICATION_RESULT=success "$MAESTRO_CI_VERDICT"
 env ROUTE_RESULT=success SECURITY_RESULT=success CI_PLAN="$evidence_plan" \
   QUALIFICATION_RESULT=success "$MAESTRO_CI_VERDICT"
 env ROUTE_RESULT=success SECURITY_RESULT=success CI_PLAN="$media_reuse_plan" \
@@ -354,13 +354,21 @@ read -r version bump < <(printf '%s\n' 'fix: correction' | "$MAESTRO_CI_RELEASE_
 read -r version bump < <(printf '%s\n' 'feat(maestro): capability' | "$MAESTRO_CI_RELEASE_VERSION" 2.0.0 auto)
 [[ "$version $bump" == '2.1.0 minor' ]]
 
-jq -e '
+jq -e --slurpfile policy "$test_root/nix/automation/decision-policy.json" '
   .enforcement == "active" and
   (.bypass_actors | length) == 0 and
   any(.rules[]; .type == "merge_queue" and
     .parameters.merge_method == "MERGE" and
     .parameters.max_entries_to_merge == 1) and
-  any(.rules[]; .type == "required_status_checks" and .parameters.strict_required_status_checks_policy == false and .parameters.required_status_checks == [{context:"Required CI verdict",integration_id:15368}])
+  any(.rules[]; .type == "required_status_checks" and .parameters.strict_required_status_checks_policy == false and
+    .parameters.required_status_checks == [
+      {context:"Required CI verdict",integration_id:15368},
+      {context:"Maintainer decision authority",integration_id:$policy[0].appId},
+      {context:"Analyze (actions)",integration_id:15368},
+      {context:"Analyze (javascript-typescript)",integration_id:15368},
+      {context:"Analyze (python)",integration_id:15368},
+      {context:"Analyze (rust)",integration_id:15368}
+    ])
 ' "$test_root/nix/automation/github/main-ruleset.json" >/dev/null
 read -r version bump < <(printf '%s\n' 'feat!: incompatible' | "$MAESTRO_CI_RELEASE_VERSION" 2.0.0 auto)
 [[ "$version $bump" == '3.0.0 major' ]]
@@ -384,12 +392,12 @@ fi
 
 grep -Fq 'gh release view --json tagName --jq .tagName' \
   "$test_root/nix/automation/release-manager.sh"
-if grep -Eq 'MERGE_QUEUE_TOKEN|RELEASE_AUTOMATION_LOGIN' \
+if grep -Eq 'secrets\.MERGE_QUEUE_(TOKEN|PAT)|RELEASE_AUTOMATION_LOGIN' \
   "$test_root/.github/workflows/release.yml" \
   "$test_root/.github/workflows/queue-automation.yml" \
   "$test_root/.github/workflows/update-flake-lock.yml" \
   "$test_root/docs/project-reference.md"; then
-  printf 'Token-free automation still references an external merge token or owner.\n' >&2
+  printf 'Automation still references a stored personal merge token or external owner.\n' >&2
   exit 1
 fi
 if grep -Fq "git tag --list 'v[0-9]*.[0-9]*.[0-9]*'" \
@@ -532,7 +540,7 @@ chmod +x "$temporary/bin/gh"
 trusted_env=(
   CI_POLL_INTERVAL=0
   GH_TOKEN=fixture
-  MERGE_QUEUE_PAT=queue-fixture
+  MERGE_QUEUE_TOKEN=queue-fixture
   GITHUB_REPOSITORY=example/maestro
   PR_NUMBER=1
   EXPECTED_BRANCH=automation/test
@@ -564,12 +572,12 @@ sync_env=(
 )
 # A missing queue credential must fail before enabling auto-merge or enqueue.
 rm -f "$temporary/merge.log" "$temporary/enqueue.log"
-if env PATH="$temporary/bin:$PATH" "${trusted_env[@]}" MERGE_QUEUE_PAT= \
+if env PATH="$temporary/bin:$PATH" "${trusted_env[@]}" MERGE_QUEUE_TOKEN= \
   "$MAESTRO_CI_TRUSTED_UPDATE" >"$temporary/missing-queue-token.log" 2>&1; then
   echo 'Trusted update accepted a missing queue token.' >&2; exit 1
 fi
 [[ ! -e $temporary/merge.log && ! -e $temporary/enqueue.log ]]
-grep -Fq 'MERGE_QUEUE_PAT must be configured' "$temporary/missing-queue-token.log"
+grep -Fq 'MERGE_QUEUE_TOKEN must be configured' "$temporary/missing-queue-token.log"
 env PATH="$temporary/bin:$PATH" "${sync_env[@]}" "$MAESTRO_CI_TRUSTED_UPDATE"
 [[ -s $temporary/enqueue.log && -e $temporary/watched ]]
 for refusal in FAKE_CI_FAILURE=true FAKE_CHANGE_AFTER_WATCH=true; do

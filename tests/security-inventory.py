@@ -209,19 +209,26 @@ with tempfile.TemporaryDirectory() as temporary:
     modern_system = deepcopy(system)
     for component in modern_system["components"]:
         component["properties"][0]["value"] = drv_path
+        component["properties"].append({"name": "nix:output_path", "value": out_path})
     cli_record = deepcopy(modern)
     cli_record["structuredAttrs"]["patches"] = [str(patch)]
     response = json.dumps({"version": 4, "derivations": {Path(drv_path).name: cli_record}}).encode()
     system_file, supply_file, context_file = [Path(temporary) / name for name in ("system.json", "supply.json", "context.json")]
     system_file.write_text(json.dumps(modern_system))
     supply_file.write_text(json.dumps(supply))
-    context_file.write_text(json.dumps({"packageSourceRoots": []}))
+    context_file.write_text(json.dumps({"packageSourceRoots": [], "distributionRoots": [out_path]}))
+    def cli_query(command):
+        if command[:3] == ["nix", "path-info", "--json"]:
+            return json.dumps({out_path: {"narHash": "sha256-" + "A" * 43 + "="}}).encode()
+        return response
     with mock_patch.object(inventory.sys, "argv", ["inventory", str(system_file), str(supply_file), str(context_file)]), \
-            mock_patch.object(inventory.subprocess, "check_output", return_value=response) as query:
+            mock_patch.object(inventory.subprocess, "check_output", side_effect=cli_query) as query:
         inventory.main()
-    query.assert_called_once_with(["nix", "derivation", "show", drv_path])
+    assert query.call_count == 3
+    query.assert_any_call(["nix", "derivation", "show", drv_path])
     enriched = json.loads(system_file.read_text())
     assert enriched["components"][0]["purl"] == "pkg:nix/openssl@3.5.9"
     props = inventory.properties(enriched["components"][0])
+    assert props["maestro:outputName"] == "out"
     assert json.loads(props["maestro:patches"])[0]["path"] == str(patch)
 print("Security identity, inventory, drift, expiry and severity fixtures passed")

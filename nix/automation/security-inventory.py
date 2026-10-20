@@ -214,12 +214,19 @@ def enrich(system, supply, context, derivations):
             component["type"] = "file"
             component.pop("cpe", None)
         patch_records = [{"path": str(p), "sha256": hashlib.sha256(Path(p).read_bytes()).hexdigest()} for p in patches(derivations[drv])]
+        shipped = props.get("nix:output_path", props.get("nix:storePath"))
+        outputs = [name for name, info in derivations[drv].get("outputs", {}).items()
+                   if output_path(derivations[drv], name, info) == shipped]
+        if shipped and len(outputs) != 1:
+            raise ValueError("runtime component is not one exact derivation output")
         component.setdefault("properties", []).extend([
             {"name": "maestro:derivation", "value": drv},
             {"name": "maestro:source", "value": json.dumps(attrs.get("src"), sort_keys=True)},
             {"name": "maestro:patches", "value": json.dumps(patch_records, sort_keys=True)},
             {"name": "maestro:derivationDigest", "value": digest(derivations[drv])},
         ])
+        if outputs:
+            component["properties"].append({"name": "maestro:outputName", "value": outputs[0]})
     refs = {c["bom-ref"] for c in system["components"]}
     for component in supply["components"]:
         if not component.get("purl") or (component.get("type") == "library" and not component.get("version") and not component["purl"].startswith("pkg:github/")):
@@ -249,12 +256,61 @@ def enrich(system, supply, context, derivations):
     return system
 
 
+def bind_inventory_roots(system, roots):
+    if not isinstance(roots, list) or not roots:
+        raise ValueError("publication inventory roots are required")
+    expected = {}
+    for subject in roots:
+        if not isinstance(subject, dict) or set(subject) != {"storePath", "narHash"}:
+            raise ValueError("invalid publication inventory subject")
+        path = store_path(subject["storePath"])
+        if path in expected or not isinstance(subject["narHash"], str) or not re.fullmatch(r"sha256-[A-Za-z0-9+/]{43}=", subject["narHash"]):
+            raise ValueError("invalid or duplicate publication NAR identity")
+        expected[path] = subject["narHash"]
+    document = json.loads(subprocess.check_output(["nix", "path-info", "--json", "--recursive", *sorted(expected)]))
+    if isinstance(document, list):
+        records = {record["path"]: record for record in document}
+        if len(records) != len(document):
+            raise ValueError("duplicate closure identity")
+    elif isinstance(document, dict):
+        records = document
+    else:
+        raise ValueError("invalid recursive Nix closure metadata")
+    for path, nar_hash in expected.items():
+        if records.get(path, {}).get("narHash") != nar_hash:
+            raise ValueError("publication root differs from expected NAR identity")
+    represented = set()
+    for component in [*system["components"], system.get("metadata", {}).get("component", {})]:
+        props = properties(component)
+        path = props.get("nix:output_path", props.get("nix:storePath"))
+        if path:
+            represented.add(store_path(path))
+    if not records.keys() <= represented:
+        raise ValueError("system inventory omits publication closure outputs")
+    system.setdefault("properties", []).append({"name": "maestro:inventoryRoots", "value": json.dumps(roots, sort_keys=True)})
+
+
 def main():
     system_path, supply_path, context_path = map(Path, sys.argv[1:])
     system = json.loads(system_path.read_text())
+    context = json.loads(context_path.read_text())
+    roots_path = os.environ.get("DECISION_ROOTS_JSON")
+    if roots_path:
+        roots = json.loads(Path(roots_path).read_text())
+    else:
+        distribution = context.get("distributionRoots")
+        if not isinstance(distribution, list) or not distribution or any(not isinstance(path, str) for path in distribution):
+            raise ValueError("complete publication distributionRoots are required")
+        paths = sorted({store_path(path) for path in distribution})
+        records = json.loads(subprocess.check_output(["nix", "path-info", "--json", *paths]))
+        if isinstance(records, list):
+            records = {record["path"]: record for record in records}
+        if not isinstance(records, dict) or records.keys() != set(paths):
+            raise ValueError("publication root metadata does not match expected outputs")
+        roots = [{"storePath": path, "narHash": records[path]["narHash"]} for path in paths]
+    bind_inventory_roots(system, roots)
     drvs = sorted({properties(c)["nix:drv_path"] for c in system["components"]})
     derivations = read_derivations(drvs)
-    context = json.loads(context_path.read_text())
     realize_patch_inputs(derivations, context["packageSourceRoots"])
     result = enrich(system, json.loads(supply_path.read_text()), context, derivations)
     system_path.write_text(json.dumps(result, sort_keys=True, indent=2) + "\n")

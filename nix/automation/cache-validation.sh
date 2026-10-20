@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 set -euo pipefail
+# Local credential possession does not bypass the same live distribution gate.
+: "${DECISION_PRODUCT:?}" "${DECISION_SCANS:?}"
+PUBLICATION_PURPOSE=rolling maestro-ci-decision-publication
 # This explicit local operation must never grant cache writes to hosted CI.
 [[ ${GITHUB_ACTIONS:-false} != true ]] || {
   echo 'Validation cache publication is available only outside GitHub Actions.' >&2
@@ -35,9 +38,13 @@ manifest=$(jq -ces --slurpfile contract "$MAESTRO_CI_PLAN_CONTRACT" '
     (.outputs | type == "array" and length > 0 and
       all(.[]; type == "string" and test("^/nix/store/[0123456789abcdfghijklmnpqrsvwxyz]{32}-[^/[:space:]]+\\z")))))
 ' "$1")
-mapfile -t outputs < <(jq -r '[.results[].outputs[]] | unique[]' <<<"$manifest")
+# Validation outputs are not a distribution manifest. Publish only the
+# separately attested and completely scanned product roots.
+[[ -n $manifest ]]
+mapfile -t outputs < <(jq -er '[.products[].storePath, .roots[].storePath] | unique[]' "$DECISION_PRODUCT")
 [[ ${#outputs[@]} -gt 0 ]]
 nix path-info "${outputs[@]}" >/dev/null
-# Override any ambient Cachix token: only the Maestro credential may publish.
+PUBLICATION_PURPOSE=rolling maestro-ci-decision-publication
+maestro-ci-decision-handoff
 export CACHIX_AUTH_TOKEN="$CACHIX_MAESTRO_AUTH_TOKEN"
 printf '%s\n' "${outputs[@]}" | cachix push maestro

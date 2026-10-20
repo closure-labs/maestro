@@ -176,8 +176,8 @@ validate_changes "$pr"
 }
 # Queue admission needs a personal token so GitHub emits merge_group checks.
 # Keep reads, branch updates and CI dispatches on the job's GITHUB_TOKEN.
-: "${MERGE_QUEUE_PAT:?MERGE_QUEUE_PAT must be configured for protected queue admission}"
-GH_TOKEN="$MERGE_QUEUE_PAT" gh pr merge \
+: "${MERGE_QUEUE_TOKEN:?MERGE_QUEUE_TOKEN must be configured for protected queue admission}"
+GH_TOKEN="$MERGE_QUEUE_TOKEN" gh pr merge \
   --repo "$GITHUB_REPOSITORY" \
   --auto \
   --merge \
@@ -207,7 +207,7 @@ enqueue_if_ready() {
   # Enabling auto-merge is not proof of queue membership. Use the protected
   # enqueue operation, preserving atomic head binding and the normal queue CI.
   # shellcheck disable=SC2016
-  queued=$(GH_TOKEN="$MERGE_QUEUE_PAT" gh api graphql -f query='
+  queued=$(GH_TOKEN="$MERGE_QUEUE_TOKEN" gh api graphql -f query='
     mutation($id: ID!, $head: GitObjectID!) {
       enqueuePullRequest(input: {pullRequestId: $id, expectedHeadOid: $head}) {
         mergeQueueEntry { id pullRequest { id headRefOid } }

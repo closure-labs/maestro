@@ -3,7 +3,7 @@ name: Security maintenance
 
 on:
   schedule:
-    - cron: "41 8 * * 1"
+    - cron: "41 8 * * *"
   workflow_dispatch:
     inputs:
       policy_only:
@@ -27,7 +27,10 @@ jobs:
     permissions:
       contents: read
       actions: read
-      attestations: read
+      packages: read
+      attestations: write
+      id-token: write
+      artifact-metadata: write
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -35,10 +38,20 @@ jobs:
           persist-credentials: false
       - name: Set up Nix
         uses: $/.github/actions/setup-nix
-      - name: Verify and scan latest inventories
+      - name: Resolve retained original appliance evidence
+        id: candidate
         env:
           GH_TOKEN: ${{ github.token }}
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:security:latest
+          CANDIDATE_WORKFLOW: .github/workflows/ci.yml
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:download
+      - name: Rescan exact retained outputs using current trusted scanners
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:refresh
+      - name: Attest fresh native observations
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: security-report/scans.json
       - name: Upload findings
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -47,6 +60,51 @@ jobs:
           path: security-report
           if-no-files-found: error
           retention-days: 30
+
+  release_candidates:
+    name: Refresh retained official product evidence
+    if: github.event_name != 'workflow_dispatch' || inputs.policy_only != true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
+      packages: read
+      attestations: write
+      id-token: write
+      artifact-metadata: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: $/.github/actions/setup-nix
+      - name: Resolve retained official product
+        id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RELEASE_ONLY: 'true'
+          CANDIDATE_OPTIONAL: 'true'
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:download
+      - name: Refresh native health without changing approved product bytes
+        if: steps.candidate.outputs.available == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:refresh
+      - name: Attest refreshed official observations
+        if: steps.candidate.outputs.available == 'true'
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: security-report/scans.json
+      - name: Retain unchanged product bytes and fresh evidence
+        if: steps.candidate.outputs.available == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-release-product
+          path: security-report
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90
 
   policy:
     name: Detect GitHub security policy drift

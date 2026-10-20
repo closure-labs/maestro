@@ -1,6 +1,15 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Development
 
+## Current CI and publication contracts
+
+The current authority, candidate transport, release approval, recovery, and
+coordinated activation procedure is documented in [CI and security](ci-security.md).
+Publication commands require authenticated `DECISION_SCANS` and
+`DECISION_PRODUCT`; a validation build manifest alone no longer authorizes cache
+writes. The older orchestration examples below retain their diagnostic context.
+
+
 The committed devenv module is the development-toolchain and task boundary.
 Enter it interactively with:
 
@@ -120,6 +129,23 @@ The path policy decides whether a change can affect the appliance. When it
 can, `lib.ciQualificationInputs.x86_64-linux` supplies separate canonical Nix
 graphs for installer media and supply evidence instead of maintaining another
 source-path approximation.
+Media reuse binds the evaluated ISO store path, embedded appliance roots, and
+boot-test policy. Changes to CI tools can refresh evidence while reusing an
+unchanged, previously booted ISO. Installer recipe or boot-policy changes still
+invalidate qualification.
+
+Before media/evidence qualification, the XO cache preflight copies the full
+locked closure from an approved cache with normal signature verification and no
+builders. Metadata alone is insufficient: an advertised output may reference a
+deleted NAR. An incomplete upstream cache tries the Maestro mirror; if neither
+can supply the closure, qualification stops with a cache-repair diagnostic.
+Repair or republish through the admitted upstream publication flow. Do not
+disable OpenSSL tests or replace the locked XO build to hide a cache failure.
+Temporary upstream security overrides should be retired once XO's own Nixpkgs
+pin provides the required version and the resulting Node/runtime outputs have
+been qualified. Updating that upstream pin is an independent package release;
+Maestro consumes its verified handoff rather than replacing XO's libraries via
+a downstream override.
 Pull requests and pushes fetch full history for path classification;
 scheduled and manual validation use the default shallow checkout. Dormant
 merge-group support accepts a diff only when both event SHAs exist and the base
@@ -194,14 +220,22 @@ runners. Publication still runs only after qualification, scanning and signing;
 PR jobs receive no cache write credentials. A cold runner may still build when
 the exact output has not yet been published.
 
-CI and release security jobs download `maestro-evidence` from the assembled
-inventory's `artifact_run_id`. Weekly scanning uses
+CI scans products in the qualification builder, where their Nix closures are
+already available. Its security job validates and attests that run's native
+report. Release scans restore the exact completed CI candidate's authenticated
+transport before reading installed files. This qualification restore verifies
+producer provenance and output identities; public distribution still requires
+the separate human admission checks.
+
+Release inventories use `maestro-evidence` from the assembled inventory's
+`artifact_run_id`. Weekly scanning uses
 `maestro-ci-download-installer DIRECTORY evidence`. This preserves the same
 signed pointer, producer, checksum and evidence attestation checks without
 transferring the ISO. The downloader's default and release publication retain
 full media verification, including the ISO's SPDX predicate binding. The
-original `evidence_run_id` can identify older evidence and must not select the
-assembled inventory downloaded for scanning.
+original `evidence_run_id` selects retained transport when qualification reuses
+older product bytes; it must not replace `artifact_run_id` when selecting the
+current assembled inventory and scanner report.
 
 `maestro-ci-trusted-run --batch` accepts a nonempty array of
 `{"run_id":123,"source_sha":"<40-character commit or empty string>"}` on stdin.

@@ -21,7 +21,7 @@ on:
         default: auto
   workflow_call:
     secrets:
-      MERGE_QUEUE_PAT:
+      DECIDER_KEY:
         required: true
     inputs:
       release_request_run_id:
@@ -76,13 +76,24 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:pending
 
+      - name: Mint short-lived protected-queue token
+        id: queue-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.DECIDER_CLIENT }}
+          private-key: ${{ secrets.DECIDER_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-actions: write
       - name: Calculate and merge the release version
         id: version
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          EXPECTED_AUTHOR: github-actions
-          MERGE_QUEUE_PAT: ${{ secrets.MERGE_QUEUE_PAT }}
-          GH_TOKEN: ${{ github.token }}
+          EXPECTED_AUTHOR: cl-decider
+          MERGE_QUEUE_TOKEN: ${{ steps.queue-token.outputs.token }}
+          GH_TOKEN: ${{ steps.queue-token.outputs.token }}
           REQUESTED_BUMP: ${{ inputs.bump }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:prepare
 
@@ -212,6 +223,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:verify
 
+      - name: Download completed qualification distribution transport
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          github-token: ${{ github.token }}
+          name: maestro-security-report
+          path: qualified-distribution
+          run-id: ${{ needs.context.outputs.run_id }}
+
+      - name: Authenticate and restore exact candidate outputs before rescanning
+        env:
+          GH_TOKEN: ${{ github.token }}
+          QUALIFICATION_SOURCE_SHA: ${{ needs.context.outputs.source_sha }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:qualification:restore
+
       - name: Rescan release inventories
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:security:scan
 
@@ -225,35 +250,27 @@ jobs:
           retention-days: 30
 
   release:
-    name: Verify and publish immutable release assets
+    name: Prepare immutable official product for human approval
     needs: [context, security]
     if: >-
       !cancelled() && needs.context.result == 'success' && needs.security.result == 'success' &&
       needs.context.outputs.ready == 'true' && needs.context.outputs.already_published != 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    environment: release
-    concurrency:
-      group: maestro-publication
-      queue: max
-      cancel-in-progress: false
+    timeout-minutes: 60
     permissions:
       actions: read
+      contents: read
       artifact-metadata: write
       attestations: write
-      contents: write
       id-token: write
     steps:
-      - name: Checkout exact release source
+      - name: Checkout exact protected release source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
           ref: ${{ needs.context.outputs.source_sha }}
-
-      - name: Set up Nix
-        uses: $/.github/actions/setup-nix
-
+      - uses: $/.github/actions/setup-nix
       - name: Download tested installer state
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -261,23 +278,20 @@ jobs:
           name: maestro-qualification-state
           path: candidate-state
           run-id: ${{ needs.context.outputs.run_id }}
-
       - name: Resolve immutable installer inventory
         id: inventory
         env:
           SOURCE_SHA: ${{ needs.context.outputs.source_sha }}
           GH_TOKEN: ${{ github.token }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:inventory
-
-      - name: Download tested installer inventory
+      - name: Download tested installer and original inventories
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           github-token: ${{ github.token }}
           name: maestro-installer
           path: candidate
           run-id: ${{ steps.inventory.outputs.artifact_run_id }}
-
-      - name: Verify builder checksums, state, and attestations
+      - name: Verify exact qualified media and attestations
         env:
           ARTIFACT_RUN_ID: ${{ steps.inventory.outputs.artifact_run_id }}
           ARTIFACT_SOURCE_COMMIT: ${{ steps.inventory.outputs.artifact_source_commit }}
@@ -285,8 +299,21 @@ jobs:
           EVIDENCE_INPUT: ${{ steps.inventory.outputs.evidence_input }}
           GH_TOKEN: ${{ github.token }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:verify
-
-      - name: Stage versioned release assets
+      - name: Download completed qualification distribution transport
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          github-token: ${{ github.token }}
+          name: maestro-security-report
+          path: qualified-distribution
+          run-id: ${{ needs.context.outputs.run_id }}
+      - name: Authenticate and restore exact candidate outputs before preparing release bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          QUALIFICATION_SOURCE_SHA: ${{ needs.context.outputs.source_sha }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:qualification:restore
+      - name: Rescan the complete candidate distribution
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:security:scan
+      - name: Stage exact versioned product bytes
         env:
           ARTIFACT_RUN_ID: ${{ steps.inventory.outputs.artifact_run_id }}
           ARTIFACT_SOURCE_COMMIT: ${{ steps.inventory.outputs.artifact_source_commit }}
@@ -297,81 +324,34 @@ jobs:
           SOURCE_SHA: ${{ needs.context.outputs.source_sha }}
           GH_TOKEN: ${{ github.token }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:stage
-
-      - name: Create or refresh verified draft
+      - name: Bind native observations and immutable release assets
         env:
-          RELEASE_TAG: ${{ needs.context.outputs.tag }}
-          RELEASE_VERSION: ${{ needs.context.outputs.version }}
-          SOURCE_SHA: ${{ needs.context.outputs.source_sha }}
           GH_TOKEN: ${{ github.token }}
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:draft
-
-      - name: Attest final release filename
+          SOURCE_SHA: ${{ needs.context.outputs.source_sha }}
+          DECISION_PRODUCER_WORKFLOW: .github/workflows/release.yml
+          DECISION_RELEASE_DIRECTORY: release
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:candidate
+      - name: Attest prepared product and native observations
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            security-report/scans.json
+            security-report/product.json
+      - name: Retain the exact prepared release packet
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:retain
+      - name: Attest the exact versioned installer filename
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: ${{ runner.temp }}/maestro-${{ needs.context.outputs.tag }}.iso
-
-      - name: Bind SPDX SBOM to final release filename
+      - name: Bind the complete SPDX inventory to versioned media
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: ${{ runner.temp }}/maestro-${{ needs.context.outputs.tag }}.iso
           sbom-path: candidate/maestro-system.spdx.json
-
-      - name: Verify final release provenance and bound SPDX attestation
-        env:
-          RELEASE_TAG: ${{ needs.context.outputs.tag }}
-          SOURCE_SHA: ${{ needs.context.outputs.source_sha }}
-          GH_TOKEN: ${{ github.token }}
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:attestations
-
-      - name: Publish versioned flake
-        uses: DeterminateSystems/flakehub-push@99ef15d19ce5deb24d62f5d1d6f5a81d9bf03567 # main, Node.js 24 (post-v6)
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          visibility: public
-          name: closure-labs/maestro
-          rolling: false
-          tag: ${{ needs.context.outputs.tag }}
-          rev: ${{ needs.context.outputs.source_sha }}
-          include-output-paths: true
-
-      - name: Publish immutable GitHub release
-        env:
-          RELEASE_TAG: ${{ needs.context.outputs.tag }}
-          SOURCE_SHA: ${{ needs.context.outputs.source_sha }}
-          GH_TOKEN: ${{ github.token }}
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:publish
-
-  advance:
-    name: Merge the next development version
-    needs:
-      - context
-      - release
-    if: >-
-      !cancelled() && needs.context.result == 'success' && needs.context.outputs.ready == 'true' &&
-      (needs.release.result == 'success' ||
-       (needs.release.result == 'skipped' && needs.context.outputs.already_published == 'true'))
-    runs-on: ubuntu-24.04
-    timeout-minutes: 150
-    permissions:
-      actions: write
-      contents: write
-      pull-requests: write
-    steps:
-      - name: Checkout protected main
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-          ref: main
-
-      - name: Set up Nix
-        uses: $/.github/actions/setup-nix
-
-      - name: Merge next development version
-        env:
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-          EXPECTED_AUTHOR: github-actions
-          MERGE_QUEUE_PAT: ${{ secrets.MERGE_QUEUE_PAT }}
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_VERSION: ${{ needs.context.outputs.version }}
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:advance
+          name: maestro-release-product
+          path: prepared
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90

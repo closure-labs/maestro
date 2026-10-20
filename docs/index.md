@@ -41,3 +41,6 @@ Start by [launching Maestro](installation.md) or
 
 Contributors can continue with the
 [contribution guide](../legal/CONTRIBUTING.md).
+
+The current publication authority and coordinated activation procedure is in
+[CI and security](ci-security.md).

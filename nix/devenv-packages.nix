@@ -6,6 +6,9 @@ in [
   pkgs.cargo
   pkgs.clippy
   pkgs.gh
+  pkgs.gitleaks
+  pkgs.oras
+  pkgs.python3
   pkgs.git
   pkgs.jq
   pkgs.nixd

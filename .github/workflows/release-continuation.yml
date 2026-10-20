@@ -65,7 +65,7 @@ jobs:
     # candidate verification in the existing release workflow.
     uses: $/.github/workflows/release.yml
     secrets:
-      MERGE_QUEUE_PAT: ${{ secrets.MERGE_QUEUE_PAT }}
+      DECIDER_KEY: ${{ secrets.DECIDER_KEY }}
     with:
       release_request_run_id: ${{ needs.resolve.outputs.request_run_id }}
       release_candidate_run_id: ${{ needs.resolve.outputs.run_id }}

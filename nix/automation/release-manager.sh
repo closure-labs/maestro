@@ -8,7 +8,7 @@ prepare() {
   : "${DEFAULT_BRANCH:?}" "${EXPECTED_AUTHOR:?}" "${REQUESTED_BUMP:?}"
   # Detect missing queue credentials before publishing an already-prepared
   # stable VERSION whose next-development update would otherwise stall later.
-  : "${MERGE_QUEUE_PAT:?MERGE_QUEUE_PAT must be configured before preparing a release}"
+  : "${MERGE_QUEUE_TOKEN:?MERGE_QUEUE_TOKEN must be configured before preparing a release}"
   [[ "$GITHUB_REF" == refs/heads/main ]]
   initial_sha=$(git rev-parse HEAD)
   [[ "$initial_sha" == "$GITHUB_SHA" ]] || {
@@ -182,10 +182,11 @@ stage() {
   [[ "$SOURCE_SHA" == "$(git rev-parse HEAD)" ]]
   [[ $(<VERSION) == "$RELEASE_VERSION" ]]
   install -d -m 0755 release
+  maestro-ci-release-notes "$RELEASE_VERSION" CHANGELOG.md >release/release-notes.md
   versioned_installer="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/maestro-${RELEASE_TAG}.iso"
   maestro-ci-release-stage candidate/result-installer/iso/maestro-installer.iso "$versioned_installer" release
-  gzip -9c candidate/maestro-system.spdx.json >"release/maestro-${RELEASE_TAG}.spdx.json.gz"
-  gzip -9c candidate/maestro-system.cdx.json >"release/maestro-${RELEASE_TAG}.cdx.json.gz"
+  gzip -n -9c candidate/maestro-system.spdx.json >"release/maestro-${RELEASE_TAG}.spdx.json.gz"
+  gzip -n -9c candidate/maestro-system.cdx.json >"release/maestro-${RELEASE_TAG}.cdx.json.gz"
   (cd release && sha256sum "maestro-${RELEASE_TAG}.spdx.json.gz" >"maestro-${RELEASE_TAG}.spdx.json.gz.sha256" \
     && sha256sum "maestro-${RELEASE_TAG}.cdx.json.gz" >"maestro-${RELEASE_TAG}.cdx.json.gz.sha256")
   mapfile -t installer_parts < <(find release -maxdepth 1 -type f -name "maestro-${RELEASE_TAG}.iso.part-*" -print | sort)
@@ -212,40 +213,13 @@ stage() {
 }
 
 draft() {
-  : "${RELEASE_TAG:?}" "${RELEASE_VERSION:?}" "${SOURCE_SHA:?}"
-  notes_file="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/release-notes.md"
-  maestro-ci-release-notes "$RELEASE_VERSION" CHANGELOG.md >"$notes_file"
-  mapfile -t assets < <(find release -maxdepth 1 -type f -print | sort)
-  mapfile -t installer_parts < <(find release -maxdepth 1 -type f -name "maestro-${RELEASE_TAG}.iso.part-*" -print | sort)
-  [[ ${#assets[@]} -eq $((${#installer_parts[@]} + 7)) ]]
-  if release_state=$(gh release view "$RELEASE_TAG" --json isDraft,targetCommitish 2>/dev/null); then
-    draft_target=$(jq -r .targetCommitish <<<"$release_state")
-    if [[ $(jq -r .isDraft <<<"$release_state") == true ]]; then
-      git merge-base --is-ancestor "$draft_target" "$SOURCE_SHA"
-      gh release edit "$RELEASE_TAG" --notes-file "$notes_file" --target "$SOURCE_SHA"
-      gh release upload "$RELEASE_TAG" "${assets[@]}" --clobber
-    else
-      [[ $(git rev-parse "$draft_target^{commit}") == "$SOURCE_SHA" ]]
-    fi
-  else
-    gh release create "$RELEASE_TAG" "${assets[@]}" --draft --notes-file "$notes_file" \
-      --target "$SOURCE_SHA" --title "Maestro ${RELEASE_VERSION}"
-  fi
-  mapfile -t expected < <(printf '%s\n' "${assets[@]##*/}" | sort)
-  mapfile -t actual < <(gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | sort)
-  [[ "${expected[*]}" == "${actual[*]}" ]]
+  export DECISION_SOURCE_SHA="${DECISION_SOURCE_SHA:-${SOURCE_SHA:?}}"
+  PUBLICATION_PUBLISH=false maestro-ci-publication-assets
 }
 
 publish() {
-  : "${RELEASE_TAG:?}" "${SOURCE_SHA:?}"
-  release_state=$(gh release view "$RELEASE_TAG" --json isDraft,targetCommitish)
-  target=$(jq -er .targetCommitish <<<"$release_state")
-  [[ $(git rev-parse "$target^{commit}") == "$SOURCE_SHA" ]]
-  if [[ $(jq -r .isDraft <<<"$release_state") == true ]]; then
-    gh release edit "$RELEASE_TAG" --draft=false --latest
-  else
-    printf 'Release %s is already published and immutable.\n' "$RELEASE_TAG"
-  fi
+  export DECISION_SOURCE_SHA="${DECISION_SOURCE_SHA:-${SOURCE_SHA:?}}"
+  PUBLICATION_PUBLISH=true maestro-ci-publication-assets
 }
 
 advance() {
