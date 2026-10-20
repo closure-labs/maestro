@@ -6,6 +6,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -29,6 +30,41 @@ retained = module('decision-retained')
 
 
 class Operations(unittest.TestCase):
+    def test_publication_creates_report_parent_for_retained_candidate_and_preserves_denial(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            source = workspace / 'controller'
+            source.mkdir()
+            # Exercise the real shell entry point and Python report writer;
+            # isolate only remote policy/authority calls from this local test.
+            (source / 'publication.py').write_text(
+                'import os, runpy, sys\n'
+                f'sys.path.insert(0, {str(ROOT / "nix/automation/decisions")!r})\n'
+                'import common\n'
+                'common.config = lambda *args, **kwargs: {}\n'
+                'def gate(*args):\n'
+                '    if os.environ.get("FIXTURE_DENY") == "true":\n'
+                '        raise ValueError("fixture authority denied")\n'
+                '    return {"schema": 1, "status": "allowed"}\n'
+                'common.gate = gate\n'
+                f'runpy.run_path({str(ROOT / "nix/automation/decisions/publication.py")!r}, run_name="__main__")\n'
+            )
+            environment = dict(os.environ, MAESTRO_SYSTEM_ROOT=str(ROOT),
+                               MAESTRO_DECISIONS_SOURCE=str(source), DECISION_REQUIRE_HANDOFF='false')
+            environment.pop('DECISION_ADMISSION', None)
+            command = ['bash', str(ROOT / 'nix/automation/decision-publication.sh')]
+            for output in ('security-report/publication.json', 'custom/nested/publication.json'):
+                if output.startswith('custom/'):
+                    environment['DECISION_ADMISSION'] = output
+                result = subprocess.run(command, cwd=workspace, env=environment, text=True, capture_output=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(json.loads((workspace / output).read_text())['status'], 'allowed')
+            environment.update(DECISION_ADMISSION='denied/nested/publication.json', FIXTURE_DENY='true')
+            result = subprocess.run(command, cwd=workspace, env=environment, text=True, capture_output=True)
+            self.assertEqual(result.returncode, 2)
+            self.assertIn('fixture authority denied', result.stderr)
+            self.assertFalse((workspace / environment['DECISION_ADMISSION']).exists())
+
     def test_pending_discovery_reads_detail_count_and_rejects_changed_heads_or_extra_files(self):
         repository = 'closure-labs/maestro'
         cfg = {'repository': repository, 'botLogin': 'review[bot]'}

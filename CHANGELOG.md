@@ -51,6 +51,8 @@ correspond to published GitHub tags.
 
 ### Fixed
 
+- Create the publication report directory when validating retained candidates
+  downloaded outside the producer's security-report directory.
 - Enforce the public CI cache baseline after Determinate configuration while
   preserving explicitly accepted project caches and runtime-only credentials.
 
