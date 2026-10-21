@@ -9,6 +9,8 @@ correspond to published GitHub tags.
 
 ## [Unreleased]
 
+- Verify public cache identities before publication completes and exercise public bytes and signatures weekly in a disposable consumer store.
+
 ### Changed
 
 - Update the pinned native devenv CLI and modules to 2.4.0, retaining synchronized
