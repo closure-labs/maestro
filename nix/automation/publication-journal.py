@@ -12,6 +12,7 @@ import sys
 
 sys.path.insert(0, os.environ.get('MAESTRO_DECISIONS_SOURCE', str(Path(__file__).with_name('decisions'))))
 import common
+import publication_receipts
 
 BRANCH = 'automation/publication-journals'
 NAME = re.compile(r'[A-Za-z0-9_.+-]{1,128}')
@@ -57,11 +58,15 @@ def branch(repository, authorize, github=api):
 
 
 def validate(document, product_hash):
-    common.require(isinstance(document, dict) and set(document) == {'schema', 'productHash', 'steps'}
-                   and document['schema'] == 1 and document['productHash'] == product_hash,
+    common.require(isinstance(document, dict) and set(document) == ({'schema', 'productHash', 'steps'}
+                   if document.get('schema') == 1 else {'schema', 'productHash', 'steps', 'receipts'})
+                   and document['schema'] in (1, 2) and document['productHash'] == product_hash,
                    'Publication key already reserved for a different immutable product')
     common.require(isinstance(document['steps'], dict) and all(NAME.fullmatch(k) and v in ('pending', 'complete') for k, v in document['steps'].items()),
                    'Malformed publication journal steps')
+    receipts = publication_receipts.read(document, product_hash)
+    common.require(all(document['steps'].get(name) == 'complete' for name in receipts),
+                   'Receipt without completed destination')
 
 
 def transition(repository, product_hash, key, step, state, authorize, github=api):
