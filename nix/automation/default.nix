@@ -275,7 +275,7 @@
         MAESTRO_DECISIONS_SOURCE=${./decisions}
         export MAESTRO_DECISIONS_SOURCE
       '';
-      runtimeInputs = commonInputs ++ [pkgs.python3 pkgs.oras];
+      runtimeInputs = [pkgs.python3 boundedGh pkgs.git pkgs.oras pkgs.coreutils];
       source = ./decision-check.sh;
     };
     decision-recovery = mkCommand {

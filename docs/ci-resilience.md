@@ -112,3 +112,18 @@ receipts in version2 CAS journals. Package3 readers must be deployed first.
 An old completed step preserves history but never suppresses current remote
 inspection. A matching proof repeats live authority without duplicate journal
 writes. Rollback requires a reader that understands journal version2.
+
+## Package 5: startup and notification boundaries
+
+The decision-event relay is the sole new raw workflow command exception. Its
+exact template has an empty permission map, one constant printf, no checkout,
+no Nix, no artifacts, no credentials and no write. It signals activity only.
+Protected-main authority re-authenticates current membership, exact reviewed
+head and human decision using the unchanged workflow path and check signer.
+Adversarial contract fixtures reject additions to the relay.
+
+Controller and verdict tasks start with an empty development package profile;
+each native leaf supplies its own runtime inputs. Reconciliation retains one
+running and one coalesced pending wakeup, repair schedules and serialized
+publication. Authority jobs retain per-event identity because each exact-head
+check must complete. Qualification/audit overlap remains disabled by default.

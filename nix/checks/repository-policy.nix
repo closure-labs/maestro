@@ -60,7 +60,10 @@
         (lib.splitString "\n" (read ".github/workflows/${workflow}"));
     in {
       ok =
-        builtins.all
+        (workflow
+          == "decision-events.yml"
+          && read ".github/workflows/${workflow}" == read "nix/checks/signal-relay.yml")
+        || builtins.all
         (line: (lib.hasInfix "--option 'packages:pkgs!' ''" line
           && (builtins.match
             "[[:space:]]*run: nix run --accept-flake-config \\.#devenv -- tasks run .*ci:repository-audit[[:space:]]*"
