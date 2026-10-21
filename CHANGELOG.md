@@ -32,6 +32,8 @@ correspond to published GitHub tags.
   rate-limit metadata and fixed failure categories. Preserve immediate denial of
   HTTP 403 responses and keep raw headers, response text and credentials private.
 
+- Read the native multi-profile scans.json observation document with a dedicated 128 MiB bound while retaining 16 MiB limits for other packet metadata and all integrity/deadline checks.
+
 ## [3.0.1] - 2026-10-20
 
 ### Security
