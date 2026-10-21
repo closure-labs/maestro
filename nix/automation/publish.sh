@@ -9,13 +9,22 @@ esac
 # No evaluation or builders run in this credentialed publisher. The producer
 # already realized, inventoried and attested every exact root.
 PUBLICATION_PURPOSE=rolling maestro-ci-decision-publication
+# Inspect public identities before importing or transferring any closure.
+destination_state=$(mktemp "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/publication-cache.XXXXXX")
+trap 'rm -f -- "$destination_state"' EXIT
+python3 "${PUBLICATION_DESTINATIONS_SOURCE:-$(dirname -- "${BASH_SOURCE[0]}")/decisions/destinations.py}" cache --product "$DECISION_PRODUCT" --cache-url "https://maestro.cachix.org" ${PUBLICATION_CACHE_RECEIPT:+--receipt "$PUBLICATION_CACHE_RECEIPT"} >"$destination_state"
+if [[ $(jq -er .status "$destination_state") == verified ]]; then
+  PUBLICATION_PURPOSE=rolling maestro-ci-decision-publication
+  echo 'Public cache verified; no closure import or upload required.'
+  exit 0
+fi
 PUBLICATION_PURPOSE=rolling maestro-ci-distribution-restore
 : "${CACHIX_MAESTRO_AUTH_TOKEN:?}" "${CACHIX_MAESTRO_PUBKEY:?}"
 [[ $CACHIX_MAESTRO_PUBKEY == 'maestro.cachix.org-1:fGFZFVwe2ZHEBENWZLHVzERZrz2c50ru+g0UewH68I0=' ]]
 mapfile -t outputs < <(jq -er '[.products[].storePath, .roots[].storePath] | unique[]' "$DECISION_PRODUCT")
 [[ ${#outputs[@]} -gt 0 ]]
 metadata=$(mktemp "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/maestro-publish-nars.XXXXXX")
-trap 'rm -f -- "$metadata"' EXIT
+trap 'rm -f -- "$metadata" "$destination_state"' EXIT
 nix path-info --json "${outputs[@]}" >"$metadata"
 python3 - "$DECISION_PRODUCT" "$metadata" <<'PYTHON'
 import json
@@ -32,7 +41,7 @@ PYTHON
 PUBLICATION_PURPOSE=rolling maestro-ci-decision-publication
 maestro-ci-decision-handoff
 export CACHIX_AUTH_TOKEN="$CACHIX_MAESTRO_AUTH_TOKEN"
-printf '%s\n' "${outputs[@]}" | cachix push maestro
+jq -er '.missing[]' "$destination_state" | cachix push maestro
 # A successful upload can leave an existing same-path object untouched. Confirm
 # the public cache serves the approved bytes before the controller checkpoints
 # publication or publishes a downstream handoff. Query the remote store directly
@@ -56,3 +65,6 @@ if ! jq -se --slurpfile product "$DECISION_PRODUCT" '
   echo 'Public cache paths or NAR hashes differ from the approved product' >&2
   exit 1
 fi
+
+# Persist only fresh remote proof; an older completion is never sufficient.
+python3 "${PUBLICATION_DESTINATIONS_SOURCE:-$(dirname -- "${BASH_SOURCE[0]}")/decisions/destinations.py}" cache --product "$DECISION_PRODUCT" --cache-url "https://maestro.cachix.org" --require-verified ${PUBLICATION_CACHE_RECEIPT:+--receipt "$PUBLICATION_CACHE_RECEIPT"}

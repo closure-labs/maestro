@@ -50,6 +50,8 @@ def extract(archive, output):
 
 
 def main():
+    if os.environ.get('PUBLICATION_METADATA_ONLY') == 'true' and not os.environ.get('CANDIDATE_RUN'):
+        raise SystemExit(3)
     identity = os.environ.get("CANDIDATE_RUN", "")
     workflow_filter = os.environ.get("CANDIDATE_WORKFLOW", "")
     if identity:

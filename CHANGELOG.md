@@ -9,6 +9,8 @@ correspond to published GitHub tags.
 
 ## [Unreleased]
 
+- Reconcile publication destinations before transfer and verify remote identities with backward-compatible receipt journals.
+
 - Inspect scheduling and observation metadata before payload transfer, and reuse verified immutable packet bytes within a job while repeating authority checks.
 
 - Bound optional CI transport and required evidence recovery, clean up nested processes, and reconcile exact-head merge queue state idempotently.

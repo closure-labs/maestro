@@ -117,7 +117,7 @@
         MAESTRO_DISTRIBUTION_RESTORE_SOURCE=${./distribution-restore.py}
         export MAESTRO_DECISION_CORE MAESTRO_DISTRIBUTION_CACHE_SOURCE MAESTRO_DISTRIBUTION_RESTORE_SOURCE
       '';
-      runtimeInputs = commonInputs ++ [pkgs.python3];
+      runtimeInputs = commonInputs ++ [pkgs.python3 pkgs.oras];
       source = ./distribution-restore.sh;
     };
     decision-refresh = mkCommand {
@@ -153,6 +153,14 @@
       '';
       runtimeInputs = commonInputs ++ [pkgs.python3 pkgs.oras];
       source = ./decision-handoff-fetch.sh;
+    };
+    publication-inspect = mkCommand {
+      name = "publication-inspect";
+      prefix = ''
+        export PUBLICATION_DESTINATIONS_SOURCE=${./decisions/destinations.py}
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.python3 pkgs.curl];
+      source = ./publication-inspect.sh;
     };
     publication-journal = mkCommand {
       name = "publication-journal";
@@ -522,7 +530,10 @@
     };
     publish = mkCommand {
       name = "publish";
-      runtimeInputs = commonInputs ++ [pkgs.cachix pkgs.python3 commands.decision-publication commands.distribution-restore commands.decision-handoff];
+      prefix = ''
+        export PUBLICATION_DESTINATIONS_SOURCE=${./decisions/destinations.py}
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.cachix pkgs.python3 pkgs.curl commands.decision-publication commands.distribution-restore commands.decision-handoff];
       source = ./publish.sh;
     };
     queue = mkCommand {

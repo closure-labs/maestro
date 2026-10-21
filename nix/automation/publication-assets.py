@@ -101,7 +101,7 @@ def upload(repository, tag, path):
 
 
 def reconcile(repository, product, directory, tag, revision, publish, authorize,
-              github=journal.api, download=remote_digest, send=upload):
+              github=journal.api, download=remote_digest, send=upload, materialize=None):
     common.require(re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?(?:\+[A-Za-z0-9.-]+)?', tag), 'Versioned official release tag required')
     common.require(common.SHA.fullmatch(revision) and product.get('revision') == revision
                    and product.get('repository') == repository, 'Release source differs from approved product')
@@ -111,7 +111,7 @@ def reconcile(repository, product, directory, tag, revision, publish, authorize,
     directory = Path(directory)
     for name, digest in assets.items():
         path = directory / name
-        common.require(path.is_file() and not path.is_symlink() and sha256(path) == digest,
+        common.require((materialize is not None and not path.exists() and not path.is_symlink()) or (path.is_file() and not path.is_symlink() and sha256(path) == digest),
                        'Local release bytes differ from approved asset: ' + name)
     notes = None
     if 'release-notes.md' in assets:
@@ -149,6 +149,8 @@ def reconcile(repository, product, directory, tag, revision, publish, authorize,
         common.require(download(repository, asset) == assets[name], 'Existing release asset bytes differ: ' + name)
     missing = set(assets) - set(remote)
     common.require(release.get('draft') is True or not missing, 'Published release is incomplete; refusing mutation')
+    if missing and materialize is not None:
+        materialize()
     for name in sorted(missing):
         # Check source and authorization again before every remote mutation.
         common.require(tag_revision(repository, tag, github) == revision, 'Release tag changed while staging')
@@ -196,7 +198,16 @@ def main():
         if os.environ.get('MAESTRO_REQUIRE_UPSTREAM_HANDOFF') == 'true':
             common.command(['maestro-ci-decision-handoff'])
     authorize()
-    common.emit(reconcile(cfg['repository'], product, args.directory, args.tag, args.revision, args.publish, authorize), args.output)
+    import packet_materialization
+    deferred = args.directory.with_suffix('.source.json').exists()
+    result = reconcile(cfg['repository'], product, args.directory, args.tag, args.revision, args.publish, authorize,
+                       materialize=(lambda: packet_materialization.materialize(args.directory)) if deferred else None)
+    if result['status'] == 'published' and os.environ.get('PUBLICATION_RECEIPT'):
+        import destinations
+        identity = {'tag': args.tag, 'revision': args.revision, 'assets': product['assets']}
+        proof = destinations.result('github', identity, identity)
+        Path(os.environ['PUBLICATION_RECEIPT']).write_bytes(destinations.canonical(destinations.receipt(proof, product)) + b'\n')
+    common.emit(result, args.output)
 
 
 if __name__ == '__main__':
