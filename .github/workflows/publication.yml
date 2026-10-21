@@ -7,7 +7,11 @@ on:
   workflow_dispatch:
     inputs:
       candidate_run:
-        description: Completed protected candidate run; empty resolves the latest retained candidate
+        description: Completed protected candidate run; with proposal_hash use its exact fresh Security maintenance run
+        type: string
+        default: ''
+      proposal_hash:
+        description: Exact admitted official product for cache-only recovery; optional candidate_run supplies fresh observations
         type: string
         default: ''
   schedule:
@@ -24,6 +28,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     environment: publication
+    env:
+      PUBLICATION_PURPOSE: ${{ inputs.proposal_hash != '' && 'release' || 'rolling' }}
     permissions:
       actions: read
       packages: read
@@ -49,7 +55,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PUBLICATION_METADATA_ONLY: 'true'
           CANDIDATE_RUN: ${{ inputs.candidate_run || '' }}
-          CANDIDATE_WORKFLOW: .github/workflows/ci.yml
+          CANDIDATE_PROPOSAL_HASH: ${{ inputs.proposal_hash || '' }}
+          CANDIDATE_RELEASE_ONLY: ${{ inputs.proposal_hash != '' && 'true' || 'false' }}
+          CANDIDATE_WORKFLOW: ${{ inputs.proposal_hash != '' && '.github/workflows/security.yml' || '.github/workflows/ci.yml' }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:download
       - name: Create repository-scoped authority and journal token
         id: authority
@@ -68,6 +76,14 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.authority.outputs.token }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:publication
+      - name: Reserve exact official cache recovery identity
+        if: inputs.proposal_hash != ''
+        env:
+          GH_TOKEN: ${{ steps.authority.outputs.token }}
+          PUBLICATION_KEY: ${{ steps.candidate.outputs.release_tag }}
+          PUBLICATION_STEP: cache
+          PUBLICATION_STATE: pending
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:journal
       - name: Mint independently scoped upstream authority reader
         id: upstream
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
@@ -90,7 +106,6 @@ jobs:
         if: steps.cache.outputs.status != 'verified'
         env:
           GH_TOKEN: ${{ steps.authority.outputs.token }}
-          PUBLICATION_PURPOSE: rolling
           REGISTRY_TOKEN: ${{ github.token }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:distribution:restore
       - name: Verify pinned upstream handoff against actual appliance exposure
@@ -111,17 +126,19 @@ jobs:
       - name: Record freshly verified cache destination
         env:
           GH_TOKEN: ${{ steps.authority.outputs.token }}
-          PUBLICATION_PURPOSE: rolling
+          PUBLICATION_KEY: ${{ inputs.proposal_hash != '' && steps.candidate.outputs.release_tag || '' }}
           PUBLICATION_STEP: cache
           PUBLICATION_STATE: complete
           PUBLICATION_RECEIPT: ${{ runner.temp }}/cache-receipt.json
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:journal
       - name: Inspect exact rolling FlakeHub destination
+        if: inputs.proposal_hash == ''
         id: flakehub
         env:
           PUBLICATION_DESTINATION: flakehub
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:inspect
       - name: Recheck live admission before FlakeHub publication
+        if: inputs.proposal_hash == ''
         env:
           GH_TOKEN: ${{ steps.authority.outputs.token }}
           XO_AUTHORITY_TOKEN: ${{ steps.upstream.outputs.token }}
@@ -129,7 +146,7 @@ jobs:
           DECISION_REQUIRE_HANDOFF: 'true'
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:publication
       - name: Publish exact admitted rolling revision
-        if: steps.flakehub.outputs.status != 'verified' 
+        if: inputs.proposal_hash == '' && steps.flakehub.outputs.status != 'verified'
         uses: DeterminateSystems/flakehub-push@99ef15d19ce5deb24d62f5d1d6f5a81d9bf03567 # main, Node.js 24
         with:
           visibility: public
@@ -139,15 +156,16 @@ jobs:
           rev: ${{ steps.candidate.outputs.source_sha }}
           include-output-paths: true
       - name: Verify published rolling FlakeHub revision
+        if: inputs.proposal_hash == ''
         env:
           PUBLICATION_DESTINATION: flakehub
           PUBLICATION_REQUIRE_VERIFIED: 'true'
           PUBLICATION_RECEIPT: ${{ runner.temp }}/flakehub-receipt.json
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:inspect
       - name: Record freshly verified rolling FlakeHub destination
+        if: inputs.proposal_hash == ''
         env:
           GH_TOKEN: ${{ steps.authority.outputs.token }}
-          PUBLICATION_PURPOSE: rolling
           PUBLICATION_STEP: flakehub
           PUBLICATION_STATE: complete
           PUBLICATION_RECEIPT: ${{ runner.temp }}/flakehub-receipt.json

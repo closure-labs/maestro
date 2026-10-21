@@ -176,17 +176,25 @@ def main():
     cli = common.parser(__doc__)
     cli.add_argument('--release-only', action='store_true')
     cli.add_argument('--proposal-hash')
+    cli.add_argument('--admitted-release', action='store_true')
     cli.add_argument('--optional', action='store_true')
     cli.add_argument('--directory', type=Path, default=Path('candidate-evidence'))
     args = cli.parse_args()
     cfg = common.config(args.config, live=True)
     _, records = common.ledger(cfg)
     release_only = args.release_only or os.environ.get('DECISION_RELEASE_ONLY') == 'true'
-    releases = authority.collection(authority.github_api, f'repos/{cfg["repository"]}/releases') if release_only else []
+    if args.admitted_release:
+        common.require(release_only and isinstance(args.proposal_hash, str)
+                       and common.HASH.fullmatch(args.proposal_hash)
+                       and os.environ.get('PUBLICATION_METADATA_ONLY') == 'true',
+                       'Admitted cache recovery requires exact metadata-only release selection')
+        common.admitted_release(cfg, records, args.proposal_hash)
+    releases = authority.collection(authority.github_api, f'repos/{cfg["repository"]}/releases') if release_only and not args.admitted_release else []
     published = {r['tag_name'] for r in releases if r.get('draft') is False and isinstance(r.get('tag_name'), str)}
     suppressed = current_published_products(cfg, records, published, args.proposal_hash) if release_only else set()
     try:
-        digest, proposal = select(cfg, records, pending(cfg), release_only, args.proposal_hash, suppressed_products=suppressed)
+        open_proposals = {} if args.admitted_release else pending(cfg)
+        digest, proposal = select(cfg, records, open_proposals, release_only, args.proposal_hash, suppressed_products=suppressed)
     except NoCandidate:
         if not args.optional:
             raise

@@ -316,6 +316,7 @@ in {
           PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests/decisions -p '*.py'
           PYTHONDONTWRITEBYTECODE=1 python3 tests/test_publish_readback.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/test_cache_cancellation.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/test_cache_recovery.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/test_scheduling.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/test_operations.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/test_consumer_probe.py
@@ -325,7 +326,7 @@ in {
           PYTHONDONTWRITEBYTECODE=1 python3 tests/installer-coverage.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/decision-operations.py
         '';
-        nativeBuildInputs = fixtureInputs ++ [pkgs.openssh pkgs.python3 pkgs.gitleaks];
+        nativeBuildInputs = fixtureInputs ++ [pkgs.openssh pkgs.python3 pkgs.gitleaks pkgs.yq-go];
       };
 
       packer-policy = mkSourceCheck {

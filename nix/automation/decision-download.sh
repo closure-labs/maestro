@@ -15,6 +15,7 @@ if [[ $status == 3 ]]; then
   printf '%s' "${REGISTRY_TOKEN:-${GH_TOKEN:?}}" | oras login ghcr.io --username "${GITHUB_ACTOR:?}" --password-stdin
   arguments=()
   [[ ${CANDIDATE_RELEASE_ONLY:-false} == true ]] && arguments+=(--release-only)
+  [[ -n ${CANDIDATE_PROPOSAL_HASH:-} ]] && arguments+=(--proposal-hash "$CANDIDATE_PROPOSAL_HASH" --admitted-release)
   [[ ${CANDIDATE_OPTIONAL:-false} == true ]] && arguments+=(--optional)
   python3 "$MAESTRO_DECISION_RETAINED_SOURCE" \
     --config "${MAESTRO_SYSTEM_ROOT:-$PWD}/nix/automation/decision-policy.json" \

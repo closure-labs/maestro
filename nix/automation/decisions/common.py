@@ -254,6 +254,21 @@ def active_release(cfg, records, identity, api=None, authenticate=True):
     return digest, candidates[digest]
 
 
+def admitted_release(cfg, records, digest):
+    """Select exact current official product data; live gates grant authority."""
+    require(isinstance(digest, str) and HASH.fullmatch(digest), 'Canonical admitted proposal required')
+    selected = records.get(digest)
+    require(selected and selected['kind'] == 'release-product'
+            and selected['payload']['disposition'] == 'accepted',
+            'Exact cache recovery needs an admitted official product')
+    active_hash, active = active_release(cfg, records, selected['payload']['product'], authenticate=False)
+    require(active_hash == digest and active == selected, 'Exact cache recovery proposal is no longer active')
+    tags = {match[1] for name in selected['payload']['product'].get('assets', {})
+            if (match := re.fullmatch(r'maestro-(v[0-9]+\.[0-9]+\.[0-9]+)\.iso\.sha256', name))}
+    require(len(tags) == 1, 'Admitted cache recovery requires one official release tag')
+    return selected
+
+
 def timestamp(value):
     require(isinstance(value, str), 'UTC timestamp required')
     parsed = dt.datetime.fromisoformat(value.replace('Z', '+00:00'))
