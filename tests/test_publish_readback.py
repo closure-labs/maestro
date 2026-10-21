@@ -13,13 +13,20 @@ ROOT = Path(__file__).resolve().parents[1]
 CACHE = 'https://maestro.cachix.org'
 UPSTREAM = 'https://cache.nixos.org'
 FAKE = '''
-import json, os, pathlib, sys, time
+import fcntl, json, os, pathlib, sys, time
 name, args = pathlib.Path(sys.argv[0]).name, sys.argv[1:]
 fixture = json.loads(pathlib.Path(os.environ['PUBLISH_FIXTURE']).read_text())
-with open(os.environ['PUBLISH_CALLS'], 'a') as stream:
-    stream.write(json.dumps([name, *args]) + '\\n')
+def record_call(call):
+    # Metadata probes run concurrently. A reader can otherwise observe an
+    # incomplete appended JSON line, causing a spurious fake transport failure.
+    with open(os.environ['PUBLISH_CALLS'], 'a+') as stream:
+        fcntl.flock(stream, fcntl.LOCK_EX)
+        stream.write(json.dumps(call) + '\\n')
+        stream.flush()
+        stream.seek(0)
+        return [json.loads(line) for line in stream.read().splitlines()]
+previous = record_call([name, *([os.environ.get('PUBLICATION_PURPOSE','')] if name.startswith('maestro-ci-') else []), *args])
 if name == 'curl':
-    previous = [json.loads(line) for line in pathlib.Path(os.environ['PUBLISH_CALLS']).read_text().splitlines()]
     uploaded = any(call[0] == 'cachix' for call in previous)
     if uploaded and fixture.get('hang'):
         time.sleep(10)
@@ -44,14 +51,14 @@ if name == 'curl':
     pathlib.Path(args[args.index('--output')+1]).write_bytes(data)
     print(status,end='')
 elif name == 'maestro-ci-decision-publication':
-    calls=[json.loads(line) for line in pathlib.Path(os.environ['PUBLISH_CALLS']).read_text().splitlines()]
-    if sum(call[0]==name for call in calls)==fixture.get('deny_authority_at'):sys.exit(1)
+    if sum(call[0]==name for call in previous)==fixture.get('deny_authority_at'):sys.exit(1)
+    if fixture.get('deny_release') and os.environ.get('PUBLICATION_PURPOSE')=='release':sys.exit(1)
 elif name == 'maestro-ci-distribution-restore':
     pathlib.Path(os.environ['DISTRIBUTION_CLOSURE_METADATA']).write_text(json.dumps({path:{'narHash':digest} for path,digest in fixture['local'].items()}))
 elif name == 'nix':
     print(json.dumps({path:{'narHash':digest} for path,digest in fixture['local'].items()}))
 elif name == 'cachix':
-    with open(os.environ['PUBLISH_CALLS'],'a') as stream:stream.write(json.dumps(['uploaded',*sys.stdin.read().splitlines()])+'\\n')
+    record_call(['uploaded',*sys.stdin.read().splitlines()])
 '''
 
 
@@ -83,13 +90,14 @@ class PublishReadback(unittest.TestCase):
         self.fixture.write_text(json.dumps(dict(fixture,remote=remote,local=self.local)))
         result=subprocess.run(['bash',str(ROOT/'nix/automation/publish.sh')],env=self.env,
                               text=True,capture_output=True,timeout=20)
-        calls=[json.loads(line) for line in self.calls.read_text().splitlines()]
+        calls=[json.loads(line) for line in self.calls.read_text().splitlines()] if self.calls.exists() else []
         return result,calls
 
     def assert_rejected(self,remote=None,**fixture):
         result,calls=self.run_leaf(remote,**fixture)
         self.assertNotEqual(result.returncode,0)
-        self.assertEqual(sum(call[0]=='cachix' for call in calls),1)
+        self.assertEqual(sum(call[0]=='cachix' for call in calls),1,
+                         f'publisher exit={result.returncode}; stdout={result.stdout!r}; stderr={result.stderr!r}')
         self.assertFalse(self.receipt.exists())
         self.assertNotIn('fixture-secret',result.stdout+result.stderr)
         self.assertNotIn('untrusted remote details',result.stdout+result.stderr)
@@ -157,6 +165,25 @@ class PublishReadback(unittest.TestCase):
         self.assertTrue(any(c[0]=='maestro-ci-decision-handoff' for c in calls))
         self.assertFalse(any(c[0]=='cachix' for c in calls))
         self.assertFalse(self.receipt.exists())
+
+
+    def test_official_recovery_propagates_release_purpose_to_every_gate_and_restore(self):
+        self.env['PUBLICATION_PURPOSE']='release'
+        result,calls=self.run_leaf()
+        self.assertEqual(result.returncode,0,result.stderr)
+        native=[c for c in calls if c[0].startswith('maestro-ci-')]
+        self.assertTrue(any(c[0]=='maestro-ci-distribution-restore' for c in native))
+        self.assertTrue(all(c[1]=='release' for c in native))
+        self.assertTrue(self.receipt.exists())
+
+    def test_release_approval_denial_and_invalid_purpose_cannot_upload(self):
+        for purpose in ('release','invalid'):
+            self.env['PUBLICATION_PURPOSE']=purpose
+            result,calls=self.run_leaf(deny_release=True)
+            self.assertNotEqual(result.returncode,0)
+            self.assertFalse(any(c[0]=='cachix' for c in calls))
+            self.assertFalse(self.receipt.exists())
+            self.calls.unlink(missing_ok=True)
 
     def test_same_path_wrong_hash_is_rejected(self):
         for path in self.paths:

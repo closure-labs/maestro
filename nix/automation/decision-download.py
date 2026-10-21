@@ -12,6 +12,7 @@ import zipfile
 import sys
 sys.path.insert(0, os.environ.get('MAESTRO_DECISION_CORE', str(Path(__file__).with_name('decisions'))))
 import operations
+import common
 
 REPOSITORY = "closure-labs/maestro"
 WORKFLOWS = {".github/workflows/ci.yml": "maestro-security-report",
@@ -50,10 +51,28 @@ def extract(archive, output):
 
 
 def main():
+    proposal_hash = os.environ.get('CANDIDATE_PROPOSAL_HASH', '')
+    identity = os.environ.get('CANDIDATE_RUN', '')
+    workflow_filter = os.environ.get('CANDIDATE_WORKFLOW', '')
+    admitted = None
+    if proposal_hash:
+        if (not re.fullmatch(r'[0-9a-f]{64}', proposal_hash)
+                or (identity and not re.fullmatch(r'[1-9][0-9]{0,19}', identity))
+                or os.environ.get('PUBLICATION_METADATA_ONLY') != 'true'
+                or os.environ.get('CANDIDATE_RELEASE_ONLY') != 'true'):
+            raise ValueError('Exact official cache recovery requires one canonical proposal and metadata-only release selection')
+        if not identity:
+            # No Actions discovery for an exact retained proposal. Its reader
+            # checks current admission before materializing retained metadata.
+            raise SystemExit(3)
+        if workflow_filter not in ('', '.github/workflows/security.yml'):
+            raise ValueError('Fresh official cache recovery requires security maintenance')
+        workflow_filter = '.github/workflows/security.yml'
+        cfg = common.config(Path(os.environ.get('MAESTRO_SYSTEM_ROOT', '.')) / 'nix/automation/decision-policy.json', live=True)
+        _, records = common.ledger(cfg)
+        admitted = common.admitted_release(cfg, records, proposal_hash)
     if os.environ.get('PUBLICATION_METADATA_ONLY') == 'true' and not os.environ.get('CANDIDATE_RUN'):
         raise SystemExit(3)
-    identity = os.environ.get("CANDIDATE_RUN", "")
-    workflow_filter = os.environ.get("CANDIDATE_WORKFLOW", "")
     if identity:
         if not re.fullmatch(r"[1-9][0-9]{0,19}", identity):
             raise ValueError("Invalid candidate run ID")
@@ -72,6 +91,9 @@ def main():
     release_only = os.environ.get("CANDIDATE_RELEASE_ONLY") == "true"
     for run in candidates:
         path = run.get("path", "").split("@")[0]
+        if admitted is not None and (type(run.get('id')) is not int or run['id'] != int(identity)
+                or type(run.get('run_attempt')) is not int or run['run_attempt'] <= 0):
+            raise ValueError('Fresh official cache recovery producer differs from requested run')
         if not trusted(run) or (workflow_filter and path != workflow_filter):
             continue
         if release_only and path == ".github/workflows/ci.yml":
@@ -85,6 +107,8 @@ def main():
             selected = run, artifacts[0]
             break
     if selected is None:
+        if admitted is not None:
+            raise ValueError('Exact fresh official recovery needs one trusted release artifact')
         # A distinct discovery result permits only the immutable OCI fallback;
         # API, archive and integrity failures never reach that fallback.
         raise SystemExit(3)
@@ -108,11 +132,15 @@ def main():
     scans = json.loads((evidence / "scans.json").read_text())
     product = json.loads((evidence / "product.json").read_text())
     producer = scans["producer"]
+    if admitted is not None and any(type(producer.get(key)) is not int for key in ('runId', 'runAttempt')):
+        raise ValueError('Fresh recovery requires typed native producer identity')
     if (scans["revision"] != product["revision"] or producer.get("revision", scans["revision"]) != run["head_sha"]
             or scans["repository"] != REPOSITORY or product["repository"] != REPOSITORY
             or producer["workflow"] != run["path"].split("@")[0] or producer["runId"] != run["id"]
             or producer["runAttempt"] != run["run_attempt"]):
         raise ValueError("Candidate documents differ from authoritative producer")
+    if admitted is not None and common.canonical_hash(product) != common.canonical_hash(admitted['payload']['product']):
+        raise ValueError('Fresh recovery changed the exact admitted product')
     tags = {match[1] for name in product["assets"] if (match := re.fullmatch(r"maestro-(v[0-9]+\.[0-9]+\.[0-9]+)\.iso\.sha256", name))}
     if product["assets"] and len(tags) != 1:
         raise ValueError("Official product lacks one immutable release tag")

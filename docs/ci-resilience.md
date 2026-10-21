@@ -82,6 +82,27 @@ the retained identities precedes the completion receipt. Existing journals never
 bypass current inspection. Consumer download/verification failures report fixed
 stage, duration and error categories without raw command arguments or stderr.
 
+An operator can repair an admitted official product's cache with
+`publication.yml`'s optional `proposal_hash` input. The native resolver selects
+that exact active accepted release-product record from protected main and reads
+its authenticated retained metadata before any Actions download. When its original
+observations have expired, run `security.yml` and supply that completed run as
+`candidate_run` alongside the proposal hash. This explicit mode requires the exact
+protected Security maintenance producer and its single unexpired official release
+artifact. It checks current admission before downloading and requires the entire
+canonical product identity to match after verified extraction. A malformed hash,
+ineligible proposal, wrong producer, absent artifact or changed product blocks;
+explicit selection never falls back to another candidate or old evidence. Ordinary
+candidate-run and scheduled publication retain their existing behavior.
+
+This mode uses the publication environment and serialized publisher, reserves
+the native release tag's exact product identity before cache writes, and repeats
+the full `release` authority/freshness gate for restoration, upload and journal
+updates. A source review never substitutes for exact product approval. Cache
+recovery skips every FlakeHub operation and does not stage hosted assets, change
+tags or advance development. Existing receipts alone never bypass fresh remote
+verification. After a verified cache checkpoint, run the clean-store consumer.
+
 Transport uses monotonic remaining-time budgets, including across nested helper
 processes. Metadata reads are bounded to 30 seconds, optional discovery and
 receipts to 90 seconds, an eligible payload to 180 seconds, and the entire
