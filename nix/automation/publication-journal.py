@@ -13,6 +13,7 @@ import sys
 sys.path.insert(0, os.environ.get('MAESTRO_DECISIONS_SOURCE', str(Path(__file__).with_name('decisions'))))
 import common
 import publication_receipts
+import destinations
 
 BRANCH = 'automation/publication-journals'
 NAME = re.compile(r'[A-Za-z0-9_.+-]{1,128}')
@@ -69,7 +70,10 @@ def validate(document, product_hash):
                    'Receipt without completed destination')
 
 
-def transition(repository, product_hash, key, step, state, authorize, github=api):
+def transition(repository, product_hash, key, step, state, authorize, github=api, receipt=None):
+    if receipt is not None:
+        publication_receipts.validate(receipt, product_hash, step)
+        common.require(state == "complete", "Only verified completion accepts a receipt")
     common.require(NAME.fullmatch(key) and NAME.fullmatch(step), 'Invalid publication journal key or step')
     common.require(common.HASH.fullmatch(product_hash) and state in ('pending', 'complete'), 'Invalid publication journal state')
     branch(repository, authorize, github)
@@ -89,10 +93,14 @@ def transition(repository, product_hash, key, step, state, authorize, github=api
                 raise
             document = {'schema': 1, 'productHash': product_hash, 'steps': {}}
         previous = document['steps'].get(step)
-        if previous == state or previous == 'complete':
+        old_receipt = document.get('receipts', {}).get(step)
+        same_proof = receipt is None or (old_receipt and all(old_receipt[k] == receipt[k] for k in ('expected', 'observed', 'verifier')))
+        if (previous == state or previous == 'complete') and same_proof:
             authorize()
             return document
         document['steps'][step] = state
+        if receipt is not None:
+            document.update(schema=2, receipts={**document.get('receipts', {}), step: receipt})
         payload = {'message': f'Record {key} {step}: {state}', 'branch': BRANCH,
                    'content': base64.b64encode((json.dumps(document, sort_keys=True, separators=(',', ':')) + '\n').encode()).decode()}
         if sha:
@@ -100,6 +108,9 @@ def transition(repository, product_hash, key, step, state, authorize, github=api
         authorize()
         try:
             github(endpoint, 'PUT', payload)
+            readback = github(endpoint + '?ref=' + BRANCH)
+            common.require(readback.get('encoding') == 'base64' and json.loads(base64.b64decode(readback['content'])) == document,
+                           'Publication journal readback differs from verified checkpoint')
             return document
         except GitHubError as error:
             if error.status not in (409, 422) or attempt == 3:
@@ -122,7 +133,11 @@ def main():
         result = common.gate(cfg, args.scans, args.product, args.purpose)
         common.require(result.get('productHash') == product_hash, 'Product identity changed during publication')
     authorize()
-    result = transition(cfg['repository'], product_hash, args.key, args.step, args.state, authorize)
+    receipt = None
+    if args.state == 'complete':
+        receipt = common.load_json(Path(os.environ['PUBLICATION_RECEIPT']))
+        publication_receipts.validate(receipt, product_hash, args.step)
+    result = transition(cfg['repository'], product_hash, args.key, args.step, args.state, authorize, receipt=receipt)
     common.emit(result, args.output)
 
 

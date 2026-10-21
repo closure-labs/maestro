@@ -313,7 +313,7 @@ def packet_descriptor(path, members, expected):
     return packet
 
 
-def metadata(reference, expected, name, producer=None):
+def metadata_bytes(reference, expected, name, producer=None):
     """Read one bounded authenticated metadata member, never closure payloads."""
     with operations.budget(90), tempfile.TemporaryDirectory() as temporary:
         directory = Path(temporary)
@@ -323,7 +323,12 @@ def metadata(reference, expected, name, producer=None):
         descriptor = packet_descriptor(fetch_member('decision-packet.json', directory, members), members, expected)
         if producer is not None and descriptor['producer'] != producer:
             raise ValueError('Packet metadata producer differs from reviewed descriptor')
-        return decode_json(fetch_member(name, directory, members).read_bytes())
+        path = directory / 'decision-packet.json' if name == 'decision-packet.json' else fetch_member(name, directory, members)
+        return path.read_bytes()
+
+
+def metadata(reference, expected, name, producer=None):
+    return decode_json(metadata_bytes(reference, expected, name, producer))
 
 
 def verifier_version():
@@ -429,3 +434,30 @@ def fetch_available(reference, output, expected=None, inspection=None):
     for name in sorted(set(members) - {'decision-packet.json'}):
         fetch_member(name, output, members)
     return packet
+
+
+def install_member(source, destination, directory):
+    """Atomically install verified bytes without following prior destination links."""
+    source, destination, directory = Path(source), Path(destination), Path(directory)
+    relative = destination.relative_to(directory)
+    parent = directory
+    for part in relative.parts[:-1]:
+        if parent.is_symlink() or (parent.exists() and not parent.is_dir()):
+            raise ValueError('Unsafe materialization destination parent')
+        parent = parent / part
+    if parent.is_symlink() or (parent.exists() and not parent.is_dir()) or directory.is_symlink():
+        raise ValueError('Unsafe materialization destination parent')
+    if destination.is_symlink() or (destination.exists() and not destination.is_file()):
+        raise ValueError('Unsafe materialization destination member')
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(dir=destination.parent, delete=False) as temporary:
+        pending = Path(temporary.name)
+        try:
+            with source.open('rb') as stream:
+                for block in iter(lambda: stream.read(1024*1024), b''):
+                    operations.remaining(900)
+                    temporary.write(block)
+            temporary.flush()
+            os.replace(pending,destination)
+        finally:
+            pending.unlink(missing_ok=True)

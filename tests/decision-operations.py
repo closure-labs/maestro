@@ -292,10 +292,11 @@ class Operations(unittest.TestCase):
                  patch.object(handoff, 'document_at', side_effect=document), \
                  patch.object(handoff, 'actual_output', return_value=identity), \
                  patch.object(handoff, 'expected_channel', return_value='xo-latest'), \
-                 patch.object(handoff.packets, 'fetch'), \
+                 patch.object(handoff.packets, 'metadata_bytes', return_value=b'{}') as metadata, \
                  patch.object(handoff.common, 'command', return_value='{"status":"covered"}') as verify, \
                  patch.object(handoff.common, 'emit'):
                 handoff.main()
+            self.assertEqual([call.args[2] for call in metadata.call_args_list], ['scans.json','product.json','handoff-xo-latest.json'])
             self.assertIn(('closure-labs/maestro', 'flake.lock', 'a' * 40), queried)
             self.assertIn(('closure-labs/maestro', 'nix/automation/xo-handoff.json', 'a' * 40), queried)
             self.assertTrue(config.call_args.kwargs['live'])

@@ -144,6 +144,7 @@ in {
       workflow-policy =
         pkgs.runCommandLocal "maestro-workflow-policy" {
           nativeBuildInputs = [
+            pkgs.python3
             pkgs.actionlint
             pkgs.bash
             pkgs.gnused
@@ -190,7 +191,14 @@ in {
               .github/actions/*/action.yml |
               grep -v '^---$'
           )
-          if yq -r '.jobs[].steps[]?.run // ""' .github/workflows/*.yml |
+          python3 nix/automation/decisions/signal_relay.py .github/workflows/decision-events.yml
+          command_workflows=()
+          for workflow in .github/workflows/*.yml; do
+            if [[ $workflow != .github/workflows/decision-events.yml ]]; then
+              command_workflows+=("$workflow")
+            fi
+          done
+          if yq -r '.jobs[].steps[]?.run // ""' "''${command_workflows[@]}" |
             grep -v '^---$' |
             grep -Ev "^$|^nix run --accept-flake-config \.#devenv -- tasks run --option 'packages:pkgs!' [']['] ci:repository-audit$|^nix run --accept-flake-config \.#devenv -- tasks run --mode single --option 'packages:pkgs!' [']['] [a-z0-9:_-]+$"; then
             printf 'Workflow command bypasses the declared devenv task graph.\n' >&2

@@ -59,7 +59,11 @@ def actual_output(directory):
     common.require(any(any(p.get('name') in ('nix:storePath', 'nix:output_path') and p.get('value') == path
                            for p in c.get('properties', [])) for c in components),
                    'Actual XO root is absent from complete local package inventory')
-    info = json.loads(common.command(['nix', 'path-info', '--json', path]))
+    command = ['nix', 'path-info', '--json', path]
+    if not Path(path).exists():
+        command += ['--store', 'https://maestro.cachix.org', '--option', 'narinfo-cache-positive-ttl', '0',
+                    '--option', 'narinfo-cache-negative-ttl', '0']
+    info = json.loads(common.command(command, timeout=120))
     if isinstance(info, list):
         common.require(len(info) == 1 and info[0].get('path') == path, 'Ambiguous XO path identity')
         info = info[0]
@@ -125,7 +129,9 @@ def materialize():
         packets.REGISTRY = 'ghcr.io/closure-labs/xo-nixpkg-products'
         packets.REFERENCE = re.compile(re.escape(packets.REGISTRY) + r'@sha256:[0-9a-f]{64}')
         fetched = temporary / 'packet'
-        packets.fetch(packet['reference'], fetched, packet['sha256'])
+        fetched.mkdir()
+        for name in ('scans.json','product.json','handoff-' + profile + '.json'):
+            (fetched/name).write_bytes(packets.metadata_bytes(packet['reference'],packet['sha256'],name))
         command = [sys.executable, str(Path(common.__file__).with_name('handoff.py')), '--config', str(config_path),
                    '--handoff', str(fetched / ('handoff-' + profile + '.json')), '--directory', str(fetched),
                    '--expected-revision', revision, '--expected-channel', profile,

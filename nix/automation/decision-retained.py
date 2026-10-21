@@ -198,7 +198,20 @@ def main():
         return
     packet = proposal['payload'].get('packet', {})
     common.require(isinstance(packet, dict) and 'reference' in packet and 'sha256' in packet, 'Retained evidence packet missing')
-    manifest = packets.fetch(packet['reference'], args.directory, packet['sha256'])
+    metadata_only = os.environ.get('PUBLICATION_METADATA_ONLY') == 'true'
+    if metadata_only:
+        manifest = packets.metadata(packet['reference'], packet['sha256'], 'decision-packet.json', producer=packet.get('producer'))
+        args.directory.mkdir(parents=True, exist_ok=False)
+        names = ['scans.json', 'product.json', 'inputs.sha256', 'inventory/maestro-system.cdx.json',
+                 'inventory/xen-orchestra-supply.cdx.json', 'inventory/Cargo.lock']
+        if 'release-notes.md' in manifest['files']: names.append('release-notes.md')
+        for name in names:
+            path = args.directory / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(packets.metadata_bytes(packet['reference'],packet['sha256'],name,producer=packet.get('producer')))
+        args.directory.with_suffix('.source.json').write_text(json.dumps(packet))
+    else:
+        manifest = packets.fetch(packet['reference'], args.directory, packet['sha256'])
     common.require(manifest['producer'] == packet.get('producer'), 'Retained packet producer differs from reviewed proposal')
     scan = common.scans(args.directory / 'scans.json', cfg, allow_expired=True)
     product = common.product(args.directory / 'product.json', cfg, scan)
@@ -211,7 +224,8 @@ def main():
         common.require(proposal['payload']['product'] == product, 'Retained release product differs from proposed exact identity')
     for name, expected in product['assets'].items():
         path = args.directory / name
-        common.require(path.is_file() and not path.is_symlink() and packets.file_hash(path) == expected,
+        common.require((metadata_only and manifest['files'].get(name, {}).get('sha256') == expected)
+                       or (path.is_file() and not path.is_symlink() and packets.file_hash(path) == expected),
                        'Retained immutable release bytes missing or mismatched')
     tags = {m[1] for name in product['assets'] if (m := re.fullmatch(r'maestro-(v[0-9]+\.[0-9]+\.[0-9]+)\.iso\.sha256', name))}
     common.require(not product['assets'] or len(tags) == 1, 'Retained official release tag is ambiguous')

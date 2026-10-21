@@ -35,6 +35,7 @@ in {
     "ci:decision:health".exec = runFlakePackage "maestro-ci-decision-health" "";
     "ci:consumer-probe".exec = runFlakePackage "maestro-ci-consumer-probe" "";
     "release:retain".exec = runFlakePackage "maestro-ci-release-retain" "";
+    "release:inspect".exec = runFlakePackage "maestro-ci-publication-inspect" "";
     "release:journal".exec = runFlakePackage "maestro-ci-publication-journal" "";
     "release:assets".exec = runFlakePackage "maestro-ci-publication-assets" "";
     "ci:decision:download".exec = runFlakePackage "maestro-ci-decision-download" "";

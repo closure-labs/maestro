@@ -8,6 +8,7 @@ import sys
 
 sys.path.insert(0, os.environ["MAESTRO_DECISION_CORE"])
 import common
+import packet_materialization
 
 
 def main():
@@ -24,6 +25,7 @@ def main():
     if all(Path(path).exists() for path in roots):
         module.verify_roots(list(roots.values()))
     else:
+        packet_materialization.materialize(Path(os.environ["DECISION_EVIDENCE_DIRECTORY"]))
         module.restore(Path(os.environ["DECISION_EVIDENCE_DIRECTORY"]), scan["transport"], list(roots.values()))
 
 
