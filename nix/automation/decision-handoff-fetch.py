@@ -12,6 +12,7 @@ import tempfile
 
 sys.path.insert(0, os.environ.get('MAESTRO_DECISION_CORE', str(Path(__file__).with_name('decisions'))))
 import common
+import operations
 import decision_packets as packets
 from decision_authority import github_api, document_at
 from security_decisions import load_json, canonical_hash
@@ -67,7 +68,7 @@ def actual_output(directory):
     return {'storePath': path, 'narHash': info['narHash']}
 
 
-def main():
+def materialize():
     root = Path(os.environ.get('MAESTRO_SYSTEM_ROOT', '.')).resolve()
     local = Path(os.environ['DECISION_EVIDENCE_DIRECTORY']).resolve()
     cfg = common.config(Path(os.environ.get('MAESTRO_DECISION_POLICY', str(root / 'nix/automation/decision-policy.json'))), live=True)
@@ -129,8 +130,13 @@ def main():
                    '--handoff', str(fetched / ('handoff-' + profile + '.json')), '--directory', str(fetched),
                    '--expected-revision', revision, '--expected-channel', profile,
                    '--expected-store-path', identity['storePath'], '--expected-nar-hash', identity['narHash']]
-        result = json.loads(common.command(command))
+        result = json.loads(common.command(command, timeout=900))
     common.emit(result)
+
+
+def main():
+    with operations.budget(900):
+        return materialize()
 
 
 if __name__ == '__main__':
