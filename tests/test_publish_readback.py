@@ -1,20 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Exercise the publication leaf and controller without writing public state."""
-import importlib.util
+"""Exercise fresh approved-cache readback without writing public state."""
 import json
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
-from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 CACHE = 'https://maestro.cachix.org'
+UPSTREAM = 'https://cache.nixos.org'
 FAKE = '''
-import json, os, pathlib, signal, sys, time
+import json, os, pathlib, sys, time
 name, args = pathlib.Path(sys.argv[0]).name, sys.argv[1:]
 fixture = json.loads(pathlib.Path(os.environ['PUBLISH_FIXTURE']).read_text())
 with open(os.environ['PUBLISH_CALLS'], 'a') as stream:
@@ -22,139 +21,133 @@ with open(os.environ['PUBLISH_CALLS'], 'a') as stream:
 if name == 'curl':
     previous = [json.loads(line) for line in pathlib.Path(os.environ['PUBLISH_CALLS']).read_text().splitlines()]
     uploaded = any(call[0] == 'cachix' for call in previous)
-    data = b''
-    if uploaded:
-        key = pathlib.Path(args[-1]).name.removesuffix('.narinfo')
-        path = next(path for path in fixture['local'] if pathlib.Path(path).name.startswith(key))
-        data = ('StorePath: '+path+'\\nNarHash: '+fixture['local'][path]+'\\nNarSize: 1\\n').encode()
-    pathlib.Path(args[args.index('--output')+1]).write_bytes(data)
-    print('200' if uploaded else '404', end='')
-elif name == 'timeout':
-    if args[:3] != ['--signal=TERM', '--kill-after=10s', '120s']:
-        sys.exit(90)
-    real = os.environ['PUBLISH_REAL_TIMEOUT']
-    deadline = ['--signal=TERM', '--kill-after=0.05s', '0.15s'] if fixture.get('hang') else args[:3]
-    os.execv(real, [real, *deadline, *args[3:]])
-elif name == 'nix':
-    if '--store' in args:
-        if fixture.get('hang'):
-            signal.signal(signal.SIGTERM, signal.SIG_IGN)
-            time.sleep(10)
-        sys.stderr.write(fixture.get('stderr', ''))
-        if fixture.get('exit'):
-            sys.exit(fixture['exit'])
-        value = fixture['remote']
-        print(value if isinstance(value, str) else json.dumps(value))
+    if uploaded and fixture.get('hang'):
+        time.sleep(10)
+    if uploaded and fixture.get('exit'):
+        sys.stderr.write('fixture-secret untrusted remote details')
+        sys.exit(1)
+    key = pathlib.Path(args[-1]).name.removesuffix('.narinfo')
+    path = next(path for path in fixture['local'] if pathlib.Path(path).name.startswith(key))
+    if args[-1].startswith('https://maestro.cachix.org/'):
+        record = fixture['remote'].get(path) if uploaded and isinstance(fixture['remote'],dict) else None
+        if fixture.get('already_verified'):record={'narHash':fixture['local'][path]}
+        if path in fixture.get('upstream',[]):record=None
+        raw = fixture['remote'] if uploaded and isinstance(fixture['remote'],str) else None
     else:
-        print(json.dumps({path: {'narHash': digest} for path, digest in fixture['local'].items()}))
+        record={'narHash':fixture['local'][path]} if path in fixture.get('upstream',[]) else None
+        raw=None
+    data=b'';status='404'
+    if raw is not None:data=raw.encode();status='200'
+    elif record is not None:
+        data=('StorePath: '+record.get('path',path)+'\\nNarHash: '+record.get('narHash','')+'\\nNarSize: 1\\n').encode();status='200'
+    pathlib.Path(args[args.index('--output')+1]).write_bytes(data)
+    print(status,end='')
+elif name == 'nix':
+    print(json.dumps({path:{'narHash':digest} for path,digest in fixture['local'].items()}))
+elif name == 'cachix':
+    with open(os.environ['PUBLISH_CALLS'],'a') as stream:stream.write(json.dumps(['uploaded',*sys.stdin.read().splitlines()])+'\\n')
 '''
 
 
 class PublishReadback(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temporary.cleanup)
-        self.work = Path(self.temporary.name)
-        self.native = self.work / 'bin'
-        self.native.mkdir()
-        for name in ('curl', 'timeout', 'nix', 'nix-store', 'cachix', 'maestro-ci-decision-publication',
-                     'maestro-ci-distribution-restore', 'maestro-ci-decision-handoff'):
-            executable = self.native / name
-            executable.write_text('#!' + sys.executable + '\n' + FAKE)
-            executable.chmod(0o755)
-        self.paths = ['/nix/store/' + str(i) * 32 + '-fixture-' + str(i) for i in range(8)]
-        self.local = {path: 'sha256-' + 'A' * 43 + '=' for path in self.paths}
-        entries = [{'storePath': path, 'narHash': value} for path, value in self.local.items()]
-        self.product = {'products': dict(zip(('latest', 'stable', 'rolling'), entries[:3])),
-                        'roots': {str(i): entry for i, entry in enumerate(entries[3:])},
-                        'repository': 'closure-labs/xo-nixpkg', 'revision': 'a' * 40,
-                        'assets': {}}
-        (self.work / 'product.json').write_text(json.dumps(self.product))
-        (self.work / 'scans.json').write_text('{}')
-        self.calls = self.work / 'calls.jsonl'
-        self.fixture = self.work / 'fixture.json'
-        self.env = dict(os.environ, PATH=str(self.native) + os.pathsep + os.environ['PATH'],
-                        PUBLISH_FIXTURE=str(self.fixture), PUBLISH_CALLS=str(self.calls),
-                        DECISION_PRODUCT=str(self.work / 'product.json'), DECISION_SCANS=str(self.work / 'scans.json'),
-                        GITHUB_EVENT_NAME='workflow_dispatch', GITHUB_REF='refs/heads/main',
-                        CACHIX_MAESTRO_AUTH_TOKEN='fixture-secret',
-                        CACHIX_MAESTRO_PUBKEY='maestro.cachix.org-1:fGFZFVwe2ZHEBENWZLHVzERZrz2c50ru+g0UewH68I0=',
-                        XO_NIXPKG_CACHIX_CACHE_NAME='xen-orchestra-ce',
-                        XO_NIXPKG_CACHIX_CACHE_URL=CACHE,
-                        PUBLISH_REAL_TIMEOUT=shutil.which('timeout'))
+        self.temporary=tempfile.TemporaryDirectory();self.addCleanup(self.temporary.cleanup)
+        self.work=Path(self.temporary.name);self.native=self.work/'bin';self.native.mkdir()
+        for name in ('curl','nix','cachix','maestro-ci-decision-publication',
+                     'maestro-ci-distribution-restore','maestro-ci-decision-handoff'):
+            executable=self.native/name;executable.write_text('#!'+sys.executable+'\n'+FAKE);executable.chmod(0o755)
+        self.paths=['/nix/store/'+str(i)*32+'-fixture-'+str(i) for i in range(8)]
+        self.local={path:'sha256-'+'A'*43+'=' for path in self.paths}
+        entries=[{'storePath':path,'narHash':value} for path,value in self.local.items()]
+        self.product={'products':dict(zip(('latest','stable','rolling'),entries[:3])),
+                      'roots':{str(i):entry for i,entry in enumerate(entries[3:])},
+                      'repository':'closure-labs/maestro','revision':'a'*40,'assets':{}}
+        (self.work/'product.json').write_text(json.dumps(self.product));(self.work/'scans.json').write_text('{}')
+        self.calls=self.work/'calls.jsonl';self.fixture=self.work/'fixture.json';self.receipt=self.work/'receipt.json'
+        self.env=dict(os.environ,PATH=str(self.native)+os.pathsep+os.environ['PATH'],
+                      PUBLISH_FIXTURE=str(self.fixture),PUBLISH_CALLS=str(self.calls),
+                      DECISION_PRODUCT=str(self.work/'product.json'),DECISION_SCANS=str(self.work/'scans.json'),
+                      GITHUB_EVENT_NAME='workflow_dispatch',GITHUB_REF='refs/heads/main',
+                      CACHIX_MAESTRO_AUTH_TOKEN='fixture-secret',
+                      CACHIX_MAESTRO_PUBKEY='maestro.cachix.org-1:fGFZFVwe2ZHEBENWZLHVzERZrz2c50ru+g0UewH68I0=',
+                      PUBLICATION_CACHE_RECEIPT=str(self.receipt))
 
-    def run_leaf(self, remote=None, **fixture):
-        if remote is None:
-            remote = {path: {'narHash': value} for path, value in self.local.items()}
-        self.fixture.write_text(json.dumps(dict(fixture, remote=remote, local=self.local)))
-        result = subprocess.run(['bash', str(ROOT / 'nix/automation/publish.sh')], env=self.env,
-                                text=True, capture_output=True, timeout=20)
-        calls = [json.loads(line) for line in self.calls.read_text().splitlines()]
-        return result, calls
+    def run_leaf(self,remote=None,**fixture):
+        if remote is None:remote={path:{'narHash':digest} for path,digest in self.local.items()}
+        self.fixture.write_text(json.dumps(dict(fixture,remote=remote,local=self.local)))
+        result=subprocess.run(['bash',str(ROOT/'nix/automation/publish.sh')],env=self.env,
+                              text=True,capture_output=True,timeout=20)
+        calls=[json.loads(line) for line in self.calls.read_text().splitlines()]
+        return result,calls
 
-    def assert_rejected(self, remote=None, **fixture):
-        result, calls = self.run_leaf(remote, **fixture)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn('Public cache', result.stderr)
-        self.assertEqual(sum(call[0] == 'cachix' for call in calls), 1)
-        self.assertNotIn('fixture-secret', result.stdout + result.stderr)
-        return result, calls
+    def assert_rejected(self,remote=None,**fixture):
+        result,calls=self.run_leaf(remote,**fixture)
+        self.assertNotEqual(result.returncode,0)
+        self.assertEqual(sum(call[0]=='cachix' for call in calls),1)
+        self.assertFalse(self.receipt.exists())
+        self.assertNotIn('fixture-secret',result.stdout+result.stderr)
+        self.assertNotIn('untrusted remote details',result.stdout+result.stderr)
+        return result,calls
 
-    def test_all_eight_paths_are_read_after_push_with_metadata_caches_disabled(self):
-        result, calls = self.run_leaf()
-        self.assertEqual(result.returncode, 0, result.stderr)
-        remote = [call for call in calls if call[0] == 'nix' and '--store' in call]
-        self.assertEqual(len(remote), 1)
-        self.assertEqual(remote[0][-8:], self.paths)
-        self.assertEqual(remote[0][remote[0].index('--store') + 1], CACHE)
-        for option in ('narinfo-cache-positive-ttl', 'narinfo-cache-negative-ttl'):
-            self.assertIn(['--option', option, '0'],
-                          [remote[0][i:i + 3] for i in range(len(remote[0]))])
-        self.assertLess(next(i for i, c in enumerate(calls) if c[0] == 'cachix'),
-                        calls.index(remote[0]))
+    def test_all_exact_paths_have_fresh_bounded_readback_after_push(self):
+        result,calls=self.run_leaf();self.assertEqual(result.returncode,0,result.stderr)
+        push=next(i for i,c in enumerate(calls) if c[0]=='cachix')
+        reads=[c for c in calls[push+1:] if c[0]=='curl']
+        self.assertEqual({c[-1] for c in reads},{CACHE+'/'+Path(p).name[:32]+'.narinfo' for p in self.paths})
+        self.assertTrue(all(c[c.index('--max-time')+1]=='30' for c in reads))
+        receipt=json.loads(self.receipt.read_text());self.assertEqual(receipt['schema'],1)
+        self.assertEqual(receipt['expected'],self.local);self.assertEqual(receipt['observed'],self.local)
 
-    def test_array_format_retains_exact_path_identity(self):
-        result, _ = self.run_leaf([{'path': path, 'narHash': value}
-                                   for path, value in reversed(list(self.local.items()))])
-        self.assertEqual(result.returncode, 0, result.stderr)
+    def test_stock_upstream_root_is_verified_without_reupload(self):
+        result,calls=self.run_leaf(upstream=[self.paths[0]]);self.assertEqual(result.returncode,0,result.stderr)
+        uploaded=next(c[1:] for c in calls if c[0]=='uploaded');self.assertNotIn(self.paths[0],uploaded)
+        self.assertTrue(any(c[0]=='curl' and c[-1].startswith(UPSTREAM+'/') for c in calls))
+        self.assertEqual(json.loads(self.receipt.read_text())['observed'],self.local)
+
+    def test_verified_noop_has_no_restore_handoff_or_upload(self):
+        result,calls=self.run_leaf(already_verified=True);self.assertEqual(result.returncode,0,result.stderr)
+        self.assertFalse(any(c[0] in ('cachix','maestro-ci-distribution-restore','maestro-ci-decision-handoff') for c in calls))
+        self.assertTrue(self.receipt.exists())
+
+    def test_metadata_inspection_uses_same_upstreams_and_avoids_restore(self):
+        self.fixture.write_text(json.dumps({'local':self.local,'remote':{},'upstream':self.paths}))
+        env=dict(self.env,PUBLICATION_DESTINATION='cache',
+                 PUBLICATION_DESTINATIONS_SOURCE=str(ROOT/'nix/automation/decisions/destinations.py'),
+                 PUBLICATION_REQUIRE_VERIFIED='true',PUBLICATION_RECEIPT=str(self.receipt),
+                 GITHUB_OUTPUT=str(self.work/'output'))
+        result=subprocess.run(['bash',str(ROOT/'nix/automation/publication-inspect.sh')],env=env,
+                              capture_output=True,text=True,timeout=20)
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(json.loads(result.stdout)['status'],'verified')
+        self.assertEqual((self.work/'output').read_text(),'status=verified\n')
+        calls=[json.loads(line) for line in self.calls.read_text().splitlines()]
+        self.assertTrue(all(call[0]=='curl' for call in calls))
+        self.assertTrue(self.receipt.exists())
 
     def test_same_path_wrong_hash_is_rejected(self):
         for path in self.paths:
             with self.subTest(path=path):
-                remote = {item: {'narHash': value} for item, value in self.local.items()}
-                remote[path]['narHash'] = 'sha256-' + 'B' * 43 + '='
-                self.assert_rejected(remote)
-                self.calls.unlink()
+                remote={p:{'narHash':v} for p,v in self.local.items()};remote[path]['narHash']='sha256-'+'B'*43+'='
+                self.assert_rejected(remote);self.calls.unlink()
 
-    def test_missing_null_and_extra_paths_are_rejected(self):
-        for mode in ('missing', 'null', 'extra'):
-            with self.subTest(mode=mode):
-                remote = {path: {'narHash': value} for path, value in self.local.items()}
-                if mode == 'missing':
-                    del remote[self.paths[0]]
-                elif mode == 'null':
-                    remote[self.paths[0]] = None
-                else:
-                    remote['/nix/store/' + 'z' * 32 + '-extra'] = {'narHash': 'sha256-extra'}
-                self.assert_rejected(remote)
-                self.calls.unlink()
+    def test_missing_and_wrong_store_path_are_rejected(self):
+        for mode in ('missing','path'):
+            remote={p:{'narHash':v} for p,v in self.local.items()}
+            if mode=='missing':del remote[self.paths[0]]
+            else:remote[self.paths[0]]['path']='/nix/store/'+'z'*32+'-unexpected'
+            self.assert_rejected(remote);self.calls.unlink()
 
-    def test_malformed_json_and_wrong_shapes_are_rejected(self):
-        valid = json.dumps({path: {'narHash': value} for path, value in self.local.items()})
-        for remote in ('not-json', '{}', 'null', '42', '[]', '{}\n' + valid,
-                       valid + '\n' + valid,
-                       [{'narHash': value} for value in self.local.values()]):
-            with self.subTest(remote=remote):
-                self.assert_rejected(remote)
-                self.calls.unlink()
+    def test_malformed_metadata_is_rejected(self):
+        for body in ('not-narinfo','{}','StorePath: wrong\nNarHash: invalid\nNarSize: 1\n'):
+            self.assert_rejected(body);self.calls.unlink()
 
-    def test_remote_failure_is_closed_and_diagnostics_do_not_expose_stderr(self):
-        result, _ = self.assert_rejected(exit=1, stderr='fixture-secret untrusted remote details')
-        self.assertNotIn('untrusted remote details', result.stderr)
+    def test_remote_failure_is_closed_without_raw_stderr(self):
+        self.assert_rejected(exit=1)
 
-    def test_stalled_remote_read_is_killed_and_rejected(self):
-        self.assert_rejected(hang=True)
+    def test_stalled_remote_read_honors_inherited_budget(self):
+        self.env['CI_OPERATION_DEADLINE']=str(time.monotonic()+3)
+        start=time.monotonic();self.assert_rejected(hang=True)
+        self.assertLess(time.monotonic()-start,5)
 
 
-if __name__ == '__main__':
-    unittest.main()
+if __name__=='__main__':unittest.main()

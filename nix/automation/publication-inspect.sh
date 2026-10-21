@@ -4,7 +4,8 @@ set -euo pipefail
 : "${DECISION_PRODUCT:?}" "${PUBLICATION_DESTINATION:?}"
 arguments=("$PUBLICATION_DESTINATION" --product "$DECISION_PRODUCT")
 if [[ $PUBLICATION_DESTINATION == cache ]]; then
-  arguments+=(--cache-url https://maestro.cachix.org)
+  arguments+=(--cache-url https://maestro.cachix.org
+    --upstream-cache-url https://cache.nixos.org --upstream-cache-url https://xen-orchestra-ce.cachix.org)
 else
   if [[ ${PUBLICATION_PURPOSE:-rolling} == release ]]; then
     version=${RELEASE_TAG#v}

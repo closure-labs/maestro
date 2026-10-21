@@ -61,9 +61,13 @@ def result(destination, expected, observed, missing=(), unavailable=False):
             'observed':observed,'missing':sorted(missing),'authorityClaim':False}
 
 
-def cache(product, url, read=http):
+def cache(product, url, read=http, upstreams=()):
     if url not in ('https://maestro.cachix.org','https://xen-orchestra-ce.cachix.org'):
         raise ValueError('Unknown public cache')
+    if (len(upstreams)!=len(set(upstreams)) or any(source not in
+            ('https://cache.nixos.org','https://xen-orchestra-ce.cachix.org') or source==url
+            for source in upstreams) or (upstreams and url!='https://maestro.cachix.org')):
+        raise ValueError('Unknown public cache upstream')
     expected={}
     for entry in [*product['products'].values(),*product.get('roots',{}).values()]:
         path=entry['storePath']
@@ -79,7 +83,13 @@ def cache(product, url, read=http):
     with operations.budget(120):
         for path in sorted(expected):
             try:
-                status,body=read(url+'/'+Path(path).name[:32]+'.narinfo')
+                status,body=404,b''
+                for source in (url,*upstreams):
+                    status,body=read(source+'/'+Path(path).name[:32]+'.narinfo')
+                    # Only an explicit absence allows another approved cache.
+                    # Never hide conflicting or unavailable primary metadata.
+                    if status!=404:
+                        break
             except subprocess.TimeoutExpired:
                 status,body=None,b''
             if status==404:
@@ -146,11 +156,12 @@ def main():
     parser.add_argument('destination',choices=['cache','flakehub'])
     parser.add_argument('--product',required=True,type=Path)
     parser.add_argument('--cache-url')
+    parser.add_argument('--upstream-cache-url',action='append',default=[])
     parser.add_argument('--version')
     parser.add_argument('--require-verified',action='store_true')
     parser.add_argument('--receipt',type=Path)
     args=parser.parse_args(); product=json.loads(args.product.read_text())
-    value=cache(product,args.cache_url) if args.destination=='cache' else flakehub(args.version,product['revision'])
+    value=cache(product,args.cache_url,upstreams=args.upstream_cache_url) if args.destination=='cache' else flakehub(args.version,product['revision'])
     print(json.dumps(value,sort_keys=True))
     if value['status'] in ('conflict','unavailable') or (args.require_verified and value['status']!='verified'):
         raise SystemExit('Public destination '+value['status'])
