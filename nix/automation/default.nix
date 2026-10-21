@@ -162,6 +162,15 @@
       runtimeInputs = commonInputs ++ [pkgs.python3 pkgs.oras commands.decision-handoff];
       source = ./publication-assets.sh;
     };
+    consumer-probe = mkCommand {
+      name = "consumer-probe";
+      prefix = ''
+        export PYTHONPATH=${./decisions}
+        export MAESTRO_CONSUMER_PROBE_SOURCE=${./consumer-probe.py}
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.python3];
+      source = ./consumer-probe.sh;
+    };
     release-retain = mkCommand {
       name = "release-retain";
       runtimeInputs = commonInputs;
