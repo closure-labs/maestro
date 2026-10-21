@@ -32,6 +32,36 @@ class Destinations(unittest.TestCase):
         self.assertEqual(d.nar_hash('sha256:'+encoded),'sha256-'+base64.b64encode(raw).decode())
         with self.assertRaises(ValueError):d.nar_hash('sha256:'+'z'*52)
 
+    def test_approved_upstream_only_after_explicit_primary_absence(self):
+        calls=[]
+        def read(url):
+            calls.append(url)
+            return (404,b'') if url.startswith('https://maestro.') else (200,BODY)
+        value=d.cache(PRODUCT,'https://maestro.cachix.org',read,('https://cache.nixos.org',))
+        self.assertEqual(value['status'],'verified')
+        self.assertEqual(len(calls),2)
+        self.assertEqual(d.receipt(value,PRODUCT)['expected'],{P:H})
+        for status,body,state in [(503,b'','unavailable'),(200,BODY.replace(b'NarSize: 1',b'NarSize: 0'),'conflict')]:
+            calls.clear()
+            def fail_primary(url):
+                calls.append(url)
+                return status,body
+            value=d.cache(PRODUCT,'https://maestro.cachix.org',fail_primary,('https://cache.nixos.org',))
+            self.assertEqual(value['status'],state)
+            self.assertEqual(len(calls),1)
+            with self.assertRaises(ValueError):d.receipt(value,PRODUCT)
+
+    def test_upstream_identity_conflicts_unavailable_and_all_absent_block(self):
+        for status,body,state in [(404,b'','missing'),(503,b'','unavailable'),
+                                 (200,BODY.replace(b'NarSize: 1',b'NarSize: 0'),'conflict')]:
+            def read(url):return (404,b'') if url.startswith('https://maestro.') else (status,body)
+            value=d.cache(PRODUCT,'https://maestro.cachix.org',read,('https://cache.nixos.org',))
+            self.assertEqual(value['status'],state)
+            with self.assertRaises(ValueError):d.receipt(value,PRODUCT)
+        for sources in [('https://attacker.example',),('https://cache.nixos.org',)*2,('https://maestro.cachix.org',)]:
+            with self.assertRaises(ValueError):d.cache(PRODUCT,'https://maestro.cachix.org',upstreams=sources)
+        with self.assertRaises(ValueError):d.cache(PRODUCT,'https://xen-orchestra-ce.cachix.org',upstreams=('https://cache.nixos.org',))
+
     def test_flakehub_verifies_exact_pinned_revision_without_source_download(self):
         location='https://api.flakehub.com/f/pinned/closure-labs/maestro/3.0.0/uuid/source.tar.gz'
         calls=[]

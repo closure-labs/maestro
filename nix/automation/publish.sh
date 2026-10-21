@@ -12,7 +12,10 @@ PUBLICATION_PURPOSE=rolling maestro-ci-decision-publication
 # Inspect public identities before importing or transferring any closure.
 destination_state=$(mktemp "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/publication-cache.XXXXXX")
 trap 'rm -f -- "$destination_state"' EXIT
-python3 "${PUBLICATION_DESTINATIONS_SOURCE:-$(dirname -- "${BASH_SOURCE[0]}")/decisions/destinations.py}" cache --product "$DECISION_PRODUCT" --cache-url "https://maestro.cachix.org" ${PUBLICATION_CACHE_RECEIPT:+--receipt "$PUBLICATION_CACHE_RECEIPT"} >"$destination_state"
+cache_readback=(python3 "${PUBLICATION_DESTINATIONS_SOURCE:-$(dirname -- "${BASH_SOURCE[0]}")/decisions/destinations.py}"
+  cache --product "$DECISION_PRODUCT" --cache-url "https://maestro.cachix.org"
+  --upstream-cache-url "https://cache.nixos.org" --upstream-cache-url "https://xen-orchestra-ce.cachix.org")
+"${cache_readback[@]}" ${PUBLICATION_CACHE_RECEIPT:+--receipt "$PUBLICATION_CACHE_RECEIPT"} >"$destination_state"
 if [[ $(jq -er .status "$destination_state") == verified ]]; then
   PUBLICATION_PURPOSE=rolling maestro-ci-decision-publication
   echo 'Public cache verified; no closure import or upload required.'
@@ -42,29 +45,7 @@ PUBLICATION_PURPOSE=rolling maestro-ci-decision-publication
 maestro-ci-decision-handoff
 export CACHIX_AUTH_TOKEN="$CACHIX_MAESTRO_AUTH_TOKEN"
 jq -er '.missing[]' "$destination_state" | cachix push maestro
-# A successful upload can leave an existing same-path object untouched. Confirm
-# the public cache serves the approved bytes before the controller checkpoints
-# publication or publishes a downstream handoff. Query the remote store directly
-# and bypass both positive and negative local narinfo metadata caches.
-if ! remote_info=$(timeout --signal=TERM --kill-after=10s 120s \
-  nix path-info --store "https://maestro.cachix.org" --json \
-  --option narinfo-cache-positive-ttl 0 --option narinfo-cache-negative-ttl 0 \
-  "${outputs[@]}" 2>/dev/null); then
-  echo 'Public cache readback failed' >&2
-  exit 1
-fi
-if ! jq -se --slurpfile product "$DECISION_PRODUCT" '
-  (if length == 1 then .[0] else error("invalid remote JSON stream") end)
-  |
-  (if type == "array" then map({storePath: .path, narHash})
-   elif type == "object" then to_entries | map({storePath: .key, narHash: .value.narHash})
-   else error("invalid remote path metadata") end | sort_by(.storePath))
-  == ([$product[0].products[], $product[0].roots[]]
-      | map({storePath, narHash}) | unique | sort_by(.storePath))
-' <<< "$remote_info" >/dev/null 2>&1; then
-  echo 'Public cache paths or NAR hashes differ from the approved product' >&2
-  exit 1
-fi
-
-# Persist only fresh remote proof; an older completion is never sufficient.
-python3 "${PUBLICATION_DESTINATIONS_SOURCE:-$(dirname -- "${BASH_SOURCE[0]}")/decisions/destinations.py}" cache --product "$DECISION_PRODUCT" --cache-url "https://maestro.cachix.org" --require-verified ${PUBLICATION_CACHE_RECEIPT:+--receipt "$PUBLICATION_CACHE_RECEIPT"}
+# Fresh bounded HTTP readback bypasses runner narinfo caches. Stock outputs
+# may live only upstream; a conflicting/unavailable primary object still blocks.
+# Persist the existing receipt format only after every exact hash is verified.
+"${cache_readback[@]}" --require-verified ${PUBLICATION_CACHE_RECEIPT:+--receipt "$PUBLICATION_CACHE_RECEIPT"}

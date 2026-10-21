@@ -44,6 +44,18 @@ No percentage savings are claimed from the incident-heavy audit sample.
 
 ## Package 2: bounded operations and queues
 
+The weekly clean-store consumer uses the repository's Cachix cache and
+`cache.nixos.org` with their pinned signing keys. Maestro also retains its existing
+XO application cache and key. Cachix deliberately omits
+dependencies already available from its official upstream. The probe substitutes
+output paths into a new disposable store, disables local and remote builders,
+then verifies recursive bytes, signatures and exact approved root NAR hashes.
+It cannot satisfy a download from the runner's existing store.
+Publication readback uses that same approved cache set for direct roots. Only an
+explicit 404 permits trying the next cache; a conflicting or unavailable primary
+object blocks completion. Fresh HTTP metadata bypasses runner narinfo caches,
+and the existing receipt format records only exact matching root identities.
+
 Transport uses monotonic remaining-time budgets, including across nested helper
 processes. Metadata reads are bounded to 30 seconds, optional discovery and
 receipts to 90 seconds, an eligible payload to 180 seconds, and the entire
