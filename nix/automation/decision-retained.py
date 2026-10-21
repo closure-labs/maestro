@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Recover digest-bound native data after ephemeral Actions artifacts expire."""
 import json
+import datetime as dt
 import os
 from pathlib import Path
 import re
@@ -9,6 +10,7 @@ import sys
 
 sys.path.insert(0, os.environ.get('MAESTRO_DECISION_CORE', str(Path(__file__).with_name('decisions'))))
 import common
+import scheduling
 import decision_authority as authority
 import decision_packets as packets
 from security_decisions import canonical_hash
@@ -65,7 +67,7 @@ def pending(cfg):
     return proposals
 
 
-def select(cfg, records, open_proposals, release_only=False, proposal_hash=None, published_tags=None):
+def select(cfg, records, open_proposals, release_only=False, proposal_hash=None, published_tags=None, suppressed_products=None):
     """Selection schedules verification/rescan work, never grants acceptance."""
     published_tags = published_tags or set()
     candidates = {}
@@ -90,7 +92,8 @@ def select(cfg, records, open_proposals, release_only=False, proposal_hash=None,
             assets = proposal['payload']['product'].get('assets', {})
             tags = {m[1] for name in assets if (m := re.fullmatch(r'maestro-(v[0-9]+\.[0-9]+\.[0-9]+)\.iso\.sha256', name))}
             common.require(len(tags) == 1, 'Retained official product lacks one exact release tag')
-            if next(iter(tags)) in published_tags:
+            if (next(iter(tags)) in published_tags
+                    or canonical_hash(proposal['payload']['product']) in (suppressed_products or set())):
                 del candidates[digest]
     if proposal_hash:
         common.require(proposal_hash in candidates, 'Requested retained proposal is not an eligible current candidate')
@@ -131,6 +134,44 @@ def verify_native_files(directory, native):
                    and path.stat().st_size == evidence['inventory']['size'], 'Retained native inventory differs from scan')
 
 
+def current_published_products(cfg, records, published, requested=None):
+    """Suppress exact active products; refresh only the newest intended official release by default."""
+    if requested:
+        return set()  # Explicit historical recovery preserves its exact selection.
+    candidates = {}
+    for proposal in records.values():
+        if proposal['kind'] != 'release-product':
+            continue
+        identity = proposal['payload']['product']
+        _, active = common.active_release(cfg, records, identity, authenticate=False)
+        if active is not None and active['payload']['disposition'] == 'accepted':
+            versions = {m[1] for name in identity.get('assets', {})
+                        if (m := re.fullmatch(r'maestro-(v[0-9]+\.[0-9]+\.[0-9]+)\.iso\.sha256', name))}
+            common.require(len(versions) == 1, 'Retained product requires one official version')
+            candidates[canonical_hash(identity)] = (active, next(iter(versions)))
+    if not candidates:
+        return set()
+    version = lambda tag: tuple(map(int, tag.removeprefix('v').split('.')))
+    newest = max(version(tag) for _, tag in candidates.values())
+    suppressed = set()
+    for digest, (proposal, tag) in candidates.items():
+        if tag not in published:
+            continue
+        packet = proposal['payload']['packet']
+        observed = packets.metadata(packet['reference'], packet['sha256'], 'scans.json', producer=packet['producer'])
+        producer = dict(observed['producer'], repository=cfg['repository'],
+                        revision=observed['producer'].get('revision', observed['revision']), sourceRevision=observed['revision'])
+        common.require(observed.get('repository') == cfg['repository'] and producer == packet['producer']
+                       and observed['revision'] == proposal['payload']['product']['revision'],
+                       'Published observations differ from exact approved product and producer')
+        expiry = scheduling.observation_expiry(observed, cfg)
+        # Older published versions are historical recovery targets, not desired
+        # periodic work. Their expiry was observed; explicit selection remains.
+        if dt.datetime.now(dt.timezone.utc) < expiry or version(tag) < newest:
+            suppressed.add(digest)
+    return suppressed
+
+
 def main():
     cli = common.parser(__doc__)
     cli.add_argument('--release-only', action='store_true')
@@ -142,9 +183,10 @@ def main():
     _, records = common.ledger(cfg)
     release_only = args.release_only or os.environ.get('DECISION_RELEASE_ONLY') == 'true'
     releases = authority.collection(authority.github_api, f'repos/{cfg["repository"]}/releases') if release_only else []
-    tags = {r['tag_name'] for r in releases if r.get('draft') is False and isinstance(r.get('tag_name'), str)}
+    published = {r['tag_name'] for r in releases if r.get('draft') is False and isinstance(r.get('tag_name'), str)}
+    suppressed = current_published_products(cfg, records, published, args.proposal_hash) if release_only else set()
     try:
-        digest, proposal = select(cfg, records, pending(cfg), release_only, args.proposal_hash, tags)
+        digest, proposal = select(cfg, records, pending(cfg), release_only, args.proposal_hash, suppressed_products=suppressed)
     except NoCandidate:
         if not args.optional:
             raise
