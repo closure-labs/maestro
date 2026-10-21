@@ -45,15 +45,27 @@ def tag_revision(repository, tag, github):
     raise ValueError('Release tag nesting exceeds supported bound')
 
 
-def release_for(repository, tag, github):
-    try:
-        release = github(f'repos/{repository}/releases/tags/{quote(tag, safe="")}')
-    except journal.GitHubError as error:
-        if error.status == 404:
-            return None
-        raise
-    common.require(type(release.get('id')) is int and release['id'] > 0, 'Invalid release ID')
+def validated_release(release, tag, release_id=None):
+    common.require(isinstance(release, dict) and type(release.get('id')) is int
+                   and release['id'] > 0 and release.get('tag_name') == tag
+                   and (release_id is None or release['id'] == release_id), 'Invalid release identity')
     return release
+
+
+def release_for(repository, tag, github, release_id=None):
+    if release_id is not None:
+        return validated_release(github(f'repos/{repository}/releases/{release_id}'), tag, release_id)
+    # Authenticated listing includes drafts which by-tag lookup may omit.
+    # Exhaust the bounded inventory before treating absence as permission to create.
+    matches = []
+    for page in range(1, 11):
+        values = github(f'repos/{repository}/releases?per_page=100&page={page}')
+        common.require(isinstance(values, list) and len(values) <= 100, 'Invalid release listing')
+        matches.extend(validated_release(value, tag) for value in values if value.get('tag_name') == tag)
+        common.require(len(matches) <= 1, 'Ambiguous release tag inventory')
+        if len(values) < 100:
+            return matches[0] if matches else None
+    raise ValueError('Release discovery exceeds bounded inventory')
 
 
 def inventory(repository, release, github):
@@ -119,13 +131,14 @@ def reconcile(repository, product, directory, tag, revision, publish, authorize,
     if release is None:
         authorize()
         try:
-            github(f'repos/{repository}/releases', 'POST', {'tag_name': tag, 'target_commitish': revision,
+            release = validated_release(github(f'repos/{repository}/releases', 'POST', {'tag_name': tag, 'target_commitish': revision,
                                                           'name': tag, 'draft': True, 'prerelease': '-' in tag.split('+', 1)[0],
-                                                          **({'body': notes} if notes is not None else {})})
+                                                          **({'body': notes} if notes is not None else {})}), tag)
         except journal.GitHubError as error:
             if error.status not in (409, 422):
                 raise
-        release = release_for(repository, tag, github)
+        if release is None:
+            release = release_for(repository, tag, github)
         common.require(release is not None, 'Created release cannot be reconciled')
     common.require(release.get('tag_name') == tag and release.get('target_commitish') == revision and type(release.get('draft')) is bool,
                    'Existing release target differs from exact approved source')
@@ -144,7 +157,7 @@ def reconcile(repository, product, directory, tag, revision, publish, authorize,
         send(repository, tag, directory / name)
     # Reread everything after partial recovery or upload; metadata alone never
     # substitutes for hashing the actual hosted asset bytes.
-    release = release_for(repository, tag, github)
+    release = release_for(repository, tag, github, release['id'])
     common.require(release is not None and type(release.get('draft')) is bool and release.get('tag_name') == tag
                    and release.get('target_commitish') == revision, 'Release changed while staging')
     common.require(notes is None or release.get('body') == notes, 'Release notes changed while staging')
@@ -156,7 +169,7 @@ def reconcile(repository, product, directory, tag, revision, publish, authorize,
     authorize()
     if publish and release.get('draft') is True:
         github(f'repos/{repository}/releases/{release["id"]}', 'PATCH', {'draft': False})
-        release = release_for(repository, tag, github)
+        release = release_for(repository, tag, github, release['id'])
         common.require(release is not None and release.get('draft') is False
                        and release.get('tag_name') == tag and release.get('target_commitish') == revision,
                        'Release publication did not reach the expected state')

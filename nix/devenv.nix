@@ -33,6 +33,7 @@ in {
     "ci:distribution:restore".exec = runFlakePackage "maestro-ci-distribution-restore" "";
     "ci:decision:refresh".exec = runFlakePackage "maestro-ci-decision-refresh" "";
     "ci:decision:health".exec = runFlakePackage "maestro-ci-decision-health" "";
+    "ci:consumer-probe".exec = runFlakePackage "maestro-ci-consumer-probe" "";
     "release:retain".exec = runFlakePackage "maestro-ci-release-retain" "";
     "release:journal".exec = runFlakePackage "maestro-ci-publication-journal" "";
     "release:assets".exec = runFlakePackage "maestro-ci-publication-assets" "";

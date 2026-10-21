@@ -115,8 +115,10 @@ class ReleaseAPI:
             assert self.tag is None
             self.tag = payload['sha']
             return {}
+        if '/releases?per_page=' in endpoint:
+            return [deepcopy(self.release)] if self.release else []
         if '/releases/tags/' in endpoint:
-            if self.release is None:
+            if self.release is None or self.release['draft']:
                 raise assets.journal.GitHubError(404, 'missing release')
             return deepcopy(self.release)
         if endpoint.endswith('/releases'):
@@ -126,6 +128,8 @@ class ReleaseAPI:
         if '/releases/5/assets?' in endpoint:
             return list(self.remote.values())
         if endpoint.endswith('/releases/5'):
+            if method == 'GET':
+                return deepcopy(self.release)
             assert method == 'PATCH' and payload == {'draft': False}
             self.release['draft'] = False
             self.publishes += 1
@@ -188,4 +192,15 @@ with tempfile.TemporaryDirectory() as temporary:
     (directory / 'iso.part01').write_bytes(b'changed local bytes')
     reject(reconcile)
     assert api.tag is None
+# Adversarial release API responses; no external calls.
+for response in ({}, {'id': True, 'tag_name': 'v1.2.3'}, {'id': 5, 'tag_name': 'v9.9.9'}):
+    reject(lambda response=response: assets.validated_release(response, 'v1.2.3'))
+reject(lambda: assets.release_for('owner/repo', 'v1.2.3', lambda endpoint: {}))
+reject(lambda: assets.release_for('owner/repo', 'v1.2.3', lambda endpoint:
+       [{'id': 5, 'tag_name': 'v1.2.3'}, {'id': 6, 'tag_name': 'v1.2.3'}]))
+reject(lambda: assets.release_for('owner/repo', 'v1.2.3', lambda endpoint:
+       [{'id': 9, 'tag_name': 'v9.9.9'}] * 100))
+reject(lambda: assets.release_for('owner/repo', 'v1.2.3', lambda endpoint:
+       {'id': 6, 'tag_name': 'v1.2.3'}, 5))
+
 print('Publication CAS, immutable assets, partial recovery and live authority fixtures passed.')
