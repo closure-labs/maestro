@@ -60,6 +60,10 @@ packer/*.pkrvars.json
 .claude/
 .codex
 
+# Great CTO transient runtime state; curated project/task documents are tracked.
+.great_cto/cache/
+.great_cto/verdicts/
+
 # Python bytecode and local candidate transport
 __pycache__/
 *.py[cod]

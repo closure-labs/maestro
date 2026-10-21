@@ -9,6 +9,12 @@ correspond to published GitHub tags.
 
 ## [Unreleased]
 
+### Fixed
+
+- Retry bounded temporary GitHub authority read failures and report typed
+  rate-limit metadata and fixed failure categories. Preserve immediate denial of
+  HTTP 403 responses and keep raw headers, response text and credentials private.
+
 ## [3.0.1] - 2026-10-20
 
 ### Security
