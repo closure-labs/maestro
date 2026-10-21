@@ -30,7 +30,8 @@ if name == 'curl':
     path = next(path for path in fixture['local'] if pathlib.Path(path).name.startswith(key))
     if args[-1].startswith('https://maestro.cachix.org/'):
         record = fixture['remote'].get(path) if uploaded and isinstance(fixture['remote'],dict) else None
-        if fixture.get('already_verified'):record={'narHash':fixture['local'][path]}
+        if fixture.get('already_verified') or path in fixture.get('existing',[]):record={'narHash':fixture['local'][path]}
+        if not uploaded and path in fixture.get('existing_overrides',{}):record=fixture['existing_overrides'][path]
         if path in fixture.get('upstream',[]):record=None
         raw = fixture['remote'] if uploaded and isinstance(fixture['remote'],str) else None
     else:
@@ -39,9 +40,14 @@ if name == 'curl':
     data=b'';status='404'
     if raw is not None:data=raw.encode();status='200'
     elif record is not None:
-        data=('StorePath: '+record.get('path',path)+'\\nNarHash: '+record.get('narHash','')+'\\nNarSize: 1\\n').encode();status='200'
+        data=('StorePath: '+record.get('path',path)+'\\nNarHash: '+record.get('narHash','')+'\\nNarSize: 1\\nURL: nar/fixture.nar.zst\\nReferences: '+(' '.join(pathlib.Path(p).name for p in fixture.get('references',{}).get(path,[])))+'\\n').encode();status='200'
     pathlib.Path(args[args.index('--output')+1]).write_bytes(data)
     print(status,end='')
+elif name == 'maestro-ci-decision-publication':
+    calls=[json.loads(line) for line in pathlib.Path(os.environ['PUBLISH_CALLS']).read_text().splitlines()]
+    if sum(call[0]==name for call in calls)==fixture.get('deny_authority_at'):sys.exit(1)
+elif name == 'maestro-ci-distribution-restore':
+    pathlib.Path(os.environ['DISTRIBUTION_CLOSURE_METADATA']).write_text(json.dumps({path:{'narHash':digest} for path,digest in fixture['local'].items()}))
 elif name == 'nix':
     print(json.dumps({path:{'narHash':digest} for path,digest in fixture['local'].items()}))
 elif name == 'cachix':
@@ -123,6 +129,34 @@ class PublishReadback(unittest.TestCase):
         calls=[json.loads(line) for line in self.calls.read_text().splitlines()]
         self.assertTrue(all(call[0]=='curl' for call in calls))
         self.assertTrue(self.receipt.exists())
+
+    def test_present_roots_with_missing_child_restore_and_upload_only_bound_dependency(self):
+        child='/nix/store/'+'a'*32+'-retained-child'
+        self.local[child]='sha256-'+'A'*43+'='
+        result,calls=self.run_leaf(existing=self.paths,references={self.paths[0]:[child]})
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(next(c[1:] for c in calls if c[0]=='uploaded'),[child])
+        self.assertTrue(any(c[0]=='maestro-ci-distribution-restore' for c in calls))
+        receipt=json.loads(self.receipt.read_text())
+        self.assertEqual(set(receipt['expected']),set(self.paths))
+        self.assertEqual(receipt['expected'],receipt['observed'])
+
+    def test_retained_dependency_conflict_blocks_before_any_upload(self):
+        child='/nix/store/'+'a'*32+'-retained-child'
+        self.local[child]='sha256-'+'A'*43+'='
+        result,calls=self.run_leaf(existing=[*self.paths[:-1],child],
+            existing_overrides={child:{'narHash':'sha256-'+'B'*43+'='}},
+            references={self.paths[0]:[child]})
+        self.assertNotEqual(result.returncode,0)
+        self.assertFalse(any(c[0]=='cachix' for c in calls))
+        self.assertFalse(self.receipt.exists())
+
+    def test_authority_revoked_after_handoff_blocks_cache_write(self):
+        result,calls=self.run_leaf(deny_authority_at=3)
+        self.assertNotEqual(result.returncode,0)
+        self.assertTrue(any(c[0]=='maestro-ci-decision-handoff' for c in calls))
+        self.assertFalse(any(c[0]=='cachix' for c in calls))
+        self.assertFalse(self.receipt.exists())
 
     def test_same_path_wrong_hash_is_rejected(self):
         for path in self.paths:

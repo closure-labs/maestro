@@ -10,6 +10,7 @@ import sys
 import threading
 
 DEADLINE = ContextVar('operation_deadline', default=None)
+CANCELLATION = ContextVar('operation_cancellation', default=None)
 KILL_GRACE = 10
 
 
@@ -102,6 +103,9 @@ def terminate(child):
 
 def run(args, *, timeout, check=False, capture_output=False, input=None, **kwargs):
     limit = remaining(timeout)
+    cancelled = CANCELLATION.get()
+    if cancelled is not None and cancelled.is_set():
+        raise subprocess.TimeoutExpired(['bounded-operation'], limit)
     if capture_output:
         kwargs['stdout'] = kwargs['stderr'] = subprocess.PIPE
     if input is not None:
@@ -115,6 +119,9 @@ def run(args, *, timeout, check=False, capture_output=False, input=None, **kwarg
 @contextmanager
 def termination_guard():
     def interrupted(signum, frame):
+        cancelled = CANCELLATION.get()
+        if cancelled is not None:
+            cancelled.set()
         raise SystemExit(128 + signum)
     previous = signal.signal(signal.SIGTERM, interrupted) if threading.current_thread() is threading.main_thread() else None
     try:
@@ -124,10 +131,35 @@ def termination_guard():
             signal.signal(signal.SIGTERM, previous)
 
 
+@contextmanager
+def cancellation_scope():
+    """Cancel copied worker contexts before waiting for their process cleanup."""
+    cancelled = threading.Event()
+    token = CANCELLATION.set(cancelled)
+    try:
+        with termination_guard():
+            yield cancelled
+    finally:
+        cancelled.set()
+        CANCELLATION.reset(token)
+
+
 def _run(args, limit, input, check, kwargs):
     with subprocess.Popen(args, start_new_session=True, **kwargs) as child:
         try:
-            stdout, stderr = child.communicate(input, timeout=limit)
+            cancelled = CANCELLATION.get()
+            if cancelled is None:
+                stdout, stderr = child.communicate(input, timeout=limit)
+            else:
+                deadline = time.monotonic() + limit
+                while True:
+                    if cancelled.is_set() or time.monotonic() >= deadline:
+                        raise subprocess.TimeoutExpired(['bounded-operation'], limit)
+                    try:
+                        stdout, stderr = child.communicate(input, timeout=min(0.1, deadline-time.monotonic()))
+                        break
+                    except subprocess.TimeoutExpired:
+                        input = None
         except BaseException:
             terminate(child)
             raise

@@ -15,6 +15,7 @@ import tempfile
 
 sys.path.insert(0, os.environ.get('MAESTRO_DECISION_CORE', str(Path(__file__).with_name('decisions'))))
 import operations
+import destinations
 
 PART_BYTES = 1_800_000_000
 MAX_BYTES = 32 * 1024**3
@@ -46,8 +47,8 @@ def identities(roots):
     return result
 
 
-def command(args):
-    return operations.run(args, capture_output=True, check=True, timeout=1800).stdout
+def command(args, timeout=1800):
+    return operations.run(args, capture_output=True, check=True, timeout=timeout).stdout
 
 
 def verify_roots(roots):
@@ -180,7 +181,7 @@ def unpack(archive, cache):
     require((cache / 'nix-cache-info').is_file(), 'Transport lacks binary cache metadata')
 
 
-def restore(directory, manifest, roots, recursive_verify=True):
+def restore(directory, manifest, roots, recursive_verify=True, closure_metadata=None):
     """Caller MUST authenticate scans/product/manifest before calling this function."""
     directory = Path(directory)
     expected = identities(roots)
@@ -198,10 +199,21 @@ def restore(directory, manifest, roots, recursive_verify=True):
         require(archive.stat().st_size == manifest['archiveSize'] and hasher.hexdigest() == manifest['archiveSha256'], 'Reassembled distribution archive integrity mismatch')
         unpack(archive, cache)
         with operations.budget(600):
+            retained = None
+            if closure_metadata is not None:
+                retained = destinations.closure_identities(json.loads(command([
+                    'nix', 'path-info', '--json', '--recursive', '--store', cache.as_uri(), *sorted(expected)], timeout=30)), expected)
             command(['nix', 'copy', '--from', cache.as_uri(), '--no-check-sigs', *sorted(expected)])
             verify_roots(roots)
             if recursive_verify:
                 command(['nix', 'store', 'verify', '--no-trust', '--recursive', *sorted(expected)])
+            if retained is not None:
+                require(recursive_verify, 'Publication repair requires recursive byte verification')
+                local = destinations.closure_identities(json.loads(command([
+                    'nix', 'path-info', '--json', '--recursive', *sorted(expected)], timeout=30)), expected)
+                require(local == retained, 'Imported closure differs from authenticated retained identities')
+                Path(closure_metadata).write_text(json.dumps({path: {'narHash': digest}
+                    for path, digest in retained.items()}, sort_keys=True) + '\n')
 
 
 def main():

@@ -51,10 +51,36 @@ dependencies already available from its official upstream. The probe substitutes
 output paths into a new disposable store, disables local and remote builders,
 then verifies recursive bytes, signatures and exact approved root NAR hashes.
 It cannot satisfy a download from the runner's existing store.
-Publication readback uses that same approved cache set for direct roots. Only an
+Maestro publication readback uses that same approved cache set for every
+dependency declared by public root metadata. Only an
 explicit 404 permits trying the next cache; a conflicting or unavailable primary
 object blocks completion. Fresh HTTP metadata bypasses runner narinfo caches,
 and the existing receipt format records only exact matching root identities.
+Eight concurrent reads share one absolute 120-second deadline, with at most
+10,000 paths and 100,000 reference edges. Shared dependencies and cycles are
+inspected once. The reader accepts omitted empty references as native Nix does,
+requires a nonempty NAR URL, and rejects malformed reference paths. These are
+provider metadata observations: a verified no-op establishes exact approved root
+hashes and declared dependency coverage. The clean-store probe separately
+establishes downloaded bytes and signatures.
+
+The admitted producer 39482117917 supplied 60 matching public root hashes while
+nine dependencies were absent from all three approved caches. The corrected
+[metadata-only readback](benchmarks/maestro-recursive-cache-readback.json)
+inspected 1,453 paths in 44 seconds and returned `partial`, without downloading
+payloads or writing public data. Native dry-run exit status alone is not a
+completeness proof: it can list unresolved paths and still exit successfully.
+
+If any path is missing, repair authenticates the retained transport even when
+the local roots already exist. It derives the complete retained path/NAR hash
+inventory, imports and recursively verifies the local bytes, and compares the
+local inventory to the retained identities. Fresh public inspection then checks
+every retained path before selecting only missing uploads. Foreign reference
+paths or conflicting dependency hashes block writes. Live authority is repeated
+after handoff and immediately before cache upload; full recursive readback with
+the retained identities precedes the completion receipt. Existing journals never
+bypass current inspection. Consumer download/verification failures report fixed
+stage, duration and error categories without raw command arguments or stderr.
 
 Transport uses monotonic remaining-time budgets, including across nested helper
 processes. Metadata reads are bounded to 30 seconds, optional discovery and
@@ -115,7 +141,7 @@ allowance never applies to closure payloads or nested filenames.
 
 A versioned destination result distinguishes authenticated absence, partial
 inventory, verified identity, conflict and service unavailability. Cache
-inspection precedes store import and uploads only missing roots; conflicting
+inspection precedes store import and uploads only missing paths; conflicting
 NAR identities never overwrite existing public objects. Completion requires
 fresh readback. XO's admitted retained packets use original signed metadata
 bytes before any payload materialization, and OCI retries verify immutable

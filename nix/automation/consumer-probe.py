@@ -7,12 +7,41 @@ import re
 from pathlib import Path
 import tempfile
 import sys
+import subprocess
+import time
 import common
 import operations
 
 UPSTREAM_CACHES = ('https://cache.nixos.org', 'https://xen-orchestra-ce.cachix.org')
 UPSTREAM_KEYS = ('cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=',
                  'xen-orchestra-ce.cachix.org-1:WAOajkFLXWTaFiwMbLidlGa5kWB7Icu29eJnYbeMG7E=')
+
+
+def stage(name, execute, args, **kwargs):
+    started = time.monotonic()
+    try:
+        return execute(args, **kwargs)
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+        stderr = error.stderr or b''
+        data = stderr.encode() if isinstance(stderr, str) else stderr
+        text = data.decode('utf-8', errors='replace')
+        patterns = {
+            'missingDependency': r"don't know how to build|cannot be built|not valid|does not exist",
+            'signature': r'not signed|lack.*signature|signature.*(?:invalid|missing)',
+            'capacity': r'no space left|disk quota|not enough.*space',
+            'transport': r'timed out|connection.*(?:reset|refused)|could not resolve|HTTP.*(?:429|50[0-9])',
+            'hashMismatch': r'hash mismatch|hash.*differ',
+            'permissions': r'permission denied|read.only file system',
+            'unsupported': r'unsupported|unknown (?:feature|protocol|compression)',
+        }
+        diagnostic = {'schema': 1, 'stage': name, 'status': 'blocked',
+            'exitCode': getattr(error, 'returncode', None),
+            'timeout': isinstance(error, subprocess.TimeoutExpired),
+            'seconds': round(time.monotonic()-started, 3), 'stderrBytes': len(data),
+            'categories': {key: bool(re.search(pattern, text, re.I)) for key, pattern in patterns.items()}}
+        # Fixed fields only: never expose raw argv, paths, stderr, or API bodies.
+        print(json.dumps(diagnostic, sort_keys=True), file=sys.stderr)
+        raise ValueError('Consumer '+name+' failed; see bounded stage diagnostic') from None
 
 
 def probe(product, cache, public_key, execute=operations.run):
@@ -37,11 +66,11 @@ def probe(product, cache, public_key, execute=operations.run):
         # Cachix omits paths available upstream. Substitute into an empty store
         # using exactly the pinned public caches/keys, never the runner's store or
         # a local/remote builder. Input derivations are explicitly rejected.
-        execute(['nix-store', '--realise', '--store', store, *options, *paths],
+        stage('download', execute, ['nix-store', '--realise', '--store', store, *options, *paths],
                 check=True, capture_output=True, timeout=900)
-        execute(['nix', 'store', 'verify', '--store', store, '--recursive', '--sigs-needed', '1',
+        stage('verify', execute, ['nix', 'store', 'verify', '--store', store, '--recursive', '--sigs-needed', '1',
                  *options, *paths], check=True, capture_output=True, timeout=600)
-        result = execute(['nix', 'path-info', '--store', store, '--json', *paths],
+        result = stage('identities', execute, ['nix', 'path-info', '--store', store, '--json', *paths],
                          check=True, capture_output=True, text=True, timeout=120)
         records = json.loads(result.stdout)
         if isinstance(records, list):

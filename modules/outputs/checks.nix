@@ -315,6 +315,7 @@ in {
           PYTHONDONTWRITEBYTECODE=1 python3 tests/test_secret_inventory.py
           PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests/decisions -p '*.py'
           PYTHONDONTWRITEBYTECODE=1 python3 tests/test_publish_readback.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/test_cache_cancellation.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/test_scheduling.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/test_operations.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/test_consumer_probe.py

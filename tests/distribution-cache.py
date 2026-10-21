@@ -2,14 +2,17 @@
 # SPDX-License-Identifier: Apache-2.0
 """Exact closure transport integrity without touching a real Nix store."""
 from copy import deepcopy
+import base64
 import hashlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import tarfile
 import tempfile
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 from urllib.parse import parse_qs, urlparse
 
 spec = importlib.util.spec_from_file_location('distribution_cache', Path(__file__).parents[1] / 'nix/automation/distribution-cache.py')
@@ -18,6 +21,8 @@ spec.loader.exec_module(cache)
 ROOT = '/nix/store/' + 'a' * 32 + '-runtime'
 NAR = 'sha256-' + 'A' * 43 + '='
 roots = [{'storePath': ROOT, 'narHash': NAR}]
+CHILD = '/nix/store/' + 'b' * 32 + '-dependency'
+CHILD_NAR = 'sha256-' + base64.b64encode(bytes([1]) * 32).decode()
 
 
 def reject(call):
@@ -56,6 +61,21 @@ class Nix:
         return b''
 
 
+class ClosureNix(Nix):
+    def __init__(self):
+        super().__init__()
+        self.retained = {ROOT: {'narHash': NAR}, CHILD: {'narHash': CHILD_NAR}}
+        self.local = deepcopy(self.retained)
+        self.metadata_timeouts = []
+
+    def __call__(self, args, timeout=1800):
+        if args[:3] == ['nix', 'path-info', '--json'] and '--recursive' in args:
+            self.metadata_timeouts.append(timeout)
+            self.calls.append(args)
+            return json.dumps(self.retained if '--store' in args else self.local).encode()
+        return super().__call__(args)
+
+
 with tempfile.TemporaryDirectory() as temporary:
     base = Path(temporary)
     nix = Nix()
@@ -88,6 +108,66 @@ with tempfile.TemporaryDirectory() as temporary:
         nix.nar_hash = 'sha256-' + 'B' * 43 + '='
         reject(lambda: cache.restore(first, manifest, roots))
         reject(lambda: cache.export(first, roots))
+
+    # Repair upload identities come from the authenticated retained cache, and
+    # only become usable after the imported closure's actual bytes are checked.
+    metadata = base / 'repair-closure.json'
+    nix = ClosureNix()
+    with patch.object(cache, 'command', side_effect=nix):
+        cache.restore(first, manifest, roots, closure_metadata=metadata)
+    assert json.loads(metadata.read_text()) == nix.retained
+    assert nix.metadata_timeouts == [30, 30]
+    assert [args[:3] for args in nix.calls] == [
+        ['nix', 'path-info', '--json'], ['nix', 'copy', '--from'],
+        ['nix', 'path-info', '--json'], ['nix', 'store', 'verify'],
+        ['nix', 'path-info', '--json']]
+    assert '--store' in nix.calls[0] and '--recursive' in nix.calls[0]
+    assert '--store' not in nix.calls[-1] and '--recursive' in nix.calls[-1]
+    metadata.unlink()
+    nix = ClosureNix()
+    # Identical store path/root hashes cannot hide different child NAR bytes.
+    nix.local[CHILD]['narHash'] = 'sha256-' + 'C' * 43 + '='
+    with patch.object(cache, 'command', side_effect=nix):
+        reject(lambda: cache.restore(first, manifest, roots, closure_metadata=metadata))
+    assert not metadata.exists()
+    assert any(args[:3] == ['nix', 'store', 'verify'] for args in nix.calls)
+    nix = ClosureNix()
+    nix.retained[ROOT]['narHash'] = 'sha256-' + 'C' * 43 + '='
+    with patch.object(cache, 'command', side_effect=nix):
+        reject(lambda: cache.restore(first, manifest, roots, closure_metadata=metadata))
+    assert not metadata.exists()
+    assert not any(args[:3] == ['nix', 'copy', '--from'] for args in nix.calls)
+
+    # The publication wrapper must authenticate/materialize the retained packet
+    # even when every approved root already exists in the local runner store.
+    environment = {
+        'MAESTRO_DECISION_CORE': str(Path(cache.__file__).parent / 'decisions'),
+        'MAESTRO_DISTRIBUTION_CACHE_SOURCE': str(Path(cache.__file__)),
+        'MAESTRO_SYSTEM_ROOT': str(base), 'DECISION_SCANS': str(base / 'scans.json'),
+        'DECISION_PRODUCT': str(base / 'product.json'),
+        'DECISION_EVIDENCE_DIRECTORY': str(first),
+        'DISTRIBUTION_CLOSURE_METADATA': str(metadata)}
+    with patch.dict(os.environ, environment, clear=True):
+        spec = importlib.util.spec_from_file_location('repair_restore',
+                                                     Path(cache.__file__).with_name('distribution-restore.py'))
+        restore = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(restore)
+        events = []
+        transfer = SimpleNamespace(verify_roots=Mock(),
+                                   restore=Mock(side_effect=lambda *args, **kwargs: events.append('restore')))
+        fake_spec = SimpleNamespace(loader=SimpleNamespace(exec_module=lambda module: None))
+        with patch.object(restore.common, 'config', return_value={}), \
+                patch.object(restore.common, 'gate', side_effect=lambda *args: events.append('gate')), \
+                patch.object(restore.common, 'load_json', side_effect=[{'transport': manifest}, {'products': {'maestro': roots[0]}}]), \
+                patch.object(restore.Path, 'exists', return_value=True), \
+                patch.object(restore.packet_materialization, 'materialize', side_effect=lambda *args: events.append('materialize')) as materialize, \
+                patch.object(restore.importlib.util, 'spec_from_file_location', return_value=fake_spec), \
+                patch.object(restore.importlib.util, 'module_from_spec', return_value=transfer):
+            restore.main()
+        assert events == ['gate', 'materialize', 'restore']
+        materialize.assert_called_once_with(first)
+        transfer.verify_roots.assert_not_called()
+        transfer.restore.assert_called_once_with(first, manifest, roots, closure_metadata=str(metadata))
 
     # Every malicious archive fails before nix copy can import anything.
     def malicious(member_name, member_type=tarfile.REGTYPE, duplicate=False):
