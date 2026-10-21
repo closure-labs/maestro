@@ -351,6 +351,7 @@
           };
         });
       in ''
+        export MAESTRO_FINGERPRINTS_CORE=${./decisions}
         MAESTRO_SECURITY_INVENTORY_SOURCE=${./security-inventory.py}
         MAESTRO_SECURITY_CONTEXT=${context}
         export MAESTRO_SECURITY_INVENTORY_SOURCE MAESTRO_SECURITY_CONTEXT
@@ -386,6 +387,7 @@
       prefix = ''
         MAESTRO_SECURITY_POLICY="''${MAESTRO_SYSTEM_ROOT:-$PWD}/nix/automation/security-policy.json"
         export MAESTRO_SECURITY_POLICY
+        export MAESTRO_FINGERPRINTS_CORE=${./decisions}
         MAESTRO_SECURITY_NORMALIZE_SOURCE=${./security-normalize.py}
         export MAESTRO_SECURITY_NORMALIZE_SOURCE
       '';

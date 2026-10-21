@@ -377,6 +377,14 @@ if __name__ == "__main__" and sys.argv[1:2] == ["--result"]:
     # Create only a fresh completed result; a failed attempt leaves no stale pass.
     with (output / "security-result.json").open("x") as handle:
         handle.write(json.dumps(document, sort_keys=True, indent=2, allow_nan=False) + "\n")
+    sys.path.insert(0,os.environ.get('MAESTRO_FINGERPRINTS_CORE',str(Path(__file__).with_name('decisions'))))
+    import fingerprints
+    props={p['name']:p['value'] for p in json.loads(paths['inventory'].read_text()).get('properties',[])}
+    keys=fingerprints.bindings({'inventory':evidence['inventory'],'inputHashes':evidence['inputHashes']},
+        {'normalizer':fingerprints.file_identity(Path(__file__))},json.loads(props.get('maestro:runtimeContext','{}')),
+        {name:evidence[name] for name in ('grype','rustsec','grypeDatabase','rustsecDatabase')},
+        {'payload':fingerprints.file_identity(output/'security-result.json'),'producer':{k:os.environ.get(k) for k in ('GITHUB_SHA','GITHUB_RUN_ID','GITHUB_RUN_ATTEMPT','GITHUB_WORKFLOW_REF')}})
+    (output/'observation-fingerprints.json').write_text(json.dumps(keys,sort_keys=True)+'\n')
 elif __name__ == "__main__":
     report, inventory, version, output = map(Path, sys.argv[1:])
     findings = normalize(json.loads(report.read_text()), json.loads(inventory.read_text()), json.loads(version.read_text()))

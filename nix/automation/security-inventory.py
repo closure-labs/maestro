@@ -597,8 +597,14 @@ def main():
     drvs = sorted({properties(c)["nix:drv_path"] for c in candidates if properties(c).get("nix:drv_path") and properties(c).get("maestro:staticSource") != "true"})
     derivations = read_derivations(drvs)
     realize_patch_inputs(derivations, context["packageSourceRoots"])
+    raw_inventory_inputs={'system':digest(system),'supply':digest(json.loads(supply_path.read_text())),
+                          'generator':hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
     result = enrich(system, json.loads(supply_path.read_text()), context, derivations)
     system_path.write_text(json.dumps(result, sort_keys=True, indent=2) + "\n")
+    sys.path.insert(0,os.environ.get('MAESTRO_FINGERPRINTS_CORE',str(Path(__file__).with_name('decisions'))))
+    import fingerprints
+    keys=fingerprints.bindings(raw_inventory_inputs,{'normalizer':context.get('normalizerDigest','unbound')},{key:context[key] for key in ('platform','runtime','installerQualification') if key in context},{}, {})
+    system_path.with_name('inventory-fingerprints.json').write_text(json.dumps(keys,sort_keys=True)+'\n')
 
 
 if __name__ == "__main__":
