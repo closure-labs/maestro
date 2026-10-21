@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "repository": "closure-labs/maestro",
+  "controllerBase": "85f8fff32f2cc70303a47eaf6cf3cdce608f8246",
+  "admittedProducerRun": 39482117917,
+  "status": "partial",
+  "approvedRoots": 60,
+  "approvedRootHashesMatch": true,
+  "declaredClosurePaths": 1453,
+  "missingDependencies": [
+    "/nix/store/21rzfs9ilshkqwrdakp77j06mi2m27q3-local-cmds",
+    "/nix/store/870slbcx930c384vix8v53cmwjvpqbff-tray.target",
+    "/nix/store/cvz3j052k1z95pscj1w2iki187ywfcjw-devenv-wrapped-2.2.2",
+    "/nix/store/j4nipkv24kjigyrwbm24141s7nzzh122-packer-1.15.3",
+    "/nix/store/jl4dfwfyb0ycqbkb1pgadz87c0npw278-link",
+    "/nix/store/qbl5yzra6n8rcavr711k762v5pp3w2q1-cleanup",
+    "/nix/store/v7zy1nlq456234q0qjgn2ny3wmnxns1v-check-link-targets.sh",
+    "/nix/store/ybpfygv4wnx4p0wdmsq7y15xyr2k3m8d-hm-modules-messages",
+    "/nix/store/zhrjg6wxrxmdlpn6iapzpp2z2vylpvw5-home-manager.sh"
+  ],
+  "durationSeconds": 43.983,
+  "budgetSeconds": 120,
+  "httpStatusCounts": {
+    "404": 1238,
+    "200": 1444
+  },
+  "payloadDownloads": 0,
+  "remoteWrites": 0,
+  "scope": "Approved root identities and provider-declared metadata coverage; clean-store byte/signature verification is separate."
+}

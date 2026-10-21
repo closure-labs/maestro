@@ -21,28 +21,28 @@ if [[ $(jq -er .status "$destination_state") == verified ]]; then
   echo 'Public cache verified; no closure import or upload required.'
   exit 0
 fi
-PUBLICATION_PURPOSE=rolling maestro-ci-distribution-restore
+metadata=$(mktemp "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/maestro-publish-nars.XXXXXX")
+trap 'rm -f -- "$metadata" "$destination_state"' EXIT
+# Even existing local roots must be compared with the authenticated retained
+# closure. Remote reference lists select observations, never upload authority.
+DISTRIBUTION_CLOSURE_METADATA="$metadata" PUBLICATION_PURPOSE=rolling maestro-ci-distribution-restore
 : "${CACHIX_MAESTRO_AUTH_TOKEN:?}" "${CACHIX_MAESTRO_PUBKEY:?}"
 [[ $CACHIX_MAESTRO_PUBKEY == 'maestro.cachix.org-1:fGFZFVwe2ZHEBENWZLHVzERZrz2c50ru+g0UewH68I0=' ]]
 mapfile -t outputs < <(jq -er '[.products[].storePath, .roots[].storePath] | unique[]' "$DECISION_PRODUCT")
 [[ ${#outputs[@]} -gt 0 ]]
-metadata=$(mktemp "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/maestro-publish-nars.XXXXXX")
-trap 'rm -f -- "$metadata" "$destination_state"' EXIT
-nix path-info --json "${outputs[@]}" >"$metadata"
-python3 - "$DECISION_PRODUCT" "$metadata" <<'PYTHON'
-import json
-from pathlib import Path
-import sys
-product, records = (json.loads(Path(p).read_text()) for p in sys.argv[1:])
-if isinstance(records, list):
-    records = {r['path']: r for r in records}
-for value in [*product['products'].values(), *product.get('roots', {}).values()]:
-    if records.get(value['storePath'], {}).get('narHash') != value['narHash']:
-        raise ValueError('Realized distribution output differs from qualified NAR identity')
-PYTHON
+# Inspect every retained path, including children of missing public roots, and
+# compare any existing public dependency hash before selecting missing uploads.
+cache_readback+=(--closure-metadata "$metadata")
+"${cache_readback[@]}" >"$destination_state"
+if [[ $(jq -er .status "$destination_state") == verified ]]; then
+  PUBLICATION_PURPOSE=rolling maestro-ci-decision-publication
+  "${cache_readback[@]}" --require-verified ${PUBLICATION_CACHE_RECEIPT:+--receipt "$PUBLICATION_CACHE_RECEIPT"}
+  exit 0
+fi
 # Recheck live authority after store verification, immediately before writing.
 PUBLICATION_PURPOSE=rolling maestro-ci-decision-publication
 maestro-ci-decision-handoff
+PUBLICATION_PURPOSE=rolling maestro-ci-decision-publication
 export CACHIX_AUTH_TOKEN="$CACHIX_MAESTRO_AUTH_TOKEN"
 jq -er '.missing[]' "$destination_state" | cachix push maestro
 # Fresh bounded HTTP readback bypasses runner narinfo caches. Stock outputs

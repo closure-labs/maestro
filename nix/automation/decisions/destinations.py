@@ -1,6 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 """Bounded, read-only destination identity reconciliation. Never grants authority."""
 import argparse
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
+from collections import deque
+from contextvars import copy_context
 import base64
 import datetime as dt
 import hashlib
@@ -13,6 +16,10 @@ from urllib.parse import urlparse, parse_qs, quote
 import operations
 
 ALPHABET='0123456789abcdfghijklmnpqrsvwxyz'
+STORE = re.compile(r'/nix/store/['+ALPHABET+r']{32}-[A-Za-z0-9+._?=-]{1,211}')
+MAX_CACHE_PATHS = 10_000
+MAX_CACHE_EDGES = 100_000
+CACHE_WORKERS = 8
 
 
 def canonical(value):
@@ -40,6 +47,7 @@ def http(url, head=False):
     with tempfile.TemporaryDirectory(prefix='destination-read-') as temp:
         body=Path(temp)/'body'
         args=['curl','--silent','--show-error','--proto','=https','--max-time','30',
+              '--connect-timeout','5','--retry','1','--retry-delay','0','--retry-max-time','25',
               '--max-filesize',str(2*1024*1024),'--user-agent','Nix/2.34',
               '--output',str(body),'--write-out','%{http_code}']
         if head:
@@ -61,7 +69,26 @@ def result(destination, expected, observed, missing=(), unavailable=False):
             'observed':observed,'missing':sorted(missing),'authorityClaim':False}
 
 
-def cache(product, url, read=http, upstreams=()):
+def closure_identities(records, expected):
+    if isinstance(records, list):
+        if any(not isinstance(record, dict) or not isinstance(record.get('path'), str) for record in records):
+            raise ValueError('Invalid local closure records')
+        if len({record['path'] for record in records}) != len(records):
+            raise ValueError('Duplicate local closure paths')
+        records = {record['path']: record for record in records}
+    if not isinstance(records, dict) or not records or len(records) > MAX_CACHE_PATHS:
+        raise ValueError('Invalid local closure inventory')
+    identities = {}
+    for path, record in records.items():
+        if not isinstance(path, str) or not STORE.fullmatch(path) or not isinstance(record, dict):
+            raise ValueError('Invalid local closure path')
+        identities[path] = nar_hash(record.get('narHash', ''))
+    if any(identities.get(path) != digest for path, digest in expected.items()):
+        raise ValueError('Local closure differs from approved roots')
+    return identities
+
+
+def cache(product, url, read=http, upstreams=(), closure=None):
     if url not in ('https://maestro.cachix.org','https://xen-orchestra-ce.cachix.org'):
         raise ValueError('Unknown public cache')
     if (len(upstreams)!=len(set(upstreams)) or any(source not in
@@ -71,7 +98,7 @@ def cache(product, url, read=http, upstreams=()):
     expected={}
     for entry in [*product['products'].values(),*product.get('roots',{}).values()]:
         path=entry['storePath']
-        if not re.fullmatch(r'/nix/store/['+ALPHABET+r']{32}-[^/\s]+',path):
+        if not isinstance(path, str) or not STORE.fullmatch(path):
             raise ValueError('Invalid approved store path')
         digest=nar_hash(entry['narHash'])
         if path in expected and expected[path] != digest:
@@ -79,35 +106,89 @@ def cache(product, url, read=http, upstreams=()):
         expected[path]=digest
     if not expected:
         raise ValueError('Empty cache inventory')
-    observed={}; missing=[]; unavailable=False
-    with operations.budget(120):
-        for path in sorted(expected):
-            try:
-                status,body=404,b''
-                for source in (url,*upstreams):
-                    status,body=read(source+'/'+Path(path).name[:32]+'.narinfo')
-                    # Only an explicit absence allows another approved cache.
-                    # Never hide conflicting or unavailable primary metadata.
-                    if status!=404:
-                        break
-            except subprocess.TimeoutExpired:
-                status,body=None,b''
-            if status==404:
-                missing.append(path)
-            elif status==200:
-                fields={}
-                for line in body.decode('utf-8').splitlines():
-                    key,sep,value=line.partition(': ')
-                    if not sep or (key in fields and key != 'Sig'):
-                        raise ValueError('Malformed public cache metadata')
-                    fields[key]=value
-                if fields.get('StorePath') != path or not re.fullmatch(r'[1-9][0-9]*',fields.get('NarSize','')):
-                    observed[path]='invalid-metadata'
-                else:
-                    observed[path]=nar_hash(fields.get('NarHash',''))
-            else:
-                unavailable=True
-    return result('cache',expected,observed,missing,unavailable)
+    identities = closure_identities(closure, expected) if closure is not None else expected
+    if len(identities) > MAX_CACHE_PATHS:
+        raise ValueError('Public cache closure exceeds metadata bounds')
+    observed = {}; missing = []; unavailable = False; conflict = False
+    seen = set(); discovered = set(identities); frontier = deque(sorted(identities)); edges = 0
+
+    def inspect(path):
+        try:
+            status, body = 404, b''
+            for source in (url, *upstreams):
+                status, body = read(source+'/'+Path(path).name[:32]+'.narinfo')
+                if status != 404:
+                    break
+        except subprocess.TimeoutExpired:
+            return path, None, None, ()
+        if status != 200:
+            return path, status, None, ()
+        fields = {}
+        for line in body.decode('utf-8').splitlines():
+            key, sep, value = line.partition(': ')
+            if not sep or (key in fields and key != 'Sig'):
+                raise ValueError('Malformed public cache metadata')
+            fields[key] = value
+        if (fields.get('StorePath') != path or not fields.get('URL')
+                or not re.fullmatch(r'[1-9][0-9]*', fields.get('NarSize', ''))):
+            return path, status, 'invalid-metadata', ()
+        digest = nar_hash(fields.get('NarHash', ''))
+        # Native Nix also treats an omitted References field as an empty set.
+        references = fields.get('References', '').split()
+        if len(references) > MAX_CACHE_PATHS or len(references) != len(set(references)):
+            raise ValueError('Invalid public cache references')
+        children = tuple('/nix/store/'+value for value in references)
+        if any(not STORE.fullmatch(child) for child in children):
+            raise ValueError('Invalid public cache reference path')
+        return path, status, digest, children
+
+    # Copy the absolute deadline to workers. Keep at most eight reads active,
+    # replenish completed slots, and queue every root before discovered children.
+    with operations.budget(120), operations.cancellation_scope() as cancelled:
+        pool = ThreadPoolExecutor(max_workers=CACHE_WORKERS)
+        pending = set()
+        try:
+            while (frontier or pending) and not unavailable:
+                try:
+                    limit = operations.remaining(120)
+                except subprocess.TimeoutExpired:
+                    unavailable = True
+                    break
+                while frontier and len(pending) < CACHE_WORKERS:
+                    pending.add(pool.submit(copy_context().run, inspect, frontier.popleft()))
+                completed, _ = wait(pending, timeout=limit, return_when=FIRST_COMPLETED)
+                if not completed:
+                    unavailable = True
+                    break
+                pending.difference_update(completed)
+                for future in completed:
+                    path, status, digest, children = future.result()
+                    seen.add(path)
+                    if status == 404:
+                        missing.append(path)
+                    elif status != 200:
+                        unavailable = True
+                    else:
+                        if path in expected:
+                            observed[path] = digest
+                        conflict |= digest == 'invalid-metadata' or (path in identities and identities[path] != digest)
+                        if closure is not None and any(child not in identities for child in children):
+                            conflict = True
+                        edges += len(children)
+                        for child in children:
+                            if child not in discovered:
+                                discovered.add(child)
+                                frontier.append(child)
+                        if len(discovered) > MAX_CACHE_PATHS or edges > MAX_CACHE_EDGES:
+                            raise ValueError('Public cache closure exceeds metadata bounds')
+        finally:
+            cancelled.set()
+            pool.shutdown(wait=True, cancel_futures=True)
+    value = result('cache', expected, observed, missing, unavailable)
+    if conflict:
+        value['status'] = 'conflict'
+    value['closure'] = {'inspectedPaths': len(seen), 'missingPaths': len(missing)}
+    return value
 
 
 def flakehub(version, revision, read=http):
@@ -156,12 +237,18 @@ def main():
     parser.add_argument('destination',choices=['cache','flakehub'])
     parser.add_argument('--product',required=True,type=Path)
     parser.add_argument('--cache-url')
+    parser.add_argument('--closure-metadata', type=Path)
     parser.add_argument('--upstream-cache-url',action='append',default=[])
     parser.add_argument('--version')
     parser.add_argument('--require-verified',action='store_true')
     parser.add_argument('--receipt',type=Path)
     args=parser.parse_args(); product=json.loads(args.product.read_text())
-    value=cache(product,args.cache_url,upstreams=args.upstream_cache_url) if args.destination=='cache' else flakehub(args.version,product['revision'])
+    closure = None
+    if args.closure_metadata:
+        if args.closure_metadata.stat().st_size > 64*1024*1024:
+            raise ValueError('Local closure metadata exceeds byte bound')
+        closure = json.loads(args.closure_metadata.read_bytes())
+    value=cache(product,args.cache_url,upstreams=args.upstream_cache_url,closure=closure) if args.destination=='cache' else flakehub(args.version,product['revision'])
     print(json.dumps(value,sort_keys=True))
     if value['status'] in ('conflict','unavailable') or (args.require_verified and value['status']!='verified'):
         raise SystemExit('Public destination '+value['status'])

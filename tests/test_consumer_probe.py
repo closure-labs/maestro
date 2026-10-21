@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """Verify the consumer exercises downloaded bytes, signature checks and exact roots."""
 import importlib.util
+import contextlib
+import io
 import json
 from pathlib import Path
 import subprocess
@@ -58,8 +60,13 @@ class ConsumerProbe(unittest.TestCase):
     def test_download_or_signature_failure_blocks(self):
         for operation in ('--realise', 'verify'):
             self.failure = operation
-            with self.assertRaises(subprocess.CalledProcessError):
-                probe.probe(PRODUCT, 'https://cache.example', 'cache-key', self.execute)
+            with contextlib.redirect_stderr(io.StringIO()) as stderr:
+                with self.assertRaises(ValueError):
+                    probe.probe(PRODUCT, 'https://cache.example', 'cache-key', self.execute)
+            record=json.loads(stderr.getvalue())
+            self.assertEqual(record['status'],'blocked')
+            self.assertEqual(record['exitCode'],1)
+            self.assertNotIn('untrusted secret details',stderr.getvalue())
 
     def test_derivations_and_non_store_paths_are_rejected_before_execution(self):
         for path in [PATH+'.drv','--repair','/tmp/fixture']:

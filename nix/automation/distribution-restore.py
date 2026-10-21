@@ -22,11 +22,13 @@ def main():
     spec = importlib.util.spec_from_file_location("distribution_cache", os.environ["MAESTRO_DISTRIBUTION_CACHE_SOURCE"])
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    if all(Path(path).exists() for path in roots):
+    closure_metadata = os.environ.get('DISTRIBUTION_CLOSURE_METADATA')
+    if not closure_metadata and all(Path(path).exists() for path in roots):
         module.verify_roots(list(roots.values()))
     else:
         packet_materialization.materialize(Path(os.environ["DECISION_EVIDENCE_DIRECTORY"]))
-        module.restore(Path(os.environ["DECISION_EVIDENCE_DIRECTORY"]), scan["transport"], list(roots.values()))
+        module.restore(Path(os.environ["DECISION_EVIDENCE_DIRECTORY"]), scan["transport"], list(roots.values()),
+                       closure_metadata=closure_metadata)
 
 
 if __name__ == "__main__":

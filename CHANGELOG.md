@@ -30,6 +30,8 @@ correspond to published GitHub tags.
 
 ### Fixed
 
+- Detect missing public-cache dependencies before publication completes, bind repair uploads to the authenticated retained closure, and report fixed consumer failure stages.
+
 - Retry bounded temporary GitHub authority read failures and report typed
   rate-limit metadata and fixed failure categories. Preserve immediate denial of
   HTTP 403 responses and keep raw headers, response text and credentials private.
