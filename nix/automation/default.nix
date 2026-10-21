@@ -22,12 +22,22 @@
       text = builtins.readFile ./command-preamble.sh + prefix + builtins.readFile source;
     };
 
+  boundedGh = pkgs.writeShellApplication {
+    name = "gh";
+    runtimeInputs = [pkgs.python3];
+    text =
+      builtins.replaceStrings
+      ["@GH@" "@PYTHON@" "@OPERATIONS@"]
+      ["${pkgs.gh}/bin/gh" "${pkgs.python3}/bin/python3" "${./decisions/operations.py}"]
+      (builtins.readFile ./bounded-gh.sh);
+  };
+
   commonInputs = with pkgs; [
     bash
     coreutils
     findutils
     git
-    gh
+    boundedGh
     gnugrep
     gnused
     jq
@@ -80,6 +90,7 @@
       name = "qualification-restore";
       prefix = ''
         MAESTRO_DECISION_CORE=${./decisions}
+        export PYTHONPATH=${./decisions}
         MAESTRO_DISTRIBUTION_CACHE_SOURCE=${./distribution-cache.py}
         MAESTRO_QUALIFICATION_RESTORE_SOURCE=${./qualification-restore.py}
         export MAESTRO_DECISION_CORE MAESTRO_DISTRIBUTION_CACHE_SOURCE MAESTRO_QUALIFICATION_RESTORE_SOURCE
@@ -101,6 +112,7 @@
       name = "distribution-restore";
       prefix = ''
         MAESTRO_DECISION_CORE=${./decisions}
+        export PYTHONPATH=${./decisions}
         MAESTRO_DISTRIBUTION_CACHE_SOURCE=${./distribution-cache.py}
         MAESTRO_DISTRIBUTION_RESTORE_SOURCE=${./distribution-restore.py}
         export MAESTRO_DECISION_CORE MAESTRO_DISTRIBUTION_CACHE_SOURCE MAESTRO_DISTRIBUTION_RESTORE_SOURCE
@@ -112,6 +124,7 @@
       name = "decision-refresh";
       prefix = ''
         MAESTRO_DECISION_CORE=${./decisions}
+        export PYTHONPATH=${./decisions}
         MAESTRO_DISTRIBUTION_CACHE_SOURCE=${./distribution-cache.py}
         export MAESTRO_DISTRIBUTION_CACHE_SOURCE
         MAESTRO_DECISION_OPERATIONS_SOURCE=${./decision-refresh.py}
@@ -133,6 +146,7 @@
     decision-handoff-fetch = mkCommand {
       name = "decision-handoff-fetch";
       prefix = ''
+        export MAESTRO_OPERATIONS_SOURCE=${./decisions/operations.py}
         MAESTRO_DECISION_CORE=${./decisions}
         MAESTRO_DECISION_OPERATIONS_SOURCE=${./decision-handoff-fetch.py}
         export MAESTRO_DECISION_CORE MAESTRO_DECISION_OPERATIONS_SOURCE
@@ -179,6 +193,7 @@
     decision-download = mkCommand {
       name = "decision-download";
       prefix = ''
+        export MAESTRO_OPERATIONS_SOURCE=${./decisions/operations.py}
         MAESTRO_DECISION_CORE=${./decisions}
         MAESTRO_DECISION_RETAINED_SOURCE=${./decision-retained.py}
         export MAESTRO_DECISION_CORE MAESTRO_DECISION_RETAINED_SOURCE
@@ -191,6 +206,7 @@
     decision-candidate = mkCommand {
       name = "decision-candidate";
       prefix = ''
+        export PYTHONPATH=${./decisions}
         MAESTRO_DISTRIBUTION_CACHE_SOURCE=${./distribution-cache.py}
         export MAESTRO_DISTRIBUTION_CACHE_SOURCE
         MAESTRO_DECISION_CANDIDATE_SOURCE=${./decision-candidate.py}
@@ -549,7 +565,10 @@
     };
     resolve-qualification = mkCommand {
       name = "resolve-qualification";
-      runtimeInputs = commonInputs ++ [commands.qualification-inputs commands.validate-state commands.trusted-run commands.verify-state commands.verify-inventory];
+      prefix = ''
+        export MAESTRO_OPERATIONS_SOURCE=${./decisions/operations.py}
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.python3 commands.qualification-inputs commands.validate-state commands.trusted-run commands.verify-state commands.verify-inventory];
       source = ./qualification-resolve.sh;
     };
     trusted-update = mkCommand {

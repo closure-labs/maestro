@@ -308,12 +308,15 @@ resolve_mode() {
       GITHUB_REPOSITORY=example/maestro \
       GITHUB_RUN_ID=99 \
       GITHUB_SHA=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
-      "$MAESTRO_CI_RESOLVE_QUALIFICATION" >/dev/null
-  )
+      "$MAESTRO_CI_RESOLVE_QUALIFICATION" >/dev/null || exit $?
+  ) || return $?
   sed -n 's/^mode=//p' "$output"
 }
 
 reset_qualification_artifacts
+# The timeout fallback starts outside the expired supervisor's environment.
+# It must select a normal build without requiring that child's deadline.
+[[ $(unset CI_OPERATION_DEADLINE; MAESTRO_RESOLVE_BOUNDED=true ALLOW_REUSE=false resolve_mode "$baseline_graph") == qualify-media ]]
 [[ $(resolve_mode "$baseline_graph") == reuse ]]
 reset_qualification_artifacts
 [[ $(resolve_mode '{"media":{"installer":"/nix/store/media-a"},"evidence":{"system":"/nix/store/system-b"}}') == refresh-evidence ]]
@@ -341,11 +344,17 @@ jq '.evidence_input = "state-mismatch"' \
   >"$qualification_work/mismatched-state.json"
 mv "$qualification_work/mismatched-state.json" \
   "$qualification_artifacts/77/maestro-evidence/maestro-qualification-state.json"
-[[ $(resolve_mode '{"media":{"installer":"/nix/store/media-b"},"evidence":{"system":"/nix/store/system-a"}}') == qualify-media ]]
+if resolve_mode '{"media":{"installer":"/nix/store/media-b"},"evidence":{"system":"/nix/store/system-a"}}'; then
+  echo 'Invalid authenticated cached evidence became a cache miss.' >&2
+  exit 1
+fi
 
 reset_qualification_artifacts
 printf 'corrupt\n' >>"$qualification_artifacts/77/maestro-evidence/maestro-system.spdx.json"
-[[ $(resolve_mode '{"media":{"installer":"/nix/store/media-b"},"evidence":{"system":"/nix/store/system-a"}}') == qualify-media ]]
+if resolve_mode '{"media":{"installer":"/nix/store/media-b"},"evidence":{"system":"/nix/store/system-a"}}'; then
+  echo 'Invalid authenticated cached evidence became a cache miss.' >&2
+  exit 1
+fi
 
 read -r version bump < <(printf '%s\n' 'fix: correction' | "$MAESTRO_CI_RELEASE_VERSION" 2.0.0 auto)
 [[ "$version $bump" == '2.0.1 patch' ]]

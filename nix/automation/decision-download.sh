@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 set -euo pipefail
+if [[ ${MAESTRO_DOWNLOAD_BOUNDED:-false} != true ]]; then
+  export MAESTRO_DOWNLOAD_BOUNDED=true
+  exec python3 "$MAESTRO_OPERATIONS_SOURCE" --timeout 900 -- bash "$0" "$@"
+fi
 export PYTHONDONTWRITEBYTECODE=1
 status=0
 python3 "$MAESTRO_DECISION_DOWNLOAD_SOURCE" || status=$?

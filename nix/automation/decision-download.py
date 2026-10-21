@@ -9,6 +9,9 @@ import re
 import subprocess
 import tempfile
 import zipfile
+import sys
+sys.path.insert(0, os.environ.get('MAESTRO_DECISION_CORE', str(Path(__file__).with_name('decisions'))))
+import operations
 
 REPOSITORY = "closure-labs/maestro"
 WORKFLOWS = {".github/workflows/ci.yml": "maestro-security-report",
@@ -18,8 +21,8 @@ WORKFLOWS = {".github/workflows/ci.yml": "maestro-security-report",
 
 
 def api(endpoint):
-    return json.loads(subprocess.check_output(["gh", "api", "--method", "GET", f"repos/{REPOSITORY}/{endpoint}"],
-                                             text=True, timeout=120))
+    return json.loads(operations.run(["gh", "api", "--method", "GET", f"repos/{REPOSITORY}/{endpoint}"],
+                                             text=True, capture_output=True, check=True, timeout=30).stdout)
 
 
 def trusted(run):
@@ -90,8 +93,8 @@ def main():
     output = Path(os.environ.get("DECISION_DIRECTORY", "candidate-evidence"))
     output.mkdir(parents=True, exist_ok=False)
     with tempfile.TemporaryFile() as archive:
-        subprocess.run(["gh", "api", f"repos/{REPOSITORY}/actions/artifacts/{artifact['id']}/zip"],
-                       stdout=archive, check=True, timeout=1800)
+        operations.run(["gh", "api", f"repos/{REPOSITORY}/actions/artifacts/{artifact['id']}/zip"],
+                       stdout=archive, check=True, timeout=900)
         archive.seek(0)
         if hashlib.file_digest(archive, "sha256").hexdigest() != digest.removeprefix("sha256:"):
             raise ValueError("Downloaded artifact archive differs from authenticated metadata")
