@@ -255,6 +255,15 @@ in {
           fi
           ${lib.getExe packages.maestro-ci-lock-validate} \
             ${inputs.self}/flake.lock ${inputs.self}/devenv.lock
+          # Release selection belongs to the existing input updater. Both
+          # consumers retain exact locks without freezing the source URL.
+          grep -Fq 'devenv.url = "github:cachix/devenv";' flake.nix
+          grep -Fxq '    url: github:cachix/devenv' devenv.yaml
+          for lock in flake.lock devenv.lock; do
+            jq -e '.nodes[.nodes.root.inputs.devenv].original |
+              .owner == "cachix" and .repo == "devenv" and
+              (has("ref") | not) and (has("rev") | not)' "$lock" >/dev/null
+          done
           touch "$out"
         '';
 
@@ -357,11 +366,18 @@ in {
         pkgs.runCommandLocal "maestro-secretspec-contract" {
           nativeBuildInputs = [
             pkgs.jq
+            pkgs.python3
             packages.secretspec
           ];
         } ''
           export HOME="$TMPDIR/home"
           mkdir -p "$HOME"
+          SECRETSPEC_BIN=${inputs.devenv.packages.${system}.devenv}/bin/secretspec \
+            PYTHONDONTWRITEBYTECODE=1 python3 ${inputs.self}/tests/test_cache_doctor.py
+          secretspec schema --file ${inputs.self}/secretspec.toml \
+            --profile development --output development-schema.json
+          jq -e '[.properties | keys[] | select(test("TOKEN|PASSWORD|PEM|DECIDER_KEY"))] == []' \
+            development-schema.json >/dev/null
           secretspec schema \
             --file ${inputs.self}/secretspec.toml \
             --profile github \

@@ -222,8 +222,11 @@ for workflow in "$TEST_ROOT"/.github/workflows/*.yml; do
       else true end)
   ' >/dev/null || fail "Nix job bypasses shared hosted configuration: $workflow"
 done
-yq -e '.secretspec.enable == true and .secretspec.provider == "env" and .secretspec.profile == "github"' \
-  "$TEST_ROOT/devenv.yaml" >/dev/null || fail "native SecretSpec configuration is missing"
+yq -e '.secretspec.enable == false and .secretspec.cachix_auth_token == false' \
+  "$TEST_ROOT/devenv.yaml" >/dev/null || fail "public Devenv startup must be credential-free"
+yq -e '.secretspec.enable == true and .secretspec.provider == "keyring" and
+  .secretspec.profile == "development" and .secretspec.cachix_auth_token == "CACHIX_MAESTRO_DEVENV_TOKEN"' \
+  "$TEST_ROOT/devenv.local.yaml.example" >/dev/null || fail "local keyring prompt configuration is missing"
 grep -Fq 'DEVENV_MAX_JOBS=%s' "$TEST_ROOT/.github/actions/setup-nix/export-runtime.sh" \
   || fail "native devenv does not share the hosted job budget"
 grep -Fq 'DEVENV_CORES=%s' "$TEST_ROOT/.github/actions/setup-nix/export-runtime.sh" \

@@ -9,6 +9,10 @@ correspond to published GitHub tags.
 
 ## [Unreleased]
 
+- Let the existing weekly input updater advance Devenv from its default branch while retaining synchronized, reproducible lockfiles.
+
+- Add an opt-in Devenv keyring token prompt and read-only cache permission diagnostic. Keep implicit project credentials out of Nix evaluation; optional default credential declarations move to the explicit `runtime` SecretSpec profile.
+
 - Verify clean-store consumers and publication readback through the existing pinned public cache set, retaining substitution-only execution, exact root hashes, and recursive consumer signature checks.
 
 - Separate scan dependency fingerprints and retain fresh observations while reducing repeated inventory and advisory database work.
