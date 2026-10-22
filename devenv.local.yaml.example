@@ -1,0 +1,8 @@
+# Copy to ignored devenv.local.yaml. Contains configuration, never token values.
+secretspec:
+  enable: true
+  provider: keyring
+  profile: development
+  # A separate named token for this repository; Devenv stores it in the
+  # devenv-cachix/default SecretSpec namespace, outside project evaluation.
+  cachix_auth_token: CACHIX_MAESTRO_DEVENV_TOKEN

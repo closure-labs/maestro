@@ -1,10 +1,10 @@
 # yaml-language-server: $schema=https://devenv.sh/devenv.schema.json
 require_version: true
 
-# Optional env-backed credentials are injected at runtime by SecretSpec;
-# Nix modules must not copy secretspec.secrets values into derivations.
+# Runtime commands resolve explicit SecretSpec profiles themselves. Ordinary
+# development and hosted checks never resolve project credentials into Nix.
 secretspec:
-  enable: true
+  enable: false
   provider: env
   profile: github
   # Public cache pulls do not require a publishing secret. The audited publish
