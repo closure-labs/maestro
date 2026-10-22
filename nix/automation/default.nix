@@ -157,7 +157,7 @@
     publication-inspect = mkCommand {
       name = "publication-inspect";
       prefix = ''
-        export PUBLICATION_DESTINATIONS_SOURCE=${./decisions/destinations.py}
+        export PUBLICATION_DESTINATIONS_SOURCE=${./decisions}/destinations.py
       '';
       runtimeInputs = commonInputs ++ [pkgs.python3 pkgs.curl];
       source = ./publication-inspect.sh;
@@ -533,7 +533,7 @@
     publish = mkCommand {
       name = "publish";
       prefix = ''
-        export PUBLICATION_DESTINATIONS_SOURCE=${./decisions/destinations.py}
+        export PUBLICATION_DESTINATIONS_SOURCE=${./decisions}/destinations.py
       '';
       runtimeInputs = commonInputs ++ [pkgs.cachix pkgs.python3 pkgs.curl commands.decision-publication commands.distribution-restore commands.decision-handoff];
       source = ./publish.sh;
