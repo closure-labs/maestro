@@ -143,6 +143,10 @@ if [[ "$allow_reuse" == true && "$force_build" != true ]]; then
       break
     fi
     rm -rf -- "$state_dir"
+    # Rebuilding evidence is preferable to exhausting optional discovery after
+    # exact authenticated media is already available. An older slow run must
+    # not make the outer timeout discard this verified media candidate.
+    [[ -z "$media_candidate_run_id" ]] || break
   done < <(
     gh run list --repo "$GITHUB_REPOSITORY" --workflow "$workflow" --branch main --status success --limit 100 --json databaseId --jq '.[].databaseId'
   )

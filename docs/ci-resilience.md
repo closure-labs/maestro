@@ -42,6 +42,32 @@ objects remain unchanged; deterministic-build remediation is separate.
 
 No percentage savings are claimed from the incident-heavy audit sample.
 
+## Selective media qualification
+
+The native router permits merge-group runs to consume verified qualifications
+from successful protected-main CI, just as same-repository PRs and main pushes
+can. Merge-group and PR runs never become trusted qualification producers.
+The router compares evaluated installer/appliance identities and boot policy
+before selecting reuse. An evidence-only change selects `refresh-evidence`,
+which verifies the already booted ISO and refreshes the affected evidence.
+Changed media or boot policy, missing or expired media artifacts, and explicit
+forced builds still require a new media build and boot. Scheduled fresh-media
+qualification retains its existing schedule. Forks and unknown event types
+cannot opt into reuse. Repository audit, current security scans, independent
+verification and live publication authority retain their existing gates.
+
+The previous workflow excluded `merge_group` from reuse eligibility, forcing
+the queue to rebuild and boot unchanged media. Event eligibility now lives in
+the packaged router; workflow YAML supplies event metadata rather than deciding
+whether qualification can be reused.
+
+Discovery stops after finding authenticated matching media and checking that
+candidate's evidence. When its evidence differs, the router refreshes evidence
+instead of searching older runs until the optional deadline discards the useful
+media result. Missing media still permits bounded discovery of older candidates;
+invalid authenticated evidence still blocks. A stalled older-run fixture proves
+that already verified matching media keeps the `refresh-evidence` route.
+
 ## Package 2: bounded operations and queues
 
 The weekly clean-store consumer uses the repository's Cachix cache and
