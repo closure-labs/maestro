@@ -377,6 +377,8 @@ Only local pure validation tasks use devenv's `execIfModified`. Hosted tasks
 always execute and delegate their implementation to flake-packaged programs;
 dependency-free tasks run in isolated single-task mode.
 
+The Devenv input follows its upstream default branch; exact revisions remain in
+the lockfiles rather than a hand-selected release tag.
 Both `flake.lock` and `devenv.lock` are committed. Refresh them together with
 the scheduled updater; `nix run .#maestro-ci-lock-validate` verifies
 that their shared nixpkgs and devenv pins match. The root Nixpkgs and Home
