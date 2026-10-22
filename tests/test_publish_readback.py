@@ -78,6 +78,7 @@ class PublishReadback(unittest.TestCase):
         (self.work/'product.json').write_text(json.dumps(self.product));(self.work/'scans.json').write_text('{}')
         self.calls=self.work/'calls.jsonl';self.fixture=self.work/'fixture.json';self.receipt=self.work/'receipt.json'
         self.env=dict(os.environ,PATH=str(self.native)+os.pathsep+os.environ['PATH'],
+                      MAESTRO_CI_PATH_PREFIX=str(self.native),
                       PUBLISH_FIXTURE=str(self.fixture),PUBLISH_CALLS=str(self.calls),
                       DECISION_PRODUCT=str(self.work/'product.json'),DECISION_SCANS=str(self.work/'scans.json'),
                       GITHUB_EVENT_NAME='workflow_dispatch',GITHUB_REF='refs/heads/main',
@@ -88,7 +89,10 @@ class PublishReadback(unittest.TestCase):
     def run_leaf(self,remote=None,**fixture):
         if remote is None:remote={path:{'narHash':digest} for path,digest in self.local.items()}
         self.fixture.write_text(json.dumps(dict(fixture,remote=remote,local=self.local)))
-        result=subprocess.run(['bash',str(ROOT/'nix/automation/publish.sh')],env=self.env,
+        self.env.pop('PYTHONPATH',None)
+        command=([os.environ['MAESTRO_TEST_PUBLISH_COMMAND']] if os.environ.get('MAESTRO_TEST_PUBLISH_COMMAND')
+                 else ['bash',str(ROOT/'nix/automation/publish.sh')])
+        result=subprocess.run(command,env=self.env,
                               text=True,capture_output=True,timeout=20)
         calls=[json.loads(line) for line in self.calls.read_text().splitlines()] if self.calls.exists() else []
         return result,calls
@@ -129,7 +133,10 @@ class PublishReadback(unittest.TestCase):
                  PUBLICATION_DESTINATIONS_SOURCE=str(ROOT/'nix/automation/decisions/destinations.py'),
                  PUBLICATION_REQUIRE_VERIFIED='true',PUBLICATION_RECEIPT=str(self.receipt),
                  GITHUB_OUTPUT=str(self.work/'output'))
-        result=subprocess.run(['bash',str(ROOT/'nix/automation/publication-inspect.sh')],env=env,
+        env.pop('PYTHONPATH',None)
+        command=([os.environ['MAESTRO_TEST_INSPECT_COMMAND']] if os.environ.get('MAESTRO_TEST_INSPECT_COMMAND')
+                 else ['bash',str(ROOT/'nix/automation/publication-inspect.sh')])
+        result=subprocess.run(command,env=env,
                               capture_output=True,text=True,timeout=20)
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertEqual(json.loads(result.stdout)['status'],'verified')

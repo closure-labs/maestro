@@ -314,7 +314,9 @@ in {
           PYTHONDONTWRITEBYTECODE=1 python3 tests/decision-observations.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/test_secret_inventory.py
           PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests/decisions -p '*.py'
-          PYTHONDONTWRITEBYTECODE=1 python3 tests/test_publish_readback.py
+          MAESTRO_TEST_PUBLISH_COMMAND=${lib.getExe packages.maestro-ci-publish} \
+            MAESTRO_TEST_INSPECT_COMMAND=${lib.getExe packages.maestro-ci-publication-inspect} \
+            PYTHONDONTWRITEBYTECODE=1 python3 tests/test_publish_readback.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/test_cache_cancellation.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/test_cache_recovery.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/test_scheduling.py
