@@ -30,6 +30,8 @@ correspond to published GitHub tags.
 
 ### Fixed
 
+- Select an admitted official product's fresh observations for native security-risk reconciliation before retrying cache recovery.
+
 - Recover an exact admitted official product's cache through the protected publisher without repeating GitHub or FlakeHub publication.
 
 - Detect missing public-cache dependencies before publication completes, bind repair uploads to the authenticated retained closure, and report fixed consumer failure stages.

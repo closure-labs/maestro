@@ -289,6 +289,42 @@ class FreshRecovery(unittest.TestCase):
         self.assertEqual(len(self.extract_calls), 1)
         self.assertEqual(json.loads(Path(value['product']).read_text()), self.proposal['payload']['product'])
 
+    def test_decision_workflow_selects_official_observations_for_risk_review(self):
+        workflow = json.loads(subprocess.check_output(
+            ['yq', '-o=json', '.', str(ROOT / '.github/workflows/decisions.yml')], text=True))
+        selector = workflow['on']['workflow_dispatch']['inputs']['proposal_hash']
+        self.assertEqual(selector['type'], 'string')
+        self.assertEqual(selector['default'], '')
+        job = workflow['jobs']['reconcile']
+        self.assertIn("github.ref == 'refs/heads/main'", job['if'])
+        checkout = next(step for step in job['steps']
+                        if step.get('uses', '').startswith('actions/checkout@'))
+        self.assertEqual(checkout['with']['ref'], 'main')
+        self.assertFalse(checkout['with']['persist-credentials'])
+        candidate = next(step for step in job['steps'] if step.get('id') == 'candidate')
+        self.assertTrue(candidate['run'].endswith(' ci:decision:download'))
+        expected = {
+            'CANDIDATE_RUN': "${{ inputs.candidate_run || '' }}",
+            'CANDIDATE_PROPOSAL_HASH': "${{ inputs.proposal_hash || '' }}",
+            'PUBLICATION_METADATA_ONLY': "${{ inputs.proposal_hash != '' && 'true' || 'false' }}",
+            'CANDIDATE_RELEASE_ONLY': "${{ inputs.proposal_hash != '' && 'true' || 'false' }}",
+            'CANDIDATE_WORKFLOW': "${{ inputs.proposal_hash != '' && '.github/workflows/security.yml' || '' }}",
+        }
+        self.assertEqual({key: candidate['env'].get(key) for key in expected}, expected)
+        # Exercise the actual downloader with the explicit workflow inputs. The
+        # fixture API rejects any weekly artifact lookup or unadmitted selection.
+        value = self.invoke(environment={
+            'CANDIDATE_RUN': '456', 'CANDIDATE_PROPOSAL_HASH': self.digest,
+            'PUBLICATION_METADATA_ONLY': 'true', 'CANDIDATE_RELEASE_ONLY': 'true',
+            'CANDIDATE_WORKFLOW': '.github/workflows/security.yml'})
+        self.assertEqual(value['candidate_run'], '456')
+        self.assertEqual(value['release'], 'true')
+        self.assertEqual(json.loads(Path(value['product']).read_text()), self.proposal['payload']['product'])
+        review = next(step for step in job['steps']
+                      if step.get('env', {}).get('DECISION_KIND') == 'security-findings')
+        self.assertTrue(review['run'].endswith(' ci:decision:reconcile'))
+        self.assertEqual(workflow['concurrency']['cancel-in-progress'], False)
+
     def test_pending_revoked_superseded_and_nonofficial_selection_block_before_actions(self):
         newer = deepcopy(self.proposal)
         newer['payload'].update(supersedes=[self.digest], rationale='Superseding exact review')

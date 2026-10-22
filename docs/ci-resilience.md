@@ -95,6 +95,18 @@ ineligible proposal, wrong producer, absent artifact or changed product blocks;
 explicit selection never falls back to another candidate or old evidence. Ordinary
 candidate-run and scheduled publication retain their existing behavior.
 
+Fresh observations can expose findings beyond the currently accepted security
+decision. To prepare their review, dispatch `decisions.yml` with the same
+`proposal_hash` and fresh Security maintenance `candidate_run`. Its protected
+resolver selects the official artifact for those exact admitted bytes, then the
+existing native reconciler creates a complete authenticated security proposal
+superseding the current decision. Without this selector, a Security producer
+continues to select its ordinary weekly inventory report. Product approval
+remains separate: the existing approval of unchanged bytes is retained, while
+new or worsened findings require an exact-head human risk decision before cache
+recovery can continue. Old approved proposals with stale parents cannot supply
+that decision.
+
 This mode uses the publication environment and serialized publisher, reserves
 the native release tag's exact product identity before cache writes, and repeats
 the full `release` authority/freshness gate for restoration, upload and journal
