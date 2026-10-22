@@ -325,6 +325,70 @@ reset_qualification_artifacts
 reset_qualification_artifacts
 [[ $(resolve_mode '{"media":{"installer":"/nix/store/media-b"},"evidence":{"system":"/nix/store/system-b"}}') == qualify-media ]]
 
+route_mode() {
+  local graph=$1 event=$2 head_repository=$3 force_build=${4:-false}
+  local output=$qualification_work/route-output
+  rm -f "$output" "$qualification_work/maestro-qualification-state.json"
+  (
+    cd "$qualification_work"
+    env -u ALLOW_REUSE \
+      MAESTRO_CI_PATH_PREFIX="$qualification_bin" \
+      MAESTRO_SYSTEM_ROOT="$merge_fixture" \
+      MAESTRO_INSTALLER_POLICY="$test_root/nix/automation/installer-policy.json" \
+      FAKE_QUALIFICATION_GRAPH="$graph" \
+      FAKE_QUALIFICATION_ARTIFACTS="$qualification_artifacts" \
+      GITHUB_OUTPUT="$output" \
+      GITHUB_REPOSITORY=example/maestro \
+      GITHUB_RUN_ID=99 \
+      GITHUB_SHA=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
+      GITHUB_EVENT_NAME="$event" EVENT_NAME="$event" \
+      GITHUB_REF=refs/heads/main \
+      PR_HEAD_REPOSITORY="$head_repository" \
+      PR_BASE_SHA="$merge_base" PR_HEAD_SHA="$relevant_head" \
+      MERGE_BASE_SHA="$merge_base" MERGE_HEAD_SHA="$relevant_head" \
+      PUSH_BASE_SHA="$merge_base" PUSH_HEAD_SHA="$relevant_head" \
+      FORCE_BUILD="$force_build" \
+      "$MAESTRO_CI_ROUTE" >/dev/null || exit $?
+  ) || return $?
+  sed -n 's/^plan=//p' "$output" | jq -er .qualification.mode
+}
+
+# Exercise the native event boundary as well as the resolver. A fork must not
+# gain artifact imports merely because a reusable protected-main packet exists.
+reset_qualification_artifacts
+[[ $(route_mode "$baseline_graph" pull_request attacker/fork) == qualify-media ]]
+for event in push merge_group workflow_dispatch; do
+  reset_qualification_artifacts
+  [[ $(route_mode "$baseline_graph" "$event" '') == reuse ]]
+done
+[[ $(route_mode "$baseline_graph" pull_request example/maestro) == reuse ]]
+[[ $(route_mode "$baseline_graph" schedule '') == qualify-media ]]
+if route_mode "$baseline_graph" unknown-event ''; then
+  echo 'CI routing accepted an unknown producer event.' >&2
+  exit 1
+fi
+[[ $(route_mode "$baseline_graph" pull_request '') == qualify-media ]]
+[[ $(route_mode "$baseline_graph" merge_group '' true) == qualify-media ]]
+[[ $(route_mode "$baseline_graph" workflow_dispatch '' true) == qualify-media ]]
+
+# The same merge event refreshes evidence without a boot when media is exact,
+# but changed media still needs qualification. These are literal input/outcome
+# fixtures, using the packaged router, resolver, trust and inventory checks.
+[[ $(route_mode '{"media":{"installer":"/nix/store/media-a"},"evidence":{"system":"/nix/store/system-b"}}' merge_group '') == refresh-evidence ]]
+[[ $(route_mode '{"media":{"installer":"/nix/store/media-b"},"evidence":{"system":"/nix/store/system-a"}}' merge_group '') == qualify-media-reuse-evidence ]]
+reset_qualification_artifacts
+rm -rf -- "$qualification_artifacts/77/maestro-installer"
+[[ $(route_mode "$baseline_graph" merge_group '') == qualify-media-reuse-evidence ]]
+reset_qualification_artifacts
+touch "$qualification_artifacts/77/maestro-installer/.expired"
+[[ $(route_mode "$baseline_graph" merge_group '') == qualify-media-reuse-evidence ]]
+reset_qualification_artifacts
+printf 'corrupt\n' >>"$qualification_artifacts/77/maestro-evidence/maestro-system.spdx.json"
+if route_mode "$baseline_graph" merge_group ''; then
+  echo 'Merge-group routing accepted corrupt qualification evidence.' >&2
+  exit 1
+fi
+
 reset_qualification_artifacts
 rm -rf -- "$qualification_artifacts/77/maestro-evidence"
 [[ $(resolve_mode '{"media":{"installer":"/nix/store/media-b"},"evidence":{"system":"/nix/store/system-a"}}') == qualify-media ]]

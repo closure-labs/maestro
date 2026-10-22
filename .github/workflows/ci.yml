@@ -71,7 +71,6 @@ jobs:
       - name: Route authoritative downstream CI work
         id: plan
         env:
-          ALLOW_REUSE: ${{ (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name == 'workflow_dispatch' && inputs.force_artifact != true)) && 'true' || 'false' }}
           EVENT_NAME: ${{ github.event_name }}
           FORCE_BUILD: ${{ (github.event_name == 'schedule' || inputs.force_artifact == true) && 'true' || 'false' }}
           FORCE_ARTIFACT: ${{ inputs.force_artifact || false }}
@@ -80,6 +79,7 @@ jobs:
           MERGE_HEAD_SHA: ${{ github.event.merge_group.head_sha }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
           PUSH_BASE_SHA: ${{ github.event.before }}
           PUSH_HEAD_SHA: ${{ github.sha }}
           VALIDATE_ONLY: ${{ inputs.validate_only || false }}

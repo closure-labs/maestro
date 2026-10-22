@@ -30,6 +30,10 @@ correspond to published GitHub tags.
 
 ### Fixed
 
+- Reuse verified unchanged installer qualification in the merge queue, refreshing
+  evidence separately while retaining fresh builds for changed media and forced
+  or scheduled qualification.
+
 - Require separate exact-product approval for rolling and official publication,
   compare canonical identities with strict schema types, and recheck live review
   before completing admission.
