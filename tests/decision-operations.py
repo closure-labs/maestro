@@ -345,5 +345,104 @@ class Operations(unittest.TestCase):
                 retained.main()
 
 
+class FreshUpstreamHandoff(unittest.TestCase):
+    def setUp(self):
+        registry = patch.object(handoff.packets, 'REFERENCE', handoff.re.compile(
+            r'ghcr\.io/closure-labs/xo-nixpkg-products@sha256:[0-9a-f]{64}'))
+        registry.start()
+        self.addCleanup(registry.stop)
+        self.source = {'schema': 1, 'mode': 'official', 'repository': 'closure-labs/xo-nixpkg',
+                       'revision': 'a'*40, 'channel': 'xo-latest',
+                       'storePath': '/nix/store/'+'b'*32+'-xo', 'narHash': 'sha256-'+'A'*43+'=',
+                       'packet': {'reference': 'ghcr.io/closure-labs/xo-nixpkg-products@sha256:'+'c'*64,
+                                  'sha256': 'd'*64}}
+        self.current = json.loads(json.dumps(self.source))
+        self.current['packet'] = {'reference': 'ghcr.io/closure-labs/xo-nixpkg-products@sha256:'+'e'*64,
+                                  'sha256': 'f'*64}
+        self.product = {'schema': 1, 'revision': 'a'*40, 'products': {'xo-latest': {'narHash': 'latest'},
+                        'xo-stable': {'narHash': 'stable'}}, 'roots': {'tool': {'narHash': 'tool'}},
+                        'assets': {'inventory.json': 'inventory'}}
+
+    def read(self, reference, digest, name):
+        if name == 'product.json':
+            return json.dumps(self.product).encode()
+        return b'{}'
+
+    def test_same_packet_materializes_only_the_existing_three_documents(self):
+        with patch.object(handoff.packets, 'metadata_bytes', side_effect=self.read) as read:
+            documents = handoff.handoff_documents(self.source, self.source, 'xo-latest')
+        self.assertEqual(set(documents), {'scans.json', 'product.json', 'handoff-xo-latest.json'})
+        self.assertEqual(read.call_count, 3)
+
+    def test_fresh_packet_requires_authenticated_full_original_product(self):
+        with patch.object(handoff.packets, 'metadata_bytes', side_effect=self.read) as read:
+            handoff.handoff_documents(self.source, self.current, 'xo-latest')
+        self.assertEqual(read.call_args_list[0].args,
+                         (self.source['packet']['reference'], self.source['packet']['sha256'], 'product.json'))
+        self.assertEqual([call.args[2] for call in read.call_args_list[1:]],
+                         ['product.json', 'scans.json', 'handoff-xo-latest.json'])
+        self.assertTrue(all(call.args[0] == self.current['packet']['reference']
+                            for call in read.call_args_list[1:]))
+
+    def test_matching_runtime_root_cannot_replace_other_products_roots_or_assets(self):
+        for section, key in [('products', 'xo-stable'), ('roots', 'tool'), ('assets', 'inventory.json')]:
+            changed = json.loads(json.dumps(self.product))
+            changed[section][key] = 'different'
+            def read(reference, digest, name):
+                if reference == self.current['packet']['reference'] and name == 'product.json':
+                    return json.dumps(changed).encode()
+                return self.read(reference, digest, name)
+            with self.subTest(section=section), patch.object(handoff.packets, 'metadata_bytes', side_effect=read):
+                with self.assertRaisesRegex(ValueError, 'immutable upstream product'):
+                    handoff.handoff_documents(self.source, self.current, 'xo-latest')
+
+    def test_changed_current_binding_cannot_select_its_packet(self):
+        for key in ('repository', 'revision', 'channel', 'storePath', 'narHash', 'mode'):
+            current = json.loads(json.dumps(self.current))
+            current[key] = 'custom' if key == 'mode' else 'different'
+            with self.subTest(key=key), patch.object(handoff.packets, 'metadata_bytes', side_effect=self.read) as read:
+                handoff.handoff_documents(self.source, current, 'xo-latest')
+            self.assertEqual(read.call_count, 3)
+            self.assertTrue(all(call.args[0] == self.source['packet']['reference'] for call in read.call_args_list))
+
+    def test_selected_fresh_packet_failure_never_falls_back(self):
+        def read(reference, digest, name):
+            if reference == self.current['packet']['reference']:
+                raise ValueError('Packet member integrity failure')
+            return self.read(reference, digest, name)
+        with patch.object(handoff.packets, 'metadata_bytes', side_effect=read) as fetch:
+            with self.assertRaisesRegex(ValueError, 'integrity'):
+                handoff.handoff_documents(self.source, self.current, 'xo-latest')
+        self.assertEqual(fetch.call_count, 2)
+
+    def test_invalid_current_packet_and_original_integrity_fail_before_fresh_reads(self):
+        for packet in (None, {}, {'reference': 'https://example.invalid', 'sha256': 'f'*64}):
+            current = dict(self.current, packet=packet)
+            with self.subTest(packet=packet), patch.object(handoff.packets, 'metadata_bytes') as read:
+                with self.assertRaisesRegex(ValueError, 'packet reference'):
+                    handoff.handoff_documents(self.source, current, 'xo-latest')
+                read.assert_not_called()
+        with patch.object(handoff.packets, 'metadata_bytes', side_effect=ValueError('integrity')) as read:
+            with self.assertRaisesRegex(ValueError, 'integrity'):
+                handoff.handoff_documents(self.source, self.current, 'xo-latest')
+            self.assertEqual(read.call_count, 1)
+
+    def test_schema_aliases_cannot_match_original_product_or_policy(self):
+        for alias in (True, 1.0):
+            changed = dict(self.product, schema=alias)
+            def read(reference, digest, name):
+                if reference == self.current['packet']['reference'] and name == 'product.json':
+                    return json.dumps(changed).encode()
+                return self.read(reference, digest, name)
+            with self.subTest(alias=alias), patch.object(handoff.packets, 'metadata_bytes', side_effect=read) as fetch:
+                with self.assertRaisesRegex(ValueError, 'immutable upstream product'):
+                    handoff.handoff_documents(self.source, self.current, 'xo-latest')
+                self.assertEqual(fetch.call_count, 2)
+            with patch.object(handoff.packets, 'metadata_bytes') as fetch:
+                with self.assertRaisesRegex(ValueError, 'policy schema'):
+                    handoff.handoff_documents(self.source, dict(self.current, schema=alias), 'xo-latest')
+                fetch.assert_not_called()
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -318,9 +318,11 @@ def metadata_bytes(reference, expected, name, producer=None):
     with operations.budget(90), tempfile.TemporaryDirectory() as temporary:
         directory = Path(temporary)
         _, members = inspect(reference)
-        # Native observations aggregate every profile and can exceed 60 MiB.
-        # Only this exact document gets the larger bounded read allowance.
-        limit = (128 if name == 'scans.json' else 16) * 1024**2
+        # Native observations, including their complete handoff envelopes, can
+        # exceed 60 MiB. Only these exact root documents get the larger bound.
+        observations = {'scans.json', 'handoff-xo-latest.json', 'handoff-xo-stable.json',
+                        'handoff-xo-rolling.json', 'handoff-libvhdi.json'}
+        limit = (128 if name in observations else 16) * 1024**2
         if name not in members or members[name]['size'] > limit:
             raise ValueError('Packet metadata member is absent or oversized')
         descriptor = packet_descriptor(fetch_member('decision-packet.json', directory, members), members, expected)

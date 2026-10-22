@@ -100,6 +100,21 @@ appliance admission. Upstream approval cannot accept downstream exposure.
 Custom packages require explicit `custom` policy and complete local inventory;
 they never claim official upstream provenance.
 
+Historical recovery keeps the candidate-source packet as the immutable upstream
+product identity. A current protected `xo-handoff.json` may select a refreshed
+packet only for the identical repository, revision, channel, store path and NAR
+hash. The reader authenticates the original product document and requires the
+refreshed product to match in full, including every other profile, root and
+asset, before downloading its observations. The refreshed handoff must still
+pass independent attestation, current risk and exact-product approval, 48-hour
+upstream observation freshness and 48-hour database freshness. A selected
+packet's failure blocks recovery; it does not fall back to old observations.
+
+Complete observation documents and the four exact root `handoff-xo-latest.json`,
+`handoff-xo-stable.json`, `handoff-xo-rolling.json` and `handoff-libvhdi.json`
+envelopes have a 128 MiB metadata bound. Other metadata retains its 16 MiB bound;
+descriptor, producer, hash and deadline checks apply to every read.
+
 Daily rescans retain the original product document and release assets byte for
 byte. When Actions artifacts expire, recovery resolves the immutable private
 decision packet. Ambiguous candidates require explicit selection; lookup and
