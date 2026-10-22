@@ -34,6 +34,9 @@ correspond to published GitHub tags.
   evidence separately while retaining fresh builds for changed media and forced
   or scheduled qualification.
 
+- Stop optional discovery once authenticated matching media is found, avoiding
+  a timeout-driven rebuild while searching older runs for reusable evidence.
+
 - Require separate exact-product approval for rolling and official publication,
   compare canonical identities with strict schema types, and recheck live review
   before completing admission.

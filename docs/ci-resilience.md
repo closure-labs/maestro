@@ -61,6 +61,13 @@ the queue to rebuild and boot unchanged media. Event eligibility now lives in
 the packaged router; workflow YAML supplies event metadata rather than deciding
 whether qualification can be reused.
 
+Discovery stops after finding authenticated matching media and checking that
+candidate's evidence. When its evidence differs, the router refreshes evidence
+instead of searching older runs until the optional deadline discards the useful
+media result. Missing media still permits bounded discovery of older candidates;
+invalid authenticated evidence still blocks. A stalled older-run fixture proves
+that already verified matching media keeps the `refresh-evidence` route.
+
 ## Package 2: bounded operations and queues
 
 The weekly clean-store consumer uses the repository's Cachix cache and

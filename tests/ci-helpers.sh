@@ -194,6 +194,7 @@ cat >"$qualification_bin/gh" <<'EOF'
 set -euo pipefail
 if [[ "$1 $2" == "run list" ]]; then
   jq -r '.id' "${FAKE_QUALIFICATION_ARTIFACTS:?}/77/metadata.json"
+  [[ ${FAKE_SLOW_OLDER_RUN:-false} != true ]] || printf '88\n'
   exit 0
 fi
 if [[ "$1 $2" == "run download" ]]; then
@@ -224,6 +225,10 @@ if [[ "$1" == api && "$2" == */artifacts ]]; then
   exit 0
 fi
 if [[ "$1" == api && "$2" == */actions/runs/* ]]; then
+  if [[ ${FAKE_SLOW_OLDER_RUN:-false} == true && ${2##*/} == 88 ]]; then
+    sleep 30
+    exit 1
+  fi
   cat "${FAKE_QUALIFICATION_ARTIFACTS:?}/${2##*/}/metadata.json"
   exit 0
 fi
@@ -320,6 +325,12 @@ reset_qualification_artifacts
 [[ $(resolve_mode "$baseline_graph") == reuse ]]
 reset_qualification_artifacts
 [[ $(resolve_mode '{"media":{"installer":"/nix/store/media-a"},"evidence":{"system":"/nix/store/system-b"}}') == refresh-evidence ]]
+reset_qualification_artifacts
+# Once matching authenticated media is available, looking through older runs
+# for evidence must not exhaust discovery and discard that useful result.
+discovery_test_deadline=$(python3 -c 'import time; print(time.monotonic() + 10)')
+[[ $(CI_OPERATION_DEADLINE="$discovery_test_deadline" FAKE_SLOW_OLDER_RUN=true \
+  resolve_mode '{"media":{"installer":"/nix/store/media-a"},"evidence":{"system":"/nix/store/system-b"}}') == refresh-evidence ]]
 reset_qualification_artifacts
 [[ $(resolve_mode '{"media":{"installer":"/nix/store/media-b"},"evidence":{"system":"/nix/store/system-a"}}') == qualify-media-reuse-evidence ]]
 reset_qualification_artifacts
