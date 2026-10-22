@@ -30,6 +30,17 @@ correspond to published GitHub tags.
 
 ### Fixed
 
+- Reuse verified unchanged installer qualification in the merge queue, refreshing
+  evidence separately while retaining fresh builds for changed media and forced
+  or scheduled qualification.
+
+- Stop optional discovery once authenticated matching media is found, avoiding
+  a timeout-driven rebuild while searching older runs for reusable evidence.
+
+- Require separate exact-product approval for rolling and official publication,
+  compare canonical identities with strict schema types, and recheck live review
+  before completing admission.
+
 - Select an admitted official product's fresh observations for native security-risk reconciliation before retrying cache recovery.
 
 - Recover an exact admitted official product's cache through the protected publisher without repeating GitHub or FlakeHub publication.

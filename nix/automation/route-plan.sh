@@ -35,7 +35,22 @@ evidence_run_id=null
 media_input=null
 evidence_input=null
 if [[ "$qualification_required" == true ]]; then
-  GITHUB_OUTPUT="$state_outputs" maestro-ci-resolve-qualification
+  # The current event may consume only independently verified protected-main
+  # qualifications. A merge-group candidate is a consumer, never a producer of
+  # reusable authority. Unknown events and fork PRs retain isolated builds.
+  allow_reuse=false
+  case "${EVENT_NAME:-${GITHUB_EVENT_NAME:-}}" in
+    push | merge_group | workflow_dispatch) allow_reuse=true ;;
+    pull_request)
+      if [[ -n ${GITHUB_REPOSITORY:-} && ${PR_HEAD_REPOSITORY:-} == "$GITHUB_REPOSITORY" ]]; then
+        allow_reuse=true
+      fi
+      ;;
+  esac
+  # Preserve an explicit caller opt-out; force builds are also enforced by the
+  # resolver, independently of eligibility for reuse.
+  [[ ${ALLOW_REUSE:-true} == true ]] || allow_reuse=false
+  ALLOW_REUSE="$allow_reuse" GITHUB_OUTPUT="$state_outputs" maestro-ci-resolve-qualification
   mode=$(sed -n 's/^mode=//p' "$state_outputs" | tail -n 1)
   artifact_run_id=$(sed -n 's/^artifact_run_id=//p' "$state_outputs" | tail -n 1)
   media_run_id=$(sed -n 's/^media_run_id=//p' "$state_outputs" | tail -n 1)

@@ -8,8 +8,8 @@ reviews and orchestration benchmarks describe the earlier implementation.
 The checked policy pins the `cl-decider` App integration ID `5384448` and
 enables publication only after the initial security baseline has been accepted.
 The official XO handoff pins the independently admitted upstream product.
-Every publication still requires current admission and exact-product release
-approval.
+Every rolling and official publication requires current admission and a separate
+approval of its exact immutable product.
 Shared App keys and client IDs are inherited from organization settings; the
 public App ID is also declared as a repository variable in both repositories.
 
@@ -37,8 +37,8 @@ public App ID is also declared as a repository variable in both repositories.
   code (`producer.revision`) over an older immutable product (`revision`).
   Moving an old report never refreshes its timestamps.
 - `product.json` binds source, primary and auxiliary output roots/NAR hashes,
-  and official asset hashes. It excludes scanner timestamps. Official release
-  approval covers those exact product bytes once.
+  and official asset hashes. It excludes scanner timestamps. Product approval
+  covers those exact bytes once, for both rolling and official publication.
 - Candidate NARs travel as bounded, hashed binary-cache archive parts through
   Actions artifacts and private digest-addressed `maestro-decisions` GHCR
   packets. Consumers verify provenance, archive members, part hashes, and final
@@ -72,6 +72,13 @@ Explicit rejection, supersession, revocation, and maintainer reaffirmation are
 supported. Historical merged provenance never substitutes for current active
 human authority. Scanner errors, incomplete coverage, stale evidence, and API
 failures cannot be accepted as vulnerability risk.
+
+Rolling candidates need their own `release-product` decision even when their
+findings are already accepted. Use the existing **Reconcile maintainer decisions**
+manual workflow with the exact completed protected CI `candidate_run` and
+`kind=release-product` to prepare that proposal. Review its exact head separately
+from source and risk changes. The publisher checks current product authority
+again before writes; the `rolling` purpose only selects distribution behavior.
 
 Baseline decisions retain profile security contexts even when their findings
 are empty. Installer access, passwords, boot modes, kernel parameters, and

@@ -282,7 +282,7 @@ in {
 
       automation-fixtures = mkSourceCheck {
         name = "automation-fixtures";
-        nativeBuildInputs = fixtureInputs ++ [(import ../../nix/ci-nix.nix {inherit pkgs;})];
+        nativeBuildInputs = fixtureInputs ++ [pkgs.python3 (import ../../nix/ci-nix.nix {inherit pkgs;})];
         command = ''
           bash ./tests/ci-helpers.sh
           bash ./tests/update-pr.sh
