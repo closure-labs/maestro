@@ -30,6 +30,10 @@ correspond to published GitHub tags.
 
 ### Fixed
 
+- Require separate exact-product approval for rolling and official publication,
+  compare canonical identities with strict schema types, and recheck live review
+  before completing admission.
+
 - Select an admitted official product's fresh observations for native security-risk reconciliation before retrying cache recovery.
 
 - Recover an exact admitted official product's cache through the protected publisher without repeating GitHub or FlakeHub publication.
