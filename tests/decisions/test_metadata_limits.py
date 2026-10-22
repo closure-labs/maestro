@@ -44,6 +44,32 @@ class NativeScanMetadata(unittest.TestCase):
                         mod.metadata_bytes(registry.reference,mod.canonical_hash(registry.packet),name)
                 self.assertEqual(command.call_count,1)
 
+    def test_each_known_handoff_accepts_real_observation_size(self):
+        # Existing immutable cc71 handoff is 59,812,906 bytes. Handoffs embed
+        # the complete native observations, rather than a small notification.
+        data = b' ' * 59812906
+        for name in ('handoff-xo-latest.json', 'handoff-xo-stable.json',
+                     'handoff-xo-rolling.json', 'handoff-libvhdi.json'):
+            with self.subTest(name=name):
+                registry = self.registry(name, data)
+                with mock.patch.object(mod, 'command', side_effect=registry.command) as command:
+                    result = mod.metadata_bytes(registry.reference, mod.canonical_hash(registry.packet), name)
+                self.assertEqual(sha(result), sha(data))
+                self.assertEqual(command.call_count, 3)
+                self.assertEqual(command.call_args.kwargs['max_file_bytes'], len(data))
+
+    def test_handoff_allowance_is_exact_and_still_bounded(self):
+        for name, size in [('handoff-xo-latest.json', 128*1024**2+1),
+                           ('handoff-unknown.json', 16*1024**2+1),
+                           ('nested/handoff-xo-latest.json', 16*1024**2+1),
+                           ('handoff-xo-latest.json.tar', 16*1024**2+1)]:
+            with self.subTest(name=name):
+                registry = self.registry(name, size=size)
+                with mock.patch.object(mod, 'command', side_effect=registry.command) as command:
+                    with self.assertRaisesRegex(ValueError, 'oversized'):
+                        mod.metadata_bytes(registry.reference, mod.canonical_hash(registry.packet), name)
+                self.assertEqual(command.call_count, 1)
+
     def test_integrity_failure_and_typed_producer_mismatch_block(self):
         registry=self.registry('scans.json',b'{"native":true}')
         def corrupted(args,**kwargs):

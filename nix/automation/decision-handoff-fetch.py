@@ -72,6 +72,46 @@ def actual_output(directory):
     return {'storePath': path, 'narHash': info['narHash']}
 
 
+def handoff_documents(source_policy, current_policy, profile):
+    """Select fresh observations without changing the source-pinned product."""
+    common.require(type(source_policy.get('schema')) is int and source_policy['schema'] == 1
+                   and source_policy.get('mode') == 'official'
+                   and type(current_policy.get('schema')) is int and current_policy['schema'] == 1,
+                   'Invalid source or current handoff policy schema')
+    def packet(policy):
+        value = policy.get('packet', {})
+        common.require(isinstance(value, dict) and set(value) == {'reference', 'sha256'}
+                       and isinstance(value['reference'], str) and packets.REFERENCE.fullmatch(value['reference'])
+                       and isinstance(value['sha256'], str) and common.HASH.fullmatch(value['sha256']),
+                       'Immutable checked XO packet reference required')
+        return value
+    original = packet(source_policy)
+    selected = original
+    binding = ('repository', 'revision', 'channel', 'storePath', 'narHash')
+    if (current_policy.get('mode') == 'official'
+            and canonical_hash({key: current_policy.get(key) for key in binding})
+            == canonical_hash({key: source_policy.get(key) for key in binding})):
+        selected = packet(current_policy)
+    if canonical_hash(selected) != canonical_hash(original):
+        # The old packet remains the authenticated full-product identity. Its
+        # old scans grant no admission: only the selected fresh packet below
+        # reaches the unchanged attestation and live upstream gate.
+        original_product = packets.decode_json(packets.metadata_bytes(
+            original['reference'], original['sha256'], 'product.json'))
+        product = packets.metadata_bytes(selected['reference'], selected['sha256'], 'product.json')
+        common.require(canonical_hash(packets.decode_json(product))
+                       == canonical_hash(original_product),
+                       'Fresh handoff changes the immutable upstream product')
+        documents = {'product.json': product}
+        names = ('scans.json', 'handoff-' + profile + '.json')
+    else:
+        documents = {}
+        names = ('scans.json', 'product.json', 'handoff-' + profile + '.json')
+    documents.update({name: packets.metadata_bytes(selected['reference'], selected['sha256'], name)
+                      for name in names})
+    return documents
+
+
 def materialize():
     root = Path(os.environ.get('MAESTRO_SYSTEM_ROOT', '.')).resolve()
     local = Path(os.environ['DECISION_EVIDENCE_DIRECTORY']).resolve()
@@ -81,14 +121,17 @@ def materialize():
     policy_path = Path(os.environ.get('MAESTRO_XO_HANDOFF_POLICY', str(root / 'nix/automation/xo-handoff.json')))
     live_policy = load_json(policy_path)
     checked = document_at(github_api, cfg['repository'], 'nix/automation/xo-handoff.json', common.main_revision(cfg))
-    common.require(live_policy == checked and live_policy.get('schema') == 1, 'Local handoff policy differs from checked main policy')
+    common.require(canonical_hash(live_policy) == canonical_hash(checked)
+                   and type(live_policy.get('schema')) is int and live_policy['schema'] == 1,
+                   'Local handoff policy differs from checked main policy')
     common.require(live_policy.get('mode') in ('official', 'custom'),
                    'Current XO handoff policy is unconfigured; publication remains frozen')
     # A historical candidate carries its own checked immutable binding. The
     # binding is provenance only: enabled current policy and current upstream
     # admission below remain mandatory at the distribution boundary.
     policy = document_at(github_api, cfg['repository'], 'nix/automation/xo-handoff.json', product['revision'])
-    common.require(policy.get('schema') == 1, 'Invalid candidate-source handoff binding')
+    common.require(type(policy.get('schema')) is int and policy['schema'] == 1,
+                   'Invalid candidate-source handoff binding')
     mode = policy.get('mode')
     common.require(mode in ('official', 'custom'), 'XO handoff binding is unconfigured; publication remains frozen')
     identity = actual_output(local)
@@ -122,16 +165,14 @@ def materialize():
         config_path = temporary / 'upstream-policy.json'
         config_path.write_text(json.dumps(upstream_policy))
         upstream = common.config(config_path, live=True, enabled=True)
-        packet = policy.get('packet', {})
-        common.require(set(packet) == {'reference', 'sha256'}, 'Immutable checked XO packet reference required')
         # XO publishes handoffs in its dedicated product packet repository;
         # security decisions remain in the distinct -decisions repository.
         packets.REGISTRY = 'ghcr.io/closure-labs/xo-nixpkg-products'
         packets.REFERENCE = re.compile(re.escape(packets.REGISTRY) + r'@sha256:[0-9a-f]{64}')
         fetched = temporary / 'packet'
         fetched.mkdir()
-        for name in ('scans.json','product.json','handoff-' + profile + '.json'):
-            (fetched/name).write_bytes(packets.metadata_bytes(packet['reference'],packet['sha256'],name))
+        for name, data in handoff_documents(policy, live_policy, profile).items():
+            (fetched/name).write_bytes(data)
         command = [sys.executable, str(Path(common.__file__).with_name('handoff.py')), '--config', str(config_path),
                    '--handoff', str(fetched / ('handoff-' + profile + '.json')), '--directory', str(fetched),
                    '--expected-revision', revision, '--expected-channel', profile,

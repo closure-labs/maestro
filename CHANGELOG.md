@@ -30,6 +30,10 @@ correspond to published GitHub tags.
 
 ### Fixed
 
+- Read bounded complete upstream handoff envelopes and permit fresh observations
+  for historical recovery only when the entire original upstream product is
+  unchanged, retaining independent admission, attestation and freshness gates.
+
 - Reuse verified unchanged installer qualification in the merge queue, refreshing
   evidence separately while retaining fresh builds for changed media and forced
   or scheduled qualification.
