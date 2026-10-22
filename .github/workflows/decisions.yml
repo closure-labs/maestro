@@ -15,6 +15,10 @@ on:
         description: Completed protected native producer; empty discovers retained evidence
         type: string
         default: ''
+      proposal_hash:
+        description: Exact admitted official product; pair candidate_run with its fresh Security maintenance observations
+        type: string
+        default: ''
       kind:
         type: choice
         options: [security-findings, release-product]
@@ -71,6 +75,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CANDIDATE_RUN: ${{ inputs.candidate_run || '' }}
+          CANDIDATE_PROPOSAL_HASH: ${{ inputs.proposal_hash || '' }}
+          PUBLICATION_METADATA_ONLY: ${{ inputs.proposal_hash != '' && 'true' || 'false' }}
+          CANDIDATE_RELEASE_ONLY: ${{ inputs.proposal_hash != '' && 'true' || 'false' }}
+          CANDIDATE_WORKFLOW: ${{ inputs.proposal_hash != '' && '.github/workflows/security.yml' || '' }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:download
       - name: Mint scoped proposal-author token
         id: proposer
