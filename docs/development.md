@@ -404,3 +404,26 @@ that protection. See [Project reference](project-reference.md) for the
 immutable installer state, caches, SBOMs, attestations, and release flow.
 
 [Back to documentation](index.md)
+
+### Native audit and qualification diagnostics
+
+The existing CI audit uploads `maestro-audit-route` (or the explicitly selected
+pilot audit job's artifact) on success and failure. `audit.json` is the native
+20-target plan manifest; `timings.json` contains its per-target durations, and
+`timings.summary.json` records the final audit phase, exit code and elapsed time.
+Early preflight or evaluation failures can have only the summary. The upload
+never reruns an audit to obtain missing evidence.
+
+`maestro-qualification-diagnostics` retains assembly stage durations, media and
+evidence plan manifests and timings, exact derivation/output identities, and
+Nix build logs. The logs record source builds and substitution outcomes; absence
+of an event is not proof of a cache hit. `reuse.json` distinguishes requested
+inventory reuse, authenticated media reuse and a required new boot. Successful
+assembly does not claim a new boot: the existing boot step establishes that.
+Inventory reuse still requires the exact evidence input (including distribution
+bytes and generator policy), signed state and verified inventory. Input changes
+regenerate evidence while unchanged media follows the verified-media route.
+
+Callback job predicates only suppress irrelevant producer branches/events.
+Current producer provenance, current main and authority remain authenticated by
+the existing leaves before any publication write.

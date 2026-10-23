@@ -174,6 +174,8 @@ correspond to published GitHub tags.
 
 ### Added
 
+- Retain the native audit manifest, per-target timings and failure phase from the existing audit execution. Record qualification stage durations, exact derivations, build logs and verified-media reuse decisions. Suppress callbacks from unrelated producer branches before controller startup.
+
 - Add audited local validation-cache publication through SecretSpec and `pass`.
   Successful declared outputs can be seeded to the dedicated Maestro Cachix
   cache for subsequent local and hosted runs.

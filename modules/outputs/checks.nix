@@ -331,11 +331,13 @@ in {
           PYTHONDONTWRITEBYTECODE=1 python3 tests/test_scheduling.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/test_operations.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/test_consumer_probe.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/test_consumer_result.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/publication-journal.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/distribution-cache.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/qualification-restore.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/installer-coverage.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/decision-operations.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/audit-diagnostics.py
         '';
         nativeBuildInputs = fixtureInputs ++ [pkgs.openssh pkgs.python3 pkgs.gitleaks pkgs.yq-go];
       };

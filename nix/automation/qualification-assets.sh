@@ -11,13 +11,28 @@ if [[ -z "$repo_root" ]]; then
 fi
 cd "$repo_root"
 runner_temp=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
+diagnostics="$runner_temp/maestro-qualification-diagnostics"
+mkdir -p "$diagnostics"
+stage_started=$(date +%s)
+stage=preflight
+stage_record() {
+  jq -cn --arg stage "$stage" --arg mode "$QUALIFICATION_MODE" --arg status "$1" \
+    --argjson elapsedSeconds "$(( $(date +%s) - stage_started ))" \
+    '{stage:$stage,mode:$mode,status:$status,elapsedSeconds:$elapsedSeconds}' \
+    >>"$diagnostics/stages.jsonl"
+}
+stage_begin() {
+  stage_record success
+  stage=$1
+  stage_started=$(date +%s)
+}
 media_manifest=
 manifest=
 sbom_work=
 cleanup() {
+  local status=$?
+  if ((status == 0)); then stage_record success; else stage_record failure; fi
   [[ -z "$sbom_work" ]] || rm -rf -- "$sbom_work"
-  [[ -z "$manifest" ]] || rm -f -- "$manifest"
-  [[ -z "$media_manifest" ]] || rm -f -- "$media_manifest"
 }
 trap cleanup EXIT
 
@@ -30,10 +45,20 @@ nix path-info --store https://install.determinate.systems "$determinate_out"
 xo_out=$(nix eval --accept-flake-config --raw .#packages.x86_64-linux.xen-orchestra-ce.outPath)
 maestro-ci-qualification-cache "$xo_out"
 
+stage_begin media
+# This describes assembly only. A new boot remains a separate required job step.
+jq -n --arg mode "$QUALIFICATION_MODE" \
+  --arg mediaInput "${EXPECTED_MEDIA_INPUT:-}" --arg evidenceInput "${EXPECTED_EVIDENCE_INPUT:-}" \
+  '{schemaVersion:1,mode:$mode,mediaInput:$mediaInput,evidenceInput:$evidenceInput,
+    mediaReuseRequested:($mode == "refresh-evidence"),mediaReuseVerified:false,
+    newBootRequired:($mode != "refresh-evidence"),inventoryReuseVerified:false,
+    inventoryReuseRequested:($mode == "qualify-media-reuse-evidence")}' >"$diagnostics/reuse.json"
 case "$QUALIFICATION_MODE" in
   qualify-media|qualify-media-reuse-evidence)
-    media_manifest=$(mktemp "${runner_temp}/maestro-media-plan.XXXXXX")
-    flake-plan-runner --flake "path:$repo_root" --plan lib.ciPlans.x86_64-linux.media --manifest "$media_manifest"
+    media_manifest="$diagnostics/media.json"
+    flake-plan-runner --flake "path:$repo_root" --plan lib.ciPlans.x86_64-linux.media \
+      --manifest "$media_manifest" --timings "$diagnostics/media.timings.json" \
+      2> >(tee "$diagnostics/media-build.log" >&2)
     ;;
   refresh-evidence)
     : "${GH_TOKEN:?GH_TOKEN is required to verify reused media}"
@@ -43,6 +68,8 @@ case "$QUALIFICATION_MODE" in
     reused_installer=reused-media/result-installer
     [[ -f "$reused_installer/iso/maestro-installer.iso" ]]
     mv "$reused_installer" result-installer
+    jq '.mediaReuseVerified = true' "$diagnostics/reuse.json" >"$diagnostics/reuse.tmp"
+    mv "$diagnostics/reuse.tmp" "$diagnostics/reuse.json"
     ;;
   *)
     printf 'Unsupported qualification mode: %s\n' "$QUALIFICATION_MODE" >&2
@@ -50,16 +77,31 @@ case "$QUALIFICATION_MODE" in
     ;;
 esac
 
-manifest=$(mktemp "${runner_temp}/maestro-plan.XXXXXX")
-flake-plan-runner --flake "path:$repo_root" --plan lib.ciPlans.x86_64-linux.evidence --manifest "$manifest"
+stage_begin evidence-realization
+manifest="$diagnostics/evidence.json"
+# Retain exact root derivations without realizing them a second time. Build logs
+# distinguish copied paths, source builds and failed substitution attempts.
+mapfile -t evidence_attributes < <(jq -r '.evidence.targets[].attribute' "$repo_root/nix/ci-plans.json")
+derivation_refs=()
+for attribute in "${evidence_attributes[@]}" packages.x86_64-linux.distribution-inventory; do
+  derivation_refs+=("path:$repo_root#$attribute")
+done
+nix derivation show --accept-flake-config "${derivation_refs[@]}" | jq 'with_entries(.value |= {outputs})' \
+  >"$diagnostics/derivations.json"
+flake-plan-runner --flake "path:$repo_root" --plan lib.ciPlans.x86_64-linux.evidence \
+  --manifest "$manifest" --timings "$diagnostics/evidence.timings.json" \
+  2> >(tee "$diagnostics/evidence-build.log" >&2)
 # Native scans open every distributed output on this same qualification runner.
-nix build --accept-flake-config --no-link "path:$repo_root#packages.x86_64-linux.distribution-inventory"
+stage_begin distribution-realization
+nix build --accept-flake-config --no-link "path:$repo_root#packages.x86_64-linux.distribution-inventory" \
+  2> >(tee "$diagnostics/distribution-build.log" >&2)
 
 sbomnix_out=$(jq -er '.results[] | select(.name == "sbomnix") | .outputs | select(length == 1) | .[0]' "$manifest")
 manifest_xo_out=$(jq -er '.results[] | select(.name == "xen-orchestra-ce") | .outputs | select(length == 1) | .[0]' "$manifest")
 [[ "$manifest_xo_out" == "$xo_out" ]]
 xo_supply_out=$(jq -er '.results[] | select(.name == "xen-orchestra-supply-protector") | .outputs | select(length == 1) | .[0]' "$manifest")
 
+stage_begin inventory
 if [[ "$QUALIFICATION_MODE" == qualify-media-reuse-evidence ]]; then
   : "${EXPECTED_EVIDENCE_INPUT:?EXPECTED_EVIDENCE_INPUT must identify reused evidence}"
   : "${EXPECTED_EVIDENCE_RUN_ID:?EXPECTED_EVIDENCE_RUN_ID must identify reused evidence}"
@@ -73,6 +115,8 @@ if [[ "$QUALIFICATION_MODE" == qualify-media-reuse-evidence ]]; then
   for evidence_file in maestro-system.spdx.json maestro-system.spdx.json.sha256 maestro-system.cdx.json maestro-system.cdx.json.sha256 xen-orchestra-supply.assertion.json xen-orchestra-supply.assertion.json.sha256 xen-orchestra-supply.spdx.json xen-orchestra-supply.spdx.json.sha256 xen-orchestra-supply.cdx.json xen-orchestra-supply.cdx.json.sha256; do
     install -m 0644 "reused-evidence/$evidence_file" "$evidence_file"
   done
+  jq '.inventoryReuseVerified = true' "$diagnostics/reuse.json" >"$diagnostics/reuse.tmp"
+  mv "$diagnostics/reuse.tmp" "$diagnostics/reuse.json"
 else
   (cd "$xo_supply_out" && sha256sum --check --strict SHA256SUMS)
   install -m 0644 "$xo_supply_out/assertion.json" xen-orchestra-supply.assertion.json
@@ -124,6 +168,7 @@ else
   sha256sum xen-orchestra-supply.cdx.json >xen-orchestra-supply.cdx.json.sha256
 fi
 
+stage_begin inventory-verification
 (cd "$xo_supply_out" && sha256sum --check --strict SHA256SUMS)
 nix-store --query --references "$xo_supply_out" | grep -Fx -- "$xo_out" >/dev/null
 cache_url=https://xen-orchestra-ce.cachix.org
