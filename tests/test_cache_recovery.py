@@ -1,12 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 """Exact admitted cache recovery selects data without widening publication."""
 from contextlib import redirect_stdout
+from collections import Counter
 from copy import deepcopy
 import hashlib
 import importlib.util
 import io
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import shutil
@@ -378,6 +380,22 @@ class FreshRecovery(unittest.TestCase):
 
 
 class RecoveryWorkflow(unittest.TestCase):
+    def test_native_workflow_guard_limits_task_output_option(self):
+        policy = (ROOT / 'modules/outputs/checks.nix').read_text()
+        pattern = re.search(r'grep -Ev "([^"\n]+)"; then', policy).group(1)
+        prefix = "nix run --accept-flake-config .#devenv -- tasks run --mode single "
+        options = "--option 'packages:pkgs!' '' "
+        for task in ('ci:decision:download', 'release:inspect', 'ci:publish', 'release:journal'):
+            self.assertRegex(prefix + '--show-output ' + options + task, pattern)
+        for command in (prefix + '--show-output ' + options + 'ci:decision:publication',
+                        prefix + '--show-output --trace-to stdout ' + options + 'ci:publish',
+                        prefix + '--show-output ' + options + 'ci:publish; echo bypass',
+                        prefix + '--show-output ' + options + 'ci:publish --extra',
+                        prefix + '--show-output ' + "--option 'packages:pkgs!' curl ci:publish",
+                        'bash nix/automation/publish.sh'):
+            with self.subTest(command=command):
+                self.assertNotRegex(command, pattern)
+
     def test_cache_only_routing_and_protected_native_execution_contract(self):
         workflow = json.loads(subprocess.check_output(
             ['yq', '-o=json', '.', str(ROOT / '.github/workflows/publication.yml')], text=True))
@@ -446,10 +464,14 @@ class RecoveryWorkflow(unittest.TestCase):
                                                ('', 'missing', True)]:
                 enabled = proposal == '' and ('&&' not in condition or status != 'verified')
                 self.assertEqual(enabled, expected)
+        shown = Counter(step['run'].rsplit(' ', 1)[-1] for step in steps
+                        if '--show-output' in step.get('run', ''))
+        self.assertEqual(shown, Counter({'ci:decision:download': 1, 'release:inspect': 3,
+                                        'ci:publish': 1, 'release:journal': 3}))
         for step in steps:
             self.assertNotIn('PUBLICATION_PURPOSE', step.get('env', {}), 'step overrides the selected purpose')
             if 'run' in step:
-                self.assertRegex(step['run'], r"^nix run --accept-flake-config \.#devenv -- tasks run --mode single --option 'packages:pkgs!' '' [a-z][a-z:-]+$")
+                self.assertRegex(step['run'], r"^nix run --accept-flake-config \.#devenv -- tasks run --mode single (?:--show-output )?--option 'packages:pkgs!' '' [a-z][a-z:-]+$")
 
 
 if __name__ == '__main__':

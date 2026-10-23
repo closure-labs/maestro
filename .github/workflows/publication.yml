@@ -58,7 +58,7 @@ jobs:
           CANDIDATE_PROPOSAL_HASH: ${{ inputs.proposal_hash || '' }}
           CANDIDATE_RELEASE_ONLY: ${{ inputs.proposal_hash != '' && 'true' || 'false' }}
           CANDIDATE_WORKFLOW: ${{ inputs.proposal_hash != '' && '.github/workflows/security.yml' || '.github/workflows/ci.yml' }}
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:download
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' ci:decision:download
       - name: Create repository-scoped authority and journal token
         id: authority
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
@@ -83,7 +83,7 @@ jobs:
           PUBLICATION_KEY: ${{ steps.candidate.outputs.release_tag }}
           PUBLICATION_STEP: cache
           PUBLICATION_STATE: pending
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:journal
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:journal
       - name: Mint independently scoped upstream authority reader
         id: upstream
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
@@ -101,7 +101,7 @@ jobs:
         id: cache
         env:
           PUBLICATION_DESTINATION: cache
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:inspect
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:inspect
       - name: Restore authenticated qualified Nix closures without builders
         if: steps.cache.outputs.status != 'verified'
         env:
@@ -122,7 +122,7 @@ jobs:
           CACHIX_MAESTRO_AUTH_TOKEN: ${{ secrets.CACHIX_MAESTRO_AUTH_TOKEN }}
           CACHIX_MAESTRO_PUBKEY: ${{ vars.CACHIX_MAESTRO_PUBKEY }}
           PUBLICATION_CACHE_RECEIPT: ${{ runner.temp }}/cache-receipt.json
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:publish
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' ci:publish
       - name: Record freshly verified cache destination
         env:
           GH_TOKEN: ${{ steps.authority.outputs.token }}
@@ -130,13 +130,13 @@ jobs:
           PUBLICATION_STEP: cache
           PUBLICATION_STATE: complete
           PUBLICATION_RECEIPT: ${{ runner.temp }}/cache-receipt.json
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:journal
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:journal
       - name: Inspect exact rolling FlakeHub destination
         if: inputs.proposal_hash == ''
         id: flakehub
         env:
           PUBLICATION_DESTINATION: flakehub
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:inspect
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:inspect
       - name: Recheck live admission before FlakeHub publication
         if: inputs.proposal_hash == ''
         env:
@@ -161,7 +161,7 @@ jobs:
           PUBLICATION_DESTINATION: flakehub
           PUBLICATION_REQUIRE_VERIFIED: 'true'
           PUBLICATION_RECEIPT: ${{ runner.temp }}/flakehub-receipt.json
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:inspect
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:inspect
       - name: Record freshly verified rolling FlakeHub destination
         if: inputs.proposal_hash == ''
         env:
@@ -169,7 +169,7 @@ jobs:
           PUBLICATION_STEP: flakehub
           PUBLICATION_STATE: complete
           PUBLICATION_RECEIPT: ${{ runner.temp }}/flakehub-receipt.json
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:journal
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:journal
       - name: Retain immutable decision byte reuse observations
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

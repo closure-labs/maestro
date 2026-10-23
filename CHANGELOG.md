@@ -41,6 +41,9 @@ correspond to published GitHub tags.
 
 ### Fixed
 
+- Retain native publication verification output and the no-transfer fast path
+  in hosted logs using Devenv’s existing task output option.
+
 - Resolve metadata-only XO handoff identities through the existing pinned
   public cache set, retaining fail-closed hash and availability checks.
 
