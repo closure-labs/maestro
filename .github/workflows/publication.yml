@@ -29,6 +29,7 @@ jobs:
     timeout-minutes: 60
     environment: publication
     env:
+      MAESTRO_CI_DIAGNOSTICS: 'true'
       PUBLICATION_PURPOSE: ${{ inputs.proposal_hash != '' && 'release' || 'rolling' }}
     permissions:
       actions: read
@@ -75,7 +76,7 @@ jobs:
       - name: Verify live admission and exact distribution roots
         env:
           GH_TOKEN: ${{ steps.authority.outputs.token }}
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:publication
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' ci:decision:publication
       - name: Reserve exact official cache recovery identity
         if: inputs.proposal_hash != ''
         env:
@@ -144,7 +145,7 @@ jobs:
           XO_AUTHORITY_TOKEN: ${{ steps.upstream.outputs.token }}
           REGISTRY_TOKEN: ${{ github.token }}
           DECISION_REQUIRE_HANDOFF: 'true'
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:publication
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' ci:decision:publication
       - name: Publish exact admitted rolling revision
         if: inputs.proposal_hash == '' && steps.flakehub.outputs.status != 'verified'
         uses: DeterminateSystems/flakehub-push@99ef15d19ce5deb24d62f5d1d6f5a81d9bf03567 # main, Node.js 24
@@ -177,4 +178,15 @@ jobs:
           name: maestro-decision-byte-reuse-${{ github.job }}
           path: ${{ runner.temp }}/decision-git-blobs/*/observations.jsonl
           if-no-files-found: ignore
+          retention-days: 30
+      - name: Bind publication diagnostics to this execution
+        if: always()
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:diagnostics
+      - name: Retain complete publication diagnostics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-publication-diagnostics-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/publication-diagnostics/
+          if-no-files-found: error
           retention-days: 30

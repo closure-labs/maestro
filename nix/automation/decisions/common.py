@@ -9,6 +9,7 @@ import sys
 import tempfile
 
 import operations
+import diagnostics
 import decision_authority as authority
 import decision_packets as packets
 from security_decisions import (canonical_hash, load_json, evaluate, validate_normalized,
@@ -24,6 +25,9 @@ def require(value, message):
 
 
 def command(args, timeout=None, **kwargs):
+    if args[:2] == ['gh', 'api']:
+        diagnostics.count('apiWrapperInvocations')
+        diagnostics.count('apiTransportInvocations')
     return operations.run(args, check=True, capture_output=True, text=True,
                           timeout=timeout if timeout is not None else (30 if args[:2] == ['gh', 'api'] else 180),
                           **kwargs).stdout
@@ -33,14 +37,18 @@ def emit(result, output=None):
     value = json.dumps(result, sort_keys=True, indent=2, allow_nan=False) + '\n'
     if output:
         Path(output).write_text(value)
-    print(value, end='')
+    print(diagnostics.record(result) or value, end='')
 
 
 def run(main):
     try:
         return main() or 0
     except (ValueError, KeyError, TypeError, OSError, subprocess.SubprocessError) as error:
-        print(json.dumps({'schema': 1, 'status': 'blocked', 'error': str(error)}), file=sys.stderr)
+        result = {'schema': 1, 'status': 'blocked', 'error': str(error)}
+        # Subprocess errors can contain argv. Keep credential-bearing exception
+        # text out of the optional CI artifact and its public summary.
+        summary = diagnostics.record({'schema': 1, 'status': 'blocked', 'errorType': type(error).__name__})
+        print(summary or json.dumps(result), end='' if summary else '\n', file=sys.stderr)
         return 2
 
 
@@ -443,6 +451,16 @@ def required_check(cfg, api=None):
 
 
 def gate(cfg, scan_path, product_path=None, purpose='rolling', api=None):
+    diagnostics.count('gateInvocations')
+    try:
+        result = _gate(cfg, scan_path, product_path, purpose, api)
+    except Exception as error:
+        diagnostics.record({'schema': 1, 'status': 'blocked', 'errorType': type(error).__name__}, 'gate', logged=False)
+        raise
+    return result
+
+
+def _gate(cfg, scan_path, product_path=None, purpose='rolling', api=None):
     api = api or authority.github_api
     require(cfg['enabled'], 'Publication disabled')
     required_check(cfg, api)
@@ -471,4 +489,9 @@ def gate(cfg, scan_path, product_path=None, purpose='rolling', api=None):
     policy = authority.document_at(api, cfg['repository'], cfg['policyPath'], main_revision(cfg, api))
     require(policy == cfg and policy['enabled'], 'Publication policy changed during admission')
     required_check(cfg, api)
+    if diagnostics.enabled():
+        diagnostics.record({**result, 'producer': scan['producer'],
+                            'rootCount': len(identity['products']) + len(identity.get('roots', {})) if product_path else 0,
+                            'findingCount': sum(len(profile['findings']) for profile in result['profiles'].values())},
+                           'gate', logged=False)
     return result

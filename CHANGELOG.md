@@ -9,6 +9,8 @@ correspond to published GitHub tags.
 
 ## [Unreleased]
 
+- Add optional bounded CI publication summaries and retain execution-bound full diagnostics on success and failure; preserve failed destination observations and original exit status.
+
 - Inspect admitted rolling publication metadata before closure transfers, binding the existing candidate run to its exact current accepted product and producer.
 
 - Retain hosted immutable decision byte reuse observations without caching live authority or uploading proposal contents.

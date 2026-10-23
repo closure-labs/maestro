@@ -385,9 +385,9 @@ class RecoveryWorkflow(unittest.TestCase):
         pattern = re.search(r'grep -Ev "([^"\n]+)"; then', policy).group(1)
         prefix = "nix run --accept-flake-config .#devenv -- tasks run --mode single "
         options = "--option 'packages:pkgs!' '' "
-        for task in ('ci:decision:download', 'release:inspect', 'ci:publish', 'release:journal'):
+        for task in ('ci:decision:download', 'ci:decision:publication', 'release:inspect', 'ci:publish', 'release:journal', 'release:assets'):
             self.assertRegex(prefix + '--show-output ' + options + task, pattern)
-        for command in (prefix + '--show-output ' + options + 'ci:decision:publication',
+        for command in (prefix + '--show-output ' + options + 'ci:decision:handoff',
                         prefix + '--show-output --trace-to stdout ' + options + 'ci:publish',
                         prefix + '--show-output ' + options + 'ci:publish; echo bypass',
                         prefix + '--show-output ' + options + 'ci:publish --extra',
@@ -443,7 +443,7 @@ class RecoveryWorkflow(unittest.TestCase):
                          "${{ inputs.proposal_hash != '' && steps.candidate.outputs.release_tag || '' }}")
         self.assertEqual(steps[journal_index]['env']['PUBLICATION_STATE'], 'complete')
         following = steps[journal_index + 1:]
-        observations = following[-1]
+        observations = next(step for step in following if step.get('name') == 'Retain immutable decision byte reuse observations')
         self.assertEqual(observations['name'], 'Retain immutable decision byte reuse observations')
         self.assertEqual(observations['if'], 'always()')
         self.assertEqual(observations['uses'],
@@ -452,7 +452,7 @@ class RecoveryWorkflow(unittest.TestCase):
             'name': 'maestro-decision-byte-reuse-${{ github.job }}',
             'path': '${{ runner.temp }}/decision-git-blobs/*/observations.jsonl',
             'if-no-files-found': 'ignore', 'retention-days': 30})
-        flakehub = following[:-1]
+        flakehub = [step for step in following if 'inputs.proposal_hash' in step.get('if', '')]
         self.assertEqual(len(flakehub), 5)
         for step in flakehub:
             condition = step['if']
@@ -467,7 +467,7 @@ class RecoveryWorkflow(unittest.TestCase):
         shown = Counter(step['run'].rsplit(' ', 1)[-1] for step in steps
                         if '--show-output' in step.get('run', ''))
         self.assertEqual(shown, Counter({'ci:decision:download': 1, 'release:inspect': 3,
-                                        'ci:publish': 1, 'release:journal': 3}))
+                                        'ci:publish': 1, 'release:journal': 3, 'ci:decision:publication': 2}))
         for step in steps:
             self.assertNotIn('PUBLICATION_PURPOSE', step.get('env', {}), 'step overrides the selected purpose')
             if 'run' in step:

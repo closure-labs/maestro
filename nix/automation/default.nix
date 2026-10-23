@@ -172,6 +172,14 @@
       runtimeInputs = commonInputs ++ [pkgs.python3 pkgs.curl];
       source = ./publication-inspect.sh;
     };
+    publication-diagnostics = mkCommand {
+      name = "publication-diagnostics";
+      prefix = ''
+        export MAESTRO_DECISIONS_SOURCE=${./decisions}
+      '';
+      runtimeInputs = [pkgs.python3];
+      source = ./publication-diagnostics.sh;
+    };
     publication-journal = mkCommand {
       name = "publication-journal";
       prefix = ''
