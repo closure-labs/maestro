@@ -134,6 +134,55 @@ def verify_native_files(directory, native):
                    and path.stat().st_size == evidence['inventory']['size'], 'Retained native inventory differs from scan')
 
 
+def rolling_publication_candidate(cfg, records, run_id, workflow=''):
+    """Select admitted metadata for an exact current producer; never authorize."""
+    common.require(isinstance(run_id, str) and re.fullmatch(r'[1-9][0-9]{0,19}', run_id),
+                   'Rolling publication requires one canonical candidate run')
+    common.require(isinstance(workflow, str) and (not workflow or workflow in cfg['producerWorkflows']),
+                   'Unknown candidate workflow')
+    run = authority.github_api(f'repos/{cfg["repository"]}/actions/runs/{run_id}')
+    common.require(isinstance(run, dict) and isinstance(run.get('path'), str)
+                   and isinstance(run.get('repository'), dict), 'Malformed rolling producer metadata')
+    path = run.get('path', '').split('@')[0]
+    common.require(type(run.get('id')) is int and run['id'] == int(run_id)
+                   and type(run.get('run_attempt')) is int and run['run_attempt'] > 0
+                   and isinstance(run.get('head_sha'), str) and common.SHA.fullmatch(run['head_sha'])
+                   and run.get('repository', {}).get('full_name') == cfg['repository']
+                   and run.get('head_branch') == 'main'
+                   and run.get('event') in ('push', 'schedule', 'workflow_dispatch', 'workflow_run')
+                   and run.get('status') == 'completed' and run.get('conclusion') == 'success'
+                   and path in cfg['producerWorkflows'] and (not workflow or path == workflow),
+                   'Requested rolling producer is not a completed protected native run')
+    candidates, products = {}, {}
+    for proposal in records.values():
+        if proposal['kind'] != 'release-product':
+            continue
+        product = proposal['payload'].get('product')
+        common.require(isinstance(product, dict), 'Invalid admitted product')
+        if product.get('assets') != {}:
+            continue
+        products[canonical_hash(product)] = product
+    for product in products.values():
+        digest, proposal = common.active_release(cfg, records, product, authenticate=False)
+        if proposal is None or proposal['payload']['disposition'] != 'accepted':
+            continue
+        producer = proposal['payload']['packet'].get('producer', {})
+        common.require(isinstance(producer, dict), 'Invalid admitted packet producer')
+        if producer.get('runId') != run['id']:
+            continue
+        common.require(type(producer.get('runId')) is int
+                       and type(producer.get('runAttempt')) is int
+                       and producer['runAttempt'] == run['run_attempt']
+                       and producer.get('repository') == cfg['repository']
+                       and producer.get('workflow') == path
+                       and producer.get('revision') == run['head_sha']
+                       and producer.get('sourceRevision') == product.get('revision'),
+                       'Admitted rolling packet differs from requested current producer')
+        candidates[digest] = proposal
+    common.require(len(candidates) == 1, 'Rolling publication requires one exact active admitted product')
+    return next(iter(candidates.items()))
+
+
 def current_published_products(cfg, records, published, requested=None):
     """Suppress exact active products; refresh only the newest intended official release by default."""
     if requested:
@@ -183,6 +232,14 @@ def main():
     cfg = common.config(args.config, live=True)
     _, records = common.ledger(cfg)
     release_only = args.release_only or os.environ.get('DECISION_RELEASE_ONLY') == 'true'
+    rolling_run = (os.environ.get('CANDIDATE_RUN', '')
+                   if os.environ.get('PUBLICATION_METADATA_ONLY') == 'true'
+                   and os.environ.get('PUBLICATION_PURPOSE') == 'rolling' else '')
+    if rolling_run:
+        common.require(not release_only and not args.proposal_hash and not args.admitted_release
+                       and os.environ.get('CANDIDATE_RELEASE_ONLY') != 'true'
+                       and not os.environ.get('CANDIDATE_PROPOSAL_HASH'),
+                       'Conflicting rolling publication selectors')
     if args.admitted_release:
         common.require(release_only and isinstance(args.proposal_hash, str)
                        and common.HASH.fullmatch(args.proposal_hash)
@@ -193,8 +250,12 @@ def main():
     published = {r['tag_name'] for r in releases if r.get('draft') is False and isinstance(r.get('tag_name'), str)}
     suppressed = current_published_products(cfg, records, published, args.proposal_hash) if release_only else set()
     try:
-        open_proposals = {} if args.admitted_release else pending(cfg)
-        digest, proposal = select(cfg, records, open_proposals, release_only, args.proposal_hash, suppressed_products=suppressed)
+        if rolling_run:
+            digest, proposal = rolling_publication_candidate(
+                cfg, records, rolling_run, os.environ.get('CANDIDATE_WORKFLOW', ''))
+        else:
+            open_proposals = {} if args.admitted_release else pending(cfg)
+            digest, proposal = select(cfg, records, open_proposals, release_only, args.proposal_hash, suppressed_products=suppressed)
     except NoCandidate:
         if not args.optional:
             raise

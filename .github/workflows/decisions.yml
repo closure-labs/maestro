@@ -56,6 +56,15 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.health.outputs.token }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:health
+      - name: Retain immutable decision byte reuse observations
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-decision-byte-reuse-${{ github.job }}
+          path: ${{ runner.temp }}/decision-git-blobs/*/observations.jsonl
+          if-no-files-found: ignore
+          retention-days: 30
+
   reconcile:
     permissions:
       contents: read
@@ -106,3 +115,11 @@ jobs:
           REGISTRY_TOKEN: ${{ github.token }}
           DECISION_KIND: release-product
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:reconcile
+      - name: Retain immutable decision byte reuse observations
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-decision-byte-reuse-${{ github.job }}
+          path: ${{ runner.temp }}/decision-git-blobs/*/observations.jsonl
+          if-no-files-found: ignore
+          retention-days: 30

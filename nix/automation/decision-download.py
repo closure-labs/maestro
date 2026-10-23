@@ -73,6 +73,16 @@ def main():
         admitted = common.admitted_release(cfg, records, proposal_hash)
     if os.environ.get('PUBLICATION_METADATA_ONLY') == 'true' and not os.environ.get('CANDIDATE_RUN'):
         raise SystemExit(3)
+    if (os.environ.get('PUBLICATION_METADATA_ONLY') == 'true'
+            and os.environ.get('PUBLICATION_PURPOSE') == 'rolling'):
+        # An admitted rolling producer already has a digest-bound metadata
+        # packet. The retained reader binds this exact run to current records;
+        # it must reject an unadmitted run before fetching any packet member.
+        if (proposal_hash or not re.fullmatch(r'[1-9][0-9]{0,19}', identity)
+                or os.environ.get('CANDIDATE_RELEASE_ONLY') == 'true'
+                or os.environ.get('DECISION_RELEASE_ONLY') == 'true'):
+            raise ValueError('Rolling publication requires one canonical candidate run')
+        raise SystemExit(3)
     if identity:
         if not re.fullmatch(r"[1-9][0-9]{0,19}", identity):
             raise ValueError("Invalid candidate run ID")
