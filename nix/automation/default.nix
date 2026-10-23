@@ -9,6 +9,7 @@
   applicabilityCommand,
   distributionRoots,
   installerQualification,
+  devenv,
 }: let
   mkCommand = {
     name,
@@ -66,6 +67,15 @@
   };
 
   commands = {
+    cache-doctor = mkCommand {
+      name = "cache-doctor";
+      prefix = ''
+        export PYTHONPATH=${./decisions}
+        export MAESTRO_CACHE_DOCTOR_SOURCE=${./cache-doctor.py}
+      '';
+      runtimeInputs = [pkgs.python3 devenv];
+      source = ./cache-doctor.sh;
+    };
     codeql-rust-toolchain = let
       toolchain = pkgs.runCommand "maestro-codeql-rust-toolchain" {} ''
         mkdir -p "$out/bin" "$out/lib/rustlib/src/rust"

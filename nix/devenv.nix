@@ -27,6 +27,7 @@ in {
   ];
 
   tasks = {
+    "cache:doctor".exec = runFlakePackage "maestro-ci-cache-doctor" "";
     "ci:codeql:rust-toolchain".exec = runFlakePackage "maestro-ci-codeql-rust-toolchain" "";
     "ci:qualification:restore".exec = runFlakePackage "maestro-ci-qualification-restore" "";
     "ci:security:verify-native".exec = runFlakePackage "maestro-ci-security-native-check" "";

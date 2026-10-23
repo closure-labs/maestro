@@ -9,8 +9,9 @@ correspond to published GitHub tags.
 
 ## [Unreleased]
 
-- Reduce repeated decision API reads with job-local, hash-verified Git blob reuse,
-  while keeping current-main metadata and human authorization checks live.
+- Let the existing weekly input updater advance Devenv from its default branch while retaining synchronized, reproducible lockfiles.
+
+- Add an opt-in Devenv keyring token prompt and read-only cache permission diagnostic. Keep implicit project credentials out of Nix evaluation; optional default credential declarations move to the explicit `runtime` SecretSpec profile.
 
 - Verify clean-store consumers and publication readback through the existing pinned public cache set, retaining substitution-only execution, exact root hashes, and recursive consumer signature checks.
 
@@ -30,6 +31,9 @@ correspond to published GitHub tags.
 
 - Update the pinned native devenv CLI and modules to 2.4.0, retaining synchronized
   flake and devenv locks without refreshing the appliance package inputs.
+
+- Reduce repeated decision API reads with job-local, hash-verified Git blob reuse,
+  while keeping current-main metadata and human authorization checks live.
 
 ### Fixed
 
