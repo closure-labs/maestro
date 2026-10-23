@@ -37,6 +37,8 @@ correspond to published GitHub tags.
 
 ### Fixed
 
+- Reject obsolete proposal parents before downloading review evidence, and refresh parent selection when protected main advances during verification.
+
 - Read bounded complete upstream handoff envelopes and permit fresh observations
   for historical recovery only when the entire original upstream product is
   unchanged, retaining independent admission, attestation and freshness gates.
