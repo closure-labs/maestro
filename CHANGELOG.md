@@ -37,6 +37,8 @@ correspond to published GitHub tags.
 
 ### Fixed
 
+- Identify cache diagnostics with an explicit HTTP client user-agent and distinguish Cloudflare request blocks from rejected tokens.
+
 - Reject obsolete proposal parents before downloading review evidence, and refresh parent selection when protected main advances during verification.
 
 - Read bounded complete upstream handoff envelopes and permit fresh observations
@@ -176,6 +178,8 @@ correspond to published GitHub tags.
   operations read-only and resolve credentials at execution time.
 
 ### Added
+
+- Retain the native audit manifest, per-target timings and failure phase from the existing audit execution. Record qualification stage durations, exact derivations, build logs and verified-media reuse decisions. Suppress callbacks from unrelated producer branches before controller startup.
 
 - Add audited local validation-cache publication through SecretSpec and `pass`.
   Successful declared outputs can be seeded to the dedicated Maestro Cachix

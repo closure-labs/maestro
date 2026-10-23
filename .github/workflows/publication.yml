@@ -24,7 +24,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   publish:
-    if: github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success')
+    if: github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.repository.full_name == github.repository && contains(fromJSON('["push","schedule","workflow_dispatch","workflow_run"]'), github.event.workflow_run.event)))
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     environment: publication

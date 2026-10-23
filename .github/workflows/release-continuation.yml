@@ -22,7 +22,7 @@ permissions:
 jobs:
   resolve:
     name: Resolve protected immutable release request
-    if: vars.MAESTRO_RELEASE_CONTINUATION_ENABLED == 'true' && github.ref == 'refs/heads/main'
+    if: vars.MAESTRO_RELEASE_CONTINUATION_ENABLED == 'true' && github.ref == 'refs/heads/main' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.repository.full_name == github.repository && contains(fromJSON('["push","schedule","workflow_dispatch","workflow_run"]'), github.event.workflow_run.event)))
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
