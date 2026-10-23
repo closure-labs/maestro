@@ -183,6 +183,12 @@ The cache layers have separate responsibilities:
   qualification state. The combined artifact remains uncompressed by GitHub
   because its ISO is already compressed.
 
+Metadata-only XO handoff checks read an absent local output's identity from
+Maestro, XO and NixOS public cache metadata. Only a 404 advances to the next
+cache; unavailable or malformed metadata blocks. The first observed hash must
+still match the exact checked handoff policy. This uses the consumer's existing
+pinned cache set and does not restore a closure or grant publication authority.
+
 Qualification has five deliberately distinct outcomes:
 
 - `skip` means the change cannot affect the appliance.
