@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Exact admitted cache recovery selects data without widening publication."""
 from contextlib import redirect_stdout
+from collections import Counter
 from copy import deepcopy
 import hashlib
 import importlib.util
@@ -446,10 +447,14 @@ class RecoveryWorkflow(unittest.TestCase):
                                                ('', 'missing', True)]:
                 enabled = proposal == '' and ('&&' not in condition or status != 'verified')
                 self.assertEqual(enabled, expected)
+        shown = Counter(step['run'].rsplit(' ', 1)[-1] for step in steps
+                        if '--show-output' in step.get('run', ''))
+        self.assertEqual(shown, Counter({'ci:decision:download': 1, 'release:inspect': 3,
+                                        'ci:publish': 1, 'release:journal': 3}))
         for step in steps:
             self.assertNotIn('PUBLICATION_PURPOSE', step.get('env', {}), 'step overrides the selected purpose')
             if 'run' in step:
-                self.assertRegex(step['run'], r"^nix run --accept-flake-config \.#devenv -- tasks run --mode single --option 'packages:pkgs!' '' [a-z][a-z:-]+$")
+                self.assertRegex(step['run'], r"^nix run --accept-flake-config \.#devenv -- tasks run --mode single (?:--show-output )?--option 'packages:pkgs!' '' [a-z][a-z:-]+$")
 
 
 if __name__ == '__main__':

@@ -3,6 +3,12 @@
 
 ## Current CI and publication contracts
 
+Publication metadata download, destination inspection, cache publication and
+journaling use Devenv’s native `--show-output` task option. Their public
+verification results and the cache’s no-transfer fast-path message remain in
+hosted logs even when tasks succeed; authorization and receipts still come from
+the existing native commands.
+
 The current authority, candidate transport, release approval, recovery, and
 coordinated activation procedure is documented in [CI and security](ci-security.md).
 Publication commands require authenticated `DECISION_SCANS` and
