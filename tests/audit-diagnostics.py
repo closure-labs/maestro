@@ -4,6 +4,7 @@
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -32,7 +33,7 @@ exit "${FAIL_TARGETS:-0}"
 ''',
             }.items():
                 path = binary / name
-                path.write_text('#!/usr/bin/env bash\nset -euo pipefail\n' + body + '\n')
+                path.write_text('#!' + shutil.which('bash') + '\nset -euo pipefail\n' + body + '\n')
                 path.chmod(0o755)
             evidence = root / 'evidence'
             calls = root / 'calls'

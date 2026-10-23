@@ -86,7 +86,10 @@ derivation_refs=()
 for attribute in "${evidence_attributes[@]}" packages.x86_64-linux.distribution-inventory; do
   derivation_refs+=("path:$repo_root#$attribute")
 done
-nix derivation show --accept-flake-config "${derivation_refs[@]}" | jq 'with_entries(.value |= {outputs})' \
+nix derivation show --accept-flake-config "${derivation_refs[@]}" | jq '
+  (if has("derivations") then
+    if .version == 4 then .derivations else error("Unsupported derivation envelope") end
+  else . end) | with_entries(.value |= {outputs})' \
   >"$diagnostics/derivations.json"
 flake-plan-runner --flake "path:$repo_root" --plan lib.ciPlans.x86_64-linux.evidence \
   --manifest "$manifest" --timings "$diagnostics/evidence.timings.json" \

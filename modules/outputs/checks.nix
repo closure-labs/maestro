@@ -338,6 +338,7 @@ in {
           PYTHONDONTWRITEBYTECODE=1 python3 tests/installer-coverage.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/decision-operations.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/audit-diagnostics.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/qualification-diagnostics.py
         '';
         nativeBuildInputs = fixtureInputs ++ [pkgs.openssh pkgs.python3 pkgs.gitleaks pkgs.yq-go];
       };
