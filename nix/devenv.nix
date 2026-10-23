@@ -52,6 +52,7 @@ in {
     "ci:decision:event".exec = runFlakePackage "maestro-ci-decision-event" "";
     "ci:source-security".exec = runFlakePackage "maestro-ci-source-security" "";
     "ci:route".exec = runFlakePackage "maestro-ci-route" "";
+    "ci:retained-evidence".exec = runFlakePackage "maestro-ci-decision-only" "";
     "ci:classify".exec = runFlakePackage "maestro-ci-classify" "";
 
     "ci:repository-audit:format" = {

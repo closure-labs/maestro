@@ -14,11 +14,12 @@ case "${AUDIT_OVERLAP:-false}" in
 esac
 : "${CI_PLAN:?CI_PLAN must contain the route decision JSON output}"
 
-# Enforce the schema-v3 conditional graph through the declared ci:verdict task.
+# Legacy v3 plans always use full validation. A v4 descriptor is scheduling data.
 jq -e '
   type == "object" and
-  (keys | sort) == ["publish_required", "qualification", "schema_version"] and
-  .schema_version == 3 and
+  ((.schema_version == 3 and (keys | sort) == ["publish_required", "qualification", "schema_version"]) or
+   (.schema_version == 4 and (keys | sort) == ["publish_required", "qualification", "retained_evidence", "schema_version"] and
+    (.retained_evidence == null or (.retained_evidence | type == "object" and .schema == 1)))) and
   (.publish_required | type == "boolean") and
   (.qualification | type == "object") and
   (.qualification | keys | sort) == [
@@ -53,6 +54,17 @@ jq -e '
 ' <<<"$CI_PLAN" >/dev/null
 
 mode=$(jq -er '.qualification.mode' <<<"$CI_PLAN")
+if [[ ${RETAINED_REUSE:-false} == true ]]; then
+  [[ ${MAESTRO_DECISION_ONLY_REUSE_ENABLED:-false} == true && ${RETAINED_RESULT:?} == success ]]
+  jq -e '.schema_version == 4 and .retained_evidence != null and .qualification.required' <<<"$CI_PLAN" >/dev/null
+  descriptor_hash=$(jq -cSj .retained_evidence <<<"$CI_PLAN" | sha256sum | cut -d' ' -f1)
+  [[ ${RETAINED_DESCRIPTOR_HASH:?} == "$descriptor_hash" ]]
+  [[ ${QUALIFICATION_RESULT:?} == skipped && ${SECURITY_RESULT:?} == skipped && ${SIGNING_RESULT:-skipped} == skipped ]]
+  exit 0
+fi
+if [[ ${MAESTRO_DECISION_ONLY_REUSE_ENABLED:-false} == true && ${RETAINED_RESULT:-skipped} != skipped ]]; then
+  [[ $RETAINED_RESULT == success ]]
+fi
 case "$mode" in
   reuse|refresh-evidence|qualify-media-reuse-evidence|qualify-media)
     test "${QUALIFICATION_RESULT:?}" = success

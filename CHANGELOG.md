@@ -9,6 +9,8 @@ correspond to published GitHub tags.
 
 ## [Unreleased]
 
+- Add disabled decision-only evidence reuse with shadow eligibility, route-plan v4 descriptors, read-only original-evidence verification and conservative v3 support. Reuse requires exact evaluated identities, fresh observations and current merged authority; publication hints retain separate security/product decision IDs and cannot override manual selectors.
+
 - Add optional bounded CI publication summaries and retain execution-bound full diagnostics on success and failure; preserve failed destination observations and original exit status.
 
 - Inspect admitted rolling publication metadata before closure transfers, binding the existing candidate run to its exact current accepted product and producer.

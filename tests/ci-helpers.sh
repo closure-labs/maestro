@@ -158,7 +158,8 @@ env \
   "$MAESTRO_CI_ROUTE"
 routed_plan=$(sed -n 's/^plan=//p' "$route_output")
 jq -e '
-  .schema_version == 3 and
+  .schema_version == 4 and
+  .retained_evidence == null and
   (.qualification.required | not) and
   .qualification.mode == "skip" and
   (.publish_required | not)
@@ -171,7 +172,8 @@ local_plan=$(
     "$MAESTRO_CI_ROUTE"
 )
 jq -e '
-  .schema_version == 3 and
+  .schema_version == 4 and
+  .retained_evidence == null and
   (.qualification.required | not) and
   .qualification.mode == "skip" and
   (.publish_required | not)
@@ -336,6 +338,9 @@ reset_qualification_artifacts
 reset_qualification_artifacts
 [[ $(resolve_mode '{"media":{"installer":"/nix/store/media-b"},"evidence":{"system":"/nix/store/system-b"}}') == qualify-media ]]
 
+# Route inspection binds its source to the actual checkout. These ordinary
+# source changes are deliberately ineligible for decision-only evidence reuse.
+git -C "$merge_fixture" switch -q --detach "$relevant_head"
 route_mode() {
   local graph=$1 event=$2 head_repository=$3 force_build=${4:-false}
   local output=$qualification_work/route-output
@@ -351,7 +356,7 @@ route_mode() {
       GITHUB_OUTPUT="$output" \
       GITHUB_REPOSITORY=example/maestro \
       GITHUB_RUN_ID=99 \
-      GITHUB_SHA=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
+      GITHUB_SHA="$relevant_head" \
       GITHUB_EVENT_NAME="$event" EVENT_NAME="$event" \
       GITHUB_REF=refs/heads/main \
       PR_HEAD_REPOSITORY="$head_repository" \
@@ -361,6 +366,7 @@ route_mode() {
       FORCE_BUILD="$force_build" \
       "$MAESTRO_CI_ROUTE" >/dev/null || exit $?
   ) || return $?
+  sed -n 's/^plan=//p' "$output" | jq -e '.schema_version == 4 and .retained_evidence == null' >/dev/null
   sed -n 's/^plan=//p' "$output" | jq -er .qualification.mode
 }
 

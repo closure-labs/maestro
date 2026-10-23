@@ -155,7 +155,7 @@ in {
           cp -R ${inputs.self} source
           # Older native linters predate GitHub's $/ syntax. Lint an
           # equivalent local-reference spelling for those parsers; enforce
-          # pinned $/ references on the actual source below, without waivers.
+          # immutable external actions and the protected local boundary below.
           cp -R source legacy-source
           chmod -R u+w legacy-source
           sed -i 's@^\([[:space:]]*\(- \)\?uses: \)\$/@\1./@' \
@@ -172,6 +172,7 @@ in {
           while IFS= read -r action; do
             case "$action" in
               '$/'*) ;;
+              './controller/.github/actions/setup-nix') ;;
               *@????????????????????????????????????????) ;;
               *)
                 printf 'Action is not pinned to a full commit: %s\n' "$action" >&2
@@ -179,7 +180,7 @@ in {
                 ;;
             esac
             case "$action" in
-              '$/'* | actions/checkout@* | actions/upload-artifact@* | actions/download-artifact@* | actions/attest@* | actions/create-github-app-token@* | DeterminateSystems/determinate-nix-action@* | DeterminateSystems/flakehub-push@* | step-security/harden-runner@* | github/codeql-action/*@*) ;;
+              '$/'* | './controller/.github/actions/setup-nix' | actions/checkout@* | actions/upload-artifact@* | actions/download-artifact@* | actions/attest@* | actions/create-github-app-token@* | DeterminateSystems/determinate-nix-action@* | DeterminateSystems/flakehub-push@* | step-security/harden-runner@* | github/codeql-action/*@*) ;;
               *)
                 printf 'Action is not an approved GitHub-platform boundary: %s\n' "$action" >&2
                 exit 1
@@ -191,6 +192,15 @@ in {
               .github/actions/*/action.yml |
               grep -v '^---$'
           )
+          # This exact local action belongs only to the isolated protected
+          # retained-evidence controller. All other actions remain pinned.
+          for workflow in .github/workflows/*.yml; do
+            owners=$(yq -r '.jobs | to_entries | .[] | select(.value.steps[].uses == "./controller/.github/actions/setup-nix") | .key' "$workflow")
+            if [[ -n "$owners" && ( "$workflow" != .github/workflows/ci.yml || "$owners" != retained ) ]]; then
+              printf 'Local controller setup is outside its protected job: %s\n' "$workflow" >&2
+              exit 1
+            fi
+          done
           python3 nix/automation/decisions/signal_relay.py .github/workflows/decision-events.yml
           command_workflows=()
           for workflow in .github/workflows/*.yml; do
@@ -217,7 +227,7 @@ in {
         } ''
           cd ${inputs.self}
           for task in \
-            ci:route ci:classify ci:repository-audit ci:qualification:resolve \
+            ci:route ci:classify ci:retained-evidence ci:repository-audit ci:qualification:resolve \
             ci:qualification:assemble ci:qualification:boot-media ci:qualification:sign-check \
             ci:security:scan ci:security:inventory-preflight ci:security:latest ci:security:policy-drift ci:packer:validate \
             ci:publish ci:cache-validation ci:verdict automation:queue \
@@ -338,6 +348,7 @@ in {
           PYTHONDONTWRITEBYTECODE=1 python3 tests/qualification-restore.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/installer-coverage.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/decision-operations.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/decision-only.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/audit-diagnostics.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/qualification-diagnostics.py
         '';
@@ -386,25 +397,25 @@ in {
             --file ${inputs.self}/secretspec.toml \
             --profile github \
             --output github-schema.json
-          jq -e '.required == ["CACHIX_MAESTRO_PUBKEY", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS"]' github-schema.json >/dev/null
+          jq -e '.required == ["CACHIX_MAESTRO_PUBKEY", "MAESTRO_DECISION_ONLY_REUSE_ENABLED", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS"]' github-schema.json >/dev/null
           secretspec schema \
             --file ${inputs.self}/secretspec.toml \
             --profile github-queue \
             --output queue-schema.json
-          jq -e '.required == ["CACHIX_MAESTRO_PUBKEY", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS", "MERGE_QUEUE_TOKEN"]' queue-schema.json >/dev/null
+          jq -e '.required == ["CACHIX_MAESTRO_PUBKEY", "MAESTRO_DECISION_ONLY_REUSE_ENABLED", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS", "MERGE_QUEUE_TOKEN"]' queue-schema.json >/dev/null
           secretspec schema \
             --file ${inputs.self}/secretspec.toml \
             --profile github-publish \
             --output publish-schema.json
           jq -e \
-            '.required == ["CACHIX_MAESTRO_AUTH_TOKEN", "CACHIX_MAESTRO_PUBKEY", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS"]' \
+            '.required == ["CACHIX_MAESTRO_AUTH_TOKEN", "CACHIX_MAESTRO_PUBKEY", "MAESTRO_DECISION_ONLY_REUSE_ENABLED", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS"]' \
             publish-schema.json >/dev/null
           secretspec schema \
             --file ${inputs.self}/secretspec.toml \
             --profile local-publish \
             --output local-schema.json
           jq -e \
-            '.required == ["CACHIX_MAESTRO_AUTH_TOKEN", "CACHIX_MAESTRO_PUBKEY", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS"]' \
+            '.required == ["CACHIX_MAESTRO_AUTH_TOKEN", "CACHIX_MAESTRO_PUBKEY", "MAESTRO_DECISION_ONLY_REUSE_ENABLED", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS"]' \
             local-schema.json >/dev/null
           touch "$out"
         '';
