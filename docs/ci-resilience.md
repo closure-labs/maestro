@@ -205,6 +205,23 @@ metadata member retains its 16 MiB limit. The 90-second metadata deadline, exact
 manifest/packet/file digests and typed producer binding remain enforced; this
 allowance never applies to closure payloads or nested filenames.
 
+Decision ledger reads authenticate current main and a complete Git tree on every
+call. The tree binds each regular decision path to its blob SHA and size, so the
+reader fetches the blob directly rather than repeating a Contents lookup per
+record. Within one hosted job, raw Git bytes are retained under `RUNNER_TEMP`,
+scoped to repository, source revision, run, attempt, job and verifier source.
+Every hit checks file type, size and Git object hash, then parses JSON again.
+Missing entries are fetched normally; corrupt entries, unsafe paths and metadata
+failures block. Local invocations without a complete hosted scope stay uncached.
+
+Other document lookups still read authenticated Contents metadata every time.
+Current main, reviews, team membership, permissions, provenance and authorization
+results are never cached. Every publication boundary keeps its live gate.
+The [matched ledger fixture](benchmarks/decision-ledger-api-reuse.json) records
+eight API calls before and five after two reads of one non-inline record, with
+identical results and fresh main/tree reads throughout. This is a credential-free
+operation-count fixture, not a production throughput or quota guarantee.
+
 ## Package 4: independent destination recovery
 
 A versioned destination result distinguishes authenticated absence, partial

@@ -32,6 +32,9 @@ correspond to published GitHub tags.
 - Update the pinned native devenv CLI and modules to 2.4.0, retaining synchronized
   flake and devenv locks without refreshing the appliance package inputs.
 
+- Reduce repeated decision API reads with job-local, hash-verified Git blob reuse,
+  while keeping current-main metadata and human authorization checks live.
+
 ### Fixed
 
 - Reject obsolete proposal parents before downloading review evidence, and refresh parent selection when protected main advances during verification.
