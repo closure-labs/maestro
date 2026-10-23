@@ -9,6 +9,10 @@ correspond to published GitHub tags.
 
 ## [Unreleased]
 
+- Inspect admitted rolling publication metadata before closure transfers, binding the existing candidate run to its exact current accepted product and producer.
+
+- Retain hosted immutable decision byte reuse observations without caching live authority or uploading proposal contents.
+
 - Let the existing weekly input updater advance Devenv from its default branch while retaining synchronized, reproducible lockfiles.
 
 - Add an opt-in Devenv keyring token prompt and read-only cache permission diagnostic. Keep implicit project credentials out of Nix evaluation; optional default credential declarations move to the explicit `runtime` SecretSpec profile.

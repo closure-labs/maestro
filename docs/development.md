@@ -432,3 +432,43 @@ Cache permission diagnostics identify their HTTP client explicitly so Cachix's
 edge service does not reject Python's default user-agent. A Cloudflare non-JSON
 403 reports `cache-request-blocked`, rather than implying the stored token was
 rejected. Credential and API response bodies remain withheld.
+
+### Hosted decision byte reuse observations
+
+Authority, decision reconciliation, publication and disposable consumer jobs
+retain `maestro-decision-byte-reuse-<job>` artifacts from their existing native
+execution. Each JSONL row contains only a verified public Git blob identity,
+byte count, and whether those bytes were reused or supplied by fresh inline
+metadata. The artifact excludes proposal contents and all review, membership
+and authorization results. Current main, reviews, team membership and every
+write gate remain fresh. Use these observations to verify production reuse;
+compare equivalent hosted runs before making performance claims.
+
+### Admitted rolling publication metadata
+
+The existing publication `candidate_run` selector reads current protected
+admission records before fetching an admitted rolling producer's digest-bound
+metadata. Its run, attempt, workflow, producer revision and product source
+must match the latest completed native producer. Missing, superseded or
+ambiguous admission blocks this explicit selection. The normal publication
+gate still checks current human authority and freshness before any write.
+
+Destination inspection precedes closure transport. A matching public cache
+therefore needs no full Actions report or retained closure payload merely to
+discover its product identity. Fresh official maintenance and security-review
+inputs retain their existing authenticated report route, including covered
+observations that require no new security decision.
+
+### Published cache upstreams
+
+Configure Maestro Cachix upstreams with `cache.nixos.org` and
+`xen-orchestra-ce.cachix.org`. Hosted builds also use Devenv and nix-community,
+but delegating published dependencies to those caches makes Cachix skip paths
+that the disposable consumer cannot fetch. If push reports nothing to upload
+while native closure readback remains partial, compare these settings before
+resuming native recovery. See [Cachix upstream selection](https://blog.cachix.org/posts/2025-12-15-configurable-upstream-caches/).
+
+The cache doctor reports observed public permission metadata. A `Read` response
+does not establish whether the supplied token can write; keep credential values
+in SecretSpec/provider prompts and use native publication receipts as delivery
+evidence.

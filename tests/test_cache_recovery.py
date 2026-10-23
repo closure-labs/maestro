@@ -424,7 +424,17 @@ class RecoveryWorkflow(unittest.TestCase):
         self.assertEqual(steps[journal_index]['env']['PUBLICATION_KEY'],
                          "${{ inputs.proposal_hash != '' && steps.candidate.outputs.release_tag || '' }}")
         self.assertEqual(steps[journal_index]['env']['PUBLICATION_STATE'], 'complete')
-        flakehub = steps[journal_index + 1:]
+        following = steps[journal_index + 1:]
+        observations = following[-1]
+        self.assertEqual(observations['name'], 'Retain immutable decision byte reuse observations')
+        self.assertEqual(observations['if'], 'always()')
+        self.assertEqual(observations['uses'],
+                         'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9')
+        self.assertEqual(observations['with'], {
+            'name': 'maestro-decision-byte-reuse-${{ github.job }}',
+            'path': '${{ runner.temp }}/decision-git-blobs/*/observations.jsonl',
+            'if-no-files-found': 'ignore', 'retention-days': 30})
+        flakehub = following[:-1]
         self.assertEqual(len(flakehub), 5)
         for step in flakehub:
             condition = step['if']
