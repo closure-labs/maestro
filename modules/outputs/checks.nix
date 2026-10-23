@@ -200,7 +200,7 @@ in {
           done
           if yq -r '.jobs[].steps[]?.run // ""' "''${command_workflows[@]}" |
             grep -v '^---$' |
-            grep -Ev "^$|^nix run --accept-flake-config \.#devenv -- tasks run --option 'packages:pkgs!' [']['] ci:repository-audit$|^nix run --accept-flake-config \.#devenv -- tasks run --mode single --option 'packages:pkgs!' [']['] [a-z0-9:_-]+$|^nix run --accept-flake-config \.#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' [']['] (ci:decision:download|release:inspect|ci:publish|release:journal)$"; then
+            grep -Ev "^$|^nix run --accept-flake-config \.#devenv -- tasks run --option 'packages:pkgs!' [']['] ci:repository-audit$|^nix run --accept-flake-config \.#devenv -- tasks run --mode single --option 'packages:pkgs!' [']['] [a-z0-9:_-]+$|^nix run --accept-flake-config \.#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' [']['] (ci:decision:download|ci:decision:publication|release:inspect|ci:publish|release:journal|release:assets)$"; then
             printf 'Workflow command bypasses the declared devenv task graph.\n' >&2
             exit 1
           fi
@@ -333,6 +333,7 @@ in {
           PYTHONDONTWRITEBYTECODE=1 python3 tests/test_consumer_probe.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/test_consumer_result.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/publication-journal.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/publication-diagnostics.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/distribution-cache.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/qualification-restore.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/installer-coverage.py

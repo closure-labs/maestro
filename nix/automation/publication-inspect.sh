@@ -18,8 +18,12 @@ else
 fi
 [[ ${PUBLICATION_REQUIRE_VERIFIED:-false} == true ]] && arguments+=(--require-verified)
 [[ -n ${PUBLICATION_RECEIPT:-} ]] && arguments+=(--receipt "$PUBLICATION_RECEIPT")
-state=$(python3 "$PUBLICATION_DESTINATIONS_SOURCE" "${arguments[@]}")
+status=0
+state=$(python3 "$PUBLICATION_DESTINATIONS_SOURCE" "${arguments[@]}") || status=$?
 printf '%s\n' "$state"
+if (( status != 0 )); then
+  exit "$status"
+fi
 if [[ -n ${GITHUB_OUTPUT:-} ]]; then
   printf 'status=%s\n' "$(jq -er .status <<<"$state")" >>"$GITHUB_OUTPUT"
 fi

@@ -14,6 +14,7 @@ import subprocess
 import tempfile
 from urllib.parse import urlparse, parse_qs, quote
 import operations
+import diagnostics
 
 ALPHABET='0123456789abcdfghijklmnpqrsvwxyz'
 STORE = re.compile(r'/nix/store/['+ALPHABET+r']{32}-[A-Za-z0-9+._?=-]{1,211}')
@@ -52,6 +53,7 @@ def http(url, head=False):
               '--output',str(body),'--write-out','%{http_code}']
         if head:
             args+=['--head']
+        diagnostics.count('publicTransportInvocations')
         result=operations.run([*args,url], capture_output=True, text=True, timeout=30, check=False)
         if result.returncode or not re.fullmatch(r'[0-9]{3}',result.stdout):
             return None,b''
@@ -242,6 +244,7 @@ def main():
     parser.add_argument('--version')
     parser.add_argument('--require-verified',action='store_true')
     parser.add_argument('--receipt',type=Path)
+    parser.add_argument('--output', type=Path)
     args=parser.parse_args(); product=json.loads(args.product.read_text())
     closure = None
     if args.closure_metadata:
@@ -249,7 +252,11 @@ def main():
             raise ValueError('Local closure metadata exceeds byte bound')
         closure = json.loads(args.closure_metadata.read_bytes())
     value=cache(product,args.cache_url,upstreams=args.upstream_cache_url,closure=closure) if args.destination=='cache' else flakehub(args.version,product['revision'])
-    print(json.dumps(value,sort_keys=True))
+    # Persist the exact structured observation even when the verdict is blocked.
+    raw = json.dumps(value, sort_keys=True) + '\n'
+    if args.output:
+        args.output.write_text(raw)
+    print(diagnostics.record(value, 'destinations') or raw, end='')
     if value['status'] in ('conflict','unavailable') or (args.require_verified and value['status']!='verified'):
         raise SystemExit('Public destination '+value['status'])
     if args.receipt and value['status']=='verified':

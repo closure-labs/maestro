@@ -13,6 +13,7 @@ import resource
 import stat
 import subprocess
 import operations
+import diagnostics
 import sys
 import tempfile
 import time
@@ -89,6 +90,7 @@ def api_failure_details(status, headers, output):
 
 
 def github_api(endpoint):
+    diagnostics.count('apiWrapperInvocations')
     # Endpoint is constructed from validated repository, PR numbers and hashes.
     # GitHub base64 JSON needs more space than the bounded raw document. Bound
     # the child output before allocating or parsing it, including on API errors.
@@ -98,6 +100,7 @@ def github_api(endpoint):
         details = ''
         with tempfile.TemporaryFile() as output:
             try:
+                diagnostics.count('apiTransportInvocations')
                 result = operations.run(['gh', 'api', '--method', 'GET', '--include', endpoint],
                                         stdout=output, stderr=subprocess.DEVNULL,
                                         timeout=30, check=False, preexec_fn=bound_output)
@@ -343,6 +346,8 @@ def document_blob(api, repository, identity, size, inline=None):
                               parse_constant=lambda value: (_ for _ in ()).throw(ValueError('Nonfinite proposal number')))
     except (ValueError, TypeError) as error:
         raise AuthorityError('Invalid proposal blob') from error
+    if reused:
+        diagnostics.count('immutableBytesReused', size)
     if path is not None:
         # Diagnostics contain only public object identities and byte reuse. No
         # review, membership or authorization result is retained here.

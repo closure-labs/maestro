@@ -20,7 +20,14 @@ trap 'rm -f -- "$destination_state"' EXIT
 cache_readback=(python3 "${PUBLICATION_DESTINATIONS_SOURCE:-$(dirname -- "${BASH_SOURCE[0]}")/decisions/destinations.py}"
   cache --product "$DECISION_PRODUCT" --cache-url "https://maestro.cachix.org"
   --upstream-cache-url "https://cache.nixos.org" --upstream-cache-url "https://xen-orchestra-ce.cachix.org")
-"${cache_readback[@]}" ${PUBLICATION_CACHE_RECEIPT:+--receipt "$PUBLICATION_CACHE_RECEIPT"} >"$destination_state"
+inspect_cache() {
+  if [[ ${MAESTRO_CI_DIAGNOSTICS:-false} == true ]]; then
+    "${cache_readback[@]}" --output "$destination_state" "$@"
+  else
+    "${cache_readback[@]}" --output "$destination_state" "$@" >/dev/null
+  fi
+}
+inspect_cache ${PUBLICATION_CACHE_RECEIPT:+--receipt "$PUBLICATION_CACHE_RECEIPT"}
 if [[ $(jq -er .status "$destination_state") == verified ]]; then
   maestro-ci-decision-publication
   echo 'Public cache verified; no closure import or upload required.'
@@ -38,7 +45,7 @@ mapfile -t outputs < <(jq -er '[.products[].storePath, .roots[].storePath] | uni
 # Inspect every retained path, including children of missing public roots, and
 # compare any existing public dependency hash before selecting missing uploads.
 cache_readback+=(--closure-metadata "$metadata")
-"${cache_readback[@]}" >"$destination_state"
+inspect_cache
 if [[ $(jq -er .status "$destination_state") == verified ]]; then
   maestro-ci-decision-publication
   "${cache_readback[@]}" --require-verified ${PUBLICATION_CACHE_RECEIPT:+--receipt "$PUBLICATION_CACHE_RECEIPT"}

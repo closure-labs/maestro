@@ -24,6 +24,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 240
     environment: release
+    env:
+      MAESTRO_CI_DIAGNOSTICS: 'true'
     permissions:
       actions: read
       packages: read
@@ -48,7 +50,7 @@ jobs:
           PUBLICATION_METADATA_ONLY: 'true'
           CANDIDATE_RUN: ${{ inputs.candidate_run || '' }}
           CANDIDATE_RELEASE_ONLY: 'true'
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:download
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' ci:decision:download
       - name: Mint repository-scoped live authority and journal token
         id: authority
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
@@ -79,7 +81,7 @@ jobs:
         id: cache
         env:
           PUBLICATION_DESTINATION: cache
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:inspect
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:inspect
       - name: Restore authenticated qualified Nix closures without builders
         if: steps.cache.outputs.status != 'verified'
         env:
@@ -100,7 +102,7 @@ jobs:
           PUBLICATION_KEY: ${{ steps.candidate.outputs.release_tag }}
           PUBLICATION_STEP: github
           PUBLICATION_STATE: pending
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:journal
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:journal
       - name: Reconcile and publish exact approved hosted bytes
         env:
           GH_TOKEN: ${{ steps.authority.outputs.token }}
@@ -108,7 +110,7 @@ jobs:
           REGISTRY_TOKEN: ${{ github.token }}
           PUBLICATION_PUBLISH: 'true'
           PUBLICATION_RECEIPT: ${{ runner.temp }}/github-receipt.json
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:assets
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:assets
       - name: Record verified immutable GitHub publication
         env:
           GH_TOKEN: ${{ steps.authority.outputs.token }}
@@ -117,13 +119,13 @@ jobs:
           PUBLICATION_STEP: github
           PUBLICATION_RECEIPT: ${{ runner.temp }}/github-receipt.json
           PUBLICATION_STATE: complete
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:journal
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:journal
       - name: Inspect exact versioned FlakeHub destination
         id: flakehub
         env:
           PUBLICATION_DESTINATION: flakehub
           PUBLICATION_PURPOSE: release
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:inspect
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:inspect
       - name: Recheck current admission and release approval
         env:
           GH_TOKEN: ${{ steps.authority.outputs.token }}
@@ -131,7 +133,7 @@ jobs:
           REGISTRY_TOKEN: ${{ github.token }}
           DECISION_REQUIRE_HANDOFF: 'true'
           PUBLICATION_PURPOSE: release
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:publication
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' ci:decision:publication
       - name: Publish the approved versioned flake
         if: steps.flakehub.outputs.status != 'verified' 
         uses: DeterminateSystems/flakehub-push@99ef15d19ce5deb24d62f5d1d6f5a81d9bf03567 # main, Node.js 24
@@ -148,7 +150,7 @@ jobs:
           PUBLICATION_PURPOSE: release
           PUBLICATION_REQUIRE_VERIFIED: 'true'
           PUBLICATION_RECEIPT: ${{ runner.temp }}/flakehub-receipt.json
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:inspect
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:inspect
       - name: Record versioned FlakeHub publication
         env:
           GH_TOKEN: ${{ steps.authority.outputs.token }}
@@ -157,7 +159,7 @@ jobs:
           PUBLICATION_STEP: flakehub
           PUBLICATION_RECEIPT: ${{ runner.temp }}/flakehub-receipt.json
           PUBLICATION_STATE: complete
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:journal
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:journal
       - name: Advance development through protected main
         env:
           GH_TOKEN: ${{ steps.authority.outputs.token }}
@@ -165,3 +167,14 @@ jobs:
           DEFAULT_BRANCH: main
           EXPECTED_AUTHOR: cl-decider
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:advance
+      - name: Bind publication diagnostics to this execution
+        if: always()
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:diagnostics
+      - name: Retain complete publication diagnostics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-publication-diagnostics-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/publication-diagnostics/
+          if-no-files-found: error
+          retention-days: 30

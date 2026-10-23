@@ -484,3 +484,31 @@ The cache doctor reports observed public permission metadata. A `Read` response
 does not establish whether the supplied token can write; keep credential values
 in SecretSpec/provider prompts and use native publication receipts as delivery
 evidence.
+
+### Publication diagnostics
+
+`MAESTRO_CI_DIAGNOSTICS=true` opts native publication commands into allowlisted
+JSON summaries capped at 4096 UTF-8 bytes per record. Default command output,
+saved reports, decision packets and publication receipts retain their full
+formats. CI enables the mode in both publication controllers and shows the
+native cache verification fast-path message.
+
+Each invocation retains its full structured results under
+`$RUNNER_TEMP/publication-diagnostics`. The `release:diagnostics` task finalizes
+a manifest with event source, checked-out controller commit/tree, run, attempt,
+and every file's SHA256 and size. An always-running upload retains these files
+on success and failure as `maestro-publication-diagnostics-JOB-RUN-ATTEMPT`.
+Finalization reads existing evidence; it never repeats an audit or publication.
+Failed destination inspections preserve their original exit status and full
+observation, and cannot emit successful GitHub step outputs.
+
+Measurements count native gate invocations, instrumented GitHub API wrapper and
+transport process invocations, public destination curl invocations, immutable
+Git bytes reused, and emitted JSON-summary bytes. Per-process counters are
+cumulative; the manifest takes each process's maxima before summing them.
+HTTP attempts remain explicitly unavailable because gh and curl can retry
+internally. Summary durations are elapsed monotonic process time; overlapping
+observations must not be added as independent stage durations. These are
+measurements, not authorization caches or savings estimates. Exception argv,
+environment values and HTTP authorization headers are excluded from CI error
+records and public summaries.

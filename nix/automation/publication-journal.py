@@ -26,6 +26,8 @@ class GitHubError(ValueError):
 
 
 def api(endpoint, method='GET', payload=None):
+    common.diagnostics.count('apiWrapperInvocations')
+    common.diagnostics.count('apiTransportInvocations')
     args = ['gh', 'api', '--method', method, endpoint]
     if payload is not None:
         args += ['--input', '-']
