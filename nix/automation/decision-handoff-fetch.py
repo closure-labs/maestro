@@ -14,6 +14,7 @@ sys.path.insert(0, os.environ.get('MAESTRO_DECISION_CORE', str(Path(__file__).wi
 import common
 import operations
 import decision_packets as packets
+import destinations
 from decision_authority import github_api, document_at
 from security_decisions import load_json, canonical_hash
 
@@ -51,6 +52,31 @@ def expected_channel(directory):
     return 'xo-' + channel
 
 
+def public_output(path):
+    """Read one identity from the consumer's pinned cache set; never authorize."""
+    common.require(destinations.STORE.fullmatch(path), 'Invalid actual runtime XO output')
+    with operations.budget(90):
+        for cache in ('https://maestro.cachix.org', 'https://xen-orchestra-ce.cachix.org',
+                      'https://cache.nixos.org'):
+            status, body = destinations.http(cache + '/' + Path(path).name[:32] + '.narinfo')
+            if status == 404:
+                continue
+            common.require(status == 200, 'Pinned public cache metadata is unavailable')
+            fields = {}
+            for line in body.decode('utf-8').splitlines():
+                key, separator, value = line.partition(': ')
+                common.require(separator and (key not in fields or key == 'Sig'),
+                               'Malformed actual XO cache metadata')
+                fields[key] = value
+            common.require(fields.get('StorePath') == path and fields.get('URL')
+                           and re.fullmatch(r'[1-9][0-9]*', fields.get('NarSize', '')),
+                           'Actual XO cache metadata differs from requested output')
+            # Return the first observed identity. The exact checked handoff
+            # policy below rejects a conflicting hash; never search past one.
+            return {'storePath': path, 'narHash': destinations.nar_hash(fields.get('NarHash', ''))}
+    raise ValueError('Actual XO output is missing from the pinned public cache set')
+
+
 def actual_output(directory):
     context, components = runtime_context(directory)
     path = context['runtime']['xoPackage']
@@ -59,10 +85,9 @@ def actual_output(directory):
     common.require(any(any(p.get('name') in ('nix:storePath', 'nix:output_path') and p.get('value') == path
                            for p in c.get('properties', [])) for c in components),
                    'Actual XO root is absent from complete local package inventory')
-    command = ['nix', 'path-info', '--json', path]
     if not Path(path).exists():
-        command += ['--store', 'https://maestro.cachix.org', '--option', 'narinfo-cache-positive-ttl', '0',
-                    '--option', 'narinfo-cache-negative-ttl', '0']
+        return public_output(path)
+    command = ['nix', 'path-info', '--json', path]
     info = json.loads(common.command(command, timeout=120))
     if isinstance(info, list):
         common.require(len(info) == 1 and info[0].get('path') == path, 'Ambiguous XO path identity')

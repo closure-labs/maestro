@@ -41,6 +41,12 @@ correspond to published GitHub tags.
 
 ### Fixed
 
+- Resolve metadata-only XO handoff identities through the existing pinned
+  public cache set, retaining fail-closed hash and availability checks.
+
+- Keep admitted rolling products out of official-release recovery discovery,
+  while retaining exact-version validation and fresh publication authority.
+
 - Identify cache diagnostics with an explicit HTTP client user-agent and distinguish Cloudflare request blocks from rejected tokens.
 
 - Reject obsolete proposal parents before downloading review evidence, and refresh parent selection when protected main advances during verification.

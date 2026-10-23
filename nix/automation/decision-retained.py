@@ -89,7 +89,11 @@ def select(cfg, records, open_proposals, release_only=False, proposal_hash=None,
             if proposal['kind'] == 'release-product' and proposal['payload'].get('disposition') == 'accepted':
                 candidates[digest] = proposal
         for digest, proposal in list(candidates.items()):
-            assets = proposal['payload']['product'].get('assets', {})
+            assets = proposal['payload']['product'].get('assets')
+            common.require(isinstance(assets, dict), 'Retained product assets must be an object')
+            if not assets:
+                del candidates[digest]
+                continue
             tags = {m[1] for name in assets if (m := re.fullmatch(r'maestro-(v[0-9]+\.[0-9]+\.[0-9]+)\.iso\.sha256', name))}
             common.require(len(tags) == 1, 'Retained official product lacks one exact release tag')
             if (next(iter(tags)) in published_tags
@@ -194,7 +198,11 @@ def current_published_products(cfg, records, published, requested=None):
         identity = proposal['payload']['product']
         _, active = common.active_release(cfg, records, identity, authenticate=False)
         if active is not None and active['payload']['disposition'] == 'accepted':
-            versions = {m[1] for name in identity.get('assets', {})
+            assets = identity.get('assets')
+            common.require(isinstance(assets, dict), 'Retained product assets must be an object')
+            if not assets:
+                continue
+            versions = {m[1] for name in assets
                         if (m := re.fullmatch(r'maestro-(v[0-9]+\.[0-9]+\.[0-9]+)\.iso\.sha256', name))}
             common.require(len(versions) == 1, 'Retained product requires one official version')
             candidates[canonical_hash(identity)] = (active, next(iter(versions)))

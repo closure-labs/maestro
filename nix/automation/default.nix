@@ -161,7 +161,7 @@
         MAESTRO_DECISION_OPERATIONS_SOURCE=${./decision-handoff-fetch.py}
         export MAESTRO_DECISION_CORE MAESTRO_DECISION_OPERATIONS_SOURCE
       '';
-      runtimeInputs = commonInputs ++ [pkgs.python3 pkgs.oras];
+      runtimeInputs = commonInputs ++ [pkgs.curl pkgs.python3 pkgs.oras];
       source = ./decision-handoff-fetch.sh;
     };
     publication-inspect = mkCommand {
