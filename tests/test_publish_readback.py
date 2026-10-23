@@ -15,11 +15,11 @@ UPSTREAM = 'https://cache.nixos.org'
 FAKE = '''
 import fcntl, json, os, pathlib, sys, time
 name, args = pathlib.Path(sys.argv[0]).name, sys.argv[1:]
-fixture = json.loads(pathlib.Path(os.environ['PUBLISH_FIXTURE']).read_text())
+fixture = json.loads(pathlib.Path(os.environ.get('PUBLISH_FIXTURE', pathlib.Path(sys.argv[0]).parent.parent / 'fixture.json')).read_text())
 def record_call(call):
     # Metadata probes run concurrently. A reader can otherwise observe an
     # incomplete appended JSON line, causing a spurious fake transport failure.
-    with open(os.environ['PUBLISH_CALLS'], 'a+') as stream:
+    with open(os.environ.get('PUBLISH_CALLS', pathlib.Path(sys.argv[0]).parent.parent / 'calls.jsonl'), 'a+') as stream:
         fcntl.flock(stream, fcntl.LOCK_EX)
         stream.write(json.dumps(call) + '\\n')
         stream.flush()
@@ -27,6 +27,7 @@ def record_call(call):
         return [json.loads(line) for line in stream.read().splitlines()]
 previous = record_call([name, *([os.environ.get('PUBLICATION_PURPOSE','')] if name.startswith('maestro-ci-') else []), *args])
 if name == 'curl':
+    if fixture.get('require_public_environment') and any(key in os.environ for key in ('GH_TOKEN','GITHUB_TOKEN','REGISTRY_TOKEN','XO_AUTHORITY_TOKEN','CACHIX_MAESTRO_AUTH_TOKEN','CACHIX_AUTH_TOKEN')):sys.exit(2)
     uploaded = any(call[0] == 'cachix' for call in previous)
     if uploaded and fixture.get('hang'):
         time.sleep(10)
@@ -51,6 +52,10 @@ if name == 'curl':
     pathlib.Path(args[args.index('--output')+1]).write_bytes(data)
     print(status,end='')
 elif name == 'maestro-ci-decision-publication':
+    if fixture.get('mutate_input_at') == sum(call[0]==name for call in previous):
+        target = pathlib.Path(os.environ['DECISION_SCANS'])
+        target.chmod(0o600)
+        target.write_text('{}')
     if sum(call[0]==name for call in previous)==fixture.get('deny_authority_at'):sys.exit(1)
     if fixture.get('deny_release') and os.environ.get('PUBLICATION_PURPOSE')=='release':sys.exit(1)
 elif name == 'maestro-ci-distribution-restore':

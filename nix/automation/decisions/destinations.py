@@ -256,7 +256,8 @@ def main():
     raw = json.dumps(value, sort_keys=True) + '\n'
     if args.output:
         args.output.write_text(raw)
-    print(diagnostics.record(value, 'destinations') or raw, end='')
+    context = {'productHash': hashlib.sha256(canonical(product)).hexdigest()} if diagnostics.enabled() else None
+    print(diagnostics.record(value, 'destinations', context=context) or raw, end='')
     if value['status'] in ('conflict','unavailable') or (args.require_verified and value['status']!='verified'):
         raise SystemExit('Public destination '+value['status'])
     if args.receipt and value['status']=='verified':

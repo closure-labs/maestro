@@ -336,6 +336,9 @@ in {
           MAESTRO_TEST_PUBLISH_COMMAND=${lib.getExe packages.maestro-ci-publish} \
             MAESTRO_TEST_INSPECT_COMMAND=${lib.getExe packages.maestro-ci-publication-inspect} \
             PYTHONDONTWRITEBYTECODE=1 python3 tests/test_publish_readback.py
+          MAESTRO_TEST_PUBLISH_COMMAND=${lib.getExe packages.maestro-ci-publish} \
+            MAESTRO_TEST_INSPECT_COMMAND=${lib.getExe packages.maestro-ci-publication-inspect} \
+            PYTHONDONTWRITEBYTECODE=1 python3 tests/test_readonly_preflight.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/test_cache_cancellation.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/test_cache_recovery.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/test_scheduling.py
@@ -397,25 +400,25 @@ in {
             --file ${inputs.self}/secretspec.toml \
             --profile github \
             --output github-schema.json
-          jq -e '.required == ["CACHIX_MAESTRO_PUBKEY", "MAESTRO_DECISION_ONLY_REUSE_ENABLED", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS"]' github-schema.json >/dev/null
+          jq -e '.required == ["CACHIX_MAESTRO_PUBKEY", "MAESTRO_DECISION_ONLY_REUSE_ENABLED", "MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS"]' github-schema.json >/dev/null
           secretspec schema \
             --file ${inputs.self}/secretspec.toml \
             --profile github-queue \
             --output queue-schema.json
-          jq -e '.required == ["CACHIX_MAESTRO_PUBKEY", "MAESTRO_DECISION_ONLY_REUSE_ENABLED", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS", "MERGE_QUEUE_TOKEN"]' queue-schema.json >/dev/null
+          jq -e '.required == ["CACHIX_MAESTRO_PUBKEY", "MAESTRO_DECISION_ONLY_REUSE_ENABLED", "MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS", "MERGE_QUEUE_TOKEN"]' queue-schema.json >/dev/null
           secretspec schema \
             --file ${inputs.self}/secretspec.toml \
             --profile github-publish \
             --output publish-schema.json
           jq -e \
-            '.required == ["CACHIX_MAESTRO_AUTH_TOKEN", "CACHIX_MAESTRO_PUBKEY", "MAESTRO_DECISION_ONLY_REUSE_ENABLED", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS"]' \
+            '.required == ["CACHIX_MAESTRO_AUTH_TOKEN", "CACHIX_MAESTRO_PUBKEY", "MAESTRO_DECISION_ONLY_REUSE_ENABLED", "MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS"]' \
             publish-schema.json >/dev/null
           secretspec schema \
             --file ${inputs.self}/secretspec.toml \
             --profile local-publish \
             --output local-schema.json
           jq -e \
-            '.required == ["CACHIX_MAESTRO_AUTH_TOKEN", "CACHIX_MAESTRO_PUBKEY", "MAESTRO_DECISION_ONLY_REUSE_ENABLED", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS"]' \
+            '.required == ["CACHIX_MAESTRO_AUTH_TOKEN", "CACHIX_MAESTRO_PUBKEY", "MAESTRO_DECISION_ONLY_REUSE_ENABLED", "MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS"]' \
             local-schema.json >/dev/null
           touch "$out"
         '';

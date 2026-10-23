@@ -3,6 +3,7 @@
 """Same-execution evidence, bounded summaries and original shell failure status."""
 from contextlib import redirect_stdout, redirect_stderr
 import hashlib
+import datetime as dt
 import io
 import json
 import os
@@ -21,6 +22,61 @@ import destinations
 
 
 class Diagnostics(unittest.TestCase):
+    def setUp(self):
+        display = patch.dict(diagnostics.GATE_DISPLAY, {}, clear=True)
+        display.start()
+        self.addCleanup(display.stop)
+
+    def test_packaged_journal_filename_retains_exact_result(self):
+        result = {'schema': 2, 'productHash': 'b' * 64, 'steps': {'cache': 'complete'}, 'receipts': {}}
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {'MAESTRO_CI_DIAGNOSTICS': 'true', 'RUNNER_TEMP': temp}), \
+             patch.object(sys, 'argv', ['/nix/store/' + 'a' * 32 + '-publication-journal.py']):
+            stream = io.StringIO()
+            with redirect_stdout(stream):
+                common.emit(result)
+            self.assertEqual(json.loads(stream.getvalue())['kind'], 'publication-journal')
+            files = list((Path(temp) / 'publication-diagnostics').glob('*.result.json'))
+            self.assertEqual(len(files), 1)
+            self.assertEqual(json.loads(files[0].read_text()), result)
+
+    def test_display_context_never_reuses_status_or_crosses_product_identity(self):
+        product = 'b' * 64
+        gate = {'status': 'covered', 'productHash': product, 'rootCount': 61, 'findingCount': 302,
+                'producer': {'revision': 'a' * 40, 'runId': 123, 'runAttempt': 2}}
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {'MAESTRO_CI_DIAGNOSTICS': 'true', 'RUNNER_TEMP': temp}):
+            diagnostics.record(gate, 'gate', logged=False)
+            for kind in ('publication', 'handoff', 'publication-journal'):
+                value = json.loads(diagnostics.record({'status': 'blocked', 'productHash': product}, kind))
+                self.assertEqual(value['status'], 'blocked')
+                self.assertEqual((value['producerRun'], value['rootCount'], value['findingCount']), (123, 61, 302))
+            other = json.loads(diagnostics.record({'status': 'covered', 'productHash': 'c' * 64}, 'publication'))
+            self.assertIsNone(other['producerRun'])
+            self.assertIsNone(other['findingCount'])
+
+    def test_manifest_captures_only_valid_current_receipts_and_effective_flags(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {
+            'MAESTRO_CI_DIAGNOSTICS': 'true', 'RUNNER_TEMP': temp,
+            'MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED': 'true', 'PUBLICATION_REQUIRE_VERIFIED': 'true'
+        }):
+            receipt = {'schema': 1, 'productHash': 'b' * 64, 'destination': 'cache', 'status': 'verified',
+                       'expected': {'root': 'hash'}, 'observed': {'root': 'hash'},
+                       'verifiedAt': dt.datetime.now(dt.timezone.utc).isoformat(), 'verifier': 'a' * 64}
+            raw = (json.dumps(receipt) + '\n').encode()
+            (Path(temp) / 'cache-receipt.json').write_bytes(raw)
+            (Path(temp) / 'flakehub-receipt.json').write_text('{"authorization":"private-sentinel"}')
+            (Path(temp) / 'github-receipt.json').write_text('[]')
+            (Path(temp) / 'unrelated.env').write_text('private-sentinel')
+            diagnostics.manifest()
+            root = Path(temp) / 'publication-diagnostics'
+            manifest = json.loads((root / 'manifest.json').read_text())
+            self.assertEqual((root / 'cache-receipt.json').read_bytes(), raw)
+            self.assertFalse((root / 'flakehub-receipt.json').exists())
+            self.assertEqual(manifest['receiptCapture']['flakehub'], 'invalid')
+            self.assertEqual(manifest['receiptCapture']['github'], 'invalid')
+            self.assertTrue(manifest['experiments']['MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED'])
+            self.assertTrue(manifest['verifiedDestinationsRequired'])
+            self.assertNotIn('private-sentinel', (root / 'manifest.json').read_text())
+
     def test_controllers_retain_execution_bound_diagnostics_on_success_and_failure(self):
         for name in ('publication.yml', 'release-publication.yml'):
             workflow = json.loads(subprocess.check_output(
