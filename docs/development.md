@@ -427,3 +427,8 @@ regenerate evidence while unchanged media follows the verified-media route.
 Callback job predicates only suppress irrelevant producer branches/events.
 Current producer provenance, current main and authority remain authenticated by
 the existing leaves before any publication write.
+
+Cache permission diagnostics identify their HTTP client explicitly so Cachix's
+edge service does not reject Python's default user-agent. A Cloudflare non-JSON
+403 reports `cache-request-blocked`, rather than implying the stored token was
+rejected. Credential and API response bodies remain withheld.

@@ -34,6 +34,8 @@ correspond to published GitHub tags.
 
 ### Fixed
 
+- Identify cache diagnostics with an explicit HTTP client user-agent and distinguish Cloudflare request blocks from rejected tokens.
+
 - Reject obsolete proposal parents before downloading review evidence, and refresh parent selection when protected main advances during verification.
 
 - Read bounded complete upstream handoff envelopes and permit fresh observations
