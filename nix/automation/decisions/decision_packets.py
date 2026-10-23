@@ -49,6 +49,10 @@ MAX_COMMAND_STDERR = 16 * 1024
 COMMAND_TIMEOUT = 1800
 
 
+class RegistryUnavailable(ValueError):
+    """Transport failed or an immutable registry object is unavailable."""
+
+
 def command_operation(args):
     # No arbitrary argv, path, registry reference or URL reaches diagnostics.
     if Path(args[0]).name == 'oras':
@@ -90,7 +94,14 @@ def command_failure(args, code, tail, stderr_bytes, limit, timed_out=False, laun
         categories.add('rate-limited')
     if 413 in statuses:
         categories.add('payload-too-large')
-    return ValueError('Registry command failed: ' + json.dumps({
+    unavailable = (bool(categories & {'network', 'tls', 'timeout', 'start-failed', 'authorization-denied', 'rate-limited'})
+                   or bool(set(statuses) & {404, 429, 500, 502, 503, 504})
+                   or bool(re.search(r'\b(?:manifest_unknown|blob_unknown)\b', text)))
+    # Explicit integrity/conflict failures keep their original blocking type.
+    integrity_failure = bool(set(statuses) & {409, 413}) or bool(re.search(
+        r'\b(?:manifest_invalid|manifest_blob_unknown|blob_upload_invalid|digest_invalid|size_invalid)\b', text))
+    error_type = RegistryUnavailable if unavailable and not integrity_failure else ValueError
+    return error_type('Registry command failed: ' + json.dumps({
         'operation': command_operation(args), 'exitCode': code,
         'signal': -code if code is not None and code < 0 else None,
         'categories': sorted(categories or {'unclassified'}), 'httpStatus': statuses,

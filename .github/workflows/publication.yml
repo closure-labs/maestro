@@ -30,6 +30,7 @@ jobs:
     environment: publication
     env:
       MAESTRO_CI_DIAGNOSTICS: 'true'
+      MAESTRO_DECISION_ONLY_REUSE_ENABLED: ${{ vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED || 'false' }}
       PUBLICATION_PURPOSE: ${{ inputs.proposal_hash != '' && 'release' || 'rolling' }}
     permissions:
       actions: read

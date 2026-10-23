@@ -101,6 +101,15 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
+      - name: Retain decision-only structural eligibility
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-decision-only-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: retained-candidate.json
+          if-no-files-found: ignore
+          retention-days: 30
+
       - name: Upload qualification state pointer
         if: fromJSON(steps.plan.outputs.plan).qualification.required
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -140,10 +149,86 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
+  retained:
+    name: Verify retained evidence without building or signing
+    needs: route
+    if: >-
+      needs.route.result == 'success' && fromJSON(needs.route.outputs.plan).retained_evidence != null &&
+      ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+       (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main') ||
+       (github.event_name == 'merge_group' && github.event.merge_group.base_ref == 'refs/heads/main'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+      packages: read
+      attestations: read
+    outputs:
+      reused: ${{ steps.verify.outputs.reused || 'false' }}
+      descriptor_hash: ${{ steps.verify.outputs.descriptor_hash }}
+    steps:
+      - name: Checkout protected verification controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.sha }}
+          path: controller
+          persist-credentials: false
+      - name: Checkout candidate as read-only evaluation data
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: candidate
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Nix
+        uses: ./controller/.github/actions/setup-nix # zizmor: ignore[self-repository] -- protected main controller checkout; candidate setup code is never executed.
+      - name: Mint protected-main read-only admission reader
+        if: >-
+          hashFiles('controller/.github/workflows/ci.yml') == hashFiles('candidate/.github/workflows/ci.yml') &&
+          ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+           (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository) ||
+           (github.event_name == 'merge_group' && github.event.merge_group.base_ref == 'refs/heads/main'))
+        id: authority
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.DECIDER_CLIENT }}
+          private-key: ${{ secrets.DECIDER_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: read
+          permission-pull-requests: read
+          permission-members: read
+          permission-administration: read
+          permission-actions: read
+      - name: Verify original producers, exact inputs and current merged authority
+        id: verify
+        if: hashFiles('controller/.github/workflows/ci.yml') == hashFiles('candidate/.github/workflows/ci.yml')
+        working-directory: controller
+        env:
+          GH_TOKEN: ${{ steps.authority.outputs.token || github.token }}
+          REGISTRY_TOKEN: ${{ github.token }}
+          CI_CANDIDATE_ROOT: ${{ github.workspace }}/candidate
+          CI_PLAN: ${{ needs.route.outputs.plan }}
+          DECISION_ONLY_OPERATION: verify
+          DECISION_ONLY_OUTPUT: ${{ runner.temp }}/retained-evidence/retained-publication-intent.json
+          MAESTRO_DECISION_ONLY_REUSE_ENABLED: ${{ vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED || 'false' }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:retained-evidence
+      - name: Retain shadow eligibility and original evidence identities
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-retained-publication-intent-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/retained-evidence/retained-publication-intent.json
+          if-no-files-found: ignore
+          retention-days: 30
+
   qualification:
     name: Qualify installer media and evidence
-    needs: route
-    if: fromJSON(needs.route.outputs.plan).qualification.required
+    needs: [route, retained]
+    if: >-
+      !cancelled() && needs.route.result == 'success' &&
+      fromJSON(needs.route.outputs.plan).qualification.required && needs.retained.outputs.reused != 'true' &&
+      (vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED != 'true' || contains(fromJSON('["success","skipped"]'), needs.retained.result))
     runs-on: ubuntu-24.04
     timeout-minutes: 240
     permissions:
@@ -302,10 +387,11 @@ jobs:
 
   security:
     name: Scan qualified dependency inventories
-    needs: [route, qualification]
+    needs: [route, retained, qualification]
     if: >-
       !cancelled() && needs.route.result == 'success' &&
-      fromJSON(needs.route.outputs.plan).qualification.required &&
+      fromJSON(needs.route.outputs.plan).qualification.required && needs.retained.outputs.reused != 'true' &&
+      (vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED != 'true' || contains(fromJSON('["success","skipped"]'), needs.retained.result)) &&
       (needs.qualification.result == 'success' || needs.qualification.result == 'skipped')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -445,6 +531,7 @@ jobs:
     needs:
       - route
       - audit
+      - retained
       - qualification
       - signing
       - security
@@ -469,4 +556,8 @@ jobs:
           QUALIFICATION_RESULT: ${{ needs.qualification.result }}
           CI_PLAN: ${{ needs.route.outputs.plan }}
           ROUTE_RESULT: ${{ needs.route.result }}
+          RETAINED_RESULT: ${{ needs.retained.result }}
+          RETAINED_REUSE: ${{ needs.retained.outputs.reused || 'false' }}
+          RETAINED_DESCRIPTOR_HASH: ${{ needs.retained.outputs.descriptor_hash }}
+          MAESTRO_DECISION_ONLY_REUSE_ENABLED: ${{ vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED || 'false' }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:verdict

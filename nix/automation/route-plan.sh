@@ -84,6 +84,13 @@ else
     '{schema_version:3,qualification:{required:false,mode:$mode,artifact_run_id:null,media_run_id:null,evidence_run_id:null,media_input:null,evidence_input:null},publish_required:$publish_required}')
 fi
 
+if [[ "$qualification_required" == true && ${FORCE_BUILD:-false} != true && ${FORCE_ARTIFACT:-false} != true ]]; then
+  maestro-ci-decision-only >/dev/null
+else
+  printf '%s\n' '{"schema":1,"descriptor":null}' >"${DECISION_ONLY_OUTPUT:-retained-candidate.json}"
+fi
+plan=$(jq -c --slurpfile retained "${DECISION_ONLY_OUTPUT:-retained-candidate.json}" \
+  '.schema_version = 4 | .retained_evidence = $retained[0].descriptor' <<<"$plan")
 printf '%s\n' "$plan" >"$plan_file"
 maestro-ci-validate-plan "$plan_file"
 if [[ -n ${GITHUB_OUTPUT:-} ]]; then

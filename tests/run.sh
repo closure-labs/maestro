@@ -213,12 +213,16 @@ grep -Fq '[[ $substituters != *cache.flakehub.com* ]]' \
   "$TEST_ROOT/.github/actions/setup-nix/action.yml" \
   || fail "shared CI setup does not reject the authenticated FlakeHub cache"
 for workflow in "$TEST_ROOT"/.github/workflows/*.yml; do
-  yq -o=json '.jobs' "$workflow" | jq -e '
-    all(.[];
+  yq -o=json '.jobs' "$workflow" | jq -e --arg workflow "${workflow##*/}" '
+    all(to_entries[];
+      .key as $job | .value |
       if any(.steps[]?;
         ((.run // "") | test("(^|[[:space:]])nix[[:space:]]")) or
         ((.uses // "") | startswith("DeterminateSystems/flakehub-push@")))
-      then any(.steps[]?; .uses == "$/.github/actions/setup-nix")
+      then any(.steps[]?; .uses == "$/.github/actions/setup-nix") or
+        ($workflow == "ci.yml" and $job == "retained" and
+         any(.steps[]?; .uses == "./controller/.github/actions/setup-nix") and
+         (.if | contains("github.event.pull_request.base.ref")))
       else true end)
   ' >/dev/null || fail "Nix job bypasses shared hosted configuration: $workflow"
 done

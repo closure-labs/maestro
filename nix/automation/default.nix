@@ -67,6 +67,15 @@
   };
 
   commands = {
+    decision-only = mkCommand {
+      name = "decision-only";
+      prefix = ''
+        export MAESTRO_DECISIONS_SOURCE=${./decisions}
+        export MAESTRO_DECISION_RETAINED_SOURCE=${./decision-retained.py}
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.python3 pkgs.oras commands.verify-state];
+      source = ./decision-only.sh;
+    };
     cache-doctor = mkCommand {
       name = "cache-doctor";
       prefix = ''
@@ -545,6 +554,7 @@
           commands.classify
           commands.resolve-qualification
           validatePlan
+          commands.decision-only
         ];
       source = ./route-plan.sh;
     };

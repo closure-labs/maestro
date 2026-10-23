@@ -471,6 +471,41 @@ discover its product identity. Fresh official maintenance and security-review
 inputs retain their existing authenticated report route, including covered
 observations that require no new security decision.
 
+### Decision-only evidence reuse
+
+`MAESTRO_DECISION_ONLY_REUSE_ENABLED` is a non-secret runtime repository variable
+that defaults to `false` and grants no authority. Route-plan v4 retains the
+normal qualification plan and adds an optional retained-evidence descriptor.
+Legacy v3 plans always take normal validation. Shadow verification records
+eligibility while leaving assembly, boot, scans and signing enabled.
+
+Only one new regular canonical native decision record can enter this path.
+Mixed changes, edits, deletes, renames and executable/symlink records use normal
+validation. A separate read-only job uses protected controller code to verify
+the original completed protected-main producer, original attestations, retained
+inventory bytes and exact product binding. Candidate evaluation inherits no
+authority/registry credentials. Actual evaluated media/evidence fingerprints,
+generator package identities (including tool dependencies), and generator bytes
+must match authenticated retained state; no inputs are excluded to manufacture
+a match. Complete current security coverage, unchanged freshness
+limits and live merged review authority remain mandatory.
+
+When enabled, only successful matching verification permits the native verdict
+to accept assembly, boot, scanning and new signing as **reused/skipped**. It
+retains original producer and signer identities instead of inventing successful
+scan or signing results. Changed inputs, unavailable pointers or expired evidence
+take normal validation; integrity failures and conflicting or revoked authority
+block the enabled route. Every run still requires the complete 20-target audit.
+
+After merge, a bounded run/attempt-bound publication intent can schedule the
+original producer and exact currently selected product. Native protected
+selection checks the hint again, keeps security and product decision hashes
+distinct, and never overrides explicit run/proposal/workflow selectors. Hints
+grant no approval: late expiry or revoked authority blocks fresh publication.
+Bootstrap workflow changes cannot certify reuse. Promotion requires hosted
+shadow/fixture proof, exact-source review and a safe real eligible hosted case;
+without that case, leave the variable disabled.
+
 ### Published cache upstreams
 
 Configure Maestro Cachix upstreams with `cache.nixos.org` and

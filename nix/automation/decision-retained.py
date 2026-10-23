@@ -257,8 +257,12 @@ def main():
     releases = authority.collection(authority.github_api, f'repos/{cfg["repository"]}/releases') if release_only and not args.admitted_release else []
     published = {r['tag_name'] for r in releases if r.get('draft') is False and isinstance(r.get('tag_name'), str)}
     suppressed = current_published_products(cfg, records, published, args.proposal_hash) if release_only else set()
+    import decision_only
+    intent = decision_only.publication_intent(cfg, records) if not release_only and not args.proposal_hash else None
     try:
-        if rolling_run:
+        if intent:
+            digest, proposal = intent['decisionHash'], intent['proposal']
+        elif rolling_run:
             digest, proposal = rolling_publication_candidate(
                 cfg, records, rolling_run, os.environ.get('CANDIDATE_WORKFLOW', ''))
         else:
@@ -292,6 +296,9 @@ def main():
     common.require(manifest['producer'] == packet.get('producer'), 'Retained packet producer differs from reviewed proposal')
     scan = common.scans(args.directory / 'scans.json', cfg, allow_expired=True)
     product = common.product(args.directory / 'product.json', cfg, scan)
+    if intent:
+        common.require(canonical_hash(product) == intent['productHash'],
+                       'Retained metadata differs from exact protected publication intent')
     common.require(set(scan['profiles']) == {'maestro'}, 'Unexpected retained appliance profile scope')
     verify_native_files(args.directory, scan['profiles']['maestro'])
     producer = dict(scan['producer'], repository=cfg['repository'],
