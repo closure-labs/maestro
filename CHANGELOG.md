@@ -9,6 +9,9 @@ correspond to published GitHub tags.
 
 ## [Unreleased]
 
+- Reduce repeated decision API reads with job-local, hash-verified Git blob reuse,
+  while keeping current-main metadata and human authorization checks live.
+
 - Verify clean-store consumers and publication readback through the existing pinned public cache set, retaining substitution-only execution, exact root hashes, and recursive consumer signature checks.
 
 - Separate scan dependency fingerprints and retain fresh observations while reducing repeated inventory and advisory database work.

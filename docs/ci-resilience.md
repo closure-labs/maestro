@@ -164,6 +164,23 @@ blocked result, with fixed diagnostics instead of raw service responses.
 
 ## Package 3: metadata and immutable bytes
 
+Decision ledger reads authenticate current main and a complete Git tree on every
+call. The tree binds each regular decision path to its blob SHA and size, so the
+reader fetches the blob directly rather than repeating a Contents lookup per
+record. Within one hosted job, raw Git bytes are retained under `RUNNER_TEMP`,
+scoped to repository, source revision, run, attempt, job and verifier source.
+Every hit checks file type, size and Git object hash, then parses JSON again.
+Missing entries are fetched normally; corrupt entries, unsafe paths and metadata
+failures block. Local invocations without a complete hosted scope stay uncached.
+
+Other document lookups still read authenticated Contents metadata every time.
+Current main, reviews, team membership, permissions, provenance and authorization
+results are never cached. Every publication boundary keeps its live gate.
+The [matched ledger fixture](benchmarks/decision-ledger-api-reuse.json) records
+eight API calls before and five after two reads of one non-inline record, with
+identical results and fresh main/tree reads throughout. This is a credential-free
+operation-count fixture, not a production throughput or quota guarantee.
+
 Packet inspection, bounded metadata reads and full materialization are separate
 APIs. An exact-run active publication/refresh is inspected before downloading
 closure payloads. A prior successful publication suppresses bulk work only after
