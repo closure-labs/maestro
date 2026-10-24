@@ -16,6 +16,8 @@ import threading
 import time
 import uuid
 import publication_receipts
+import diagnostic_requests as requests
+import datetime as dt
 
 STARTED = time.monotonic()
 EXECUTION = uuid.uuid4().hex
@@ -36,6 +38,11 @@ def profile(group, category, *, calls=0, wrappers=0, launches=0, retries=0, capt
     if not enabled():
         return
     with LOCK:
+        if group == 'transport':
+            with requests.scope(transport=category):
+                requests.transport(calls=calls, wrapperCalls=wrappers, subprocessLaunches=launches,
+                                   explicitRetries=retries, capturedBytes=captured, immutableBytesReused=reused,
+                                   elapsedSeconds=seconds, failures=failures)
         value = PROFILES.setdefault(group, {}).setdefault(category, {
             'calls': 0, 'wrapperCalls': 0, 'subprocessLaunches': 0, 'explicitRetries': 0,
             'capturedBytes': 0, 'immutableBytesReused': 0, 'elapsedSeconds': 0, 'failures': 0,
@@ -53,7 +60,10 @@ def measuring(group, category):
     started = time.monotonic()
     failed = 0
     try:
-        yield
+        # Only the innermost phase owns a request. Existing duration scopes
+        # intentionally remain nested and must not be summed as wall time.
+        with requests.scope(**({'phase': category} if group == 'gatePhases' else {})):
+            yield
     except BaseException:
         failed = 1
         raise
@@ -120,6 +130,10 @@ def enabled():
 def count(name, amount=1):
     if enabled():
         with LOCK:
+            if name in requests.COUNTERS:
+                transport = 'public-http' if name == 'publicTransportInvocations' else 'github-api'
+                with requests.scope(transport=transport):
+                    requests.add('counters', name, amount)
             COUNTERS[name] = COUNTERS.get(name, 0) + amount
 
 
@@ -205,7 +219,54 @@ def snapshot():
             profiles = copy.deepcopy(PROFILES)
             counters = {key: COUNTERS.get(key, 0) for key in COUNTER_NAMES}
             artifacts.atomic_write(directory(), EXECUTION + '.profile.json',
-                                   (json.dumps({'schema': 1, 'execution': EXECUTION, 'profiles': profiles, 'measurements': counters}, sort_keys=True) + '\n').encode())
+                                   (json.dumps({'schema': 1, 'execution': EXECUTION, 'profiles': profiles,
+                                                'requests': requests.snapshot(), 'measurements': counters}, sort_keys=True) + '\n').encode())
+
+
+def staged(function):
+    """Record native Python boundaries without changing their stdout or status."""
+    @wraps(function)
+    def invoke(*args, **kwargs):
+        if not enabled():
+            return function(*args, **kwargs)
+        source = Path(os.sys.argv[0]).stem
+        source = re.sub(r'^[0-9a-z]{32}-', '', source)
+        source = {'decision-download': 'selection', 'decision-retained': 'selection',
+                  'decision-handoff-fetch': 'packet-materialization'}.get(source, source)
+        name = source if source in requests.STAGES else 'other'
+        member = uuid.uuid4().hex + '.stage.json'
+        started = time.monotonic()
+        value = {'schema': 1, 'execution': EXECUTION, 'stage': name,
+                 'startedAt': dt.datetime.now(dt.timezone.utc).isoformat(),
+                 'elapsedSeconds': None, 'outcome': 'unknown', 'exitCode': None}
+        artifacts.atomic_write(directory(), member, (json.dumps(value, sort_keys=True) + '\n').encode())
+        with requests.scope(stage=name):
+            try:
+                result = function(*args, **kwargs)
+            except BaseException as error:
+                value['outcome'] = 'interrupted' if isinstance(error, (KeyboardInterrupt, SystemExit)) else 'failure'
+                if isinstance(error, SystemExit):
+                    value['exitCode'] = error.code if type(error.code) is int else 0 if error.code is None else 1
+                    value['outcome'] = 'success' if value['exitCode'] == 0 else 'interrupted' if value['exitCode'] in (130, 143) else 'failure'
+                # Preserve the original exception even if diagnostic finalization fails.
+                try:
+                    finish_stage(member, value, started)
+                except (OSError, ValueError):
+                    pass
+                raise
+            else:
+                value['exitCode'] = result if type(result) is int else 0
+                value['outcome'] = 'success' if value['exitCode'] == 0 else 'failure'
+                finish_stage(member, value, started)
+                return result
+    return invoke
+
+
+def finish_stage(member, value, started):
+    value['elapsedSeconds'] = round(time.monotonic() - started, 6)
+    # Completion is durable only after this execution's measurements are saved.
+    snapshot()
+    artifacts.atomic_write(directory(), member, (json.dumps(value, sort_keys=True) + '\n').encode())
 
 
 def capture_receipts(root):
@@ -258,7 +319,10 @@ def manifest():
     executions = {}
     for name in sorted(files):
         if name.endswith('.profile.json'):
-            document = artifacts.read_json(root, name)
+            document = artifacts.read_json(root, name, 1024 * 1024)
+            requests.validate(document)
+            if name != document['execution'] + '.profile.json' or document['execution'] in executions:
+                raise ValueError('Duplicate or mismatched execution profile')
             snapshot = document['profiles']
             executions[document['execution']] = document['measurements']
             for group, categories in snapshot.items():
@@ -284,6 +348,8 @@ def manifest():
              'repository': os.environ.get('GITHUB_REPOSITORY'), 'job': os.environ.get('GITHUB_JOB'),
              'run': os.environ.get('GITHUB_RUN_ID'), 'attempt': os.environ.get('GITHUB_RUN_ATTEMPT'), 'files': files,
              'receiptCapture': receipts, 'occurrences': occurrences, 'profiles': profiles,
+             'requestProfiles': sorted(name for name in files if name.endswith('.profile.json')),
+             'nativeStages': sorted(name for name in files if name.endswith('.stage.json')),
              'experiments': {key: os.environ.get(key, 'false') == 'true' for key in
                              ('MAESTRO_DECISION_ONLY_REUSE_ENABLED', 'MAESTRO_PACKET_METADATA_BATCH_ENABLED', 'MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED')},
              'verifiedDestinationsRequired': os.environ.get('PUBLICATION_REQUIRE_VERIFIED') == 'true',

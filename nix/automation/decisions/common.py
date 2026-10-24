@@ -24,6 +24,7 @@ def require(value, message):
         raise ValueError(message)
 
 
+@diagnostics.requests.process
 def command(args, timeout=None, **kwargs):
     diagnostics.profile('transport', diagnostics.transport_category(args), wrappers=1)
     if args[:2] == ['gh', 'api']:
@@ -41,6 +42,7 @@ def emit(result, output=None):
     print(diagnostics.record(result) or value, end='')
 
 
+@diagnostics.staged
 def run(main):
     try:
         return main() or 0
@@ -138,6 +140,7 @@ def ledger(cfg, api=None):
     return revision, records
 
 
+@diagnostics.requests.owned(authority='current')
 def authorize(cfg, proposal, api=None, pr=None, allow_open=False):
     api = api or authority.github_api
     number = pr or authority.find_origin_pr(proposal, cfg['repository'], cfg['botLogin'], github=api)
@@ -145,6 +148,7 @@ def authorize(cfg, proposal, api=None, pr=None, allow_open=False):
                                      require_merged=not allow_open, github=api)
 
 
+@diagnostics.requests.owned(authority='historical')
 def historical_provenance(cfg, proposal, api=None):
     """A superseded parent needs immutable bot merge provenance, never live authority."""
     api = api or authority.github_api

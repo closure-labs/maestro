@@ -9,6 +9,8 @@ correspond to published GitHub tags.
 
 ## [Unreleased]
 
+- Attribute publication requests to fixed purposes, native stages and innermost gate phases; record cache-origin fallback counts and bounded native stage completion independently of GitHub step telemetry. Preserve all gates, result bytes, receipt formats and transport behavior; unmeasured HTTP attempts and wire bytes remain unknown.
+
 - Allow the hosted clean-store consumer to select an exact active accepted product proposal for recovery verification, retaining the newest-product default and all provenance, byte and signature checks.
 
 - Add disabled handoff metadata batching and a verified-destinations-only manual trial. One authenticated manifest and descriptor bind all requested metadata bytes; every attestation, freshness, admission, pre-write and journal boundary remains live. Retain actual metadata hashes and operation counts for matched rollout evidence.

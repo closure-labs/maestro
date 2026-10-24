@@ -40,6 +40,7 @@ def nar_hash(value):
     return 'sha256-'+base64.b64encode(raw).decode()
 
 
+@diagnostics.requests.public
 def http(url, head=False):
     # Only caller-constructed, credential-free public endpoints are accepted.
     parsed=urlparse(url)
@@ -93,6 +94,7 @@ def closure_identities(records, expected):
     return identities
 
 
+@diagnostics.requests.cache_inspection
 def cache(product, url, read=http, upstreams=(), closure=None):
     if url not in ('https://maestro.cachix.org','https://xen-orchestra-ce.cachix.org'):
         raise ValueError('Unknown public cache')
@@ -118,10 +120,18 @@ def cache(product, url, read=http, upstreams=(), closure=None):
     seen = set(); discovered = set(identities); frontier = deque(sorted(identities)); edges = 0
 
     def inspect(path):
+        diagnostics.requests.inspected_path()
         try:
             status, body = 404, b''
-            for source in (url, *upstreams):
-                status, body = read(source+'/'+Path(path).name[:32]+'.narinfo')
+            for depth, source in enumerate((url, *upstreams)):
+                origin = 'primary' if source == url else 'nixos-upstream' if source == 'https://cache.nixos.org' else 'xo-upstream'
+                with diagnostics.requests.scope(purpose='cache-metadata', origin=origin, method='GET', fallback=str(depth)):
+                    try:
+                        status, body = read(source+'/'+Path(path).name[:32]+'.narinfo')
+                    except BaseException:
+                        diagnostics.requests.cache_response(None)
+                        raise
+                    diagnostics.requests.cache_response(status)
                 if status != 404:
                     break
         except subprocess.TimeoutExpired:
@@ -237,6 +247,7 @@ def receipt(value, product):
             'verifiedAt':dt.datetime.now(dt.timezone.utc).isoformat(),'verifier':hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
 
 
+@diagnostics.staged
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('destination',choices=['cache','flakehub'])

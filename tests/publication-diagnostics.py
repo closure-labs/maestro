@@ -30,6 +30,10 @@ class Diagnostics(unittest.TestCase):
         display = patch.dict(diagnostics.GATE_DISPLAY, {}, clear=True)
         display.start()
         self.addCleanup(display.stop)
+        for values in (diagnostics.COUNTERS, diagnostics.PROFILES, diagnostics.requests.ROWS, diagnostics.requests.INSPECTIONS):
+            isolated = patch.dict(values, {}, clear=True)
+            isolated.start()
+            self.addCleanup(isolated.stop)
 
     def test_duplicate_occurrences_keep_exact_bytes_and_one_object(self):
         with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {

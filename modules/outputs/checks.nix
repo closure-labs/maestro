@@ -347,6 +347,7 @@ in {
           PYTHONDONTWRITEBYTECODE=1 python3 tests/test_consumer_result.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/publication-journal.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/publication-diagnostics.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/test_request_attribution.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/distribution-cache.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/qualification-restore.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/installer-coverage.py

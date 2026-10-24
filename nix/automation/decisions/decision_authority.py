@@ -89,6 +89,7 @@ def api_failure_details(status, headers, output):
     return ''.join('; ' + name + '=' + value for name, value in fields.items())
 
 
+@diagnostics.requests.github
 def github_api(endpoint):
     diagnostics.count('apiWrapperInvocations')
     diagnostics.profile('transport', 'github-api', wrappers=1)
@@ -322,6 +323,7 @@ def decode_blob(blob, identity, size):
         raise AuthorityError('Invalid encoded Git blob') from error
 
 
+@diagnostics.requests.owned(purpose='immutable-blob')
 def document_blob(api, repository, identity, size, inline=None):
     """Read bytes named by a fresh immutable-ref/tree observation, then reparse."""
     if (not isinstance(repository, str) or not REPOSITORY.fullmatch(repository)
@@ -469,6 +471,7 @@ def approval(api, repository, number, head):
     return selected
 
 
+@diagnostics.requests.authority
 def verify_proposal(proposal, pr, repository, expected_bot, require_merged=True, github=None,
                     allowed_paths=None, require_live_review=True):
     """Return API-derived authority; callers separately validate scan/release payload semantics.
