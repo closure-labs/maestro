@@ -54,7 +54,10 @@ def http(url, head=False):
         if head:
             args+=['--head']
         diagnostics.count('publicTransportInvocations')
+        diagnostics.profile('transport', 'public-http', wrappers=1)
         result=operations.run([*args,url], capture_output=True, text=True, timeout=30, check=False)
+        if body.exists():
+            diagnostics.profile('transport', 'public-http', captured=body.stat().st_size)
         if result.returncode or not re.fullmatch(r'[0-9]{3}',result.stdout):
             return None,b''
         data=body.read_bytes() if body.exists() else b''

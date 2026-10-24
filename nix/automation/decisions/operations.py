@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Monotonic operation budgets and bounded process-group cleanup."""
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from contextvars import ContextVar
 import os
 import signal
@@ -112,7 +112,9 @@ def run(args, *, timeout, check=False, capture_output=False, input=None, **kwarg
         kwargs['stdin'] = subprocess.PIPE
     environment = dict(kwargs.pop('env', os.environ))
     environment['CI_OPERATION_DEADLINE'] = str(time.monotonic() + limit)
-    with termination_guard():
+    diagnostics = sys.modules.get('diagnostics')
+    measurement = diagnostics.measuring('transport', diagnostics.transport_category(args)) if diagnostics else nullcontext()
+    with termination_guard(), measurement:
         return _run(args, limit, input, check, dict(kwargs, env=environment))
 
 
@@ -146,6 +148,9 @@ def cancellation_scope():
 
 def _run(args, limit, input, check, kwargs):
     with subprocess.Popen(args, start_new_session=True, **kwargs) as child:
+        diagnostics = sys.modules.get('diagnostics')
+        if diagnostics:
+            diagnostics.profile('transport', diagnostics.transport_category(args), launches=1)
         try:
             cancelled = CANCELLATION.get()
             if cancelled is None:
@@ -163,6 +168,9 @@ def _run(args, limit, input, check, kwargs):
         except BaseException:
             terminate(child)
             raise
+        if diagnostics:
+            diagnostics.profile('transport', diagnostics.transport_category(args),
+                                captured=diagnostics.captured_bytes(stdout) + diagnostics.captured_bytes(stderr))
         result = subprocess.CompletedProcess(args, child.returncode, stdout, stderr)
         if check:
             result.check_returncode()

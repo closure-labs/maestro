@@ -91,13 +91,17 @@ def api_failure_details(status, headers, output):
 
 def github_api(endpoint):
     diagnostics.count('apiWrapperInvocations')
+    diagnostics.profile('transport', 'github-api', wrappers=1)
     # Endpoint is constructed from validated repository, PR numbers and hashes.
     # GitHub base64 JSON needs more space than the bounded raw document. Bound
     # the child output before allocating or parsing it, including on API errors.
     def bound_output():
         resource.setrlimit(resource.RLIMIT_FSIZE, (MAX_API_BYTES, MAX_API_BYTES))
     for attempt in range(1, 4):
+        if attempt > 1:
+            diagnostics.profile('transport', 'github-api', retries=1)
         details = ''
+        result = None
         with tempfile.TemporaryFile() as output:
             try:
                 diagnostics.count('apiTransportInvocations')
@@ -108,7 +112,9 @@ def github_api(endpoint):
                 raise AuthorityError('GitHub authority API unavailable') from error
             except subprocess.TimeoutExpired:
                 failure = 'timeout'
-            else:
+            finally:
+                diagnostics.profile('transport', 'github-api', captured=output.tell())
+            if result is not None:
                 if output.tell() >= MAX_API_BYTES or result.returncode < 0:
                     raise AuthorityError('GitHub authority API output failed or exceeded limit')
                 output.seek(0)
@@ -348,6 +354,7 @@ def document_blob(api, repository, identity, size, inline=None):
         raise AuthorityError('Invalid proposal blob') from error
     if reused:
         diagnostics.count('immutableBytesReused', size)
+        diagnostics.profile('transport', 'github-api', reused=size)
     if path is not None:
         # Diagnostics contain only public object identities and byte reuse. No
         # review, membership or authorization result is retained here.

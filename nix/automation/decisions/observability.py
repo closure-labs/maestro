@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 """Small versioned stage summaries without credentials, argv or API bodies."""
 import json
+import copy
 import os
 from pathlib import Path
 import time
+import diagnostics
 
 
 def stage(name, started, *, cache=None, transferred_bytes=0, freshness=None, queue=None, remote=None, checkpoints=None):
@@ -18,6 +20,9 @@ def stage(name, started, *, cache=None, transferred_bytes=0, freshness=None, que
     value = {'schema': 1, 'stage': name, 'elapsedSeconds': round(time.monotonic() - started, 3),
              'cacheOutcome': cache, 'transferredBytes': transferred_bytes, 'freshness': freshness,
              'queueState': queue, 'remoteVerification': remote, 'checkpoints': checkpoints or []}
+    if diagnostics.enabled():
+        with diagnostics.LOCK:
+            value['measurements'] = copy.deepcopy(diagnostics.PROFILES)
     if os.environ.get('RUNNER_TEMP'):
         with (Path(os.environ['RUNNER_TEMP']) / 'ci-stage-summary.jsonl').open('a') as stream:
             stream.write(json.dumps(value, sort_keys=True) + '\n')
