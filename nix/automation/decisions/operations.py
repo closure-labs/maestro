@@ -114,7 +114,8 @@ def run(args, *, timeout, check=False, capture_output=False, input=None, **kwarg
     environment['CI_OPERATION_DEADLINE'] = str(time.monotonic() + limit)
     diagnostics = sys.modules.get('diagnostics')
     measurement = diagnostics.measuring('transport', diagnostics.transport_category(args)) if diagnostics else nullcontext()
-    with termination_guard(), measurement:
+    ownership = diagnostics.requests.process_scope(args) if diagnostics else nullcontext()
+    with ownership, termination_guard(), measurement:
         return _run(args, limit, input, check, dict(kwargs, env=environment))
 
 

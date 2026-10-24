@@ -25,14 +25,26 @@ class GitHubError(ValueError):
         self.status = status
 
 
+@common.diagnostics.requests.github
 def api(endpoint, method='GET', payload=None):
     common.diagnostics.count('apiWrapperInvocations')
     common.diagnostics.count('apiTransportInvocations')
     args = ['gh', 'api', '--method', method, endpoint]
     if payload is not None:
         args += ['--input', '-']
-    result = subprocess.run(args, input=json.dumps(payload) if payload is not None else None,
-                            capture_output=True, text=True, timeout=180)
+    # Retain this command's existing execution, timeout and failure semantics.
+    # It does not use operations.run, so account for its transport here once.
+    common.diagnostics.profile('transport', 'github-api', wrappers=1)
+    with common.diagnostics.measuring('transport', 'github-api'):
+        try:
+            result = subprocess.run(args, input=json.dumps(payload) if payload is not None else None,
+                                    capture_output=True, text=True, timeout=180)
+        except subprocess.TimeoutExpired as error:
+            common.diagnostics.profile('transport', 'github-api', launches=1,
+                                       captured=common.diagnostics.captured_bytes(error.stdout) + common.diagnostics.captured_bytes(error.stderr))
+            raise
+        common.diagnostics.profile('transport', 'github-api', launches=1,
+                                   captured=common.diagnostics.captured_bytes(result.stdout) + common.diagnostics.captured_bytes(result.stderr))
     if result.returncode:
         status = re.search(r'\bHTTP (\d{3})\b', result.stderr)
         raise GitHubError(int(status[1]) if status else None, result.stderr.strip())
@@ -51,7 +63,8 @@ def branch(repository, authorize, github=api):
         common.require(common.SHA.fullmatch(revision), 'Invalid journal base revision')
         authorize()
         try:
-            github(f'repos/{repository}/git/refs', 'POST', {'ref': 'refs/heads/' + BRANCH, 'sha': revision})
+            with common.diagnostics.requests.scope(purpose='journal-write'):
+                github(f'repos/{repository}/git/refs', 'POST', {'ref': 'refs/heads/' + BRANCH, 'sha': revision})
         except GitHubError as conflict:
             if conflict.status not in (409, 422):
                 raise
@@ -110,7 +123,8 @@ def transition(repository, product_hash, key, step, state, authorize, github=api
         authorize()
         try:
             github(endpoint, 'PUT', payload)
-            readback = github(endpoint + '?ref=' + BRANCH)
+            with common.diagnostics.requests.scope(purpose='journal-readback'):
+                readback = github(endpoint + '?ref=' + BRANCH)
             common.require(readback.get('encoding') == 'base64' and json.loads(base64.b64decode(readback['content'])) == document,
                            'Publication journal readback differs from verified checkpoint')
             return document

@@ -9,7 +9,7 @@ import stat
 import tempfile
 
 DIGEST = re.compile(r'[0-9a-f]{64}')
-MEMBER = re.compile(r'(?:[0-9a-f]{32}\.(?:result|summary|profile|freshness)\.json|(?:cache|flakehub|github)-receipt\.json|objects/[0-9a-f]{64}\.result\.json)')
+MEMBER = re.compile(r'(?:[0-9a-f]{32}\.(?:result|summary|profile|freshness|stage)\.json|(?:cache|flakehub|github)-receipt\.json|objects/[0-9a-f]{64}\.result\.json)')
 
 
 def regular_directory(path, create=False):
@@ -117,6 +117,12 @@ def verify(root):
             raise ValueError('Diagnostic file integrity failure')
         if name.startswith('objects/') and record['sha256'] != Path(name).name[:64]:
             raise ValueError('Diagnostic object identity mismatch')
+        if name.endswith('.profile.json'):
+            import diagnostic_requests
+            profile = read_json(root, name, 1024 * 1024)
+            if name != profile['execution'] + '.profile.json':
+                raise ValueError('Mismatched execution profile')
+            diagnostic_requests.validate(profile)
     actual = set()
     for member in root.rglob('*'):
         if member.is_symlink() or not (member.is_file() or member.is_dir()):

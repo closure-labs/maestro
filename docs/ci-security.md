@@ -220,6 +220,36 @@ lifetime. A later expired observation alone does not prove stale selection.
 The manifest's `logBytes` counts emitted native summaries; whole-job log bytes
 are measured separately after the job completes, including final cleanup.
 
+Each execution's profile also contains bounded `requests` attribution. Fixed
+labels identify purpose, current versus historical authority, native stage,
+innermost gate phase, transport, and cache origin/fallback depth. Only the
+innermost phase owns each request: the request rows reconcile exactly to the
+existing counters and transport totals, while phase durations remain nested.
+No endpoint, query, login, header, argv, store path or credential is retained in
+these labels. The raw journal subprocess now has transport measurements, and
+candidate selection records its previously unprofiled API wrappers; compare
+measurement coverage as well as totals when using older artifacts.
+
+Each cache invocation has a separate inspection identity and counts unique
+started paths and fixed response classes for each declared origin. It still
+performs its own fresh traversal. No response or authority is cached. Request
+rows are capped at 512 plus one explicit overflow row, and inspection records
+at 32 per execution; overflow is marked and cannot support detailed attribution
+claims. Profiles are limited to 1 MiB by the artifact reader. `requestProfiles`
+indexes execution files once rather than summing repeated summary snapshots.
+Legacy profiles without request attribution remain readable.
+
+Native Python leaf commands retain bounded `*.stage.json` records indexed by
+`nativeStages`. They contain an execution identity, fixed stage, native start
+time, monotonic duration and outcome, without changing command stdout or exit
+status. The initial record has an unknown outcome and null duration; a killed
+process without a completion record stays unknown, and its request profile may
+be incomplete. Native durations are not
+GitHub step durations and nested child stages must not be summed as whole-job
+time. Shell setup, runner monitoring and cleanup remain outside this native
+stage coverage. Keep original logs and API responses; missing or ambiguous API
+intervals remain unattributed rather than being filled from native records.
+
 
 The handoff metadata batching experiment is disabled by default through the
 non-secret runtime contract `MAESTRO_PACKET_METADATA_BATCH_ENABLED=false`.
