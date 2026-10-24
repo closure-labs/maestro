@@ -99,6 +99,11 @@ def actual_output(directory):
 
 def handoff_documents(source_policy, current_policy, profile):
     """Select fresh observations without changing the source-pinned product."""
+    setting = os.environ.get('MAESTRO_PACKET_METADATA_BATCH_ENABLED', 'false')
+    common.require(setting in ('true', 'false'), 'MAESTRO_PACKET_METADATA_BATCH_ENABLED must be true or false')
+    batched = setting == 'true'
+    with common.diagnostics.LOCK:
+        before = {name: value['calls'] for name, value in common.diagnostics.PROFILES.get('packetOperations', {}).items()}
     common.require(type(source_policy.get('schema')) is int and source_policy['schema'] == 1
                    and source_policy.get('mode') == 'official'
                    and type(current_policy.get('schema')) is int and current_policy['schema'] == 1,
@@ -117,23 +122,43 @@ def handoff_documents(source_policy, current_policy, profile):
             and canonical_hash({key: current_policy.get(key) for key in binding})
             == canonical_hash({key: source_policy.get(key) for key in binding})):
         selected = packet(current_policy)
-    if canonical_hash(selected) != canonical_hash(original):
-        # The old packet remains the authenticated full-product identity. Its
-        # old scans grant no admission: only the selected fresh packet below
-        # reaches the unchanged attestation and live upstream gate.
+    rotated = canonical_hash(selected) != canonical_hash(original)
+    original_product = None
+    if rotated:
+        # Original product bytes remain the authenticated identity. Fresh
+        # observations do not replace any products, roots or immutable assets.
         original_product = packets.decode_json(packets.metadata_bytes(
             original['reference'], original['sha256'], 'product.json'))
-        product = packets.metadata_bytes(selected['reference'], selected['sha256'], 'product.json')
-        common.require(canonical_hash(packets.decode_json(product))
-                       == canonical_hash(original_product),
-                       'Fresh handoff changes the immutable upstream product')
-        documents = {'product.json': product}
-        names = ('scans.json', 'handoff-' + profile + '.json')
+    if batched:
+        documents = packets.metadata_many(selected['reference'], selected['sha256'],
+                                           ('scans.json', 'product.json', 'handoff-' + profile + '.json'))
+        if rotated:
+            common.require(canonical_hash(packets.decode_json(documents['product.json']))
+                           == canonical_hash(original_product),
+                           'Fresh handoff changes the immutable upstream product')
     else:
-        documents = {}
-        names = ('scans.json', 'product.json', 'handoff-' + profile + '.json')
-    documents.update({name: packets.metadata_bytes(selected['reference'], selected['sha256'], name)
-                      for name in names})
+        # Keep singleton selection, ordering and failures unchanged by default.
+        if rotated:
+            product = packets.metadata_bytes(selected['reference'], selected['sha256'], 'product.json')
+            common.require(canonical_hash(packets.decode_json(product)) == canonical_hash(original_product),
+                           'Fresh handoff changes the immutable upstream product')
+            documents = {'product.json': product}
+            names = ('scans.json', 'handoff-' + profile + '.json')
+        else:
+            documents = {}
+            names = ('scans.json', 'product.json', 'handoff-' + profile + '.json')
+        documents.update({name: packets.metadata_bytes(selected['reference'], selected['sha256'], name)
+                          for name in names})
+    if common.diagnostics.enabled():
+        with common.diagnostics.LOCK:
+            counts = {name: common.diagnostics.PROFILES.get('packetOperations', {}).get(name, {}).get('calls', 0)
+                      - before.get(name, 0) for name in ('manifest', 'descriptor', 'metadata-member')}
+        common.diagnostics.record({
+            'schema': 1, 'status': 'verified', 'authorityClaim': False, 'batched': batched,
+            'referenceDigest': selected['reference'].rsplit(':', 1)[1], 'descriptorDigest': selected['sha256'],
+            'originalReferenceDigest': original['reference'].rsplit(':', 1)[1], 'originalDescriptorDigest': original['sha256'],
+            'members': {name: hashlib.sha256(data).hexdigest() for name, data in documents.items()},
+            'operationCounts': counts}, 'packet-metadata', logged=False)
     return documents
 
 

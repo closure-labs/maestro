@@ -392,7 +392,7 @@ def scans(path, cfg, api=None, allow_expired=False):
         require(isinstance(database, dict) and database.get('valid') is True, 'Native scanner database is invalid')
         database_time = timestamp(database.get('built'))
         reference_time = native_time if allow_expired else now
-        diagnostics.freshness((database_time + dt.timedelta(hours=database_hours) - reference_time).total_seconds(),
+        diagnostics.freshness((dt.timedelta(hours=database_hours) - (reference_time - database_time)).total_seconds(),
                               database_time <= native_time, allow_expired, lifetime='database')
         require(database_time <= native_time and reference_time - database_time <= dt.timedelta(hours=database_hours),
                 'Native scanner database is stale or newer than its observation')

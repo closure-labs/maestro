@@ -110,7 +110,7 @@ def captured_bytes(value):
 LOCK = threading.Lock()
 COUNTER_NAMES = ('gateInvocations', 'apiWrapperInvocations', 'apiTransportInvocations',
                  'publicTransportInvocations', 'immutableBytesReused')
-KINDS = {'admission', 'publication', 'publication-journal', 'publication-assets', 'destinations', 'gate', 'handoff'}
+KINDS = {'admission', 'publication', 'publication-journal', 'publication-assets', 'destinations', 'gate', 'handoff', 'packet-metadata'}
 
 
 def enabled():
@@ -285,7 +285,7 @@ def manifest():
              'run': os.environ.get('GITHUB_RUN_ID'), 'attempt': os.environ.get('GITHUB_RUN_ATTEMPT'), 'files': files,
              'receiptCapture': receipts, 'occurrences': occurrences, 'profiles': profiles,
              'experiments': {key: os.environ.get(key, 'false') == 'true' for key in
-                             ('MAESTRO_DECISION_ONLY_REUSE_ENABLED', 'MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED')},
+                             ('MAESTRO_DECISION_ONLY_REUSE_ENABLED', 'MAESTRO_PACKET_METADATA_BATCH_ENABLED', 'MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED')},
              'verifiedDestinationsRequired': os.environ.get('PUBLICATION_REQUIRE_VERIFIED') == 'true',
              'measurements': totals, 'httpAttempts': None, 'wireBytes': None,
              'measurementScope': 'Native instrumented processes only; nested phase durations overlap. Captured bytes are retained stdout/stderr and verified downloaded members, not wire bytes. HTTP attempts and wire bytes unavailable. Log bytes count emitted JSON summaries only; completed original job logs are measured separately.'}

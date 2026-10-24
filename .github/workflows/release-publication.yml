@@ -26,6 +26,7 @@ jobs:
     environment: release
     env:
       MAESTRO_CI_DIAGNOSTICS: 'true'
+      MAESTRO_PACKET_METADATA_BATCH_ENABLED: ${{ vars.MAESTRO_PACKET_METADATA_BATCH_ENABLED || 'false' }}
     permissions:
       actions: read
       packages: read
