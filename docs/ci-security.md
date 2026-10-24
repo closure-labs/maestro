@@ -182,3 +182,32 @@ time; artifact storage and network cost must be included in hosted comparisons.
 Maestro's scanner already processes its combined inventory with one database;
 XO's separate profiles now share one fresh verified run-local database. Neither
 optimization skips current scanner or runtime contracts.
+
+
+Publication diagnostic manifests use schema v2: `objects/<sha256>.result.json`
+contains the exact canonical full result bytes, while each occurrence retains
+its own execution, kind, timing, bounded summary and `resultReference`. Objects
+are shared only within one job's artifact, named by job, run and attempt. The
+internal reader in `nix/automation/decisions/diagnostic_artifacts.py` accepts v1
+and v2, verifies the complete inventory and rejects links, unsafe paths, absent
+objects and conflicting hashes. It grants no publication authority.
+
+For offline verification, run `python3
+nix/automation/decisions/diagnostics.py --verify <artifact-directory>`. To
+attribute an original completed job log, run the same script with `--job-log
+<original.log> --job <completed-job.json>`. Log byte categories partition the
+original bytes, including timestamps and line endings; timestamps outside a
+unique completed step interval remain unattributed. Never substitute a rerun's
+log. Runner monitoring remains pinned with its full security coverage; its
+current action inputs expose no verbosity control.
+
+Per-execution profiles aggregate fixed gate, packet and transport categories.
+Wrapper calls, actual child launches, explicit wrapper retries, captured bytes
+and verified immutable-byte reuse have separate fields. Nested gate timings
+overlap and must not be summed as job time. Captured bytes exclude unobserved
+output on interrupted processes and are not wire traffic; actual HTTP attempts
+and wire bytes remain null. Native freshness observations identify their actual
+selection, gate, handoff or native-scan boundary and remaining evidence/database
+lifetime. A later expired observation alone does not prove stale selection.
+The manifest's `logBytes` counts emitted native summaries; whole-job log bytes
+are measured separately after the job completes, including final cleanup.

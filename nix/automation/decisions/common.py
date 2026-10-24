@@ -25,6 +25,7 @@ def require(value, message):
 
 
 def command(args, timeout=None, **kwargs):
+    diagnostics.profile('transport', diagnostics.transport_category(args), wrappers=1)
     if args[:2] == ['gh', 'api']:
         diagnostics.count('apiWrapperInvocations')
         diagnostics.count('apiTransportInvocations')
@@ -57,6 +58,10 @@ def run(main):
             summary = diagnostics.record(safe_result, 'admission')
         print(summary or json.dumps(result), end='' if summary else '\n', file=sys.stderr)
         return 2
+    finally:
+        # Successful helpers may intentionally keep their historical full JSON
+        # rather than emit a diagnostic result kind. Retain their measurements too.
+        diagnostics.snapshot()
 
 
 def parser(description):
@@ -107,6 +112,7 @@ def main_revision(cfg, api=None):
     return revision
 
 
+@diagnostics.measured('gatePhases', 'ledger')
 def ledger(cfg, api=None):
     """Fetch every immutable canonical decision from an untruncated current-main tree."""
     api = api or authority.github_api
@@ -229,6 +235,7 @@ def active_security(cfg, records, api=None, authenticate=True):
     return digest, candidates[digest]
 
 
+@diagnostics.measured('gatePhases', 'release')
 def active_release(cfg, records, identity, api=None, authenticate=True):
     """Select one explicitly superseding release approval for these exact bytes."""
     product_hash = canonical_hash(identity)
@@ -354,6 +361,7 @@ def coverage_roots(native, contract):
     return set(roots.values())
 
 
+@diagnostics.measured('gatePhases', 'scans')
 def scans(path, cfg, api=None, allow_expired=False):
     api = api or authority.github_api
     value = load_json(path)
@@ -367,8 +375,9 @@ def scans(path, cfg, api=None, allow_expired=False):
     database_hours = cfg.get('maxDatabaseAgeHours', 48)
     require(type(evidence_hours) is int and 0 < evidence_hours <= 48
             and type(database_hours) is int and 0 < database_hours <= 168, 'Invalid native health age policy')
-    require(scanned <= now and scanned < expires and expires - scanned <= dt.timedelta(hours=evidence_hours)
-            and (allow_expired or now < expires), 'Expired or future native health')
+    valid_lifetime = scanned <= now and scanned < expires and expires - scanned <= dt.timedelta(hours=evidence_hours)
+    diagnostics.freshness((expires - now).total_seconds(), valid_lifetime, allow_expired)
+    require(valid_lifetime and (allow_expired or now < expires), 'Expired or future native health')
     producer = value.get('producer', {})
     producer_revision, signer = verify_producer(cfg, producer, value['revision'], api)
     attest(path, cfg, producer_revision, signer)
@@ -383,11 +392,14 @@ def scans(path, cfg, api=None, allow_expired=False):
         require(isinstance(database, dict) and database.get('valid') is True, 'Native scanner database is invalid')
         database_time = timestamp(database.get('built'))
         reference_time = native_time if allow_expired else now
+        diagnostics.freshness((database_time + dt.timedelta(hours=database_hours) - reference_time).total_seconds(),
+                              database_time <= native_time, allow_expired, lifetime='database')
         require(database_time <= native_time and reference_time - database_time <= dt.timedelta(hours=database_hours),
                 'Native scanner database is stale or newer than its observation')
     return value
 
 
+@diagnostics.measured('gatePhases', 'product')
 def product(path, cfg, scan, api=None):
     value = load_json(path)
     require(set(value).issubset({'schema', 'repository', 'revision', 'products', 'assets', 'roots'})
@@ -435,6 +447,7 @@ def product(path, cfg, scan, api=None):
     return value
 
 
+@diagnostics.measured('gatePhases', 'admission')
 def admission(cfg, scan, records, api=None):
     digest, proposal = active_security(cfg, records, api)
     require(proposal is not None and proposal['payload']['disposition'] == 'accepted', 'Current human risk acceptance required')
@@ -446,6 +459,7 @@ def admission(cfg, scan, records, api=None):
     return {'schema': 1, 'status': 'covered', 'decisionHash': digest, 'profiles': result}
 
 
+@diagnostics.measured('gatePhases', 'policy')
 def required_check(cfg, api=None):
     api = api or authority.github_api
     rules = api(f'repos/{cfg["repository"]}/rules/branches/main')
@@ -460,10 +474,12 @@ def required_check(cfg, api=None):
 def gate(cfg, scan_path, product_path=None, purpose='rolling', api=None):
     diagnostics.count('gateInvocations')
     try:
-        result = _gate(cfg, scan_path, product_path, purpose, api)
+        with diagnostics.boundary('gate'), diagnostics.measuring('gatePhases', 'gate'):
+            result = _gate(cfg, scan_path, product_path, purpose, api)
     except Exception as error:
         diagnostics.record({'schema': 1, 'status': 'blocked', 'errorType': type(error).__name__}, 'gate', logged=False)
         raise
+    diagnostics.snapshot()
     return result
 
 
@@ -473,12 +489,13 @@ def _gate(cfg, scan_path, product_path=None, purpose='rolling', api=None):
     required_check(cfg, api)
     revision, records = ledger(cfg, api)
     scan = scans(scan_path, cfg, api)
-    comparison = api(f'repos/{cfg["repository"]}/compare/{scan["revision"]}...{revision}')
-    require(comparison.get('status') in ('ahead', 'identical'), 'Candidate source is not on protected main ancestry')
-    producer_revision = scan['producer'].get('revision', scan['revision'])
-    if producer_revision != scan['revision']:
-        comparison = api(f'repos/{cfg["repository"]}/compare/{producer_revision}...{revision}')
-        require(comparison.get('status') in ('ahead', 'identical'), 'Rescan producer is not on protected main ancestry')
+    with diagnostics.measuring('gatePhases', 'ancestry'):
+        comparison = api(f'repos/{cfg["repository"]}/compare/{scan["revision"]}...{revision}')
+        require(comparison.get('status') in ('ahead', 'identical'), 'Candidate source is not on protected main ancestry')
+        producer_revision = scan['producer'].get('revision', scan['revision'])
+        if producer_revision != scan['revision']:
+            comparison = api(f'repos/{cfg["repository"]}/compare/{producer_revision}...{revision}')
+            require(comparison.get('status') in ('ahead', 'identical'), 'Rescan producer is not on protected main ancestry')
     result = admission(cfg, scan, records, api)
     if product_path:
         identity = product(product_path, cfg, scan, api)
@@ -488,14 +505,15 @@ def _gate(cfg, scan_path, product_path=None, purpose='rolling', api=None):
         require(release is not None and release['payload'].get('disposition') == 'accepted',
                 'Exact immutable product approval required')
     # Final complete-ledger refresh catches concurrent additions/revocations.
-    _, current = ledger(cfg, api)
-    require(current == records, 'Current-main ledger changed during admission')
-    active_security(cfg, current, api)
-    if product_path:
-        authorize(cfg, release, api)
-    policy = authority.document_at(api, cfg['repository'], cfg['policyPath'], main_revision(cfg, api))
-    require(policy == cfg and policy['enabled'], 'Publication policy changed during admission')
-    required_check(cfg, api)
+    with diagnostics.measuring('gatePhases', 'refresh'):
+        _, current = ledger(cfg, api)
+        require(current == records, 'Current-main ledger changed during admission')
+        active_security(cfg, current, api)
+        if product_path:
+            authorize(cfg, release, api)
+        policy = authority.document_at(api, cfg['repository'], cfg['policyPath'], main_revision(cfg, api))
+        require(policy == cfg and policy['enabled'], 'Publication policy changed during admission')
+        required_check(cfg, api)
     if diagnostics.enabled():
         diagnostics.record({**result, 'producer': scan['producer'],
                             'rootCount': len(identity['products']) + len(identity.get('roots', {})) if product_path else 0,

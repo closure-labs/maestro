@@ -141,7 +141,8 @@ def materialize():
     root = Path(os.environ.get('MAESTRO_SYSTEM_ROOT', '.')).resolve()
     local = Path(os.environ['DECISION_EVIDENCE_DIRECTORY']).resolve()
     cfg = common.config(Path(os.environ.get('MAESTRO_DECISION_POLICY', str(root / 'nix/automation/decision-policy.json'))), live=True)
-    scan = common.scans(local / 'scans.json', cfg)
+    with common.diagnostics.boundary('handoff'):
+        scan = common.scans(local / 'scans.json', cfg)
     product = common.product(local / 'product.json', cfg, scan)
     policy_path = Path(os.environ.get('MAESTRO_XO_HANDOFF_POLICY', str(root / 'nix/automation/xo-handoff.json')))
     live_policy = load_json(policy_path)

@@ -13,6 +13,7 @@ import time
 from urllib.parse import quote
 
 import operations
+import diagnostics
 import observability
 import security_decisions
 
@@ -109,7 +110,9 @@ def command_failure(args, code, tail, stderr_bytes, limit, timed_out=False, laun
         'fileLimitBytes': limit, 'errno': launch_errno}, sort_keys=True))
 
 
+@diagnostics.measured('transport', 'registry')
 def command(args, max_file_bytes=None, **kwargs):
+    diagnostics.profile('transport', 'registry', wrappers=1)
     with operations.termination_guard():
         return bounded_command(args, max_file_bytes=max_file_bytes, **kwargs)
 
@@ -128,6 +131,7 @@ def bounded_command(args, max_file_bytes=None, **kwargs):
                                      preexec_fn=restrict_files, start_new_session=True, **kwargs)
         except OSError as error:
             raise command_failure(args, None, tail, 0, limit, launch_errno=error.errno) from None
+        diagnostics.profile('transport', 'registry', launches=1)
         with child:
             try:
                 with selectors.DefaultSelector() as selector:
@@ -151,6 +155,8 @@ def bounded_command(args, max_file_bytes=None, **kwargs):
             except BaseException:
                 operations.terminate(child)
                 raise
+            finally:
+                diagnostics.profile('transport', 'registry', captured=capture.tell() + stderr_bytes)
             if child.returncode:
                 raise command_failure(args, child.returncode, tail, stderr_bytes, limit) from None
         if capture.tell() > MAX_COMMAND_OUTPUT:
@@ -237,6 +243,7 @@ def private_review_registry(allow_missing=False):
         raise ValueError('Candidate review package must have verified private visibility')
 
 
+@diagnostics.measured('packetOperations', 'push')
 def push(directory, producer):
     """Caller authenticates producer before persistence; return an immutable ref."""
     directory = Path(directory).resolve()
@@ -289,6 +296,7 @@ def manifest_members(reference, raw):
     return members
 
 
+@diagnostics.measured('packetOperations', 'manifest')
 def inspect(reference):
     if not isinstance(reference, str) or not REFERENCE.fullmatch(reference):
         raise ValueError('Packet requires a digest in the dedicated evidence repository')
@@ -307,9 +315,13 @@ def fetch_member(name, directory, members):
         raise ValueError('Requested packet member is absent')
     path = directory / name
     path.parent.mkdir(parents=True, exist_ok=True)
-    command(['oras', 'blob', 'fetch', REGISTRY + '@sha256:' + members[name]['sha256'], '--output', str(path)],
-            max_file_bytes=members[name]['size'])
-    verify_member(path, members[name])
+    category = 'descriptor' if name == 'decision-packet.json' else 'metadata-member' if name.endswith('.json') else 'payload-member'
+    with diagnostics.measuring('packetOperations', category):
+        command(['oras', 'blob', 'fetch', REGISTRY + '@sha256:' + members[name]['sha256'], '--output', str(path)],
+                max_file_bytes=members[name]['size'])
+        verify_member(path, members[name])
+        diagnostics.profile('packetOperations', category, captured=members[name]['size'])
+        diagnostics.profile('transport', 'registry', captured=members[name]['size'])
     return path
 
 

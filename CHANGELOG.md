@@ -9,6 +9,8 @@ correspond to published GitHub tags.
 
 ## [Unreleased]
 
+- Store publication diagnostics once per result digest in manifest v2 while retaining every execution occurrence, and verify both v1 and v2 artifacts. Attribute native gate phases, transport processes, explicit retries, packet reads, freshness boundaries and completed job log bytes without recording credentials or claiming unmeasured HTTP traffic.
+
 - Retain bounded, credential-safe diagnostic records for publication helper failures, including native health expiry.
 
 - Add disabled decision-only evidence reuse with shadow eligibility, route-plan v4 descriptors, read-only original-evidence verification and conservative v3 support. Reuse requires exact evaluated identities, fresh observations and current merged authority; publication hints retain separate security/product decision IDs and cannot override manual selectors.

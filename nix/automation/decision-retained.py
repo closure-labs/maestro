@@ -294,7 +294,8 @@ def main():
     else:
         manifest = packets.fetch(packet['reference'], args.directory, packet['sha256'])
     common.require(manifest['producer'] == packet.get('producer'), 'Retained packet producer differs from reviewed proposal')
-    scan = common.scans(args.directory / 'scans.json', cfg, allow_expired=True)
+    with common.diagnostics.boundary('selection'):
+        scan = common.scans(args.directory / 'scans.json', cfg, allow_expired=True)
     product = common.product(args.directory / 'product.json', cfg, scan)
     if intent:
         common.require(canonical_hash(product) == intent['productHash'],

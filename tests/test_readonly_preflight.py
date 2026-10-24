@@ -211,7 +211,7 @@ class ReadonlyPreflight(readback.PublishReadback):
         self.assertEqual(json.loads(result.stderr)['status'], 'blocked')
         self.assertNotIn('private-reader', result.stderr)
         self.assertFalse(self.receipt.exists())
-        files = list((self.work / 'publication-diagnostics').glob('*.result.json'))
+        files = list((self.work / 'publication-diagnostics').rglob('*.result.json'))
         self.assertEqual(len(files), 1)
         evidence = json.loads(files[0].read_text())
         self.assertEqual((evidence['operation'], evidence['reason']), ('complete', 'observation-changed'))

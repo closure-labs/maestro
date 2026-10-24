@@ -18,6 +18,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'nix/automation/decisions'))
 import common
 import diagnostics
+import diagnostic_artifacts as artifacts
+import diagnostic_logs
+import operations
+from concurrent.futures import ThreadPoolExecutor
 import destinations
 
 
@@ -27,6 +31,233 @@ class Diagnostics(unittest.TestCase):
         display.start()
         self.addCleanup(display.stop)
 
+    def test_duplicate_occurrences_keep_exact_bytes_and_one_object(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {
+            'MAESTRO_CI_DIAGNOSTICS': 'true', 'RUNNER_TEMP': temp
+        }):
+            result = {'status': 'covered', 'details': ['full result'] * 5000}
+            summaries = [json.loads(diagnostics.record(result, kind)) for kind in ('gate', 'publication', 'handoff')]
+            diagnostics.manifest()
+            root = Path(temp) / 'publication-diagnostics'
+            manifest = artifacts.verify(root)
+            self.assertEqual(manifest['schema'], 2)
+            self.assertEqual(len(list(root.rglob('*.result.json'))), 1)
+            self.assertEqual(len(manifest['occurrences']), 3)
+            raw = (json.dumps(result, sort_keys=True, indent=2, allow_nan=False) + '\n').encode()
+            for summary in summaries:
+                self.assertEqual((root / summary['resultReference']).read_bytes(), raw)
+                self.assertEqual(summary['evidenceDigest'], hashlib.sha256(raw).hexdigest())
+
+    def test_v1_v2_readers_retain_equivalent_evidence(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {
+            'MAESTRO_CI_DIAGNOSTICS': 'true', 'RUNNER_TEMP': temp
+        }):
+            result = {'status': 'verified', 'complete': [1, 2, 3]}
+            summary = json.loads(diagnostics.record(result, 'publication'))
+            diagnostics.manifest()
+            root = Path(temp) / 'publication-diagnostics'
+            v2 = artifacts.verify(root)
+            legacy = Path(temp) / 'legacy'
+            legacy.mkdir()
+            name = 'a' * 32
+            summary.pop('resultReference')
+            (legacy / (name + '.summary.json')).write_text(json.dumps(summary) + '\n')
+            raw = (root / v2['occurrences'][0]['resultReference']).read_bytes()
+            (legacy / (name + '.result.json')).write_bytes(raw)
+            (legacy / 'manifest.json').write_text(json.dumps({'schema': 1, 'files': {
+                member.name: artifacts.fingerprint(legacy, member.name) for member in legacy.iterdir()}}))
+            self.assertEqual(artifacts.verify(legacy)['schema'], 1)
+            self.assertEqual(hashlib.sha256(raw).hexdigest(), summary['evidenceDigest'])
+
+    def test_concurrent_occurrences_use_atomic_objects(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {
+            'MAESTRO_CI_DIAGNOSTICS': 'true', 'RUNNER_TEMP': temp
+        }):
+            with ThreadPoolExecutor(max_workers=8) as workers:
+                summaries = list(workers.map(lambda _: diagnostics.record({'status': 'covered', 'data': 'x' * 5000}, 'gate'), range(32)))
+            diagnostics.manifest()
+            root = Path(temp) / 'publication-diagnostics'
+            manifest = artifacts.verify(root)
+            self.assertEqual(len(manifest['occurrences']), 32)
+            self.assertEqual(len(list(root.rglob('*.result.json'))), 1)
+            self.assertEqual(len({json.loads(value)['resultReference'] for value in summaries}), 1)
+            self.assertFalse(list(root.rglob('.pending-*')))
+
+    def test_separate_processes_share_objects_without_losing_occurrences(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {
+            'MAESTRO_CI_DIAGNOSTICS': 'true', 'RUNNER_TEMP': temp,
+            'PYTHONPATH': str(ROOT / 'nix/automation/decisions')
+        }):
+            script = 'import diagnostics; diagnostics.record({"status":"covered"}, "gate")'
+            children = [subprocess.Popen([sys.executable, '-c', script]) for _ in range(4)]
+            for child in children:
+                self.assertEqual(child.wait(timeout=10), 0)
+            diagnostics.manifest()
+            root = Path(temp) / 'publication-diagnostics'
+            value = artifacts.verify(root)
+            self.assertEqual(len(value['occurrences']), 4)
+            self.assertEqual(len({row['execution'] for row in value['occurrences']}), 4)
+            self.assertEqual(len(list(root.rglob('*.result.json'))), 1)
+
+    def test_explicit_api_retry_is_distinct_from_wrappers_and_http_attempts(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {
+            'MAESTRO_CI_DIAGNOSTICS': 'true', 'RUNNER_TEMP': temp
+        }), patch.dict(diagnostics.PROFILES, {}, clear=True):
+            replies = [b'HTTP/2.0 503 Unavailable\r\n\r\n{}', b'HTTP/2.0 200 OK\r\n\r\n{}']
+            def transport(*args, **kwargs):
+                kwargs['stdout'].write(replies.pop(0))
+                return subprocess.CompletedProcess(args, 0)
+            with patch.object(common.authority.operations, 'run', side_effect=transport), patch.object(common.authority.time, 'sleep'):
+                self.assertEqual(common.authority.github_api('private-credential-sentinel'), {})
+            api = diagnostics.PROFILES['transport']['github-api']
+            self.assertEqual((api['wrapperCalls'], api['explicitRetries']), (1, 1))
+            self.assertGreater(api['capturedBytes'], 0)
+            self.assertEqual(api['subprocessLaunches'], 0)  # The fixture supplied replies, not children.
+            self.assertIsNone(api['httpAttempts'])
+            diagnostics.record({'status': 'covered'}, 'gate')
+            diagnostics.manifest()
+            self.assertNotIn('private-credential-sentinel', (Path(temp) / 'publication-diagnostics/manifest.json').read_text())
+
+    def test_native_health_records_the_failing_boundary(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {
+            'MAESTRO_CI_DIAGNOSTICS': 'true', 'RUNNER_TEMP': temp
+        }):
+            now = dt.datetime.now(dt.timezone.utc)
+            scan = {'schema': 1, 'repository': 'closure-labs/maestro', 'revision': 'a' * 40,
+                    'profiles': {'maestro': {}}, 'scannedAt': (now - dt.timedelta(hours=2)).isoformat(),
+                    'expiresAt': (now - dt.timedelta(hours=1)).isoformat()}
+            path = Path(temp) / 'scans.json'
+            path.write_text(json.dumps(scan))
+            with diagnostics.boundary('handoff'), self.assertRaisesRegex(ValueError, 'Expired or future native health'):
+                common.scans(path, {'repository': 'closure-labs/maestro', 'profiles': ['maestro']})
+            events = [json.loads(p.read_text()) for p in (Path(temp) / 'publication-diagnostics').glob('*.freshness.json')]
+            self.assertEqual(len(events), 1)
+            self.assertEqual(events[0]['boundary'], 'handoff')
+            self.assertTrue(events[0]['expired'])
+            self.assertLess(events[0]['remainingSeconds'], 0)
+
+    def test_missing_corrupt_and_conflicting_objects_fail_closed(self):
+        for mutation in ('missing', 'corrupt', 'symlink'):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {
+                'MAESTRO_CI_DIAGNOSTICS': 'true', 'RUNNER_TEMP': temp
+            }):
+                result = {'status': 'covered'}
+                summary = json.loads(diagnostics.record(result, 'gate'))
+                diagnostics.manifest()
+                root = Path(temp) / 'publication-diagnostics'
+                target = root / summary['resultReference']
+                target.unlink()
+                if mutation == 'corrupt':
+                    target.write_text('corrupt')
+                elif mutation == 'symlink':
+                    target.symlink_to(root / 'manifest.json')
+                with self.assertRaises((ValueError, OSError)):
+                    artifacts.verify(root)
+                if mutation != 'missing':
+                    with self.assertRaises((ValueError, OSError)):
+                        diagnostics.record(result, 'gate')
+
+    def test_unsafe_paths_and_symlink_directories_are_rejected(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            for name in ('../outside', '/absolute', 'objects/../outside', 'objects//x', 'objects/bad.result.json'):
+                with self.subTest(name=name), self.assertRaises(ValueError):
+                    artifacts.open_member(root, name)
+            (root / 'objects').symlink_to(root, target_is_directory=True)
+            with self.assertRaises((ValueError, OSError)):
+                artifacts.store(root, b'full result')
+            (root / 'publication-diagnostics').symlink_to(root, target_is_directory=True)
+            with patch.dict(os.environ, {'RUNNER_TEMP': temp}), self.assertRaises(ValueError):
+                diagnostics.directory()
+
+    def test_nested_manifest_is_an_unexpected_member(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {
+            'MAESTRO_CI_DIAGNOSTICS': 'true', 'RUNNER_TEMP': temp
+        }):
+            diagnostics.record({'status': 'covered'}, 'gate')
+            diagnostics.manifest()
+            root = Path(temp) / 'publication-diagnostics'
+            (root / 'objects/manifest.json').write_text('{}')
+            with self.assertRaises(ValueError):
+                artifacts.verify(root)
+            with self.assertRaises(ValueError):
+                diagnostics.manifest()
+
+    def test_profiles_are_fixed_categories_and_capture_bytes_without_argv(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {
+            'MAESTRO_CI_DIAGNOSTICS': 'true', 'RUNNER_TEMP': temp
+        }), patch.dict(diagnostics.PROFILES, {}, clear=True):
+            output = operations.run([sys.executable, '-c', 'print("private-credential-sentinel")'],
+                                    timeout=10, capture_output=True)
+            diagnostics.profile('transport', 'github-api', wrappers=1, retries=2, reused=1024)
+            diagnostics.record({'status': 'covered'}, 'gate')
+            diagnostics.manifest()
+            root = Path(temp) / 'publication-diagnostics'
+            manifest = artifacts.verify(root)
+            profile = manifest['profiles']['transport']['other']
+            self.assertEqual((profile['calls'], profile['subprocessLaunches'], profile['capturedBytes']), (1, 1, len(output.stdout)))
+            api = manifest['profiles']['transport']['github-api']
+            self.assertEqual((api['wrapperCalls'], api['explicitRetries'], api['immutableBytesReused']), (1, 2, 1024))
+            self.assertIsNone(api['httpAttempts'])
+            self.assertIsNone(api['wireBytes'])
+            for member in root.rglob('*.json'):
+                self.assertNotIn('private-credential-sentinel', member.read_text())
+            with self.assertRaises(ValueError):
+                diagnostics.profile('transport', 'https://credential-sentinel')
+
+    def test_freshness_records_observed_boundary_without_guessing_selection(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {
+            'MAESTRO_CI_DIAGNOSTICS': 'true', 'RUNNER_TEMP': temp
+        }):
+            with diagnostics.boundary('selection'):
+                diagnostics.freshness(10, True, False)
+            with diagnostics.boundary('handoff'):
+                diagnostics.freshness(-5, True, False)
+            events = [json.loads(path.read_text()) for path in (Path(temp) / 'publication-diagnostics').glob('*.freshness.json')]
+            self.assertEqual({(e['boundary'], e['expired']) for e in events}, {('selection', False), ('handoff', True)})
+            self.assertNotIn('initially-stale', json.dumps(events))
+
+    def test_successful_helper_retains_profiles_without_changing_full_stdout(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {
+            'MAESTRO_CI_DIAGNOSTICS': 'true', 'RUNNER_TEMP': temp
+        }), patch.dict(diagnostics.PROFILES, {}, clear=True), patch.dict(diagnostics.COUNTERS, {}, clear=True), \
+             patch.object(sys, 'argv', ['decision-handoff-fetch.py']):
+            def helper():
+                common.command([sys.executable, '-c', 'print("{}")'])
+                diagnostics.count('apiWrapperInvocations', 3)
+                common.emit({'complete': 'original full output'})
+            stream = io.StringIO()
+            with redirect_stdout(stream):
+                self.assertEqual(common.run(helper), 0)
+            self.assertEqual(json.loads(stream.getvalue()), {'complete': 'original full output'})
+            diagnostics.manifest()
+            root = Path(temp) / 'publication-diagnostics'
+            manifest = artifacts.verify(root)
+            self.assertEqual(manifest['occurrences'], [])
+            self.assertEqual(manifest['profiles']['transport']['other']['subprocessLaunches'], 1)
+            self.assertEqual(manifest['measurements']['apiWrapperInvocations'], 3)
+
+    def test_original_log_attribution_is_a_complete_byte_partition(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / 'original.log'
+            raw = (b'2026-10-24T00:00:00.1Z private-sentinel\n'
+                   b'2026-10-24T00:00:01.1Z monitor output\n'
+                   b'2026-10-24T00:00:02.1Z cleanup output\n'
+                   b'unattributed bytes\n')
+            path.write_bytes(raw)
+            job = {'status': 'completed', 'started_at': '2026-10-24T00:00:00Z', 'completed_at': '2026-10-24T00:00:03Z', 'steps': [
+                {'name': name, 'started_at': f'2026-10-24T00:00:0{second}Z', 'completed_at': f'2026-10-24T00:00:0{second + 1}Z'}
+                for second, name in enumerate(('Publish verified realized closures', 'Monitor hosted runner', 'Post Set up Nix'))]}
+            value = diagnostic_logs.measure(path, job)
+            self.assertEqual(value['rawJobLogBytes'], len(raw))
+            self.assertEqual(value['rawJobLogSha256'], hashlib.sha256(raw).hexdigest())
+            self.assertEqual(sum(value['bytesByCategory'].values()), len(raw))
+            self.assertTrue(all(value['bytesByCategory'][key] for key in ('native', 'runner-monitoring', 'cleanup', 'unattributed')))
+            self.assertNotIn('private-sentinel', json.dumps(value))
+            job['status'] = 'in_progress'
+            with self.assertRaises(ValueError):
+                diagnostic_logs.measure(path, job)
+
     def test_packaged_journal_filename_retains_exact_result(self):
         result = {'schema': 2, 'productHash': 'b' * 64, 'steps': {'cache': 'complete'}, 'receipts': {}}
         with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {'MAESTRO_CI_DIAGNOSTICS': 'true', 'RUNNER_TEMP': temp}), \
@@ -35,7 +266,7 @@ class Diagnostics(unittest.TestCase):
             with redirect_stdout(stream):
                 common.emit(result)
             self.assertEqual(json.loads(stream.getvalue())['kind'], 'publication-journal')
-            files = list((Path(temp) / 'publication-diagnostics').glob('*.result.json'))
+            files = list((Path(temp) / 'publication-diagnostics').rglob('*.result.json'))
             self.assertEqual(len(files), 1)
             self.assertEqual(json.loads(files[0].read_text()), result)
 
@@ -145,7 +376,7 @@ class Diagnostics(unittest.TestCase):
                 self.assertEqual(inspect.call_count, 1)
                 self.assertEqual(json.loads(output.read_text()), value)
                 self.assertEqual(json.loads(stream.getvalue())['status'], 'conflict')
-                results = list((Path(temp) / 'publication-diagnostics').glob('*.result.json'))
+                results = list((Path(temp) / 'publication-diagnostics').rglob('*.result.json'))
                 self.assertEqual(len(results), 1)
                 self.assertEqual(json.loads(results[0].read_text()), value)
 
@@ -177,10 +408,12 @@ class Diagnostics(unittest.TestCase):
                 summary = json.loads(stream.getvalue())
                 self.assertEqual(summary['status'], 'blocked')
                 self.assertEqual(summary['kind'], 'publication' if caller == 'publication.py' else 'admission')
-                results = list((Path(temp) / 'publication-diagnostics').glob('*.result.json'))
+                results = list((Path(temp) / 'publication-diagnostics').rglob('*.result.json'))
                 self.assertEqual(len(results), 1)
                 self.assertEqual(json.loads(results[0].read_text())['errorType'], 'CalledProcessError')
-                for path in (Path(temp) / 'publication-diagnostics').iterdir():
+                for path in (Path(temp) / 'publication-diagnostics').rglob('*'):
+                    if not path.is_file():
+                        continue
                     self.assertNotIn('secret-sentinel', path.read_text())
                 self.assertNotIn('secret-sentinel', stream.getvalue())
 
@@ -194,14 +427,14 @@ class Diagnostics(unittest.TestCase):
             with redirect_stderr(io.StringIO()):
                 self.assertEqual(common.run(fail), 2)
             root = Path(temp) / 'publication-diagnostics'
-            results = list(root.glob('*.result.json'))
+            results = list(root.rglob('*.result.json'))
             self.assertEqual(len(results), 1)
             result = json.loads(results[0].read_text())
             self.assertEqual(result['reason'], 'native-health-expired-or-future')
             diagnostics.manifest()
             manifest = json.loads((root / 'manifest.json').read_text())
             self.assertEqual((manifest['source'], manifest['run'], manifest['attempt']), ('a' * 40, '123', '2'))
-            self.assertEqual(manifest['files'][results[0].name]['sha256'], hashlib.sha256(results[0].read_bytes()).hexdigest())
+            self.assertEqual(manifest['files'][results[0].relative_to(root).as_posix()]['sha256'], hashlib.sha256(results[0].read_bytes()).hexdigest())
 
     def test_default_helper_failure_output_and_status_remain_complete(self):
         with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {
