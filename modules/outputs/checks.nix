@@ -400,25 +400,25 @@ in {
             --file ${inputs.self}/secretspec.toml \
             --profile github \
             --output github-schema.json
-          jq -e '.required == ["CACHIX_MAESTRO_PUBKEY", "MAESTRO_DECISION_ONLY_REUSE_ENABLED", "MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS"]' github-schema.json >/dev/null
+          jq -e '.required == ["CACHIX_MAESTRO_PUBKEY", "MAESTRO_DECISION_ONLY_REUSE_ENABLED", "MAESTRO_PACKET_METADATA_BATCH_ENABLED", "MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS"]' github-schema.json >/dev/null
           secretspec schema \
             --file ${inputs.self}/secretspec.toml \
             --profile github-queue \
             --output queue-schema.json
-          jq -e '.required == ["CACHIX_MAESTRO_PUBKEY", "MAESTRO_DECISION_ONLY_REUSE_ENABLED", "MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS", "MERGE_QUEUE_TOKEN"]' queue-schema.json >/dev/null
+          jq -e '.required == ["CACHIX_MAESTRO_PUBKEY", "MAESTRO_DECISION_ONLY_REUSE_ENABLED", "MAESTRO_PACKET_METADATA_BATCH_ENABLED", "MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS", "MERGE_QUEUE_TOKEN"]' queue-schema.json >/dev/null
           secretspec schema \
             --file ${inputs.self}/secretspec.toml \
             --profile github-publish \
             --output publish-schema.json
           jq -e \
-            '.required == ["CACHIX_MAESTRO_AUTH_TOKEN", "CACHIX_MAESTRO_PUBKEY", "MAESTRO_DECISION_ONLY_REUSE_ENABLED", "MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS"]' \
+            '.required == ["CACHIX_MAESTRO_AUTH_TOKEN", "CACHIX_MAESTRO_PUBKEY", "MAESTRO_DECISION_ONLY_REUSE_ENABLED", "MAESTRO_PACKET_METADATA_BATCH_ENABLED", "MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS"]' \
             publish-schema.json >/dev/null
           secretspec schema \
             --file ${inputs.self}/secretspec.toml \
             --profile local-publish \
             --output local-schema.json
           jq -e \
-            '.required == ["CACHIX_MAESTRO_AUTH_TOKEN", "CACHIX_MAESTRO_PUBKEY", "MAESTRO_DECISION_ONLY_REUSE_ENABLED", "MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS"]' \
+            '.required == ["CACHIX_MAESTRO_AUTH_TOKEN", "CACHIX_MAESTRO_PUBKEY", "MAESTRO_DECISION_ONLY_REUSE_ENABLED", "MAESTRO_PACKET_METADATA_BATCH_ENABLED", "MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS"]' \
             local-schema.json >/dev/null
           touch "$out"
         '';

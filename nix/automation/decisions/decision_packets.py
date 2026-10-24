@@ -355,6 +355,39 @@ def metadata_bytes(reference, expected, name, producer=None):
         return path.read_bytes()
 
 
+def metadata_many(reference, expected, names, producer=None):
+    """Return raw authenticated metadata bytes after one bounded inspection.
+
+    This is immutable byte validation only. Callers retain every fresh
+    attestation, health and authorization boundary after these reads.
+    """
+    if not isinstance(names, (list, tuple)) or not 0 < len(names) <= MAX_FILES:
+        raise ValueError('Invalid packet metadata selection')
+    names = tuple(dict.fromkeys(safe_name(name) for name in names))
+    if any(not name.endswith('.json') for name in names):
+        raise ValueError('Packet metadata selection requires JSON members')
+    observations = {'scans.json', 'handoff-xo-latest.json', 'handoff-xo-stable.json',
+                    'handoff-xo-rolling.json', 'handoff-libvhdi.json'}
+    with operations.budget(90), tempfile.TemporaryDirectory() as temporary:
+        operations.remaining(90)
+        directory = Path(temporary)
+        _, members = inspect(reference)
+        for name in names:
+            limit = (128 if name in observations else 16) * 1024**2
+            if name not in members or members[name]['size'] > limit:
+                raise ValueError('Packet metadata member is absent or oversized')
+        descriptor = packet_descriptor(fetch_member('decision-packet.json', directory, members), members, expected)
+        if producer is not None and canonical_hash(descriptor['producer']) != canonical_hash(producer):
+            raise ValueError('Packet metadata producer differs from reviewed descriptor')
+        result = {}
+        for name in names:
+            operations.remaining(90)
+            path = directory / 'decision-packet.json' if name == 'decision-packet.json' else fetch_member(name, directory, members)
+            result[name] = path.read_bytes()
+            operations.remaining(90)
+        return result
+
+
 def metadata(reference, expected, name, producer=None):
     return decode_json(metadata_bytes(reference, expected, name, producer))
 

@@ -211,3 +211,37 @@ selection, gate, handoff or native-scan boundary and remaining evidence/database
 lifetime. A later expired observation alone does not prove stale selection.
 The manifest's `logBytes` counts emitted native summaries; whole-job log bytes
 are measured separately after the job completes, including final cleanup.
+
+
+The handoff metadata batching experiment is disabled by default through the
+non-secret runtime contract `MAESTRO_PACKET_METADATA_BATCH_ENABLED=false`.
+Only the existing source-pinned handoff selection can opt into `metadata_many`;
+all other singleton readers retain their existing behavior. One verified OCI
+manifest and approved packet descriptor bind every requested metadata member,
+with the same exact member bounds, hashes and optional producer binding. The
+single batch inherits its caller's deadline and retains a 90-second operation
+budget. It fetches no closure payloads and caches no authorization result.
+
+Rolling publication offers `metadata_batch_trial=false`. A true manual trial
+sets the runtime flag and requires all selected destinations already verified.
+The existing cache inspector rejects partial destinations before closure
+restore, and the existing FlakeHub inspector rejects them before publication.
+Every admission, handoff, pre-write and journal gate remains. Existing manual
+candidate and proposal selectors, original producer/signers and freshness limits
+are unchanged. The flag supplies no approval or authority.
+
+Non-logged `packet-metadata` diagnostic occurrences retain actual selected member
+hashes, original/selected packet identities and fixed operation counts. These
+records prove immutable byte identity only. Three selected members require nine
+manifest/descriptor/member operations with singleton reads and five with a
+batch; historical full-product comparison still reads the original product
+separately when the selected observations rotate.
+
+After protected source approval and complete hosted validation, compare a
+healthy flag-off execution and verified-only trial with the same controller,
+approved product and evidence. Verify identical metadata, original producer and
+signer identities, unchanged gates and fresh receipts before promoting the
+repository variable. Then run without the trial override and verify current
+receipts, an idempotent journal, no duplicate product transfers and a hosted
+clean-store consumer. If freshness or human approval is missing, use the existing
+maintenance/decision process and keep batching disabled until safe proof exists.

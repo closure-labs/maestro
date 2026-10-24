@@ -9,6 +9,8 @@ correspond to published GitHub tags.
 
 ## [Unreleased]
 
+- Add disabled handoff metadata batching and a verified-destinations-only manual trial. One authenticated manifest and descriptor bind all requested metadata bytes; every attestation, freshness, admission, pre-write and journal boundary remains live. Retain actual metadata hashes and operation counts for matched rollout evidence.
+
 - Store publication diagnostics once per result digest in manifest v2 while retaining every execution occurrence, and verify both v1 and v2 artifacts. Attribute native gate phases, transport processes, explicit retries, packet reads, freshness boundaries and completed job log bytes without recording credentials or claiming unmeasured HTTP traffic.
 
 - Retain bounded, credential-safe diagnostic records for publication helper failures, including native health expiry.
