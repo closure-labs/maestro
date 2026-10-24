@@ -22,8 +22,12 @@ WORKFLOWS = {".github/workflows/ci.yml": "maestro-security-report",
 
 
 def api(endpoint):
-    return json.loads(operations.run(["gh", "api", "--method", "GET", f"repos/{REPOSITORY}/{endpoint}"],
-                                             text=True, capture_output=True, check=True, timeout=30).stdout)
+    with common.diagnostics.requests.github_scope(f'repos/{REPOSITORY}/{endpoint}'):
+        common.diagnostics.count('apiWrapperInvocations')
+        common.diagnostics.count('apiTransportInvocations')
+        common.diagnostics.profile('transport', 'github-api', wrappers=1)
+        return json.loads(operations.run(["gh", "api", "--method", "GET", f"repos/{REPOSITORY}/{endpoint}"],
+                                                 text=True, capture_output=True, check=True, timeout=30).stdout)
 
 
 def trusted(run):
@@ -50,6 +54,7 @@ def extract(archive, output):
         source.extractall(output)
 
 
+@common.diagnostics.staged
 def main():
     proposal_hash = os.environ.get('CANDIDATE_PROPOSAL_HASH', '')
     identity = os.environ.get('CANDIDATE_RUN', '')
