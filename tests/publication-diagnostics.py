@@ -164,15 +164,56 @@ class Diagnostics(unittest.TestCase):
             self.assertFalse(output.exists())
 
     def test_ci_errors_do_not_leak_exception_argv(self):
-        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {'MAESTRO_CI_DIAGNOSTICS': 'true', 'RUNNER_TEMP': temp}), patch.object(sys, 'argv', ['publication.py']):
+        for caller in ('publication.py', 'decision-handoff-fetch.py', 'decision-retained.py'):
+            with self.subTest(caller=caller), tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {
+                'MAESTRO_CI_DIAGNOSTICS': 'true', 'RUNNER_TEMP': temp
+            }), patch.object(sys, 'argv', [caller]):
+                def fail():
+                    raise subprocess.CalledProcessError(1, ['tool', '--authorization', 'secret-sentinel' * 10000])
+                stream = io.StringIO()
+                with redirect_stderr(stream):
+                    self.assertEqual(common.run(fail), 2)
+                self.assertLessEqual(len(stream.getvalue().encode()), 4096)
+                summary = json.loads(stream.getvalue())
+                self.assertEqual(summary['status'], 'blocked')
+                self.assertEqual(summary['kind'], 'publication' if caller == 'publication.py' else 'admission')
+                results = list((Path(temp) / 'publication-diagnostics').glob('*.result.json'))
+                self.assertEqual(len(results), 1)
+                self.assertEqual(json.loads(results[0].read_text())['errorType'], 'CalledProcessError')
+                for path in (Path(temp) / 'publication-diagnostics').iterdir():
+                    self.assertNotIn('secret-sentinel', path.read_text())
+                self.assertNotIn('secret-sentinel', stream.getvalue())
+
+    def test_helper_health_failure_retains_known_safe_reason_and_manifest_binding(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {
+            'MAESTRO_CI_DIAGNOSTICS': 'true', 'RUNNER_TEMP': temp,
+            'GITHUB_SHA': 'a' * 40, 'GITHUB_RUN_ID': '123', 'GITHUB_RUN_ATTEMPT': '2'
+        }), patch.object(sys, 'argv', ['decision-handoff-fetch.py']):
             def fail():
-                raise subprocess.CalledProcessError(1, ['tool', '--authorization', 'secret-sentinel'])
+                raise ValueError('Expired or future native health')
+            with redirect_stderr(io.StringIO()):
+                self.assertEqual(common.run(fail), 2)
+            root = Path(temp) / 'publication-diagnostics'
+            results = list(root.glob('*.result.json'))
+            self.assertEqual(len(results), 1)
+            result = json.loads(results[0].read_text())
+            self.assertEqual(result['reason'], 'native-health-expired-or-future')
+            diagnostics.manifest()
+            manifest = json.loads((root / 'manifest.json').read_text())
+            self.assertEqual((manifest['source'], manifest['run'], manifest['attempt']), ('a' * 40, '123', '2'))
+            self.assertEqual(manifest['files'][results[0].name]['sha256'], hashlib.sha256(results[0].read_bytes()).hexdigest())
+
+    def test_default_helper_failure_output_and_status_remain_complete(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {
+            'MAESTRO_CI_DIAGNOSTICS': 'false', 'RUNNER_TEMP': temp
+        }), patch.object(sys, 'argv', ['decision-handoff-fetch.py']):
+            def fail():
+                raise ValueError('original native detail')
             stream = io.StringIO()
             with redirect_stderr(stream):
                 self.assertEqual(common.run(fail), 2)
-            self.assertNotIn('secret-sentinel', stream.getvalue())
-            for path in (Path(temp) / 'publication-diagnostics').iterdir():
-                self.assertNotIn('secret-sentinel', path.read_text())
+            self.assertEqual(json.loads(stream.getvalue()), {'schema': 1, 'status': 'blocked', 'error': 'original native detail'})
+            self.assertFalse((Path(temp) / 'publication-diagnostics').exists())
 
 
 if __name__ == '__main__':
