@@ -9,6 +9,8 @@ correspond to published GitHub tags.
 
 ## [Unreleased]
 
+- Retain bounded, credential-safe diagnostic records for publication helper failures, including native health expiry.
+
 - Add disabled decision-only evidence reuse with shadow eligibility, route-plan v4 descriptors, read-only original-evidence verification and conservative v3 support. Reuse requires exact evaluated identities, fresh observations and current merged authority; publication hints retain separate security/product decision IDs and cannot override manual selectors.
 
 - Add a disabled read-only publication preflight experiment that freezes inputs and policy, buffers public cache observations, and requires fresh full admission before verified completion. A verified-only manual trial supports matched hosted evidence before promotion; partial publication retains every original authority boundary.

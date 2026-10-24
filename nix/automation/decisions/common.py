@@ -47,7 +47,14 @@ def run(main):
         result = {'schema': 1, 'status': 'blocked', 'error': str(error)}
         # Subprocess errors can contain argv. Keep credential-bearing exception
         # text out of the optional CI artifact and its public summary.
-        summary = diagnostics.record({'schema': 1, 'status': 'blocked', 'errorType': type(error).__name__})
+        reasons = {'Expired or future native health': 'native-health-expired-or-future'}
+        safe_result = {'schema': 1, 'status': 'blocked', 'errorType': type(error).__name__,
+                       'reason': reasons.get(str(error), 'native-command-failed')}
+        summary = diagnostics.record(safe_result)
+        if summary is None and diagnostics.enabled():
+            # Wrapper names are not publication result kinds. Their failures
+            # still need one safe same-execution record, never raw exception argv.
+            summary = diagnostics.record(safe_result, 'admission')
         print(summary or json.dumps(result), end='' if summary else '\n', file=sys.stderr)
         return 2
 

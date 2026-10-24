@@ -584,3 +584,8 @@ Packaged Nix-store journal commands and upstream handoff results use the same
 bounded mode. Producer and count fields from a gate can appear in the following
 summary for that same product and invocation; this is display metadata only.
 The native result, status, receipts and authority checks remain independent.
+
+CI helper failures also retain a bounded safe error record when the wrapper name
+is not a publication result kind. Exception argv and arbitrary messages stay out
+of logs and artifacts; an allowlisted reason identifies native health expiry.
+Default full error output and original failure status remain unchanged.
