@@ -506,6 +506,36 @@ Bootstrap workflow changes cannot certify reuse. Promotion requires hosted
 shadow/fixture proof, exact-source review and a safe real eligible hosted case;
 without that case, leave the variable disabled.
 
+### Read-only publication preflight
+
+`MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED` is a non-secret runtime
+repository variable that defaults to `false`. It supplies no approval or
+authority. When enabled, the native cache publisher validates and freezes
+product/scan bytes and policy before bounded public inspection in an environment without
+credentials. Every later gate, restore and handoff uses those frozen bytes;
+the originals, snapshots and anchored metadata must still match before and after admission.
+
+A verified destination creates no receipt until a fresh full native admission
+check succeeds. It then emits the existing receipt format and verified-cache
+fast-path message. Buffered observations are bound to this execution and their
+captured byte hash, and retain their actual readback time. The existing signed
+evidence and database expiry limits are checked again after admission and before
+receipt creation. The HTTP operation budget remains separate from those limits.
+The receipt format remains unchanged. Partial or
+missing destinations retain the full pre-import,
+handoff, pre-write and journal checks. Conflicts, unavailable destinations,
+mutated inputs and revoked authority cannot authorize completion or writes.
+The default path keeps both original admission calls. Promotion requires a
+healthy matched hosted off/on pair using the same approved product/evidence,
+followed by repeated publication, current idempotent journal receipts and the
+hosted clean-store consumer. No promotion is implied by this source change.
+
+The manual `readonly_preflight_trial` input exercises the enabled path for the
+selected approved candidate while leaving the repository variable disabled.
+It requires verified public destinations and blocks before closure imports or
+destination writes if they become partial, missing, conflicting or unavailable.
+It supplies no approval; native authority checks and receipts remain mandatory.
+
 ### Published cache upstreams
 
 Configure Maestro Cachix upstreams with `cache.nixos.org` and
@@ -531,7 +561,9 @@ native cache verification fast-path message.
 Each invocation retains its full structured results under
 `$RUNNER_TEMP/publication-diagnostics`. The `release:diagnostics` task finalizes
 a manifest with event source, checked-out controller commit/tree, run, attempt,
-and every file's SHA256 and size. An always-running upload retains these files
+and every file's SHA256 and size. It retains valid current cache, FlakeHub and
+GitHub receipt files and records the effective experiment and verified-only
+trial settings. An always-running upload retains these files
 on success and failure as `maestro-publication-diagnostics-JOB-RUN-ATTEMPT`.
 Finalization reads existing evidence; it never repeats an audit or publication.
 Failed destination inspections preserve their original exit status and full
@@ -547,3 +579,8 @@ observations must not be added as independent stage durations. These are
 measurements, not authorization caches or savings estimates. Exception argv,
 environment values and HTTP authorization headers are excluded from CI error
 records and public summaries.
+
+Packaged Nix-store journal commands and upstream handoff results use the same
+bounded mode. Producer and count fields from a gate can appear in the following
+summary for that same product and invocation; this is display metadata only.
+The native result, status, receipts and authority checks remain independent.
