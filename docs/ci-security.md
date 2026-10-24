@@ -92,6 +92,14 @@ for 72 hours. Those thresholds never approve or reject a release.
 
 ## XO handoff and recovery
 
+The hosted public consumer can verify the same exact approved roots selected
+for recovery: dispatch `consumer-probe.yml` with `proposal_hash` set to the
+active accepted product proposal hash. The native `--proposal-hash` selector
+rejects absent, rejected or superseded proposals without falling back. It
+retains provenance verification, disposable-store downloads, exact NAR hashes
+and recursive signature checks. An empty selector preserves the newest
+approved-product default for manual and scheduled runs.
+
 The checked `xo-handoff.json` binds an official upstream revision, profile,
 output/NAR identity, and immutable `xo-nixpkg-products` evidence packet. Maestro
 checks the candidate's original lockfile and handoff policy, the actual imported

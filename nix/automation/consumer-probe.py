@@ -89,12 +89,18 @@ def main():
     parser.add_argument('--config', type=Path, required=True)
     parser.add_argument('--cache', required=True)
     parser.add_argument('--key', required=True)
+    parser.add_argument('--proposal-hash', default='',
+                        help='Exact active accepted product proposal; empty selects the newest')
     args = parser.parse_args()
+    common.require(not args.proposal_hash or common.HASH.fullmatch(args.proposal_hash),
+                   'Invalid consumer proposal hash')
     cfg = common.config(args.config, live=True)
     _, records = common.ledger(cfg)
     candidates = []
     for proposal in records.values():
         if proposal['kind'] != 'release-product':
+            continue
+        if args.proposal_hash and common.canonical_hash(proposal) != args.proposal_hash:
             continue
         product = proposal['payload']['product']
         _, active = common.active_release(cfg, records, product, authenticate=False)
@@ -102,7 +108,8 @@ def main():
             continue
         common.historical_provenance(cfg, proposal)
         candidates.append(proposal)
-    common.require(candidates, 'No admitted consumer product')
+    common.require(candidates, 'Selected consumer product is not currently admitted'
+                   if args.proposal_hash else 'No admitted consumer product')
     selected = max(candidates, key=lambda p: (p['payload']['packet']['producer']['runId'],
                                              p['payload']['packet']['producer']['runAttempt']))
     result = probe(selected['payload']['product'], args.cache, args.key)
