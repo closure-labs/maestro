@@ -18,6 +18,10 @@ on:
         description: Trial handoff metadata batching for the selected approved candidate; require verified destinations
         type: boolean
         default: false
+      public_cache_transport_trial:
+        description: Trial bounded public-cache connection reuse; require verified destinations
+        type: boolean
+        default: false
       readonly_preflight_trial:
         description: Trial read-only preflight for the selected approved candidate; require verified destinations and keep the repository variable disabled
         type: boolean
@@ -40,8 +44,9 @@ jobs:
       MAESTRO_CI_DIAGNOSTICS: 'true'
       MAESTRO_DECISION_ONLY_REUSE_ENABLED: ${{ vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED || 'false' }}
       MAESTRO_PACKET_METADATA_BATCH_ENABLED: ${{ (github.event_name == 'workflow_dispatch' && inputs.metadata_batch_trial) && 'true' || vars.MAESTRO_PACKET_METADATA_BATCH_ENABLED || 'false' }}
+      MAESTRO_PUBLIC_CACHE_TRANSPORT_REUSE_ENABLED: ${{ (github.event_name == 'workflow_dispatch' && inputs.public_cache_transport_trial) && 'true' || vars.MAESTRO_PUBLIC_CACHE_TRANSPORT_REUSE_ENABLED || 'false' }}
       MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED: ${{ (github.event_name == 'workflow_dispatch' && inputs.readonly_preflight_trial) && 'true' || vars.MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED || 'false' }}
-      PUBLICATION_REQUIRE_VERIFIED: ${{ (github.event_name == 'workflow_dispatch' && (inputs.readonly_preflight_trial || inputs.metadata_batch_trial)) && 'true' || 'false' }}
+      PUBLICATION_REQUIRE_VERIFIED: ${{ (github.event_name == 'workflow_dispatch' && (inputs.readonly_preflight_trial || inputs.metadata_batch_trial || inputs.public_cache_transport_trial)) && 'true' || 'false' }}
       PUBLICATION_PURPOSE: ${{ inputs.proposal_hash != '' && 'release' || 'rolling' }}
     permissions:
       actions: read

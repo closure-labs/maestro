@@ -94,8 +94,7 @@ def closure_identities(records, expected):
     return identities
 
 
-@diagnostics.requests.cache_inspection
-def cache(product, url, read=http, upstreams=(), closure=None):
+def _cache(product, url, read=http, upstreams=(), closure=None):
     if url not in ('https://maestro.cachix.org','https://xen-orchestra-ce.cachix.org'):
         raise ValueError('Unknown public cache')
     if (len(upstreams)!=len(set(upstreams)) or any(source not in
@@ -204,6 +203,16 @@ def cache(product, url, read=http, upstreams=(), closure=None):
         value['status'] = 'conflict'
     value['closure'] = {'inspectedPaths': len(seen), 'missingPaths': len(missing)}
     return value
+
+
+@diagnostics.requests.cache_inspection
+def cache(product, url, read=http, upstreams=(), closure=None):
+    import public_cache_transport
+    selected = public_cache_transport.enabled()
+    if selected and read is http:
+        with public_cache_transport.Reader(CACHE_WORKERS) as reader:
+            return _cache(product, url, read=reader, upstreams=upstreams, closure=closure)
+    return _cache(product, url, read=read, upstreams=upstreams, closure=closure)
 
 
 def flakehub(version, revision, read=http):

@@ -50,7 +50,7 @@ if [[ $preflight_enabled == true ]]; then
   public_environment=(env -i "PATH=$PATH" "HOME=$preflight_directory" "LANG=C.UTF-8"
     "PYTHONDONTWRITEBYTECODE=1"
     "MAESTRO_CI_DIAGNOSTICS=${MAESTRO_CI_DIAGNOSTICS:-false}" "RUNNER_TEMP=${RUNNER_TEMP:-${TMPDIR:-/tmp}}")
-  for setting in SSL_CERT_FILE NIX_SSL_CERT_FILE CI_OPERATION_DEADLINE; do
+  for setting in SSL_CERT_FILE NIX_SSL_CERT_FILE CI_OPERATION_DEADLINE MAESTRO_PUBLIC_CACHE_TRANSPORT_REUSE_ENABLED PUBLICATION_CURL_WORKER_SOURCE; do
     [[ -z ${!setting:-} ]] || public_environment+=("$setting=${!setting}")
   done
 fi

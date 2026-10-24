@@ -32,21 +32,29 @@ PROFILE_CATEGORIES = {
 }
 
 
-def profile(group, category, *, calls=0, wrappers=0, launches=0, retries=0, captured=0, reused=0, seconds=0, failures=0):
+def profile(group, category, *, calls=0, wrappers=0, launches=0, retries=0, captured=0, reused=0, seconds=0, failures=0,
+            connections=None, starts=None, denied=None, metadata=None, measured=None, unmeasured=None):
     if group not in PROFILE_CATEGORIES or category not in PROFILE_CATEGORIES[group]:
         raise ValueError('Invalid diagnostic category')
     if not enabled():
         return
     with LOCK:
+        extra = {key: value for key, value in (
+            ('successfulConnections', connections), ('requestStarts', starts), ('deniedRequestStarts', denied),
+            ('metadataBytes', metadata), ('measuredReads', measured), ('unmeasuredReads', unmeasured)) if value is not None}
+        if extra and (group != 'transport' or category != 'public-http' or any(type(v) is not int or v < 0 for v in extra.values())):
+            raise ValueError('Invalid public transport measurement')
         if group == 'transport':
             with requests.scope(transport=category):
                 requests.transport(calls=calls, wrapperCalls=wrappers, subprocessLaunches=launches,
                                    explicitRetries=retries, capturedBytes=captured, immutableBytesReused=reused,
-                                   elapsedSeconds=seconds, failures=failures)
+                                   elapsedSeconds=seconds, failures=failures, **extra)
         value = PROFILES.setdefault(group, {}).setdefault(category, {
             'calls': 0, 'wrapperCalls': 0, 'subprocessLaunches': 0, 'explicitRetries': 0,
             'capturedBytes': 0, 'immutableBytesReused': 0, 'elapsedSeconds': 0, 'failures': 0,
             'httpAttempts': None, 'wireBytes': None})
+        for key, amount in extra.items():
+            value[key] = value.get(key, 0) + amount
         for key, amount in (('calls', calls), ('wrapperCalls', wrappers), ('subprocessLaunches', launches), ('explicitRetries', retries),
                             ('capturedBytes', captured), ('immutableBytesReused', reused),
                             ('elapsedSeconds', seconds), ('failures', failures)):
@@ -351,7 +359,7 @@ def manifest():
              'requestProfiles': sorted(name for name in files if name.endswith('.profile.json')),
              'nativeStages': sorted(name for name in files if name.endswith('.stage.json')),
              'experiments': {key: os.environ.get(key, 'false') == 'true' for key in
-                             ('MAESTRO_DECISION_ONLY_REUSE_ENABLED', 'MAESTRO_PACKET_METADATA_BATCH_ENABLED', 'MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED')},
+                             ('MAESTRO_DECISION_ONLY_REUSE_ENABLED', 'MAESTRO_PACKET_METADATA_BATCH_ENABLED', 'MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED', 'MAESTRO_PUBLIC_CACHE_TRANSPORT_REUSE_ENABLED')},
              'verifiedDestinationsRequired': os.environ.get('PUBLICATION_REQUIRE_VERIFIED') == 'true',
              'measurements': totals, 'httpAttempts': None, 'wireBytes': None,
              'measurementScope': 'Native instrumented processes only; nested phase durations overlap. Captured bytes are retained stdout/stderr and verified downloaded members, not wire bytes. HTTP attempts and wire bytes unavailable. Log bytes count emitted JSON summaries only; completed original job logs are measured separately.'}
