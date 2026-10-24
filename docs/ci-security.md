@@ -283,3 +283,63 @@ repository variable. Then run without the trial override and verify current
 receipts, an idempotent journal, no duplicate product transfers and a hosted
 clean-store consumer. If freshness or human approval is missing, use the existing
 maintenance/decision process and keep batching disabled until safe proof exists.
+
+## Public-cache connection-reuse experiment
+
+`MAESTRO_PUBLIC_CACHE_TRANSPORT_REUSE_ENABLED=false` is a non-secret runtime
+SecretSpec contract. The default retains the existing curl reader. The manual
+rolling-publication input `public_cache_transport_trial=false` enables the
+experiment only for that selected run and requires verified destinations before
+product imports or writes. Neither control supplies approval or authority.
+
+The enabled reader uses the same pinned libcurl engine as the native curl CLI,
+through its documented C interface in isolated Python workers. The native
+package substitutes the exact store library path; there is no host-library
+search or runtime dependency download. Each cache inspection owns at most eight
+workers. Every worker retains its own connections only until that inspection
+ends. The second inspection starts new workers and performs fresh requests.
+Public workers inherit only transport/certificate settings, never GitHub or
+Cachix credentials. No GitHub, attestation, registry, handoff, FlakeHub or write
+operation uses this reader.
+
+The experiment intentionally revises retries. A single budget permits at most
+two application-request starts per origin/member read, shared by libcurl's
+internal reconnect/HTTP2 recovery and explicit retries. A documented pre-request
+callback rejects a third start. The current CLI's “one retry” option does not
+bound its separate internal recovery attempts. Preserving those incidental
+failure outcomes prevented safe connection reuse; the explicit budget permits
+transient recovery while bounding amplification. A dropped connection can now
+recover, whereas repeated HTTP2 refused streams exhaust the budget sooner.
+
+Transient connection/refusal, partial-transfer, timeout, empty-reply and
+send/receive failures may retry once within that shared budget. HTTP 408, 429,
+500, 502, 503, 504, 522 and 524 may retry, with a one-second minimum delay and
+Retry-After honored only when it fits. Certificate errors, invalid metadata and
+identity conflicts never become accepted through retries. A 404 is not retried;
+it retains the existing source-order fallback. The read deadline is 30 seconds
+including startup, IPC and retry delays; connect timeout is five seconds and
+no retry starts after 25 seconds. The inherited 120-second inspection deadline,
+eight active reads, root-first scheduling, path/edge limits, TLS verification,
+redirect policy, user agent and 2 MiB response bound remain. Deadline or
+cancellation terminates worker process families through the existing bounded
+cleanup; no backend fallback occurs during an inspection.
+
+Profiles distinguish logical reads, worker launches, explicit retries, permitted
+and denied request starts, successful libcurl connections, decoded metadata
+bytes, and captured IPC bytes. Successful-connection counts do not include failed
+connects. Start callbacks are not measurements of every HTTP exchange, proxy
+handshake or wire attempt. HTTP attempts and wire bytes remain null. Worker
+replies that fail or are interrupted increment `unmeasuredReads`; connection and
+request-start totals then cover only completed measured replies. Legacy reader
+connection counts remain unknown. IPC encoding makes captured bytes unsuitable
+as a direct payload-size comparison; decoded metadata bytes and returned bytes
+have separate semantics.
+
+All admission, handoff, pre-write and journal gates remain. Tests cover the
+intentional retry differences directly. Before promotion, require complete
+hosted audit and exact-head review, then a healthy same-controller flag-off/on
+pair for the exact approved product and evidence. Require identical returned
+metadata and identities, unchanged gate coverage, fresh receipts, independent
+inspections and zero product transfers. Separate transient incidents from any
+performance comparison. Keep the flag disabled until that proof passes, then
+repeat with trial overrides off and verify the exact clean-store consumer.

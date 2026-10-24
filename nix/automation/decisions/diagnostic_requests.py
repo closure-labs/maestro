@@ -36,7 +36,8 @@ MAX_ROWS = 512
 MAX_INSPECTIONS = 32
 COUNTERS = {'apiWrapperInvocations', 'apiTransportInvocations', 'publicTransportInvocations', 'immutableBytesReused'}
 TRANSPORT = {'calls', 'wrapperCalls', 'subprocessLaunches', 'explicitRetries', 'capturedBytes',
-             'immutableBytesReused', 'elapsedSeconds', 'failures'}
+             'immutableBytesReused', 'elapsedSeconds', 'failures', 'successfulConnections', 'requestStarts',
+             'deniedRequestStarts', 'metadataBytes', 'measuredReads', 'unmeasuredReads'}
 
 
 def enabled():

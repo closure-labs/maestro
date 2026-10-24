@@ -9,6 +9,8 @@ correspond to published GitHub tags.
 
 ## [Unreleased]
 
+- Add a disabled public-cache connection-reuse experiment with inspection-scoped pinned libcurl workers and a shared two-request retry budget. A verified-only manual trial preserves all native authority gates and prevents product imports or destination writes.
+
 - Attribute publication requests to fixed purposes, native stages and innermost gate phases; record cache-origin fallback counts and bounded native stage completion independently of GitHub step telemetry. Preserve all gates, result bytes, receipt formats and transport behavior; unmeasured HTTP attempts and wire bytes remain unknown.
 
 - Allow the hosted clean-store consumer to select an exact active accepted product proposal for recovery verification, retaining the newest-product default and all provenance, byte and signature checks.
