@@ -9,97 +9,75 @@ correspond to published GitHub tags.
 
 ## [Unreleased]
 
-- Add a disabled public-cache connection-reuse experiment with inspection-scoped pinned libcurl workers and a shared two-request retry budget. A verified-only manual trial preserves all native authority gates and prevents product imports or destination writes.
+## [3.1.0] - 2026-10-25
 
-- Attribute publication requests to fixed purposes, native stages and innermost gate phases; record cache-origin fallback counts and bounded native stage completion independently of GitHub step telemetry. Preserve all gates, result bytes, receipt formats and transport behavior; unmeasured HTTP attempts and wire bytes remain unknown.
+### Added
 
-- Allow the hosted clean-store consumer to select an exact active accepted product proposal for recovery verification, retaining the newest-product default and all provenance, byte and signature checks.
-
-- Add disabled handoff metadata batching and a verified-destinations-only manual trial. One authenticated manifest and descriptor bind all requested metadata bytes; every attestation, freshness, admission, pre-write and journal boundary remains live. Retain actual metadata hashes and operation counts for matched rollout evidence.
-
-- Store publication diagnostics once per result digest in manifest v2 while retaining every execution occurrence, and verify both v1 and v2 artifacts. Attribute native gate phases, transport processes, explicit retries, packet reads, freshness boundaries and completed job log bytes without recording credentials or claiming unmeasured HTTP traffic.
-
-- Retain bounded, credential-safe diagnostic records for publication helper failures, including native health expiry.
-
-- Add disabled decision-only evidence reuse with shadow eligibility, route-plan v4 descriptors, read-only original-evidence verification and conservative v3 support. Reuse requires exact evaluated identities, fresh observations and current merged authority; publication hints retain separate security/product decision IDs and cannot override manual selectors.
-
-- Add a disabled read-only publication preflight experiment that freezes inputs and policy, buffers public cache observations, and requires fresh full admission before verified completion. A verified-only manual trial supports matched hosted evidence before promotion; partial publication retains every original authority boundary.
-
-- Add optional bounded CI publication summaries and retain execution-bound full diagnostics on success and failure; preserve failed destination observations and original exit status.
-
-- Inspect admitted rolling publication metadata before closure transfers, binding the existing candidate run to its exact current accepted product and producer.
-
-- Retain hosted immutable decision byte reuse observations without caching live authority or uploading proposal contents.
-
-- Let the existing weekly input updater advance Devenv from its default branch while retaining synchronized, reproducible lockfiles.
-
-- Add an opt-in Devenv keyring token prompt and read-only cache permission diagnostic. Keep implicit project credentials out of Nix evaluation; optional default credential declarations move to the explicit `runtime` SecretSpec profile.
-
-- Verify clean-store consumers and publication readback through the existing pinned public cache set, retaining substitution-only execution, exact root hashes, and recursive consumer signature checks.
-
-- Separate scan dependency fingerprints and retain fresh observations while reducing repeated inventory and advisory database work.
-
-- Use a strictly tested signal-only decision relay and minimal native controller task profiles.
-
-- Reconcile publication destinations before transfer and verify remote identities with backward-compatible receipt journals.
-
-- Inspect scheduling and observation metadata before payload transfer, and reuse verified immutable packet bytes within a job while repeating authority checks.
-
-- Bound optional CI transport and required evidence recovery, clean up nested processes, and reconcile exact-head merge queue state idempotently.
-
-- Verify public cache identities before publication completes and exercise public bytes and signatures weekly in a disposable consumer store.
+- Add a hosted clean-store consumer that verifies published appliance roots,
+  downloaded bytes and signatures through the pinned public caches. Operators
+  can select an exact accepted product for recovery verification.
+- Add publication summaries and credential-safe diagnostics for successful and
+  failed runs. Full results are stored once per digest while every execution
+  remains traceable; both legacy and compact diagnostic artifacts can be verified.
+- Add measurements for publication stages, native gates, packet reads, retries,
+  captured bytes and health expiry. HTTP attempts and wire bytes remain unknown
+  where the transport cannot measure them reliably.
+- Add controlled trials for read-only publication preflight, handoff metadata
+  batching and public-cache connection reuse. Verified-only trials prevent
+  product imports and destination writes while preserving live admission checks.
+- Add decision-only evidence reuse and shadow eligibility checks behind a
+  disabled runtime setting. Exact product identities, fresh observations and
+  current human authorization remain required.
+- Add an opt-in Devenv keyring prompt and read-only cache permission diagnostic.
+  Optional credentials use the explicit runtime SecretSpec profile and stay out
+  of Nix evaluation and the store.
 
 ### Changed
 
-- Update the pinned native devenv CLI and modules to 2.4.0, retaining synchronized
-  flake and devenv locks without refreshing the appliance package inputs.
-
-- Reduce repeated decision API reads with job-local, hash-verified Git blob reuse,
-  while keeping current-main metadata and human authorization checks live.
+- Inspect admitted products and handoff metadata before transferring closures.
+  Reuse verified immutable packet and decision bytes within a job while repeating
+  live authorization checks at every required boundary.
+- Batch handoff metadata reads through one validated manifest and descriptor,
+  and support connection reuse within a public-cache inspection. Connection
+  reuse shares a bounded two-request retry budget with its fallback.
+- Reconcile publication destinations before uploading and verify remote
+  identities before recording completion, retaining compatible receipt journals.
+- Reuse unchanged installer qualification in merge queues. Changed media and
+  forced or scheduled qualification still receive fresh builds.
+- Separate scan inventory and advisory database work from fresh observations to
+  avoid repeating unchanged work.
+- Update the native Devenv toolchain to 2.4.0 with synchronized lockfiles. The
+  existing weekly updater now follows Devenv's default branch.
 
 ### Fixed
 
-- Confirm secret-scanner ledger-key exceptions against complete source lines when large decision documents are split inside a public SHA-256 identity; keep all other credential findings blocking.
-
-- Retain native publication verification output and the no-transfer fast path
-  in hosted logs using Devenv’s existing task output option.
-
-- Resolve metadata-only XO handoff identities through the existing pinned
-  public cache set, retaining fail-closed hash and availability checks.
-
-- Keep admitted rolling products out of official-release recovery discovery,
-  while retaining exact-version validation and fresh publication authority.
-
-- Identify cache diagnostics with an explicit HTTP client user-agent and distinguish Cloudflare request blocks from rejected tokens.
-
-- Reject obsolete proposal parents before downloading review evidence, and refresh parent selection when protected main advances during verification.
-
-- Read bounded complete upstream handoff envelopes and permit fresh observations
-  for historical recovery only when the entire original upstream product is
-  unchanged, retaining independent admission, attestation and freshness gates.
-
-- Reuse verified unchanged installer qualification in the merge queue, refreshing
-  evidence separately while retaining fresh builds for changed media and forced
-  or scheduled qualification.
-
-- Stop optional discovery once authenticated matching media is found, avoiding
-  a timeout-driven rebuild while searching older runs for reusable evidence.
-
+- Verify public-cache dependency coverage before publication completes and bind
+  repair uploads to the authenticated retained closure. Recover an exact admitted
+  official product's cache without repeating GitHub or FlakeHub publication.
+- Keep rolling products out of official-release recovery discovery, and select
+  fresh observations for the exact admitted official product when reconciling
+  its security findings.
+- Accept refreshed upstream handoff observations for historical recovery only
+  when the complete original product is unchanged. Resolve metadata-only XO
+  identities through the pinned caches with hash and availability checks.
 - Require separate exact-product approval for rolling and official publication,
-  compare canonical identities with strict schema types, and recheck live review
+  validate canonical identity types strictly, and recheck live human review
   before completing admission.
-
-- Select an admitted official product's fresh observations for native security-risk reconciliation before retrying cache recovery.
-
-- Recover an exact admitted official product's cache through the protected publisher without repeating GitHub or FlakeHub publication.
-
-- Detect missing public-cache dependencies before publication completes, bind repair uploads to the authenticated retained closure, and report fixed consumer failure stages.
-
-- Retry bounded temporary GitHub authority read failures and report typed
-  rate-limit metadata and fixed failure categories. Preserve immediate denial of
-  HTTP 403 responses and keep raw headers, response text and credentials private.
-
-- Read the native multi-profile scans.json observation document with a dedicated 128 MiB bound while retaining 16 MiB limits for other packet metadata and all integrity/deadline checks.
+- Reject obsolete proposal parents before fetching review evidence and refresh
+  parent selection when protected main advances during verification.
+- Bound optional discovery and evidence recovery, stop discovery after finding
+  authenticated matching media, clean up nested processes, and reconcile
+  exact-head merge queue state safely across repeated attempts.
+- Retry temporary GitHub authority read failures within a bounded budget while
+  continuing to deny HTTP 403 responses immediately. Distinguish cache request
+  blocks from rejected credentials without exposing headers or response bodies.
+- Retain publication verification output, failed destination observations,
+  helper failures and original exit status in hosted diagnostics.
+- Read native multi-profile scan metadata within a dedicated 128 MiB limit while
+  retaining the 16 MiB limit for other packet metadata and all integrity checks.
+- Check complete source lines before exempting public SHA-256 ledger keys from
+  secret-scanner findings, including keys split across large-document chunks.
+  Other credential findings continue to block CI.
 
 ## [3.0.1] - 2026-10-20
 
