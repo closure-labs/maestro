@@ -116,7 +116,7 @@ def upload_batches(directory, names):
 
 
 def reconcile(repository, product, directory, tag, revision, publish, authorize,
-              github=journal.api, download=remote_digest, send=upload, materialize=None):
+              github=journal.api, download=remote_digest, send=upload, materialize=None, stage_only=False):
     common.require(re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?(?:\+[A-Za-z0-9.-]+)?', tag), 'Versioned official release tag required')
     common.require(common.SHA.fullmatch(revision) and product.get('revision') == revision
                    and product.get('repository') == repository, 'Release source differs from approved product')
@@ -134,6 +134,7 @@ def reconcile(repository, product, directory, tag, revision, publish, authorize,
         notes = (directory / 'release-notes.md').read_text()
     actual = tag_revision(repository, tag, github)
     common.require(actual is None or actual == revision, 'Existing release tag points at another source')
+    common.require(not stage_only or actual is not None, 'Asset batch requires reserved tag')
     if actual is None:
         authorize()
         try:
@@ -143,6 +144,7 @@ def reconcile(repository, product, directory, tag, revision, publish, authorize,
                 raise
         common.require(tag_revision(repository, tag, github) == revision, 'Release tag reservation conflict')
     release = release_for(repository, tag, github)
+    common.require(not stage_only or release is not None, 'Asset batch requires reserved draft')
     if release is None:
         authorize()
         try:
@@ -174,9 +176,30 @@ def reconcile(repository, product, directory, tag, revision, publish, authorize,
         for path in batch:
             common.require(sha256(path) == assets[path.name], 'Local asset changed while staging')
         send(repository, tag, batch)
-    # Reread everything after partial recovery or upload; metadata alone never
-    # substitutes for hashing the actual hosted asset bytes.
-    release = release_for(repository, tag, github, release['id'])
+    if stage_only:
+        return {'schema': 1, 'status': 'staged', 'tag': tag, 'revision': revision,
+                'productHash': common.canonical_hash(product), 'assets': sorted(assets)}
+    release = verify_hosted(repository, product, directory, tag, revision, github, download, release['id'])
+    authorize()
+    return publish_verified(repository, product, directory, tag, revision, release, publish, github)
+
+
+def release_notes(product, directory):
+    if 'release-notes.md' not in product['assets']:
+        return None
+    path = Path(directory) / 'release-notes.md'
+    common.require(path.is_file() and not path.is_symlink() and path.stat().st_size <= 65536
+                   and sha256(path) == product['assets']['release-notes.md'], 'Release notes differ from approved bytes')
+    return path.read_text()
+
+
+def verify_hosted(repository, product, directory, tag, revision, github=journal.api, download=remote_digest, release_id=None):
+    """Final complete hosted-byte readback; caller authorizes subsequent writes."""
+    common.require(product.get('repository') == repository and product.get('revision') == revision
+                   and common.SHA.fullmatch(revision), 'Release source differs from approved product')
+    assets = product['assets']
+    notes = release_notes(product, directory)
+    release = release_for(repository, tag, github, release_id)
     common.require(release is not None and type(release.get('draft')) is bool and release.get('tag_name') == tag
                    and release.get('target_commitish') == revision, 'Release changed while staging')
     common.require(notes is None or release.get('body') == notes, 'Release notes changed while staging')
@@ -185,7 +208,13 @@ def reconcile(repository, product, directory, tag, revision, publish, authorize,
     for name, asset in remote.items():
         common.require(download(repository, asset) == assets[name], 'Hosted bytes differ from approved product: ' + name)
     common.require(tag_revision(repository, tag, github) == revision, 'Release tag changed before publication')
-    authorize()
+    return release
+
+
+def publish_verified(repository, product, directory, tag, revision, release, publish, github=journal.api):
+    """Write/read back a prepared publication inside the caller's fresh write group."""
+    assets = product['assets']
+    notes = release_notes(product, directory)
     if publish and release.get('draft') is True:
         github(f'repos/{repository}/releases/{release["id"]}', 'PATCH', {'draft': False})
         release = release_for(repository, tag, github, release['id'])
@@ -205,6 +234,7 @@ def main():
     parser.add_argument('--tag', required=True)
     parser.add_argument('--revision', required=True)
     parser.add_argument('--publish', action='store_true')
+    parser.add_argument('--stage-only', action='store_true')
     args = parser.parse_args()
     cfg = common.config(args.config, live=True, enabled=True)
     product = common.load_json(args.product)
@@ -214,11 +244,12 @@ def main():
         common.require(result.get('productHash') == digest, 'Approved product changed during publication')
         if os.environ.get('MAESTRO_REQUIRE_UPSTREAM_HANDOFF') == 'true':
             common.command(['maestro-ci-decision-handoff'])
-    authorize()
+    if not args.stage_only:
+        authorize()
     import packet_materialization
     deferred = args.directory.with_suffix('.source.json').exists()
     result = reconcile(cfg['repository'], product, args.directory, args.tag, args.revision, args.publish, authorize,
-                       materialize=(lambda: packet_materialization.materialize(args.directory)) if deferred else None)
+                       materialize=(lambda: packet_materialization.materialize(args.directory)) if deferred else None, stage_only=args.stage_only)
     if result['status'] == 'published' and os.environ.get('PUBLICATION_RECEIPT'):
         import destinations
         identity = {'tag': args.tag, 'revision': args.revision, 'assets': product['assets']}

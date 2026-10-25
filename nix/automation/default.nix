@@ -206,6 +206,28 @@
       runtimeInputs = commonInputs ++ [pkgs.python3 pkgs.oras];
       source = ./publication-journal.sh;
     };
+    release-reservation = mkCommand {
+      name = "release-reservation";
+      prefix = ''
+        export MAESTRO_DECISIONS_SOURCE=${./decisions}
+        export MAESTRO_PUBLICATION_JOURNAL_SOURCE=${./publication-journal.py}
+        export MAESTRO_PUBLICATION_ASSETS_SOURCE=${./publication-assets.py}
+        export MAESTRO_RELEASE_COMPLETION_SOURCE=${./release-completion.py}
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.python3 pkgs.oras commands.decision-handoff];
+      source = ./release-reservation.sh;
+    };
+    release-completion = mkCommand {
+      name = "release-completion";
+      prefix = ''
+        export MAESTRO_DECISIONS_SOURCE=${./decisions}
+        export MAESTRO_PUBLICATION_JOURNAL_SOURCE=${./publication-journal.py}
+        export MAESTRO_PUBLICATION_ASSETS_SOURCE=${./publication-assets.py}
+        export MAESTRO_RELEASE_COMPLETION_SOURCE=${./release-completion.py}
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.python3 pkgs.oras commands.decision-handoff];
+      source = ./release-completion.sh;
+    };
     publication-assets = mkCommand {
       name = "publication-assets";
       prefix = ''

@@ -28,6 +28,7 @@ jobs:
       MAESTRO_CI_DIAGNOSTICS: 'true'
       MAESTRO_RELEASE_VERIFICATION_REUSE_ENABLED: ${{ vars.MAESTRO_RELEASE_VERIFICATION_REUSE_ENABLED || 'false' }}
       MAESTRO_PACKET_METADATA_REUSE_ENABLED: ${{ vars.MAESTRO_PACKET_METADATA_REUSE_ENABLED || 'false' }}
+      MAESTRO_RELEASE_TRANSACTION_ENABLED: ${{ vars.MAESTRO_RELEASE_TRANSACTION_ENABLED || 'false' }}
       MAESTRO_PACKET_METADATA_BATCH_ENABLED: ${{ vars.MAESTRO_PACKET_METADATA_BATCH_ENABLED || 'false' }}
     permissions:
       actions: read
@@ -93,12 +94,14 @@ jobs:
           REGISTRY_TOKEN: ${{ github.token }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:distribution:restore
       - name: Verify current upstream handoff and downstream exposure
+        if: env.MAESTRO_RELEASE_TRANSACTION_ENABLED != 'true'
         env:
           GH_TOKEN: ${{ steps.authority.outputs.token }}
           XO_AUTHORITY_TOKEN: ${{ steps.upstream.outputs.token }}
           REGISTRY_TOKEN: ${{ github.token }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:handoff
       - name: Reserve exact approved release identity
+        if: env.MAESTRO_RELEASE_TRANSACTION_ENABLED != 'true'
         env:
           GH_TOKEN: ${{ steps.authority.outputs.token }}
           PUBLICATION_PURPOSE: release
@@ -106,6 +109,13 @@ jobs:
           PUBLICATION_STEP: github
           PUBLICATION_STATE: pending
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:journal
+      - name: Reserve journal tag and draft as one authorized group
+        if: env.MAESTRO_RELEASE_TRANSACTION_ENABLED == 'true'
+        env:
+          GH_TOKEN: ${{ steps.authority.outputs.token }}
+          XO_AUTHORITY_TOKEN: ${{ steps.upstream.outputs.token }}
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:reserve
       - name: Mint fresh asset authority token
         id: assets-authority
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
@@ -137,7 +147,8 @@ jobs:
           GH_TOKEN: ${{ steps.assets-authority.outputs.token }}
           XO_AUTHORITY_TOKEN: ${{ steps.assets-upstream.outputs.token }}
           REGISTRY_TOKEN: ${{ github.token }}
-          PUBLICATION_PUBLISH: 'true'
+          PUBLICATION_PUBLISH: ${{ env.MAESTRO_RELEASE_TRANSACTION_ENABLED == 'true' && 'false' || 'true' }}
+          PUBLICATION_STAGE_ONLY: ${{ env.MAESTRO_RELEASE_TRANSACTION_ENABLED == 'true' && 'true' || 'false' }}
           PUBLICATION_RECEIPT: ${{ runner.temp }}/github-receipt.json
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:assets
       - name: Mint fresh completion authority token
@@ -167,6 +178,7 @@ jobs:
           permission-administration: read
           permission-actions: read
       - name: Record verified immutable GitHub publication
+        if: env.MAESTRO_RELEASE_TRANSACTION_ENABLED != 'true'
         env:
           GH_TOKEN: ${{ steps.completion-authority.outputs.token }}
           PUBLICATION_PURPOSE: release
@@ -175,6 +187,14 @@ jobs:
           PUBLICATION_RECEIPT: ${{ runner.temp }}/github-receipt.json
           PUBLICATION_STATE: complete
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:journal
+      - name: Verify publish and journal GitHub completion as one authorized group
+        if: env.MAESTRO_RELEASE_TRANSACTION_ENABLED == 'true'
+        env:
+          GH_TOKEN: ${{ steps.completion-authority.outputs.token }}
+          XO_AUTHORITY_TOKEN: ${{ steps.completion-upstream.outputs.token }}
+          REGISTRY_TOKEN: ${{ github.token }}
+          PUBLICATION_RECEIPT: ${{ runner.temp }}/github-receipt.json
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:complete
       - name: Inspect exact versioned FlakeHub destination
         id: flakehub
         env:

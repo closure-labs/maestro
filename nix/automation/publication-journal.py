@@ -86,48 +86,11 @@ def validate(document, product_hash):
 
 
 def transition(repository, product_hash, key, step, state, authorize, github=api, receipt=None):
-    if receipt is not None:
-        publication_receipts.validate(receipt, product_hash, step)
-        common.require(state == "complete", "Only verified completion accepts a receipt")
-    common.require(NAME.fullmatch(key) and NAME.fullmatch(step), 'Invalid publication journal key or step')
-    common.require(common.HASH.fullmatch(product_hash) and state in ('pending', 'complete'), 'Invalid publication journal state')
-    branch(repository, authorize, github)
-    endpoint = f'repos/{repository}/contents/publications/{key}.json'
+    """Standalone leaf retains independent authorization and bounded CAS retries."""
     for attempt in range(4):
-        sha = None
+        plan = prepare_transition(repository, product_hash, key, step, state, github, receipt)
         try:
-            remote = github(endpoint + '?ref=' + BRANCH)
-            common.require(remote.get('type') == 'file' and remote.get('encoding') == 'base64'
-                           and common.SHA.fullmatch(remote.get('sha', '')), 'Invalid journal contents response')
-            sha = remote['sha']
-            contents = base64.b64decode(''.join(remote['content'].split()), validate=True)
-            document = json.loads(contents)
-            validate(document, product_hash)
-        except GitHubError as error:
-            if error.status != 404:
-                raise
-            document = {'schema': 1, 'productHash': product_hash, 'steps': {}}
-        previous = document['steps'].get(step)
-        old_receipt = document.get('receipts', {}).get(step)
-        same_proof = receipt is None or (old_receipt and all(old_receipt[k] == receipt[k] for k in ('expected', 'observed', 'verifier')))
-        if (previous == state or previous == 'complete') and same_proof:
-            authorize()
-            return document
-        document['steps'][step] = state
-        if receipt is not None:
-            document.update(schema=2, receipts={**document.get('receipts', {}), step: receipt})
-        payload = {'message': f'Record {key} {step}: {state}', 'branch': BRANCH,
-                   'content': base64.b64encode((json.dumps(document, sort_keys=True, separators=(',', ':')) + '\n').encode()).decode()}
-        if sha:
-            payload['sha'] = sha
-        authorize()
-        try:
-            github(endpoint, 'PUT', payload)
-            with common.diagnostics.requests.scope(purpose='journal-readback'):
-                readback = github(endpoint + '?ref=' + BRANCH)
-            common.require(readback.get('encoding') == 'base64' and json.loads(base64.b64decode(readback['content'])) == document,
-                           'Publication journal readback differs from verified checkpoint')
-            return document
+            return write_prepared(plan, github, authorize=authorize)
         except GitHubError as error:
             if error.status not in (409, 422) or attempt == 3:
                 raise
@@ -155,6 +118,85 @@ def main():
         publication_receipts.validate(receipt, product_hash, args.step)
     result = transition(cfg['repository'], product_hash, args.key, args.step, args.state, authorize, receipt=receipt)
     common.emit(result, args.output)
+
+
+def prepare_transition(repository, product_hash, key, step, state, github=api, receipt=None):
+    """Read and validate a proposed journal mutation, without granting authority."""
+    common.require(NAME.fullmatch(key) and NAME.fullmatch(step), 'Invalid publication journal key or step')
+    common.require(common.HASH.fullmatch(product_hash) and state in ('pending', 'complete'), 'Invalid publication journal state')
+    if receipt is not None:
+        publication_receipts.validate(receipt, product_hash, step)
+        common.require(state == 'complete', 'Only verified completion accepts a receipt')
+    branch_endpoint = f'repos/{repository}/git/ref/heads/{BRANCH}'
+    create_branch = None
+    try:
+        observed = github(branch_endpoint)
+        common.require(observed.get('ref') == 'refs/heads/' + BRANCH
+                       and common.SHA.fullmatch(observed.get('object', {}).get('sha', '')), 'Invalid journal branch identity')
+    except GitHubError as error:
+        if error.status != 404:
+            raise
+        revision = github(f'repos/{repository}/git/ref/heads/main').get('object', {}).get('sha', '')
+        common.require(common.SHA.fullmatch(revision), 'Invalid journal base revision')
+        create_branch = {'ref': 'refs/heads/' + BRANCH, 'sha': revision}
+    endpoint = f'repos/{repository}/contents/publications/{key}.json'
+    sha = None
+    try:
+        remote = github(endpoint + '?ref=' + BRANCH)
+        common.require(remote.get('type') == 'file' and remote.get('encoding') == 'base64'
+                       and common.SHA.fullmatch(remote.get('sha', '')), 'Invalid journal contents response')
+        sha = remote['sha']
+        document = json.loads(base64.b64decode(''.join(remote['content'].split()), validate=True))
+        validate(document, product_hash)
+    except GitHubError as error:
+        if error.status != 404:
+            raise
+        document = {'schema': 1, 'productHash': product_hash, 'steps': {}}
+    previous = document['steps'].get(step)
+    old_receipt = document.get('receipts', {}).get(step)
+    same_proof = receipt is None or (old_receipt and all(old_receipt[k] == receipt[k] for k in ('expected', 'observed', 'verifier')))
+    payload = None
+    if not ((previous == state or previous == 'complete') and same_proof):
+        document['steps'][step] = state
+        if receipt is not None:
+            document.update(schema=2, receipts={**document.get('receipts', {}), step: receipt})
+        payload = {'message': f'Record {key} {step}: {state}', 'branch': BRANCH,
+                   'content': base64.b64encode((json.dumps(document, sort_keys=True, separators=(',', ':')) + '\n').encode()).decode()}
+        if sha:
+            payload['sha'] = sha
+    return {'repository': repository, 'branch': create_branch, 'endpoint': endpoint,
+            'document': document, 'payload': payload}
+
+
+def write_prepared(plan, github=api, authorize=None):
+    """Apply a plan only inside the caller's freshly authorized write group.
+
+    Conflicts/uncertain acknowledgements propagate. Callers must read back and
+    obtain fresh authority before any further mutation; a plan is not authority.
+    """
+    repository = plan['repository']
+    if authorize is not None and plan['branch'] is None and plan['payload'] is None:
+        authorize()
+    if plan['branch'] is not None:
+        if authorize is not None:
+            authorize()
+        with common.diagnostics.requests.scope(purpose='journal-write'):
+            github(f'repos/{repository}/git/refs', 'POST', plan['branch'])
+        observed = github(f'repos/{repository}/git/ref/heads/{BRANCH}')
+        common.require(observed.get('ref') == 'refs/heads/' + BRANCH
+                       and common.SHA.fullmatch(observed.get('object', {}).get('sha', '')), 'Journal branch readback differs')
+    if plan['payload'] is not None:
+        if authorize is not None:
+            authorize()
+        github(plan['endpoint'], 'PUT', plan['payload'])
+    # A no-op journal plan may precede tag/draft writes in the same group.
+    # Read it back too: absence of a CAS write must not hide a changed binding.
+    with common.diagnostics.requests.scope(purpose='journal-readback'):
+        remote = github(plan['endpoint'] + '?ref=' + BRANCH)
+    common.require(remote.get('encoding') == 'base64'
+                   and json.loads(base64.b64decode(remote['content'])) == plan['document'],
+                   'Publication journal readback differs from verified checkpoint')
+    return plan['document']
 
 
 if __name__ == '__main__':

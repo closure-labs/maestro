@@ -403,3 +403,33 @@ The manual `metadata_reuse_trial` requires already-verified destinations. Compar
 matched flag-off/on runs before promotion; fixture reductions are not hosted
 performance measurements. Leave the repository flag disabled without a safe
 matched case.
+
+## Explicit release write-group experiment
+
+`MAESTRO_RELEASE_TRANSACTION_ENABLED` defaults to `false`. The native
+`release:reserve` task prepares journal, tag and draft checks before one fresh
+downstream/upstream authorization. It then performs the reservation writes and
+readbacks in one process. `release:assets` stages bounded upload commands with
+fresh authority for every command and retains the recovery hosted-byte pass.
+The `release:complete` task performs the final complete hosted-byte download,
+prepares its journal update, obtains fresh downstream/upstream authorization,
+publishes the draft, verifies publication and records the receipt in the same
+group. The existing independently authorized, pinned FlakeHub action is unchanged.
+
+A journal conflict, uncertain write acknowledgement or failed readback stops the
+group. The controller reads back the remote state without retrying a mutation;
+a subsequent invocation prepares state again and obtains fresh authority. An
+interrupted upload resumes by verifying existing assets and sending only missing
+ones. No plan, file, receipt or successful approval authorizes another group.
+Standalone asset and journal commands retain their own checks and default full
+publication behavior. `PUBLICATION_STAGE_ONLY=true` selects the explicit staging
+leaf used by the composed workflow; it requires an already-reserved tag/draft.
+
+Workflow bodies remain declared devenv task calls. Existing phase-specific token
+renewal and partial-draft recovery remain active. Diagnostics attribute the new
+native reservation/completion stages and record the effective flag. Fixture
+counts establish one fresh authorization per group and per upload command, not
+hosted time savings. Promotion still requires a safe matched verified-only case,
+then controlled publication and clean-store verification. Leave the flag disabled
+when no such matched case is available; never use a published-byte mutation as a
+performance experiment.

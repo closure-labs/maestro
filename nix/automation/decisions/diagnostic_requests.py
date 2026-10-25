@@ -10,7 +10,7 @@ import re
 import threading
 
 PHASES = {'outside', 'gate', 'policy', 'ledger', 'scans', 'ancestry', 'admission', 'product', 'release', 'refresh'}
-STAGES = {'other', 'publication', 'publication-journal', 'publication-assets', 'destinations',
+STAGES = {'release-reservation', 'release-completion', 'other', 'publication', 'publication-journal', 'publication-assets', 'destinations',
           'handoff', 'packet-materialization', 'admission', 'selection'}
 PURPOSES = {'other', 'protected-ref-tree', 'immutable-blob', 'policy-rules', 'proposal-origin',
             'pr-identity-files', 'review-history', 'team-inventory', 'active-membership',

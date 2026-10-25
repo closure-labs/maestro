@@ -129,7 +129,7 @@ LOCK = threading.Lock()
 COUNTER_NAMES = ('gateInvocations', 'apiWrapperInvocations', 'apiTransportInvocations',
                  'publicTransportInvocations', 'immutableBytesReused', 'metadataCacheHits',
                  'metadataBytesReused', 'metadataRegistryOperationsAvoided')
-KINDS = {'admission', 'publication', 'publication-journal', 'publication-assets', 'destinations', 'gate', 'handoff', 'packet-metadata'}
+KINDS = {'release-reservation', 'release-completion', 'admission', 'publication', 'publication-journal', 'publication-assets', 'destinations', 'gate', 'handoff', 'packet-metadata'}
 
 
 def enabled():
@@ -171,6 +171,8 @@ def record(result, kind=None, logged=True, context=None):
         packaged = re.fullmatch(r'[a-z0-9]{32}-(.+)', kind)
         if source.parent == Path('/nix/store') and packaged:
             kind = packaged[1]
+        if kind == 'release-completion' and '--reserve' in os.sys.argv[1:]:
+            kind = 'release-reservation'
     if not enabled() or kind not in KINDS:
         return None
     context = context if isinstance(context, dict) else {}
@@ -206,7 +208,7 @@ def record(result, kind=None, logged=True, context=None):
         if kind == 'gate' and summary['productHash'] is not None:
             GATE_DISPLAY.clear()
             GATE_DISPLAY.update({key: summary[key] for key in fields})
-        elif (kind in ('publication', 'admission', 'publication-journal', 'publication-assets', 'handoff')
+        elif (kind in ('publication', 'admission', 'publication-journal', 'publication-assets', 'handoff', 'release-reservation', 'release-completion')
               and summary['productHash'] is not None and summary['productHash'] == GATE_DISPLAY.get('productHash')):
             for key in fields:
                 if summary[key] is None:
@@ -242,6 +244,8 @@ def staged(function):
         source = re.sub(r'^[0-9a-z]{32}-', '', source)
         source = {'decision-download': 'selection', 'decision-retained': 'selection',
                   'decision-handoff-fetch': 'packet-materialization'}.get(source, source)
+        if source == 'release-completion' and '--reserve' in os.sys.argv[1:]:
+            source = 'release-reservation'
         name = source if source in requests.STAGES else 'other'
         member = uuid.uuid4().hex + '.stage.json'
         started = time.monotonic()
@@ -360,7 +364,7 @@ def manifest():
              'requestProfiles': sorted(name for name in files if name.endswith('.profile.json')),
              'nativeStages': sorted(name for name in files if name.endswith('.stage.json')),
              'experiments': {key: os.environ.get(key, 'false') == 'true' for key in
-                             ('MAESTRO_RELEASE_VERIFICATION_REUSE_ENABLED', 'MAESTRO_PACKET_METADATA_REUSE_ENABLED', 'MAESTRO_DECISION_ONLY_REUSE_ENABLED', 'MAESTRO_PACKET_METADATA_BATCH_ENABLED', 'MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED', 'MAESTRO_PUBLIC_CACHE_TRANSPORT_REUSE_ENABLED')},
+                             ('MAESTRO_RELEASE_VERIFICATION_REUSE_ENABLED', 'MAESTRO_PACKET_METADATA_REUSE_ENABLED', 'MAESTRO_RELEASE_TRANSACTION_ENABLED', 'MAESTRO_DECISION_ONLY_REUSE_ENABLED', 'MAESTRO_PACKET_METADATA_BATCH_ENABLED', 'MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED', 'MAESTRO_PUBLIC_CACHE_TRANSPORT_REUSE_ENABLED')},
              'verifiedDestinationsRequired': os.environ.get('PUBLICATION_REQUIRE_VERIFIED') == 'true',
              'measurements': totals, 'httpAttempts': None, 'wireBytes': None,
              'measurementScope': 'Native instrumented processes only; nested phase durations overlap. Captured bytes are retained stdout/stderr and verified downloaded members, not wire bytes. HTTP attempts and wire bytes unavailable. Log bytes count emitted JSON summaries only; completed original job logs are measured separately.'}
