@@ -7,7 +7,7 @@
   "storePath": "/nix/store/7rgckrz7zf9l3rvidb4987gcxgi07a8i-xen-orchestra-ce-6.9.1",
   "narHash": "sha256-xc1ppaaqEWgTOuKmIg/0+3mj8cd4BEmuncuJYx/+GfI=",
   "packet": {
-    "reference": "ghcr.io/closure-labs/xo-nixpkg-products@sha256:086fb442558542133e4d26404c5090be45819f0321a731cd7f9dfd61cf53dcc6",
-    "sha256": "167f777aa83b057cb85a4018e628d5ccfdb72fbcbc18f3b21d1ce12d4373ebe9"
+    "reference": "ghcr.io/closure-labs/xo-nixpkg-products@sha256:ca805592bc175c1197752cf5fdb4dbb5d67c8134e3ae6496528eb96ae6bd92dd",
+    "sha256": "581aa355511f9b3774bead226735fbe4dc32ee6b5630753488c415ba7a737108"
   }
 }
