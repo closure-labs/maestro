@@ -9,6 +9,13 @@ correspond to published GitHub tags.
 
 ## [Unreleased]
 
+### Fixed
+
+- Target the newest official version during automatic release discovery when an
+  older approved release remains unfinished. Preserve explicit historical
+  recovery, reject conflicting products for the same version, and avoid falling
+  back to older releases when the newest is suppressed.
+
 ## [3.1.0] - 2026-10-25
 
 ### Added

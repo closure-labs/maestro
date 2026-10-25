@@ -68,10 +68,18 @@ class OfficialSelection(unittest.TestCase):
         with self.assertRaises(ValueError):
             retained.select({}, self.records(bad), {}, release_only=True)
 
-    def test_two_official_candidates_still_require_explicit_selection(self):
+    def test_different_official_versions_select_newest_and_keep_explicit_history(self):
         other = deepcopy(self.official)
         other['payload']['product']['assets'] = {'maestro-v2.0.0.iso.sha256': 'f' * 64}
-        with self.assertRaises(ValueError):
+        records = self.records(self.official, other, self.rolling)
+        self.assertEqual(retained.select({}, records, {}, release_only=True)[1], other)
+        self.assertEqual(retained.select({}, records, {}, release_only=True,
+                         proposal_hash=retained.canonical_hash(self.official))[1], self.official)
+
+    def test_conflicting_products_for_same_version_require_explicit_selection(self):
+        other = deepcopy(self.official)
+        other['payload']['product']['assets'] = {'maestro-v1.2.3.iso.sha256': 'f' * 64}
+        with self.assertRaisesRegex(ValueError, 'unambiguous'):
             retained.select({}, self.records(self.official, other, self.rolling), {}, release_only=True)
 
     def test_published_inspection_ignores_rolling_before_metadata_reads(self):
