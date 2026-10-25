@@ -4,6 +4,7 @@ set -euo pipefail
 repo_root=${MAESTRO_SYSTEM_ROOT:-$PWD}
 export MAESTRO_REQUIRE_UPSTREAM_HANDOFF=true
 arguments=()
+[[ ${PUBLICATION_STAGE_ONLY:-false} == true ]] && arguments+=(--stage-only)
 [[ ${PUBLICATION_PUBLISH:-false} == true ]] && arguments+=(--publish)
 exec python3 "$MAESTRO_PUBLICATION_ASSETS_SOURCE" \
   --config "$repo_root/nix/automation/decision-policy.json" \

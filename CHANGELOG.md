@@ -19,6 +19,10 @@ correspond to published GitHub tags.
   Revalidate cached hashes and producer bindings while retaining live authority,
   attestation and freshness checks at every existing publication boundary.
 
+- Add disabled-by-default native release reservation and completion tasks that
+  group adjacent writes under fresh authority. Keep upload-batch checks, both
+  hosted-byte readbacks, separate FlakeHub authorization and scoped token renewal.
+
 ### Fixed
 
 - Group small release assets into bounded uploads with fresh authority checks

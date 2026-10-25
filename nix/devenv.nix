@@ -39,6 +39,8 @@ in {
     "release:inspect".exec = runFlakePackage "maestro-ci-publication-inspect" "";
     "release:journal".exec = runFlakePackage "maestro-ci-publication-journal" "";
     "release:diagnostics".exec = runFlakePackage "maestro-ci-publication-diagnostics" "";
+    "release:reserve".exec = runFlakePackage "maestro-ci-release-reservation" "";
+    "release:complete".exec = runFlakePackage "maestro-ci-release-completion" "";
     "release:assets".exec = runFlakePackage "maestro-ci-publication-assets" "";
     "ci:decision:download".exec = runFlakePackage "maestro-ci-decision-download" "";
     "ci:decision:candidate".exec = runFlakePackage "maestro-ci-decision-candidate" "";
