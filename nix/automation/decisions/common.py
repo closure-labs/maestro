@@ -53,6 +53,8 @@ def run(main):
         reasons = {'Expired or future native health': 'native-health-expired-or-future'}
         safe_result = {'schema': 1, 'status': 'blocked', 'errorType': type(error).__name__,
                        'reason': reasons.get(str(error), 'native-command-failed')}
+        if isinstance(error, authority.AuthorityAPIError):
+            safe_result['httpStatus'] = error.http_status
         summary = diagnostics.record(safe_result)
         if summary is None and diagnostics.enabled():
             # Wrapper names are not publication result kinds. Their failures

@@ -36,6 +36,14 @@ class AuthorityError(ValueError):
     """No authenticated, currently valid human authority for the proposed operation."""
 
 
+class AuthorityAPIError(AuthorityError):
+    """Transport failure with a bounded status safe for retained diagnostics."""
+
+    def __init__(self, message, status=None):
+        super().__init__(message)
+        self.http_status = status if type(status) is int and 100 <= status <= 599 else None
+
+
 class HumanDecisionRequired(AuthorityError):
     """GitHub is reachable, but current human authorization is absent or withdrawn."""
 
@@ -150,12 +158,12 @@ def github_api(endpoint):
                             raise AuthorityError('Invalid GitHub API response') from error
                     details = api_failure_details(status, headers, output)
                     if status not in (408, 429, 500, 502, 503, 504):
-                        raise AuthorityError('GitHub authority API failed: ' + endpoint.split('?')[0]
-                                             + f' ({failure}; attempt {attempt}{details})')
+                        raise AuthorityAPIError('GitHub authority API failed: ' + endpoint.split('?')[0]
+                                                + f' ({failure}; attempt {attempt}{details})', status)
         # Retry only fresh read requests. No response or authority is cached.
         if attempt == 3:
-            raise AuthorityError('GitHub authority API failed: ' + endpoint.split('?')[0]
-                                 + f' ({failure}; 3 attempts{details})')
+            raise AuthorityAPIError('GitHub authority API failed: ' + endpoint.split('?')[0]
+                                    + f' ({failure}; 3 attempts{details})')
         time.sleep(attempt)
 
 

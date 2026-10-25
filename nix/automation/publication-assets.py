@@ -95,9 +95,24 @@ def remote_digest(repository, asset):
         return digest.hexdigest()
 
 
-def upload(repository, tag, path):
-    subprocess.run(['gh', 'release', 'upload', tag, str(path), '--repo', repository],
+def upload(repository, tag, paths):
+    subprocess.run(['gh', 'release', 'upload', tag, *map(str, paths), '--repo', repository],
                    check=True, capture_output=True, text=True, timeout=1800)
+
+
+def upload_batches(directory, names):
+    """Bound each authorized mutation group; large assets remain singleton writes."""
+    batch, size = [], 0
+    for name in sorted(names):
+        path = directory / name
+        length = path.stat().st_size
+        if batch and (len(batch) == 8 or size + length > 64 * 1024**2):
+            yield batch
+            batch, size = [], 0
+        batch.append(path)
+        size += length
+    if batch:
+        yield batch
 
 
 def reconcile(repository, product, directory, tag, revision, publish, authorize,
@@ -151,12 +166,14 @@ def reconcile(repository, product, directory, tag, revision, publish, authorize,
     common.require(release.get('draft') is True or not missing, 'Published release is incomplete; refusing mutation')
     if missing and materialize is not None:
         materialize()
-    for name in sorted(missing):
-        # Check source and authorization again before every remote mutation.
+    for batch in upload_batches(directory, missing):
+        # One live decision per bounded upload command, with no reuse between
+        # batches. Large ISO parts are always isolated from other assets.
         common.require(tag_revision(repository, tag, github) == revision, 'Release tag changed while staging')
         authorize()
-        common.require(sha256(directory / name) == assets[name], 'Local asset changed while staging')
-        send(repository, tag, directory / name)
+        for path in batch:
+            common.require(sha256(path) == assets[path.name], 'Local asset changed while staging')
+        send(repository, tag, batch)
     # Reread everything after partial recovery or upload; metadata alone never
     # substitutes for hashing the actual hosted asset bytes.
     release = release_for(repository, tag, github, release['id'])

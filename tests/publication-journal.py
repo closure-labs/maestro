@@ -157,8 +157,10 @@ with tempfile.TemporaryDirectory() as temporary:
     api = ReleaseAPI()
     def reconcile(publish=False, auth=authorize):
         return assets.reconcile('owner/repo', product, directory, 'v1.2.3', SHA, publish, auth,
-                                api, api.download, api.upload)
+                                api, api.download, lambda repo, tag, paths: [api.upload(repo, tag, p) for p in paths])
+    calls.clear()
     staged = reconcile()
+    assert len(calls) == 4  # tag, draft, one bounded asset upload, final verification
     assert staged['status'] == 'staged' and api.tag == SHA and len(api.uploads) == 3
     assert api.release['body'] == (directory / 'release-notes.md').read_text()
     uploads = len(api.uploads)
@@ -202,5 +204,38 @@ reject(lambda: assets.release_for('owner/repo', 'v1.2.3', lambda endpoint:
        [{'id': 9, 'tag_name': 'v9.9.9'}] * 100))
 reject(lambda: assets.release_for('owner/repo', 'v1.2.3', lambda endpoint:
        {'id': 6, 'tag_name': 'v1.2.3'}, 5))
+
+# A revoked approval between bounded batches stops further writes; recovery
+# verifies uploaded bytes and sends only the remaining assets.
+with tempfile.TemporaryDirectory() as temporary:
+    directory = Path(temporary)
+    for number in range(10):
+        (directory / f'asset-{number:02}').write_bytes(b'approved')
+    product = {'repository': 'owner/repo', 'revision': SHA,
+               'assets': {p.name: assets.sha256(p) for p in directory.iterdir()}}
+    api = ReleaseAPI()
+    api.tag = SHA
+    api.release = {'id': 5, 'tag_name': 'v1.2.3', 'target_commitish': SHA, 'draft': True}
+    checks = []
+    def revoke_second_batch():
+        checks.append(1)
+        if len(checks) == 2:
+            blocked()
+    def send(repo, tag, paths):
+        for path in paths:
+            api.upload(repo, tag, path)
+    reject(lambda: assets.reconcile('owner/repo', product, directory, 'v1.2.3', SHA, True,
+                                   revoke_second_batch, api, api.download, send))
+    assert len(api.uploads) == 8 and api.publishes == 0
+    checks.clear()
+    assets.reconcile('owner/repo', product, directory, 'v1.2.3', SHA, True,
+                     lambda: checks.append(1), api, api.download, send)
+    assert len(api.uploads) == 10 and api.publishes == 1 and len(checks) == 2
+    large = directory / 'large-iso'
+    with large.open('wb') as stream:
+        stream.truncate(65 * 1024**2)
+    batches = list(assets.upload_batches(directory, [p.name for p in directory.iterdir()]))
+    assert any(batch == [large] for batch in batches)
+    assert all(len(batch) <= 8 for batch in batches)
 
 print('Publication CAS, immutable assets, partial recovery and live authority fixtures passed.')
