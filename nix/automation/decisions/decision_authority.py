@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Authenticate human decisions against authoritative GitHub PR reviews, not ledger claims."""
 import argparse
+from copy import deepcopy
 import base64
 from contextlib import contextmanager
 import datetime
@@ -332,12 +333,15 @@ def decode_blob(blob, identity, size):
 
 
 @diagnostics.requests.owned(purpose='immutable-blob')
-def document_blob(api, repository, identity, size, inline=None):
+def document_blob(api, repository, identity, size, inline=None, context=None):
     """Read bytes named by a fresh immutable-ref/tree observation, then reparse."""
     if (not isinstance(repository, str) or not REPOSITORY.fullmatch(repository)
             or not isinstance(identity, str) or not SHA.fullmatch(identity)
             or type(size) is not int or not 0 < size <= MAX_PROPOSAL_BYTES):
         raise AuthorityError('Decision proposal is not a bounded regular Git blob')
+    key = (repository, identity, size)
+    if context is not None and inline is None and key in context.blobs:
+        return deepcopy(context.blobs[key])
     path = blob_cache_path(repository, identity)
     raw = cached_blob(path, identity, size)
     reused = raw is not None
@@ -377,12 +381,17 @@ def document_blob(api, repository, identity, size, inline=None):
                 if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
                     raise AuthorityError('Unsafe Git blob observation file')
                 stream.write(json.dumps(observation, sort_keys=True) + '\n')
+    if context is not None:
+        context.blobs[key] = deepcopy(document)
     return document
 
 
-def document_at(api, repository, path, revision):
+def document_at(api, repository, path, revision, context=None):
     if not isinstance(revision, str) or not SHA.fullmatch(revision):
         raise AuthorityError('Content lookup requires immutable commit SHA')
+    key = (repository, path, revision)
+    if context is not None and key in context.documents:
+        return deepcopy(context.documents[key])
     content = api(f'repos/{repository}/contents/{quote(path, safe="/")}?ref={revision}')
     if (not isinstance(content, dict) or content.get('type') != 'file'
             or content.get('encoding') not in ('base64', 'none')
@@ -391,8 +400,11 @@ def document_at(api, repository, path, revision):
         raise AuthorityError('Decision proposal is not a bounded regular Git blob')
     # Metadata/access is read afresh, including on hits. The cache supplies only
     # Git-object-hash-verified bytes; no API response or authorization is reused.
-    return document_blob(api, repository, content['sha'], content['size'],
-                         inline=content if content['encoding'] == 'base64' else None)
+    document = document_blob(api, repository, content['sha'], content['size'],
+                             inline=content if content['encoding'] == 'base64' else None, context=context)
+    if context is not None:
+        context.documents[key] = deepcopy(document)
+    return document
 
 
 def approver_members(api):
@@ -441,8 +453,9 @@ def eligible(api, repository, user, members=None):
     return permission.get('role_name', permission.get('permission')) in ('maintain', 'admin')
 
 
-def approval(api, repository, number, head):
-    members = approver_members(api)
+def approval(api, repository, number, head, members=None):
+    shared_members = members is not None
+    members = approver_members(api) if members is None else members
     reviews = collection(api, f'repos/{repository}/pulls/{number}/reviews')
     latest = {}
     for review in reviews:
@@ -472,7 +485,7 @@ def approval(api, repository, number, head):
     if not accepted:
         raise HumanDecisionRequired('An active Super Admin with maintain/admin access must approve the exact current proposal PR head')
     selected = sorted(accepted, key=lambda value: value['id'])[-1]
-    if approver_members(api) != members:
+    if not shared_members and approver_members(api) != members:
         raise AuthorityError('Super Admins membership changed during authorization')
     if not eligible(api, repository, selected['user'], members):
         raise HumanDecisionRequired('Selected Super Admin approval is no longer eligible')
@@ -481,13 +494,15 @@ def approval(api, repository, number, head):
 
 @diagnostics.requests.authority
 def verify_proposal(proposal, pr, repository, expected_bot, require_merged=True, github=None,
-                    allowed_paths=None, require_live_review=True):
+                    allowed_paths=None, require_live_review=True, context=None):
     """Return API-derived authority; callers separately validate scan/release payload semantics.
 
     No self-reported PR ID, approver, hash or signature inside a proposal grants authority.
     Current active Super Admins membership and maintain/admin access are required; there is no TTL.
     """
     validate_context(repository, expected_bot)
+    if context is not None:
+        context.repository(repository)
     if not require_live_review and not require_merged:
         raise AuthorityError('Historical provenance cannot authorize an open proposal')
     path = proposal_path(proposal)
@@ -518,25 +533,29 @@ def verify_proposal(proposal, pr, repository, expected_bot, require_merged=True,
         raise AuthorityError('Proposal changes unexpected, renamed or deleted files')
     if path not in {item['filename'] for item in files}:
         raise AuthorityError('Proposal file was not changed by the approved PR')
-    if canonical_hash(document_at(api, repository, path, head)) != digest:
+    if canonical_hash(document_at(api, repository, path, head, context=context)) != digest:
         raise AuthorityError('Local proposal differs from exact reviewed PR head')
     merge = None
     merge_provenance = None
     if pull.get('merged'):
         merge_provenance = merged_event(api, repository, number, pull)
         merge = merge_provenance['commit_id']
-        if canonical_hash(document_at(api, repository, path, merge)) != digest:
+        if canonical_hash(document_at(api, repository, path, merge, context=context)) != digest:
             raise AuthorityError('Merged proposal differs from reviewed proposal')
-        main = api(f'repos/{repository}/git/ref/heads/main')
-        current = main.get('object', {}).get('sha', '') if isinstance(main, dict) else ''
+        if context is None:
+            main = api(f'repos/{repository}/git/ref/heads/main')
+            current = main.get('object', {}).get('sha', '') if isinstance(main, dict) else ''
+        else:
+            current = context.revision
         if not SHA.fullmatch(current):
             raise AuthorityError('Cannot establish current protected main')
         comparison = api(f'repos/{repository}/compare/{merge}...{current}')
         if not isinstance(comparison, dict) or comparison.get('status') not in ('ahead', 'identical'):
             raise AuthorityError('Proposal merge is not an ancestor of current main')
-        if canonical_hash(document_at(api, repository, path, current)) != digest:
+        if canonical_hash(document_at(api, repository, path, current, context=context)) != digest:
             raise AuthorityError('Decision proposal is no longer unchanged on main')
-    review = approval(api, repository, number, head) if require_live_review else None
+    members = context.members if context is not None else None
+    review = approval(api, repository, number, head, members=members) if require_live_review else None
     # Detect changed proposal heads/merge state while authority was being checked.
     latest = api(endpoint)
     if (not isinstance(latest, dict) or latest.get('head', {}).get('sha') != head
@@ -546,7 +565,7 @@ def verify_proposal(proposal, pr, repository, expected_bot, require_merged=True,
         raise AuthorityError('Proposal PR changed during authorization')
     if merge_provenance is not None and merged_event(api, repository, number, latest) != merge_provenance:
         raise AuthorityError('Proposal merge event changed during authorization')
-    if review is not None and not eligible(api, repository, review['user']):
+    if review is not None and not eligible(api, repository, review['user'], members=members):
         raise HumanDecisionRequired('Super Admin approval was withdrawn during authorization')
     return {'schema': 1, 'status': 'authorized' if review is not None else 'historical-provenance', 'repository': repository,
             'proposalHash': digest, 'path': path, 'pullRequest': number,
@@ -556,12 +575,14 @@ def verify_proposal(proposal, pr, repository, expected_bot, require_merged=True,
             'approverTeam': {'organization': APPROVER_ORG, 'slug': APPROVER_TEAM, 'id': APPROVER_TEAM_ID}}
 
 
-def find_origin_pr(proposal, repository, expected_bot, github=None):
+def find_origin_pr(proposal, repository, expected_bot, github=None, revision=None):
     """Derive provenance from GitHub commit/PR association, not self-reported fields."""
     validate_context(repository, expected_bot)
     api = github or github_api
     path = proposal_path(proposal)
-    commits = api(f'repos/{repository}/commits?path={quote(path, safe="/")}&sha=main&per_page=1')
+    if revision is not None and not SHA.fullmatch(revision):
+        raise AuthorityError('Proposal history requires immutable main revision')
+    commits = api(f'repos/{repository}/commits?path={quote(path, safe="/")}&sha={revision or "main"}&per_page=1')
     if not isinstance(commits, list) or len(commits) != 1 or not SHA.fullmatch(commits[0].get('sha', '')):
         raise AuthorityError('Cannot establish proposal file history on main')
     pulls = collection(api, f'repos/{repository}/commits/{commits[0]["sha"]}/pulls')

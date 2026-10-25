@@ -350,3 +350,30 @@ metadata and identities, unchanged gate coverage, fresh receipts, independent
 inspections and zero product transfers. Separate transient incidents from any
 performance comparison. Keep the flag disabled until that proof passes, then
 repeat with trial overrides off and verify the exact clean-store consumer.
+
+## Gate-local release verification experiment
+
+`MAESTRO_RELEASE_VERIFICATION_REUSE_ENABLED` defaults to `false`. When enabled
+for the native release publisher, a single gate owns an in-memory context bound
+to repository, verifier source digest, captured protected main commit, policy,
+complete ledger and exact product. It validates each decision graph and historical
+proposal provenance once. History lookup uses that captured commit. Verified Git
+objects and parsed immutable documents are shared only inside this context;
+GitHub PR responses and successful live approvals are never cached.
+
+Each beginning/final live-check pass observes the complete pinned team inventory
+at both ends. Every active decision still checks exact PR head, current review
+state and immutable reviewer identity, individual membership and repository
+permissions. Final refresh rereads main, the complete ledger, policy and effective
+rules, then rechecks observation/database expiry immediately before success.
+A changed binding fails with a bounded `verification-context-*-changed` reason;
+a context cannot be used for another gate or write group. Standalone commands,
+JSON results and publication receipts retain their interfaces.
+
+Focused fixtures demonstrate identical decisions with fewer requests, historical
+validation once per context, and rejection of changed heads, dismissed reviews,
+lost membership/permissions, changed main/policy/ledger and mid-gate expiry. These
+are deterministic fixture results, not hosted performance measurements. Promotion
+requires matched flag-off/on runs with the same controller, product, producer and
+evidence, followed by publication and clean-store verification. Keep this flag
+disabled until that evidence exists.

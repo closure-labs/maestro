@@ -9,6 +9,12 @@ correspond to published GitHub tags.
 
 ## [Unreleased]
 
+### Changed
+
+- Add disabled-by-default gate-local release verification reuse. Immutable
+  decision graphs and proposal documents can be shared within one gate while
+  final reviews, membership, permissions, policy and evidence expiry remain live.
+
 ### Fixed
 
 - Group small release assets into bounded uploads with fresh authority checks

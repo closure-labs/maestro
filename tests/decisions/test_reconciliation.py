@@ -50,8 +50,8 @@ class Reconciliation(unittest.TestCase):
             selected, proposal = common.active_release(CFG, {parent_hash: parent, child_hash: child}, product)
             self.assertEqual(selected, child_hash)
             self.assertEqual(proposal, child)
-            history.assert_called_once_with(CFG, parent, None)
-            live.assert_called_once_with(CFG, child, None)
+            history.assert_called_once_with(CFG, parent, None, context=None)
+            live.assert_called_once_with(CFG, child, None, context=None)
         with patch.object(common, 'historical_provenance', side_effect=ValueError('forged parent')):
             with self.assertRaisesRegex(ValueError, 'forged parent'):
                 common.active_release(CFG, {parent_hash: parent, child_hash: child}, product)
