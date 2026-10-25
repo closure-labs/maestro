@@ -329,6 +329,27 @@ class Operations(unittest.TestCase):
         selected = retained.select({'profiles': ['maestro']}, {}, {'a' * 64: proposal}, release_only=True)
         self.assertEqual(selected[0], 'a' * 64)
 
+    def test_official_discovery_selects_newest_version_and_preserves_explicit_history(self):
+        def proposal(version):
+            return {'kind': 'release-product', 'payload': {'disposition': 'accepted',
+                    'product': {'assets': {f'maestro-v{version}.iso.sha256': 'a' * 64}}}}
+        older, newer = proposal('3.9.0'), proposal('3.10.0')
+        proposals = {'a' * 64: older, 'b' * 64: newer}
+        with patch.object(retained.common, 'authorize', side_effect=AssertionError('Selection grants no authority')):
+            self.assertEqual(retained.select({}, {}, proposals, release_only=True)[0], 'b' * 64)
+            self.assertEqual(retained.select({}, {}, proposals, release_only=True,
+                                            proposal_hash='a' * 64)[0], 'a' * 64)
+        for filters in ({'published_tags': {'v3.10.0'}},
+                        {'suppressed_products': {retained.canonical_hash(newer['payload']['product'])}}):
+            with self.subTest(filters=filters), self.assertRaises(retained.NoCandidate):
+                retained.select({}, {}, proposals, release_only=True, **filters)
+        with patch.object(retained.common, 'active_release', return_value=('b' * 64, newer)):
+            self.assertEqual(retained.select({}, {'b' * 64: newer}, {'a' * 64: older},
+                                            release_only=True)[0], 'b' * 64)
+        proposals['c' * 64] = proposal('3.10.0')
+        with self.assertRaisesRegex(ValueError, 'unambiguous'):
+            retained.select({}, {}, proposals, release_only=True)
+
     def test_retained_optional_only_suppresses_absence_not_integrity_or_api_errors(self):
         arguments = ['retained', '--config', 'policy.json', '--optional']
         cfg = {'repository': 'closure-labs/maestro'}

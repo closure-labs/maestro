@@ -88,6 +88,7 @@ def select(cfg, records, open_proposals, release_only=False, proposal_hash=None,
         for digest, proposal in open_proposals.items():
             if proposal['kind'] == 'release-product' and proposal['payload'].get('disposition') == 'accepted':
                 candidates[digest] = proposal
+        versions = {}
         for digest, proposal in list(candidates.items()):
             assets = proposal['payload']['product'].get('assets')
             common.require(isinstance(assets, dict), 'Retained product assets must be an object')
@@ -96,9 +97,17 @@ def select(cfg, records, open_proposals, release_only=False, proposal_hash=None,
                 continue
             tags = {m[1] for name in assets if (m := re.fullmatch(r'maestro-(v[0-9]+\.[0-9]+\.[0-9]+)\.iso\.sha256', name))}
             common.require(len(tags) == 1, 'Retained official product lacks one exact release tag')
-            if (next(iter(tags)) in published_tags
+            tag = next(iter(tags))
+            versions[digest] = tuple(map(int, tag.removeprefix('v').split('.')))
+            if (tag in published_tags
                     or canonical_hash(proposal['payload']['product']) in (suppressed_products or set())):
                 del candidates[digest]
+        if versions and not proposal_hash:
+            # Automatic work follows the newest official version. Keep historical
+            # products explicitly selectable, and never fall back when the newest
+            # is suppressed or already published. Same-version conflicts still fail.
+            newest = max(versions.values())
+            candidates = {h: p for h, p in candidates.items() if versions[h] == newest}
     if proposal_hash:
         common.require(proposal_hash in candidates, 'Requested retained proposal is not an eligible current candidate')
         return proposal_hash, candidates[proposal_hash]
