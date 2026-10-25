@@ -59,6 +59,8 @@ correspond to published GitHub tags.
 
 ### Fixed
 
+- Confirm secret-scanner ledger-key exceptions against complete source lines when large decision documents are split inside a public SHA-256 identity; keep all other credential findings blocking.
+
 - Retain native publication verification output and the no-transfer fast path
   in hosted logs using Devenv’s existing task output option.
 
