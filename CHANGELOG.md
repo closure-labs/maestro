@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Fixed
 
+- Group small release assets into bounded uploads with fresh authority checks
+  per batch and before publication. Renew scoped tokens before asset and
+  completion work, and retain safe HTTP status diagnostics for authority failures.
+
 - Target the newest official version during automatic release discovery when an
   older approved release remains unfinished. Preserve explicit historical
   recovery, reject conflicting products for the same version, and avoid falling

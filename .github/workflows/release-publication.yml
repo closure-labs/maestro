@@ -104,17 +104,69 @@ jobs:
           PUBLICATION_STEP: github
           PUBLICATION_STATE: pending
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:journal
+      - name: Mint fresh asset authority token
+        id: assets-authority
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.DECIDER_CLIENT }}
+          private-key: ${{ secrets.DECIDER_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-members: read
+          permission-administration: read
+          permission-actions: write
+      - name: Mint fresh asset upstream reader
+        id: assets-upstream
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.DECIDER_CLIENT }}
+          private-key: ${{ secrets.DECIDER_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: xo-nixpkg
+          permission-contents: read
+          permission-pull-requests: read
+          permission-members: read
+          permission-administration: read
+          permission-actions: read
       - name: Reconcile and publish exact approved hosted bytes
         env:
-          GH_TOKEN: ${{ steps.authority.outputs.token }}
-          XO_AUTHORITY_TOKEN: ${{ steps.upstream.outputs.token }}
+          GH_TOKEN: ${{ steps.assets-authority.outputs.token }}
+          XO_AUTHORITY_TOKEN: ${{ steps.assets-upstream.outputs.token }}
           REGISTRY_TOKEN: ${{ github.token }}
           PUBLICATION_PUBLISH: 'true'
           PUBLICATION_RECEIPT: ${{ runner.temp }}/github-receipt.json
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:assets
+      - name: Mint fresh completion authority token
+        id: completion-authority
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.DECIDER_CLIENT }}
+          private-key: ${{ secrets.DECIDER_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-members: read
+          permission-administration: read
+          permission-actions: write
+      - name: Mint fresh completion upstream reader
+        id: completion-upstream
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.DECIDER_CLIENT }}
+          private-key: ${{ secrets.DECIDER_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: xo-nixpkg
+          permission-contents: read
+          permission-pull-requests: read
+          permission-members: read
+          permission-administration: read
+          permission-actions: read
       - name: Record verified immutable GitHub publication
         env:
-          GH_TOKEN: ${{ steps.authority.outputs.token }}
+          GH_TOKEN: ${{ steps.completion-authority.outputs.token }}
           PUBLICATION_PURPOSE: release
           PUBLICATION_KEY: ${{ steps.candidate.outputs.release_tag }}
           PUBLICATION_STEP: github
@@ -129,8 +181,8 @@ jobs:
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:inspect
       - name: Recheck current admission and release approval
         env:
-          GH_TOKEN: ${{ steps.authority.outputs.token }}
-          XO_AUTHORITY_TOKEN: ${{ steps.upstream.outputs.token }}
+          GH_TOKEN: ${{ steps.completion-authority.outputs.token }}
+          XO_AUTHORITY_TOKEN: ${{ steps.completion-upstream.outputs.token }}
           REGISTRY_TOKEN: ${{ github.token }}
           DECISION_REQUIRE_HANDOFF: 'true'
           PUBLICATION_PURPOSE: release
@@ -154,7 +206,7 @@ jobs:
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:inspect
       - name: Record versioned FlakeHub publication
         env:
-          GH_TOKEN: ${{ steps.authority.outputs.token }}
+          GH_TOKEN: ${{ steps.completion-authority.outputs.token }}
           PUBLICATION_PURPOSE: release
           PUBLICATION_KEY: ${{ steps.candidate.outputs.release_tag }}
           PUBLICATION_STEP: flakehub
@@ -163,8 +215,8 @@ jobs:
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:journal
       - name: Advance development through protected main
         env:
-          GH_TOKEN: ${{ steps.authority.outputs.token }}
-          MERGE_QUEUE_TOKEN: ${{ steps.authority.outputs.token }}
+          GH_TOKEN: ${{ steps.completion-authority.outputs.token }}
+          MERGE_QUEUE_TOKEN: ${{ steps.completion-authority.outputs.token }}
           DEFAULT_BRANCH: main
           EXPECTED_AUTHOR: cl-decider
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:advance

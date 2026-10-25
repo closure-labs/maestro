@@ -35,6 +35,37 @@ class Diagnostics(unittest.TestCase):
             isolated.start()
             self.addCleanup(isolated.stop)
 
+    def test_release_refreshes_same_scopes_before_assets_and_completion(self):
+        workflow = json.loads(subprocess.check_output(
+            ['yq', '-o=json', '.', str(ROOT / '.github/workflows/release-publication.yml')], text=True))
+        steps = workflow['jobs']['publish']['steps']
+        indexed = {step['id']: (index, step) for index, step in enumerate(steps) if 'id' in step}
+        for prefix in ('assets-', 'completion-'):
+            for scope in ('authority', 'upstream'):
+                original = indexed[scope][1]
+                refreshed = indexed[prefix + scope][1]
+                self.assertEqual(refreshed['uses'], original['uses'])
+                self.assertEqual(refreshed['with'], original['with'])
+        asset_step = next(i for i, step in enumerate(steps)
+                          if step.get('name') == 'Reconcile and publish exact approved hosted bytes')
+        journal_step = next(i for i, step in enumerate(steps)
+                            if step.get('name') == 'Record verified immutable GitHub publication')
+        self.assertLess(indexed['assets-upstream'][0], asset_step)
+        self.assertLess(asset_step, indexed['completion-authority'][0])
+        self.assertLess(indexed['completion-upstream'][0], journal_step)
+        self.assertIn('steps.assets-authority.outputs.token', steps[asset_step]['env']['GH_TOKEN'])
+        self.assertIn('steps.completion-authority.outputs.token', steps[journal_step]['env']['GH_TOKEN'])
+
+    def test_authority_http_status_is_retained_without_exception_text(self):
+        error = common.authority.AuthorityAPIError('private-url credential-secret', 401)
+        with patch.object(diagnostics, 'record', return_value='safe-summary') as record, \
+                redirect_stderr(io.StringIO()) as output:
+            def fail():
+                raise error
+            self.assertEqual(common.run(fail), 2)
+        self.assertEqual(record.call_args.args[0]['httpStatus'], 401)
+        self.assertNotIn('credential-secret', json.dumps(record.call_args.args[0]) + output.getvalue())
+
     def test_duplicate_occurrences_keep_exact_bytes_and_one_object(self):
         with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {
             'MAESTRO_CI_DIAGNOSTICS': 'true', 'RUNNER_TEMP': temp
