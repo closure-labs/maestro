@@ -258,7 +258,10 @@
     };
     source-security = mkCommand {
       name = "source-security";
-      runtimeInputs = commonInputs ++ [pkgs.gitleaks];
+      prefix = ''
+        export MAESTRO_SOURCE_SECURITY_SOURCE=${./source-security.py}
+      '';
+      runtimeInputs = commonInputs ++ [pkgs.gitleaks pkgs.python3];
       source = ./source-security.sh;
     };
     decision-event = mkCommand {
