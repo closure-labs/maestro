@@ -14,6 +14,10 @@ on:
         description: Exact admitted official product for cache-only recovery; optional candidate_run supplies fresh observations
         type: string
         default: ''
+      verification_reuse_trial:
+        description: Trial gate-local verification reuse; require verified destinations
+        type: boolean
+        default: false
       metadata_batch_trial:
         description: Trial handoff metadata batching for the selected approved candidate; require verified destinations
         type: boolean
@@ -42,11 +46,12 @@ jobs:
     environment: publication
     env:
       MAESTRO_CI_DIAGNOSTICS: 'true'
+      MAESTRO_RELEASE_VERIFICATION_REUSE_ENABLED: ${{ (github.event_name == 'workflow_dispatch' && inputs.verification_reuse_trial) && 'true' || vars.MAESTRO_RELEASE_VERIFICATION_REUSE_ENABLED || 'false' }}
       MAESTRO_DECISION_ONLY_REUSE_ENABLED: ${{ vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED || 'false' }}
       MAESTRO_PACKET_METADATA_BATCH_ENABLED: ${{ (github.event_name == 'workflow_dispatch' && inputs.metadata_batch_trial) && 'true' || vars.MAESTRO_PACKET_METADATA_BATCH_ENABLED || 'false' }}
       MAESTRO_PUBLIC_CACHE_TRANSPORT_REUSE_ENABLED: ${{ (github.event_name == 'workflow_dispatch' && inputs.public_cache_transport_trial) && 'true' || vars.MAESTRO_PUBLIC_CACHE_TRANSPORT_REUSE_ENABLED || 'false' }}
       MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED: ${{ (github.event_name == 'workflow_dispatch' && inputs.readonly_preflight_trial) && 'true' || vars.MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED || 'false' }}
-      PUBLICATION_REQUIRE_VERIFIED: ${{ (github.event_name == 'workflow_dispatch' && (inputs.readonly_preflight_trial || inputs.metadata_batch_trial || inputs.public_cache_transport_trial)) && 'true' || 'false' }}
+      PUBLICATION_REQUIRE_VERIFIED: ${{ (github.event_name == 'workflow_dispatch' && (inputs.verification_reuse_trial || inputs.readonly_preflight_trial || inputs.metadata_batch_trial || inputs.public_cache_transport_trial)) && 'true' || 'false' }}
       PUBLICATION_PURPOSE: ${{ inputs.proposal_hash != '' && 'release' || 'rolling' }}
     permissions:
       actions: read
