@@ -338,6 +338,8 @@ def packet_descriptor(path, members, expected):
 
 def metadata_bytes(reference, expected, name, producer=None):
     """Read one bounded authenticated metadata member, never closure payloads."""
+    if metadata_reuse_enabled():
+        return reused_metadata(reference, expected, (name,), producer)[name]
     with operations.budget(90), tempfile.TemporaryDirectory() as temporary:
         directory = Path(temporary)
         _, members = inspect(reference)
@@ -366,6 +368,8 @@ def metadata_many(reference, expected, names, producer=None):
     names = tuple(dict.fromkeys(safe_name(name) for name in names))
     if any(not name.endswith('.json') for name in names):
         raise ValueError('Packet metadata selection requires JSON members')
+    if metadata_reuse_enabled():
+        return reused_metadata(reference, expected, names, producer)
     observations = {'scans.json', 'handoff-xo-latest.json', 'handoff-xo-stable.json',
                     'handoff-xo-rolling.json', 'handoff-libvhdi.json'}
     with operations.budget(90), tempfile.TemporaryDirectory() as temporary:
@@ -388,13 +392,86 @@ def metadata_many(reference, expected, names, producer=None):
         return result
 
 
+def metadata_reuse_enabled():
+    setting = os.environ.get('MAESTRO_PACKET_METADATA_REUSE_ENABLED', 'false')
+    if setting not in ('true', 'false'):
+        raise ValueError('MAESTRO_PACKET_METADATA_REUSE_ENABLED must be true or false')
+    return setting == 'true'
+
+
+def reused_metadata(reference, expected, names, producer):
+    """Read only requested metadata, revalidating all immutable bindings on hits."""
+    from packet_metadata_cache import MetadataCache
+    if not isinstance(reference, str) or not REFERENCE.fullmatch(reference):
+        raise ValueError('Packet requires a digest in the dedicated evidence repository')
+    names = tuple(dict.fromkeys(safe_name(name) for name in names))
+    if not names or len(names) > MAX_FILES or any(
+            not name.endswith('.json') and name not in ('inputs.sha256', 'inventory/Cargo.lock', 'release-notes.md')
+            for name in names):
+        raise ValueError('Packet metadata selection excludes closure payloads')
+    with operations.budget(90), tempfile.TemporaryDirectory() as temporary:
+        operations.remaining(90)
+        directory = Path(temporary)
+        cache_path = job_cache(reference, expected)
+        cache = MetadataCache(cache_path / 'metadata') if cache_path is not None else None
+
+        def read(digest, limit, category, size=None):
+            raw = cache.read(digest, limit, size) if cache else None
+            if raw is not None:
+                diagnostics.count('metadataCacheHits')
+                diagnostics.count('metadataBytesReused', len(raw))
+                diagnostics.count('metadataRegistryOperationsAvoided')
+                diagnostics.profile('packetOperations', category, reused=len(raw))
+                diagnostics.profile('transport', 'registry', reused=len(raw))
+            return raw
+
+        manifest_digest = reference.rsplit(':', 1)[1]
+        raw = read(manifest_digest, 2 * 1024**2, 'manifest')
+        if raw is None:
+            raw, members = inspect(reference)
+            if cache:
+                cache.store(manifest_digest, raw)
+        else:
+            members = manifest_members(reference, raw)
+        observations = {'scans.json', 'handoff-xo-latest.json', 'handoff-xo-stable.json',
+                        'handoff-xo-rolling.json', 'handoff-libvhdi.json'}
+        for name in names:
+            limit = (128 if name in observations else 16) * 1024**2
+            if name not in members or members[name]['size'] > limit:
+                raise ValueError('Packet metadata member is absent or oversized')
+
+        def member(name):
+            record = members[name]
+            category = 'descriptor' if name == 'decision-packet.json' else 'metadata-member'
+            raw = read(record['sha256'], record['size'], category, record['size'])
+            if raw is None:
+                raw = fetch_member(name, directory, members).read_bytes()
+                if cache:
+                    cache.store(record['sha256'], raw)
+            operations.remaining(90)
+            return raw
+
+        descriptor_bytes = member('decision-packet.json')
+        descriptor_path = directory / 'decision-packet.json'
+        descriptor_path.write_bytes(descriptor_bytes)
+        descriptor = packet_descriptor(descriptor_path, members, expected)
+        if producer is not None and canonical_hash(descriptor['producer']) != canonical_hash(producer):
+            raise ValueError('Packet metadata producer differs from reviewed descriptor')
+        result = {}
+        for name in names:
+            result[name] = descriptor_bytes if name == 'decision-packet.json' else member(name)
+        operations.remaining(90)
+        return result
+
+
 def metadata(reference, expected, name, producer=None):
     return decode_json(metadata_bytes(reference, expected, name, producer))
 
 
 def verifier_version():
     return canonical_hash({'packetVerifier': file_hash(Path(__file__)),
-                           'canonicalization': file_hash(Path(security_decisions.__file__))})
+                           'canonicalization': file_hash(Path(security_decisions.__file__)),
+                           'metadataCache': file_hash(Path(__file__).with_name('packet_metadata_cache.py'))})
 
 
 def job_cache(reference, expected):
