@@ -377,3 +377,29 @@ are deterministic fixture results, not hosted performance measurements. Promotio
 requires matched flag-off/on runs with the same controller, product, producer and
 evidence, followed by publication and clean-store verification. Keep this flag
 disabled until that evidence exists.
+
+## Packet metadata byte reuse experiment
+
+`MAESTRO_PACKET_METADATA_REUSE_ENABLED` defaults to `false`. Metadata-only reads
+can reuse the OCI manifest, descriptor and requested members inside the existing
+packet cache namespace, keyed by registry/reference, manifest and descriptor
+digests, verifier source, run, attempt and job. No closure payload is fetched by
+this path. `metadata` retains parsed-document results and `metadata_many` retains
+its bounded JSON-member selection and raw-byte results. Existing single-member
+reads of input checksums, Cargo inventory and release notes remain supported.
+
+Every hit verifies bytes against their digest and size, reparses manifest and
+descriptor bindings, and rechecks the requested producer. Cache operations use
+anchored directory descriptors, refuse symlinks/nonregular files, and atomically
+publish completed files without overwriting existing entries. Missing entries
+may be fetched; corruption and conflicting bindings fail closed. Existing
+transport failure classifications and the 90-second metadata deadline remain.
+Live approval, independent attestations and health checks are never reused.
+
+Diagnostics retain `metadataCacheHits`, `metadataBytesReused` and
+`metadataRegistryOperationsAvoided`, with bounded manifest/descriptor/member
+categories. Avoided operations count logical registry commands, not HTTP requests.
+The manual `metadata_reuse_trial` requires already-verified destinations. Compare
+matched flag-off/on runs before promotion; fixture reductions are not hosted
+performance measurements. Leave the repository flag disabled without a safe
+matched case.

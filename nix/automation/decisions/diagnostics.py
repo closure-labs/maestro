@@ -127,7 +127,8 @@ def captured_bytes(value):
 
 LOCK = threading.Lock()
 COUNTER_NAMES = ('gateInvocations', 'apiWrapperInvocations', 'apiTransportInvocations',
-                 'publicTransportInvocations', 'immutableBytesReused')
+                 'publicTransportInvocations', 'immutableBytesReused', 'metadataCacheHits',
+                 'metadataBytesReused', 'metadataRegistryOperationsAvoided')
 KINDS = {'admission', 'publication', 'publication-journal', 'publication-assets', 'destinations', 'gate', 'handoff', 'packet-metadata'}
 
 
@@ -359,7 +360,7 @@ def manifest():
              'requestProfiles': sorted(name for name in files if name.endswith('.profile.json')),
              'nativeStages': sorted(name for name in files if name.endswith('.stage.json')),
              'experiments': {key: os.environ.get(key, 'false') == 'true' for key in
-                             ('MAESTRO_RELEASE_VERIFICATION_REUSE_ENABLED', 'MAESTRO_DECISION_ONLY_REUSE_ENABLED', 'MAESTRO_PACKET_METADATA_BATCH_ENABLED', 'MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED', 'MAESTRO_PUBLIC_CACHE_TRANSPORT_REUSE_ENABLED')},
+                             ('MAESTRO_RELEASE_VERIFICATION_REUSE_ENABLED', 'MAESTRO_PACKET_METADATA_REUSE_ENABLED', 'MAESTRO_DECISION_ONLY_REUSE_ENABLED', 'MAESTRO_PACKET_METADATA_BATCH_ENABLED', 'MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED', 'MAESTRO_PUBLIC_CACHE_TRANSPORT_REUSE_ENABLED')},
              'verifiedDestinationsRequired': os.environ.get('PUBLICATION_REQUIRE_VERIFIED') == 'true',
              'measurements': totals, 'httpAttempts': None, 'wireBytes': None,
              'measurementScope': 'Native instrumented processes only; nested phase durations overlap. Captured bytes are retained stdout/stderr and verified downloaded members, not wire bytes. HTTP attempts and wire bytes unavailable. Log bytes count emitted JSON summaries only; completed original job logs are measured separately.'}

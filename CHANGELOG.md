@@ -15,6 +15,10 @@ correspond to published GitHub tags.
   decision graphs and proposal documents can be shared within one gate while
   final reviews, membership, permissions, policy and evidence expiry remain live.
 
+- Add disabled-by-default job-local reuse of authenticated packet metadata bytes.
+  Revalidate cached hashes and producer bindings while retaining live authority,
+  attestation and freshness checks at every existing publication boundary.
+
 ### Fixed
 
 - Group small release assets into bounded uploads with fresh authority checks
