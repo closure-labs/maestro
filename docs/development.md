@@ -71,8 +71,7 @@ sources, while Nix provides their runtime dependencies and executable app
 boundaries.
 
 Workflow policy allowlists Actions only for GitHub-platform boundaries:
-checkout, Determinate Nix bootstrap, artifact upload/download, attestations,
-and FlakeHub's OIDC publication. Linters, formatters, compilers, Cachix, and
+checkout, Determinate Nix bootstrap, artifact upload/download, and attestations. Linters, formatters, compilers, Cachix, and
 repository orchestration are ordinary pinned executables supplied by Nix, so
 the same commands run locally and on hosted runners.
 
@@ -561,8 +560,7 @@ native cache verification fast-path message.
 Each invocation retains its full structured results under
 `$RUNNER_TEMP/publication-diagnostics`. The `release:diagnostics` task finalizes
 a manifest with event source, checked-out controller commit/tree, run, attempt,
-and every file's SHA256 and size. It retains valid current cache, FlakeHub and
-GitHub receipt files and records the effective experiment and verified-only
+and every file's SHA256 and size. It retains valid current cache and GitHub receipt files and records the effective experiment and verified-only
 trial settings. An always-running upload retains these files
 on success and failure as `maestro-publication-diagnostics-JOB-RUN-ATTEMPT`.
 Finalization reads existing evidence; it never repeats an audit or publication.

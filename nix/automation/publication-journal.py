@@ -125,6 +125,7 @@ def main():
 def prepare_transition(repository, product_hash, key, step, state, github=api, receipt=None):
     """Read and validate a proposed journal mutation, without granting authority."""
     common.require(NAME.fullmatch(key) and NAME.fullmatch(step), 'Invalid publication journal key or step')
+    common.require(step != 'flakehub', 'FlakeHub publication has been removed')
     common.require(common.HASH.fullmatch(product_hash) and state in ('pending', 'complete'), 'Invalid publication journal state')
     if receipt is not None:
         publication_receipts.validate(receipt, product_hash, step)

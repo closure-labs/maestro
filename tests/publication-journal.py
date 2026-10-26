@@ -238,4 +238,16 @@ with tempfile.TemporaryDirectory() as temporary:
     assert any(batch == [large] for batch in batches)
     assert all(len(batch) <= 8 for batch in batches)
 
+# Retired destinations remain readable in historical journals, but no new
+# FlakeHub transition may read remote state or acquire mutation authority.
+legacy = {'schema': 2, 'productHash': PRODUCT, 'steps': {'flakehub': 'complete'},
+          'receipts': {'flakehub': {'schema': 1, 'productHash': PRODUCT, 'destination': 'flakehub',
+              'status': 'verified', 'expected': {'revision': SHA}, 'observed': {'revision': SHA},
+              'verifiedAt': '2026-10-25T00:00:00+00:00', 'verifier': 'f' * 64}}}
+journal.validate(legacy, PRODUCT)
+for state in ('pending', 'complete'):
+    def forbidden(*args, **kwargs):
+        raise AssertionError('Retired publication reached remote state or authority')
+    reject(lambda: journal.transition('owner/repo', PRODUCT, 'v1.2.3', 'flakehub', state, forbidden, forbidden))
+
 print('Publication CAS, immutable assets, partial recovery and live authority fixtures passed.')

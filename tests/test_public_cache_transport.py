@@ -483,8 +483,7 @@ class PublicTransport(unittest.TestCase):
         for name in ('Verify live admission and exact distribution roots',
                      'Reserve exact official cache recovery identity',
                      'Verify pinned upstream handoff against actual appliance exposure',
-                     'Record freshly verified cache destination',
-                     'Recheck live admission before FlakeHub publication'):
+                     'Record freshly verified cache destination'):
             self.assertIn(name, names)
         self.assertLess(names.index('Inspect current public cache before closure materialization'),
                         names.index('Restore authenticated qualified Nix closures without builders'))

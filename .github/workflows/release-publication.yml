@@ -40,7 +40,6 @@ jobs:
       actions: read
       packages: read
       contents: write
-      id-token: write
       attestations: read
     steps:
       - uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2
@@ -201,46 +200,6 @@ jobs:
           REGISTRY_TOKEN: ${{ github.token }}
           PUBLICATION_RECEIPT: ${{ runner.temp }}/github-receipt.json
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:complete
-      - name: Inspect exact versioned FlakeHub destination
-        id: flakehub
-        env:
-          PUBLICATION_DESTINATION: flakehub
-          PUBLICATION_PURPOSE: release
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:inspect
-      - name: Recheck current admission and release approval
-        env:
-          GH_TOKEN: ${{ steps.completion-authority.outputs.token }}
-          XO_AUTHORITY_TOKEN: ${{ steps.completion-upstream.outputs.token }}
-          REGISTRY_TOKEN: ${{ github.token }}
-          DECISION_REQUIRE_HANDOFF: 'true'
-          PUBLICATION_PURPOSE: release
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' ci:decision:publication
-      - name: Publish the approved versioned flake
-        if: env.PUBLICATION_REQUIRE_VERIFIED != 'true' && steps.flakehub.outputs.status != 'verified'
-        uses: DeterminateSystems/flakehub-push@dceefcb33cba27bde28f8540d8b4537cb925c46b # main, Node.js 24
-        with:
-          visibility: public
-          name: closure-labs/maestro
-          rolling: false
-          tag: ${{ steps.candidate.outputs.release_tag }}
-          rev: ${{ steps.candidate.outputs.source_sha }}
-          include-output-paths: true
-      - name: Verify current versioned FlakeHub identity
-        env:
-          PUBLICATION_DESTINATION: flakehub
-          PUBLICATION_PURPOSE: release
-          PUBLICATION_REQUIRE_VERIFIED: 'true'
-          PUBLICATION_RECEIPT: ${{ runner.temp }}/flakehub-receipt.json
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:inspect
-      - name: Record versioned FlakeHub publication
-        env:
-          GH_TOKEN: ${{ steps.completion-authority.outputs.token }}
-          PUBLICATION_PURPOSE: release
-          PUBLICATION_KEY: ${{ steps.candidate.outputs.release_tag }}
-          PUBLICATION_STEP: flakehub
-          PUBLICATION_RECEIPT: ${{ runner.temp }}/flakehub-receipt.json
-          PUBLICATION_STATE: complete
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:journal
       - name: Advance development through protected main
         if: env.PUBLICATION_REQUIRE_VERIFIED != 'true'
         env:

@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Remove rolling and versioned FlakeHub publication, its workflow OIDC
+  permissions and action allowance. Publication now targets Cachix and GitHub;
+  historical receipts and published versions remain readable.
+
 - Add explicit verified-only off/on trials for release write grouping. Trials
   require a selected producer, use read-only authority tokens and reject changes
   to published destinations or journals while retaining fresh authorization.
@@ -25,7 +29,7 @@ correspond to published GitHub tags.
 
 - Add disabled-by-default native release reservation and completion tasks that
   group adjacent writes under fresh authority. Keep upload-batch checks, both
-  hosted-byte readbacks, separate FlakeHub authorization and scoped token renewal.
+  hosted-byte readbacks and scoped token renewal.
 
 ### Fixed
 

@@ -337,7 +337,7 @@ class Diagnostics(unittest.TestCase):
             manifest = json.loads((root / 'manifest.json').read_text())
             self.assertEqual((root / 'cache-receipt.json').read_bytes(), raw)
             self.assertFalse((root / 'flakehub-receipt.json').exists())
-            self.assertEqual(manifest['receiptCapture']['flakehub'], 'invalid')
+            self.assertNotIn('flakehub', manifest['receiptCapture'])
             self.assertEqual(manifest['receiptCapture']['github'], 'invalid')
             self.assertTrue(manifest['experiments']['MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED'])
             self.assertTrue(manifest['verifiedDestinationsRequired'])
