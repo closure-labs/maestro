@@ -9,8 +9,12 @@
     ...
   }: let
     planRunner = inputs.xen-orchestra-ce.packages.${system}.flake-plan-runner.override {nix = ciNix;};
-    commands = import ./_source {
+    context = {
       inherit pkgs planRunner packerXenserver ciNix installerQualification;
+      commands =
+        lib.mapAttrs' (name: package: lib.nameValuePair (lib.removePrefix "maestro-ci-" name) package)
+        (lib.filterAttrs (name: _: lib.hasPrefix "maestro-ci-" name) inputs.self.packages.${system});
+      common = import ./_lib/common.nix {inherit pkgs ciNix;};
       devenv = inputs.devenv.packages.${system}.devenv;
       applicabilityCommand = inputs.xen-orchestra-ce.packages.${system}.security-applicability;
       appliance = inputs.self.nixosConfigurations.maestro.config;
@@ -22,10 +26,7 @@
         ++ builtins.attrValues installerQualification.roots;
     };
   in {
-    packages =
-      lib.mapAttrs' (name: package: lib.nameValuePair "maestro-ci-${name}" package) commands
-      // {
-        flake-plan-runner = planRunner;
-      };
+    _module.args.maestroCi = context;
+    packages.flake-plan-runner = planRunner;
   };
 }

@@ -9,21 +9,27 @@ selection.
 
 ## Structure
 
-- `modules/aspects/`: Den composition for platform, XCP-ng, XO, and operator
-- `modules/_nixos/`: focused native NixOS modules
-- `modules/_homeManager/`: the `maestro` operator home
+- `modules/flake/`: pinned framework composition, input declarations and caches
+- `modules/features/`: appliance, platform, operator, XO, installer, XCP-ng and development owners
+- `modules/ci/`: graph, checks, inventory, security and live decision authority
+- `modules/release/`: publication and consumer contracts
+- Ordinary `.nix` files under `modules/` are flake-parts modules. Native NixOS and Home Manager definitions are Den aspect values. Only `_source/`, `_tests/` and `_lib/` contain private files excluded by import-tree.
 - `host/settings.nix`: hand-maintained appliance policy
 - `host/hardware-configuration.nix`: bootstrap-generated hardware module
 - `host/menu.nix`: TUI-generated overrides only
-- `modules/features/installer/_source/`: minimal NixOS ISO and destructive single-disk installer
-- `modules/features/xcp-ng/template/_source/`: native XCP-ng template build, verification, and sealing
-- `modules/features/operator/cli/_source/maestroctl.sh`: operator CLI source
-- `modules/features/operator/menu/_source/backend/`: console backend
-- `modules/features/operator/menu/_source/frontend/`: Ratatui frontend
+- `docs/features.md`: where to change policy, implementations, tests and CI outputs
+- `automation/decisions/`: immutable historical records; never rewrite them during source moves
 
 ## Development
 
-Use `.#maestro` in commands and documentation.
+Use `.#maestro` in commands and documentation. Edit input declarations in
+`modules/flake/inputs.nix`, then regenerate the committed entry point with
+`nix run .#write-flake`. Keep input pins unchanged outside deliberate updates.
+
+Full Nix evaluation, audits, builds and VM/ISO tests run in hosted CI. Local
+focused fixtures must fit within 512 MiB; never use local full Nix work to bypass
+that resource boundary. Graph gating stays disabled until hosted comparison
+against complete validation passes.
 
 ```bash
 nix flake check --no-write-lock-file

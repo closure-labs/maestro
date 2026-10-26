@@ -1,0 +1,15 @@
+{...}: let
+  inherit (import ../../../features/development/_lib/task-helpers.nix {}) withFlake runFlakePackage;
+in {
+  tasks = {
+    "ci:graph:result".exec = runFlakePackage "maestro-ci-graph-result" "";
+    "ci:transport:restore-appliance".exec = runFlakePackage "maestro-ci-job-transfer" "restore appliance appliance-transfer";
+    "ci:transport:restore-installer".exec = runFlakePackage "maestro-ci-job-transfer" "restore installer installer-transfer";
+    "ci:transport:export-inventory".exec = runFlakePackage "maestro-ci-job-transfer" "export inventory inventory-transfer";
+    "ci:transport:restore-inventory".exec = runFlakePackage "maestro-ci-job-transfer" "restore inventory inventory-transfer";
+
+    "ci:graph:plan".exec = runFlakePackage "maestro-ci-graph-plan" "";
+    "ci:route".exec = runFlakePackage "maestro-ci-route" "";
+    "ci:classify".exec = runFlakePackage "maestro-ci-classify" "";
+  };
+}

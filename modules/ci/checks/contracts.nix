@@ -126,9 +126,9 @@
             release:request release:signal release:pending release:continuation \
             release:prepare release:dispatch release:inventory release:verify \
             release:stage release:draft release:attestations release:publish release:advance; do
-            grep -Fq "\"$task\"" modules/features/development/_lib/devenv.nix
+            grep -RFq --include=tasks.nix "\"$task\"" modules
           done
-          grep -Fq 'pkgs.check-jsonschema' modules/ci/authority/_source/default.nix
+          grep -Fq 'pkgs.check-jsonschema' modules/ci/authority/_lib/common.nix
           # A cold runner must receive literal source patches with the cached
           # toolchain, even if coreutils's runtime output was substituted.
           for patch in ${lib.escapeShellArgs (map (patch: "${patch}") (builtins.filter builtins.isPath (pkgs.coreutils.patches or [])))}; do
@@ -136,17 +136,17 @@
           done
           ! test -e modules/ci/authority/_source/cli.sh
           ! grep -Fq 'maestroCiCommand' modules/features/development/_lib/devenv.nix
-          grep -Fq 'runFlakePackage "maestro-ci-route"' modules/features/development/_lib/devenv.nix
-          grep -Fq 'runFlakePackage "maestro-ci-fix-hashes"' modules/features/development/_lib/devenv.nix
-          grep -Fq 'runFlakePackage "maestro-ci-repository-audit"' modules/features/development/_lib/devenv.nix
-          grep -Fq 'runFlakePackage "maestro-ci-verdict"' modules/features/development/_lib/devenv.nix
-          grep -Fq 'runFlakePackage "maestro-ci-release-manager"' modules/features/development/_lib/devenv.nix
+          grep -Fq 'runFlakePackage "maestro-ci-route"' modules/ci/graph/_lib/tasks.nix
+          grep -Fq 'runFlakePackage "maestro-ci-fix-hashes"' modules/features/development/_lib/tasks.nix
+          grep -Fq 'runFlakePackage "maestro-ci-repository-audit"' modules/ci/checks/_lib/tasks.nix
+          grep -Fq 'runFlakePackage "maestro-ci-verdict"' modules/ci/checks/_lib/tasks.nix
+          grep -Fq 'runFlakePackage "maestro-ci-release-manager"' modules/release/publication/_lib/tasks.nix
           ! grep -RqE --exclude=contracts.nix 'ci:(prepare|plan|check|gate)|maestro-ci-(prepare|plan|check|gate|release)([^a-z-]|$)|MAESTRO_CI_(PREPARE|PLAN|CHECK|GATE|RELEASE)([^A-Z_]|$)|PREPARE_RESULT|PLAN_RESULT' \
             .github docs modules
-          test "$(grep -c 'execIfModified = ' modules/features/development/_lib/devenv.nix)" -eq 2
+          test "$(grep -c 'execIfModified = ' modules/ci/checks/_lib/tasks.nix)" -eq 2
           ! grep -Fq 'exec = "true";' modules/features/development/_lib/devenv.nix
-          grep -Fq "git ls-files -z -- '*.nix'" modules/features/development/_lib/devenv.nix
-          grep -Fq -- "-path './.devenv'" modules/features/development/_lib/devenv.nix
+          grep -Fq "git ls-files -z -- '*.nix'" modules/ci/checks/_lib/tasks.nix
+          grep -Fq -- "-path './.devenv'" modules/ci/checks/_lib/tasks.nix
           grep -Fq 'DeterminateSystems/determinate-nix-action@61cbfe2efc2d4e7a8a6d56967c3c1058e846c858' \
             .github/actions/setup-nix/action.yml
           if grep -RqE '\.#maestro-ci([ -]|$)|\.#maestro-ci-(boot-media|qualification-assets|qualification-inputs|resolve-qualification|update-locks)' .github/workflows; then

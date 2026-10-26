@@ -34,12 +34,24 @@
     (name: lib.hasSuffix ".sh" name && automationDirectory.${name} == "regular")
     (builtins.attrNames automationDirectory)
   );
-  automationDefinition = read "modules/ci/authority/_source/default.nix";
+  automationDefinition = lib.concatStringsSep "\n" (map read [
+    "modules/ci/authority/_lib/common.nix"
+    "modules/ci/authority/_lib/commands.nix"
+    "modules/ci/checks/_lib/commands.nix"
+    "modules/ci/graph/_lib/commands.nix"
+    "modules/ci/inventory/_lib/commands.nix"
+    "modules/ci/security/_lib/commands.nix"
+    "modules/features/development/_lib/commands.nix"
+    "modules/features/installer/_lib/commands.nix"
+    "modules/features/xcp-ng/template/_lib/commands.nix"
+    "modules/release/consumer/_lib/commands.nix"
+    "modules/release/publication/_lib/commands.nix"
+  ]);
   automationWrapperRules =
     map (script: {
       ok =
-        lib.hasInfix "source = ./${script};" automationDefinition
-        || lib.hasInfix "builtins.readFile ./${script}" automationDefinition;
+        lib.hasInfix "/${script};" automationDefinition
+        || lib.hasInfix "/${script}" automationDefinition;
       message = "modules/ci/authority/_source/${script} must be wrapped by the Nix automation package set";
     })
     automationScripts;

@@ -76,28 +76,25 @@ cannot drift between them.
 
 ```text
 modules/
-├── dendritic.nix
-├── den-defaults.nix
-├── host.nix
-├── aspects/
-│   ├── platform.nix
-│   ├── xcp-ng.nix
-│   ├── xo.nix
-│   └── operator.nix
-├── _nixos/
-│   ├── platform.nix
-│   ├── xcp-ng.nix
-│   ├── operator.nix
-│   └── xo/
-│       ├── default.nix
-│       ├── service.nix
-│       ├── tls.nix
-│       └── storage.nix
-└── _homeManager/
+├── flake/                 # inputs, required frameworks, caches, systems
+├── features/
+│   ├── appliance/         # explicit Den composition and effective policy checks
+│   ├── platform/          # boot, networking, Nix and security
+│   ├── operator/          # account/access, shell, CLI and menu
+│   ├── xo/                # service, storage, TLS and file restore
+│   ├── installer/         # minimal ISO and installation
+│   ├── xcp-ng/            # guest integration and native template tooling
+│   └── development/       # native shell, toolchain and formatting
+├── ci/                    # graph, repository contracts, inventory and authority
+└── release/               # publication contracts
 ```
 
-The underscore directories contain class modules composed through the aspect
-tree.
+Every ordinary Nix file is a flake-parts module discovered by one import-tree.
+Den definitions are option values inside those modules. Private source, test and
+helper directories start with `_` and are excluded from discovery. Appliance
+aspect includes stay explicit; directory names never grant permission to skip
+validation. See [feature navigation](features.md) and the generated
+[output ownership table](feature-outputs.md).
 
 ## Host ownership
 
