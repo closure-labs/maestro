@@ -96,6 +96,8 @@ def remote_digest(repository, asset):
 
 
 def upload(repository, tag, paths):
+    common.require(os.environ.get('PUBLICATION_REQUIRE_VERIFIED') != 'true',
+                   'Verified-only publication forbids asset uploads')
     subprocess.run(['gh', 'release', 'upload', tag, *map(str, paths), '--repo', repository],
                    check=True, capture_output=True, text=True, timeout=1800)
 
@@ -135,6 +137,8 @@ def reconcile(repository, product, directory, tag, revision, publish, authorize,
     actual = tag_revision(repository, tag, github)
     common.require(actual is None or actual == revision, 'Existing release tag points at another source')
     common.require(not stage_only or actual is not None, 'Asset batch requires reserved tag')
+    common.require(os.environ.get('PUBLICATION_REQUIRE_VERIFIED') != 'true' or actual == revision,
+                   'Verified-only publication requires an existing tag')
     if actual is None:
         authorize()
         try:
@@ -145,6 +149,9 @@ def reconcile(repository, product, directory, tag, revision, publish, authorize,
         common.require(tag_revision(repository, tag, github) == revision, 'Release tag reservation conflict')
     release = release_for(repository, tag, github)
     common.require(not stage_only or release is not None, 'Asset batch requires reserved draft')
+    common.require(os.environ.get('PUBLICATION_REQUIRE_VERIFIED') != 'true'
+                   or (release is not None and release.get('draft') is False),
+                   'Verified-only publication requires a published release')
     if release is None:
         authorize()
         try:
@@ -166,6 +173,8 @@ def reconcile(repository, product, directory, tag, revision, publish, authorize,
         common.require(download(repository, asset) == assets[name], 'Existing release asset bytes differ: ' + name)
     missing = set(assets) - set(remote)
     common.require(release.get('draft') is True or not missing, 'Published release is incomplete; refusing mutation')
+    common.require(os.environ.get('PUBLICATION_REQUIRE_VERIFIED') != 'true' or not missing,
+                   'Verified-only publication requires all hosted assets')
     if missing and materialize is not None:
         materialize()
     for batch in upload_batches(directory, missing):
@@ -215,6 +224,8 @@ def publish_verified(repository, product, directory, tag, revision, release, pub
     """Write/read back a prepared publication inside the caller's fresh write group."""
     assets = product['assets']
     notes = release_notes(product, directory)
+    common.require(os.environ.get('PUBLICATION_REQUIRE_VERIFIED') != 'true' or release.get('draft') is False,
+                   'Verified-only publication requires a published release')
     if publish and release.get('draft') is True:
         github(f'repos/{repository}/releases/{release["id"]}', 'PATCH', {'draft': False})
         release = release_for(repository, tag, github, release['id'])
