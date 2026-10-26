@@ -14,7 +14,15 @@ in
         ...
       }: {
         _module.args.inputs = inputs;
-        imports = [../../modules/_nixos/xo ../../modules/_nixos/operator-network.nix];
+        imports =
+          map (path: (import path {}).den.aspects.xo.nixos) [
+            ../../modules/features/xo/options.nix
+            ../../modules/features/xo/service.nix
+            ../../modules/features/xo/storage.nix
+            ../../modules/features/xo/tls.nix
+            ../../modules/features/xo/file-restore.nix
+          ]
+          ++ [(import ../../modules/features/operator/access.nix {}).den.aspects.operator.nixos];
         maestro.operator.managementCIDRs = appliance.maestro.operator.managementCIDRs;
         specialisation.hardened.configuration.maestro.operator.managementCIDRs = lib.mkForce ["192.168.0.0/16" "fd42:99::2/128"];
         maestro.xo = {
@@ -41,7 +49,7 @@ in
         networking.firewall.allowedUDPPorts = appliance.networking.firewall.allowedUDPPorts;
         virtualisation.memorySize = 1536;
         environment.systemPackages = [pkgs.procps pkgs.iproute2 pkgs.curl];
-        environment.etc."maestro-mount-guard.py".source = ../../modules/_nixos/xo/mount-guard.py;
+        environment.etc."maestro-mount-guard.py".source = ../../modules/features/xo/_source/mount-guard.py;
         environment.etc."maestro-mount-race.py".source = ../../tests/xo-mount-race.py;
         environment.etc."maestro-sudo-path".text = "${config.maestro.xo.internal.sudoWrapper}/bin/sudo";
       };

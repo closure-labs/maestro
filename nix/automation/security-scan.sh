@@ -5,7 +5,7 @@ set -euo pipefail
 inventory=${SECURITY_INVENTORY:-candidate}
 output=${SECURITY_OUTPUT:-security-report}
 repo_root=${MAESTRO_SYSTEM_ROOT:-$PWD}
-cargo_lock=${SECURITY_CARGO_LOCK:-$repo_root/pkgs/maestro-menu/Cargo.lock}
+cargo_lock=${SECURITY_CARGO_LOCK:-$repo_root/modules/features/operator/menu/_source/frontend/Cargo.lock}
 scan_started=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 mkdir -p "$output"
 # Reusing an output directory must not leave a previous successful verdict or

@@ -18,8 +18,8 @@ test_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 temporary=$(mktemp -d "${TMPDIR:-/tmp}/maestro-ci-helpers.XXXXXX")
 trap 'rm -rf -- "$temporary"' EXIT
 
-[[ $(printf '%s\n' README.md docs/ci.md VERSION packer/build.sh modules/outputs/checks.nix modules/outputs/dev-shells.nix nix/checks/repository-policy.nix | "$MAESTRO_CI_CLASSIFY_PATHS") == false ]]
-[[ $(printf '%s\n' modules/_nixos/platform.nix | "$MAESTRO_CI_CLASSIFY_PATHS") == true ]]
+[[ $(printf '%s\n' README.md docs/ci.md VERSION modules/features/xcp-ng/template/_source/build.sh modules/ci/checks/contracts.nix modules/features/development/shell.nix nix/checks/repository-policy.nix | "$MAESTRO_CI_CLASSIFY_PATHS") == false ]]
+[[ $(printf '%s\n' modules/features/platform/system.nix | "$MAESTRO_CI_CLASSIFY_PATHS") == true ]]
 [[ $(printf '%s\n' nix/ci-plans.json | "$MAESTRO_CI_CLASSIFY_PATHS") == true ]]
 [[ $(printf '%s\n' nix/automation/qualification-assets.sh | "$MAESTRO_CI_CLASSIFY_PATHS") == true ]]
 [[ $(printf '%s\n' .github/workflows/ci.yml | "$MAESTRO_CI_CLASSIFY_PATHS") == true ]]
@@ -785,9 +785,9 @@ if env PATH="$temporary/bin:$PATH" FAKE_FILES=$'flake.lock\nREADME.md' \
 fi
 
 cargo_env=("${trusted_env[@]}" EXPECTED_CHANGE_KIND=cargo)
-env PATH="$temporary/bin:$PATH" FAKE_FILES=$'pkgs/maestro-menu/Cargo.toml\npkgs/maestro-menu/Cargo.lock' \
+env PATH="$temporary/bin:$PATH" FAKE_FILES=$'modules/features/operator/menu/_source/frontend/Cargo.toml\nmodules/features/operator/menu/_source/frontend/Cargo.lock' \
   "${cargo_env[@]}" "$MAESTRO_CI_TRUSTED_UPDATE"
-if env PATH="$temporary/bin:$PATH" FAKE_FILES=$'pkgs/maestro-menu/Cargo.lock\n.github/workflows/ci.yml' \
+if env PATH="$temporary/bin:$PATH" FAKE_FILES=$'modules/features/operator/menu/_source/frontend/Cargo.lock\n.github/workflows/ci.yml' \
   "${cargo_env[@]}" "$MAESTRO_CI_TRUSTED_UPDATE" >/dev/null 2>&1; then
   echo 'Trusted Cargo update accepted a workflow change.' >&2; exit 1
 fi

@@ -96,7 +96,7 @@ def main():
     retained.mkdir(exist_ok=True)
     for name in ("maestro-system.cdx.json", "xen-orchestra-supply.cdx.json"):
         shutil.copyfile(inventory / name, retained / name)
-    shutil.copyfile(root / "pkgs/maestro-menu/Cargo.lock", retained / "Cargo.lock")
+    shutil.copyfile(root / "modules/features/operator/menu/_source/frontend/Cargo.lock", retained / "Cargo.lock")
     release_dir = os.environ.get("DECISION_RELEASE_DIRECTORY")
     if release_dir:
         directory = Path(release_dir)

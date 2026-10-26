@@ -58,7 +58,7 @@ class Core(unittest.TestCase):
         return path
 
     def test_runtime_packaging_and_npins_source_changes_require_governed_review(self):
-        for path in ['default.nix', 'pkgs/maestro-menu/src/main.rs', 'pkgs/xen-orchestra/default.nix',
+        for path in ['default.nix', 'modules/features/operator/menu/_source/frontend/src/main.rs', 'pkgs/xen-orchestra/default.nix',
                      'npins/sources.json', 'scripts/update.sh']:
             with self.subTest(path=path):
                 self.assertTrue(decision_check.governed(path))

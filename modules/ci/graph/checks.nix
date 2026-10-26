@@ -1,0 +1,87 @@
+{
+  inputs,
+  lib,
+  ...
+}: {
+  perSystem = {
+    pkgs,
+    system,
+    ...
+  }: let
+    packages = inputs.self.packages.${system};
+    appliance = inputs.self.nixosConfigurations.maestro.config;
+    xoPackages = inputs.xen-orchestra-ce.packages.${system};
+    managementCIDRType = inputs.self.nixosConfigurations.maestro.options.maestro.operator.managementCIDRs.type.nestedTypes.elemType;
+    xoConfigFeatures = ["http" "redis" "remotes" "web"];
+    xoConfigFragments = appliance.maestro.xo.internal.configFragments;
+    fixtureInputs = [
+      pkgs.bash
+      pkgs.coreutils
+      pkgs.findutils
+      pkgs.git
+      pkgs.gnugrep
+      pkgs.gnused
+      pkgs.jq
+    ];
+    mkSourceCheck = import ../checks/_lib/source-check.nix {inherit pkgs lib inputs packages fixtureInputs;};
+  in {
+    checks = {
+      ci-plan-contract = let
+        plans = inputs.self.lib.ciPlans.${system};
+        qualificationInputs = inputs.self.lib.ciQualificationInputs.${system};
+        unsupportedInstaller = initrd:
+          builtins.tryEval (import ../../features/installer/_lib/qualification.nix {
+            inherit lib;
+            installerIso = null;
+            installerSystem = {
+              inherit pkgs;
+              config = {
+                boot = {inherit initrd;};
+                specialisation = {};
+              };
+            };
+          });
+      in
+        assert !(unsupportedInstaller {
+          systemd.enable = false;
+          prepend = [];
+        }).success;
+        assert !(unsupportedInstaller {
+          systemd.enable = true;
+          prepend = ["unattributed-archive"];
+        }).success;
+        assert builtins.length plans.publish.targets == 7;
+        assert builtins.attrNames inputs.self.nixosConfigurations == ["maestro"];
+        assert packages.distribution-inventory.qualification.system != appliance.system.build.toplevel.outPath;
+        assert builtins.all (binding: builtins.elem binding.root (builtins.attrValues packages.distribution-inventory.qualification.roots)) packages.distribution-inventory.qualification.bindings;
+        assert qualificationInputs.evidence.toplevel == inputs.self.nixosConfigurations.maestro.config.system.build.toplevel.outPath;
+        assert qualificationInputs.media.dependencies.installerIso == packages.installer-iso.outPath;
+        assert !(qualificationInputs.media ? source);
+          pkgs.runCommandLocal "maestro-ci-plan-contract" {
+            nativeBuildInputs = [pkgs.jq];
+          } ''
+            printf '%s\n' ${lib.escapeShellArg (builtins.toJSON plans)} > plans.json
+            jq -e '
+              (.validation.schemaVersion == 2) and
+              (.validation.name == "maestro-validation") and
+              (.validation.targets | length == 20) and
+              (.media.schemaVersion == 2) and
+              (.media.name == "maestro-media-qualification") and
+              (.media.targets | length == 1) and
+              (.evidence.schemaVersion == 2) and
+              (.evidence.name == "maestro-evidence-qualification") and
+              (.evidence.targets | length == 5) and
+              (.publish.schemaVersion == 2) and
+              (.publish.name == "maestro-publish") and
+              (.publish.targets | length == 7)
+            ' plans.json >/dev/null
+            touch "$out"
+          '';
+
+      qualification-input-fixtures = mkSourceCheck {
+        name = "qualification-input-fixtures";
+        command = "bash ./tests/qualification-inputs.sh";
+      };
+    };
+  };
+}

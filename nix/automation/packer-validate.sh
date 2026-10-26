@@ -15,6 +15,6 @@ jq -n --arg directory "$work" --arg public_key "$(base64 -w0 "$work/key.pub")" \
     bootstrap_private_key_file:($directory + "/key"),bootstrap_public_key_b64:$public_key,
     repo_revision:("a"*40),network_names:["validation"],export_network_names:["validation"]
   }' >"$work/validation.pkrvars.json"
-packer-xenserver fmt -check "$repo_root/packer"
-packer-xenserver init "$repo_root/packer"
-packer-xenserver validate -var-file="$work/validation.pkrvars.json" "$repo_root/packer"
+packer-xenserver fmt -check "$repo_root/modules/features/xcp-ng/template/_source"
+packer-xenserver init "$repo_root/modules/features/xcp-ng/template/_source"
+packer-xenserver validate -var-file="$work/validation.pkrvars.json" "$repo_root/modules/features/xcp-ng/template/_source"

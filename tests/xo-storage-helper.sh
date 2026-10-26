@@ -62,8 +62,8 @@ sed -i "1c#!${BASH}" \
   "$fake_bin/sudo"
 chmod +x "$fake_bin/mount" "$fake_bin/id" "$fake_bin/install" "$fake_bin/sudo"
 
-helper="$test_root/modules/_nixos/xo/storage-helper.sh"
-wrapper="$test_root/modules/_nixos/xo/sudo-wrapper.sh"
+helper="$test_root/modules/features/xo/_source/storage-helper.sh"
+wrapper="$test_root/modules/features/xo/_source/sudo-wrapper.sh"
 mount_log="$temporary/mount.log"
 credentials_snapshot="$temporary/credentials.snapshot"
 

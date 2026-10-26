@@ -121,7 +121,7 @@ class ReleaseGraph(unittest.TestCase):
             self.assertNotIn('flakehub', json.dumps(publisher).lower())
         policy = json.loads((ROOT / 'nix/automation/github/security-policy.json').read_text())
         self.assertNotIn('flakehub-push', json.dumps(policy))
-        self.assertNotIn('flakehub-push@', (ROOT / 'modules/outputs/checks.nix').read_text())
+        self.assertNotIn('flakehub-push@', (ROOT / 'modules/ci/checks/contracts.nix').read_text())
         result = subprocess.run(['bash', str(ROOT / 'nix/automation/publication-inspect.sh')],
             env=dict(os.environ, PUBLICATION_DESTINATION='flakehub',
                      DECISION_PRODUCT='/does-not-exist', PUBLICATION_DESTINATIONS_SOURCE='/does-not-exist'),

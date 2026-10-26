@@ -47,7 +47,7 @@ No percentage savings are claimed from the incident-heavy audit sample.
 The native router permits merge-group runs to consume verified qualifications
 from successful protected-main CI, just as same-repository PRs and main pushes
 can. Merge-group and PR runs never become trusted qualification producers.
-The router compares evaluated installer/appliance identities and boot policy
+The router compares evaluated modules/features/installer/_source/appliance identities and boot policy
 before selecting reuse. An evidence-only change selects `refresh-evidence`,
 which verifies the already booted ISO and refreshes the affected evidence.
 Changed media or boot policy, missing or expired media artifacts, and explicit

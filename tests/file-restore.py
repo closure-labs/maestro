@@ -7,7 +7,7 @@ import stat
 import tarfile
 import zipfile
 
-spec = importlib.util.spec_from_file_location("restore", Path(__file__).parents[1] / "pkgs/maestro-file-restore/restore.py")
+spec = importlib.util.spec_from_file_location("restore", Path(__file__).parents[1] / "modules/features/xo/file-restore/_source/restore.py")
 restore = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(restore)
 

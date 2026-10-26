@@ -140,7 +140,7 @@ INSTALLER_SOURCE=build \
 ```
 
 For detailed Packer behavior and clone validation, see the
-[Packer reference](../packer/README.md).
+[Packer reference](../modules/features/xcp-ng/template/_source/README.md).
 
 ## Xen warnings
 

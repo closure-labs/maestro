@@ -381,7 +381,7 @@ class FreshRecovery(unittest.TestCase):
 
 class RecoveryWorkflow(unittest.TestCase):
     def test_native_workflow_guard_limits_task_output_option(self):
-        policy = (ROOT / 'modules/outputs/checks.nix').read_text()
+        policy = (ROOT / 'modules/ci/checks/contracts.nix').read_text()
         pattern = re.search(r'grep -Ev "([^"\n]+)"; then', policy).group(1)
         prefix = "nix run --accept-flake-config .#devenv -- tasks run --mode single "
         options = "--option 'packages:pkgs!' '' "

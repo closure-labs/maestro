@@ -128,7 +128,7 @@ before the operator connects.
 
 ## XO runtime
 
-`modules/_nixos/xo/service.nix` owns the `xo` account, Valkey instance,
+`modules/features/xo/service.nix` owns the `xo` account, Valkey instance,
 generated TOML, filesystem layout, and hardened `xo-server` unit.
 
 `tls.nix` creates a long-lived self-signed certificate when configured files

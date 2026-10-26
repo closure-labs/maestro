@@ -34,7 +34,7 @@ while IFS= read -r pull_request; do
   rest_author=$(jq -er .rest_author <<<"$pull_request")
 
   if [[ "$rest_author" == 'dependabot[bot]' ]]; then
-    [[ $EXPECTED_BRANCH == dependabot/cargo/pkgs/maestro-menu/* ]] || continue
+    [[ $EXPECTED_BRANCH == dependabot/cargo/modules/features/operator/menu/_source/frontend/* ]] || continue
     EXPECTED_AUTHOR=dependabot
   elif [[ "$rest_author" == 'github-actions[bot]' || "$rest_author" == "$bot_login" ]]; then
     EXPECTED_AUTHOR=${rest_author%\[bot\]}

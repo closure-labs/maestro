@@ -149,11 +149,11 @@ FAKE_REAL_INSTALL=$(command -v install)
 bootstrap=$temporary/bootstrap
 key_b64=$(base64 -w0 "$temporary/build-key.pub")
 PATH="$temporary/bin:$PATH" MAESTRO_BOOTSTRAP_DIR="$bootstrap" \
-  bash "$root/installer/bootstrap-key.sh" "$key_b64"
+  bash "$root/modules/features/installer/_source/bootstrap-key.sh" "$key_b64"
 [[ $(stat -c %a "$bootstrap/authorized_keys") == 644 ]]
 cmp "$temporary/build-key.pub" "$bootstrap/authorized_keys"
 reject env PATH="$temporary/bin:$PATH" MAESTRO_BOOTSTRAP_DIR="$bootstrap" \
-  bash "$root/installer/bootstrap-key.sh" 'invalid!'
+  bash "$root/modules/features/installer/_source/bootstrap-key.sh" 'invalid!'
 reject env PATH="$temporary/bin:$PATH" MAESTRO_BOOTSTRAP_DIR="$bootstrap" \
-  bash "$root/installer/bootstrap-key.sh" "$(printf 'bad\nkey' | base64 -w0)"
+  bash "$root/modules/features/installer/_source/bootstrap-key.sh" "$(printf 'bad\nkey' | base64 -w0)"
 cmp "$temporary/build-key.pub" "$bootstrap/authorized_keys"

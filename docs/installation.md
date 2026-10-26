@@ -40,7 +40,7 @@ nix run --accept-flake-config .#deploy-template -- \
 ```
 
 The deployer prompts for XCP-ng details and the password. It stores reusable
-non-secret answers in `packer/local.pkrvars.json` and accepts the password at
+non-secret answers in `modules/features/xcp-ng/template/_source/local.pkrvars.json` and accepts the password at
 execution time.
 
 > The installer erases the one virtual disk created for the temporary build
@@ -87,7 +87,7 @@ From the VM:
 git clone https://github.com/closure-labs/maestro.git /tmp/maestro-bootstrap
 cd /tmp/maestro-bootstrap
 
-sudo ./scripts/bootstrap.sh \
+sudo ./modules/features/installer/_source/bootstrap.sh \
   --repo-dir /home/maestro/maestro \
   --ssh-key 'ssh-ed25519 AAAA... operator@example'
 ```
@@ -99,7 +99,7 @@ Bootstrap keeps the VM's generated disk and filesystem configuration, checks
 the flake, activates `.#maestro`, and hands SSH access to the `maestro` operator.
 Verify the key in a second session before closing the console.
 
-Run `./scripts/bootstrap.sh --help` for optional settings such as the time
+Run `./modules/features/installer/_source/bootstrap.sh --help` for optional settings such as the time
 zone, Git identity, branch, or a validation-only install.
 
 ## Artifact selection
@@ -107,7 +107,7 @@ zone, Git identity, branch, or a validation-only install.
 The default template deployment downloads and verifies the latest successful
 installer artifact. The [project reference](project-reference.md) explains its
 checksums, SBOMs, attestations, immutable state, and cache reuse. The
-[Packer reference](../packer/README.md) covers template construction,
+[Packer reference](../modules/features/xcp-ng/template/_source/README.md) covers template construction,
 validation, and sealing.
 
 [Back to documentation](index.md)

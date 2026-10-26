@@ -32,7 +32,7 @@ old_cli='nx''cli'
 while IFS= read -r -d '' source_file; do
   relative_path=${source_file#"$TEST_ROOT"/}
   case "$relative_path" in
-    docs/history/legacy-changelog.md | pkgs/maestro-menu/Cargo.lock)
+    docs/history/legacy-changelog.md | modules/features/operator/menu/_source/frontend/Cargo.lock)
       continue
       ;;
   esac
@@ -43,27 +43,27 @@ while IFS= read -r -d '' source_file; do
   [[ -z $matches ]] || fail "legacy identity remains in $relative_path: $matches"
 done < <(
   find "$TEST_ROOT" \
-    \( -path "$TEST_ROOT/.git" -o -path "$TEST_ROOT/.jj" -o -path "$TEST_ROOT/.devenv" -o -path "$TEST_ROOT/pkgs/maestro-menu/target" \) -prune \
+    \( -path "$TEST_ROOT/.git" -o -path "$TEST_ROOT/.jj" -o -path "$TEST_ROOT/.devenv" -o -path "$TEST_ROOT/modules/features/operator/menu/_source/frontend/target" \) -prune \
     -o -type f -print0
 )
 
 bash -n \
   "$TEST_ROOT"/nix/automation/*.sh \
   "$TEST_ROOT"/modules/_nixos/xo/*.sh \
-  "$TEST_ROOT/scripts/lib/common.sh" \
-  "$TEST_ROOT/scripts/maestroctl.sh" \
-  "$TEST_ROOT/scripts/bootstrap.sh" \
-  "$TEST_ROOT/scripts/tui/lib.sh" \
-  "$TEST_ROOT/scripts/tui/action.sh" \
-  "$TEST_ROOT/scripts/tui/state.sh" \
-  "$TEST_ROOT/installer/install-maestro.sh" \
-  "$TEST_ROOT/packer/build.sh" \
-  "$TEST_ROOT/packer/deploy-template.sh" \
+  "$TEST_ROOT/modules/features/operator/cli/_source/lib/common.sh" \
+  "$TEST_ROOT/modules/features/operator/cli/_source/maestroctl.sh" \
+  "$TEST_ROOT/modules/features/installer/_source/bootstrap.sh" \
+  "$TEST_ROOT/modules/features/operator/menu/_source/backend/lib.sh" \
+  "$TEST_ROOT/modules/features/operator/menu/_source/backend/action.sh" \
+  "$TEST_ROOT/modules/features/operator/menu/_source/backend/state.sh" \
+  "$TEST_ROOT/modules/features/installer/_source/install-maestro.sh" \
+  "$TEST_ROOT/modules/features/xcp-ng/template/_source/build.sh" \
+  "$TEST_ROOT/modules/features/xcp-ng/template/_source/deploy-template.sh" \
   "$TEST_ROOT/tests/qualification-inputs.sh" \
   "$TEST_ROOT/tests/ci-helpers.sh" \
   "$TEST_ROOT/tests/fix-nix-hashes.sh" \
   "$TEST_ROOT/tests/xo-storage-helper.sh" \
-  "$TEST_ROOT"/packer/scripts/*.sh
+  "$TEST_ROOT"/modules/features/xcp-ng/template/_source/scripts/*.sh
 
 bash "$TEST_ROOT/tests/xo-storage-helper.sh"
 bash "$TEST_ROOT/tests/fix-nix-hashes.sh"
@@ -72,7 +72,7 @@ bash "$TEST_ROOT/tests/ci-runtime-config.sh"
 # Fixed target resolution.
 actual="$(
   MAESTRO_SYSTEM_ROOT="$TEST_ROOT" bash -c '
-    source "$MAESTRO_SYSTEM_ROOT/scripts/lib/common.sh"
+    source "$MAESTRO_SYSTEM_ROOT/modules/features/operator/cli/_source/lib/common.sh"
     maestro_default_target
     maestro_host_output_name
     maestro_nixos_rebuild_flake_ref
@@ -87,7 +87,7 @@ assert_eq "$actual" "$expected"
 # rather than the authenticated FlakeHub Cache endpoint.
 actual="$(
   MAESTRO_SYSTEM_ROOT="$TEST_ROOT" bash -c '
-    source "$MAESTRO_SYSTEM_ROOT/scripts/lib/common.sh"
+    source "$MAESTRO_SYSTEM_ROOT/modules/features/operator/cli/_source/lib/common.sh"
     command=()
     maestro_append_first_install_nix_options command
     printf "%s\n" "${command[@]}"
@@ -103,36 +103,36 @@ if grep -Fxq 'https://cache.flakehub.com' <<<"$actual"; then
   fail "first-install command uses the authenticated FlakeHub Cache endpoint"
 fi
 grep -Fq '"https://install.determinate.systems"' \
-  "$TEST_ROOT/installer/default.nix" \
+  "$TEST_ROOT/modules/features/installer/_source/default.nix" \
   || fail "installer ISO omits the Determinate bootstrap cache"
 grep -Fq 'squashfsCompression = "zstd -Xcompression-level 1";' \
-  "$TEST_ROOT/installer/default.nix" \
+  "$TEST_ROOT/modules/features/installer/_source/default.nix" \
   || fail "installer ISO does not pin fast SquashFS compression"
 grep -Fq '"https://maestro.cachix.org"' \
-  "$TEST_ROOT/installer/default.nix" \
+  "$TEST_ROOT/modules/features/installer/_source/default.nix" \
   || fail "installer ISO omits the Maestro Cachix cache"
 grep -Fq '"cache.flakehub.com-3:hJuILl5sVK4iKm86JzgdXW12Y2Hwd5G07qKtHTOcDCM="' \
-  "$TEST_ROOT/installer/default.nix" \
+  "$TEST_ROOT/modules/features/installer/_source/default.nix" \
   || fail "installer ISO omits the Determinate bootstrap cache key"
 grep -Fq '"maestro.cachix.org-1:fGFZFVwe2ZHEBENWZLHVzERZrz2c50ru+g0UewH68I0="' \
-  "$TEST_ROOT/installer/default.nix" \
+  "$TEST_ROOT/modules/features/installer/_source/default.nix" \
   || fail "installer ISO omits the Maestro Cachix key"
-if grep -Fq '"https://cache.flakehub.com"' "$TEST_ROOT/installer/default.nix"; then
+if grep -Fq '"https://cache.flakehub.com"' "$TEST_ROOT/modules/features/installer/_source/default.nix"; then
   fail "installer ISO uses the authenticated FlakeHub Cache endpoint"
 fi
-grep -Fq 'applianceToplevel' "$TEST_ROOT/installer/default.nix" \
+grep -Fq 'applianceToplevel' "$TEST_ROOT/modules/features/installer/_source/default.nix" \
   || fail "installer ISO omits the Maestro appliance closure"
-grep -Fq 'maestroMenu' "$TEST_ROOT/installer/default.nix" \
+grep -Fq 'maestroMenu' "$TEST_ROOT/modules/features/installer/_source/default.nix" \
   || fail "installer ISO omits maestro-menu"
-grep -Fq 'xenOrchestraCe' "$TEST_ROOT/installer/default.nix" \
+grep -Fq 'xenOrchestraCe' "$TEST_ROOT/modules/features/installer/_source/default.nix" \
   || fail "installer ISO omits Xen Orchestra"
-grep -Fq 'default = "latest";' "$TEST_ROOT/modules/_nixos/xo/default.nix" \
+grep -Fq 'default = "latest";' "$TEST_ROOT/modules/features/xo/options.nix" \
   || fail "Xen Orchestra does not select the latest package channel by default"
 # The interpolation must remain literal in the Nix module source.
 # shellcheck disable=SC2016
-grep -Fq 'packages.x86_64-linux.${config.maestro.xo.channel}' "$TEST_ROOT/modules/_nixos/xo/default.nix" \
+grep -Fq 'packages.x86_64-linux.${config.maestro.xo.channel}' "$TEST_ROOT/modules/features/xo/options.nix" \
   || fail "Xen Orchestra package does not follow the configured channel"
-if grep -Fq 'git ls-remote --tags' "$TEST_ROOT/scripts/tui/action.sh"; then
+if grep -Fq 'git ls-remote --tags' "$TEST_ROOT/modules/features/operator/menu/_source/backend/action.sh"; then
   fail "XOA update still depends on removed moving channel tags"
 fi
 grep -Fq '.#packages.x86_64-linux.xen-orchestra-ce' \
@@ -461,7 +461,7 @@ grep -Fq 'applies-to: security-updates' \
   "$TEST_ROOT/.github/dependabot.yml" \
   || fail "Dependabot does not group Rust security updates"
 grep -Fq 'flake.devShells = lib.genAttrs systems' \
-  "$TEST_ROOT/modules/outputs/dev-shells.nix" \
+  "$TEST_ROOT/modules/features/development/shell.nix" \
   || fail "flake does not expose its development toolchain"
 grep -Fq 'pkgs.cargo' \
   "$TEST_ROOT/nix/devenv-packages.nix" \
@@ -479,24 +479,24 @@ yq -e '
   .jobs.enqueue.permissions."pull-requests" == "write"
 ' "$TEST_ROOT/.github/workflows/queue-automation.yml" >/dev/null \
   || fail "trusted update validation lacks required dispatch and merge permissions"
-grep -Fq '"growpart"' "$TEST_ROOT/modules/_nixos/xcp-ng.nix" \
+grep -Fq '"growpart"' "$TEST_ROOT/modules/features/xcp-ng/guest/service.nix" \
   || fail "installed appliance does not enable cloud-init growpart"
-grep -Fq '"resizefs"' "$TEST_ROOT/modules/_nixos/xcp-ng.nix" \
+grep -Fq '"resizefs"' "$TEST_ROOT/modules/features/xcp-ng/guest/service.nix" \
   || fail "installed appliance does not resize the grown root filesystem"
 
 # Installed systems keep all public caches and select the patched runtime only.
 grep -Fq '"https://install.determinate.systems"' \
-  "$TEST_ROOT/modules/_nixos/platform.nix" \
+  "$TEST_ROOT/modules/features/platform/system.nix" \
   || fail "installed system omits the Determinate bootstrap cache"
 grep -Fq '"https://maestro.cachix.org"' \
-  "$TEST_ROOT/modules/_nixos/platform.nix" \
+  "$TEST_ROOT/modules/features/platform/system.nix" \
   || fail "installed system omits the Maestro Cachix cache"
 grep -Fq 'paths = [patchedDeterminateNix.out]' \
-  "$TEST_ROOT/modules/_nixos/platform.nix" \
+  "$TEST_ROOT/modules/features/platform/system.nix" \
   || fail "installed system does not isolate the patched Determinate runtime output"
 
 if MAESTRO_SYSTEM_ROOT="$TEST_ROOT" bash -c '
-  source "$MAESTRO_SYSTEM_ROOT/scripts/lib/common.sh"
+  source "$MAESTRO_SYSTEM_ROOT/modules/features/operator/cli/_source/lib/common.sh"
   maestro_resolve_target_output vm
 ' >/dev/null 2>&1
 then
@@ -505,7 +505,7 @@ fi
 
 # Removed multi-host CLI commands fail explicitly.
 for command in add list select-vm; do
-  if MAESTRO_SYSTEM_ROOT="$TEST_ROOT" bash "$TEST_ROOT/scripts/maestroctl.sh" host "$command" \
+  if MAESTRO_SYSTEM_ROOT="$TEST_ROOT" bash "$TEST_ROOT/modules/features/operator/cli/_source/maestroctl.sh" host "$command" \
     >"$temporary/$command.out" 2>"$temporary/$command.err"
   then
     fail "maestroctl host $command unexpectedly succeeded"
@@ -514,7 +514,7 @@ for command in add list select-vm; do
     || fail "maestroctl host $command did not explain its removal"
 done
 
-if MAESTRO_SYSTEM_ROOT="$TEST_ROOT" bash "$TEST_ROOT/scripts/maestroctl.sh" apply --target vm \
+if MAESTRO_SYSTEM_ROOT="$TEST_ROOT" bash "$TEST_ROOT/modules/features/operator/cli/_source/maestroctl.sh" apply --target vm \
   >"$temporary/target.out" 2>"$temporary/target.err"
 then
   fail "apply accepted a target selector"
@@ -522,7 +522,7 @@ fi
 grep -q 'Target selection was removed' "$temporary/target.err" \
   || fail "apply did not reject target selection clearly"
 
-if bash "$TEST_ROOT/scripts/bootstrap.sh" --hostname legacy \
+if bash "$TEST_ROOT/modules/features/installer/_source/bootstrap.sh" --hostname legacy \
   >"$temporary/bootstrap.out" 2>"$temporary/bootstrap.err"
 then
   fail "bootstrap accepted legacy hostname selection"
@@ -534,7 +534,7 @@ grep -q 'was removed' "$temporary/bootstrap.err" \
 # never persists the XCP-ng password.
 printf '%s\n' 'ssh-ed25519 AAAATEST operator@example' \
   >"$temporary/operator.pub"
-bash "$TEST_ROOT/packer/deploy-template.sh" \
+bash "$TEST_ROOT/modules/features/xcp-ng/template/_source/deploy-template.sh" \
   --host 192.0.2.10 \
   --username root \
   --iso-sr "ISO library" \
@@ -577,7 +577,7 @@ FAKE_BUILD_ARGS="$temporary/build-template.args" \
 FAKE_BUILD_ROOTS="$temporary/build-template.roots" \
 MAESTRO_BUILD_TEMPLATE_BIN="$temporary/bin/build-template" \
 PKR_VAR_remote_password=fixture-password \
-  bash "$TEST_ROOT/packer/deploy-template.sh" \
+  bash "$TEST_ROOT/modules/features/xcp-ng/template/_source/deploy-template.sh" \
     --operator-key "$temporary/operator.pub" \
     --config "$temporary/packer.pkrvars.json"
 grep -Fxq -- "-var-file=$temporary/packer.pkrvars.json" \
@@ -600,7 +600,7 @@ env -u PKR_VAR_remote_password -u XCP_HOSTPASSWORD \
   FAKE_BUILD_ROOTS="$temporary/build-template.roots" \
   MAESTRO_BUILD_TEMPLATE_BIN="$temporary/bin/build-template" \
   XCP_PASSWORD_PASS_ENTRY=fixture/host \
-  bash "$TEST_ROOT/packer/deploy-template.sh" \
+  bash "$TEST_ROOT/modules/features/xcp-ng/template/_source/deploy-template.sh" \
     --operator-key "$temporary/operator.pub" \
     --config "$temporary/packer.pkrvars.json"
 
@@ -649,7 +649,7 @@ PATH="$temporary/bin:$PATH" \
   PACKER_BIN="$temporary/bin/packer" \
   OPERATOR_PUBLIC_KEY_FILE="$temporary/operator.pub" \
   TMPDIR="$temporary" \
-  bash "$TEST_ROOT/packer/build.sh"
+  bash "$TEST_ROOT/modules/features/xcp-ng/template/_source/build.sh"
 grep -Eq '^iso_url=.*/maestro-installer\.iso$' "$temporary/packer.args" \
   || fail "Packer build did not use the downloaded GitHub artifact"
 grep -Fxq 'repo_revision=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' "$temporary/packer.args" \
@@ -666,7 +666,7 @@ FAKE_INSTALLER_RESULT="$temporary/fake-result" \
   OPERATOR_PUBLIC_KEY_FILE="$temporary/operator.pub" \
   INSTALLER_SOURCE=build \
   REPO_REVISION=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
-  bash "$TEST_ROOT/packer/build.sh"
+  bash "$TEST_ROOT/modules/features/xcp-ng/template/_source/build.sh"
 grep -Fxq "iso_url=$temporary/fake-result/iso/maestro-installer.iso" "$temporary/packer.args" \
   || fail "Packer build did not use the installer directly from the Nix store"
 grep -Fxq -- '--accept-flake-config' "$temporary/nix.args" \
@@ -684,58 +684,58 @@ if grep -qE 'PasswordAuthentication|hashedPassword' "$TEST_ROOT/host/packer.nix"
   fail "tracked Packer override contains temporary access policy"
 fi
 grep -q 'refusing to erase a disk without --yes' \
-  "$TEST_ROOT/installer/install-maestro.sh" \
+  "$TEST_ROOT/modules/features/installer/_source/install-maestro.sh" \
   || fail "installer does not require explicit destructive confirmation"
 grep -q 'mount -t ext4.*root_partition' \
-  "$TEST_ROOT/installer/install-maestro.sh" \
+  "$TEST_ROOT/modules/features/installer/_source/install-maestro.sh" \
   || fail "installer does not explicitly mount its ext4 root"
 grep -q 'mount -o fmask=0077,dmask=0077.*efi_partition' \
-  "$TEST_ROOT/installer/install-maestro.sh" \
+  "$TEST_ROOT/modules/features/installer/_source/install-maestro.sh" \
   || fail "installer does not protect files on the EFI system partition"
 grep -q 'cloud-init clean --logs --machine-id --seed' \
-  "$TEST_ROOT/packer/scripts/seal-template.sh" \
+  "$TEST_ROOT/modules/features/xcp-ng/template/_source/scripts/seal-template.sh" \
   || fail "Packer sealing does not clear clone identity"
 grep -q 'nixos-rebuild --accept-flake-config switch' \
-  "$TEST_ROOT/packer/scripts/seal-template.sh" \
+  "$TEST_ROOT/modules/features/xcp-ng/template/_source/scripts/seal-template.sh" \
   || fail "Packer sealing does not accept the flake cache configuration"
 grep -q 'maestro_write_apply_state success switch' \
-  "$TEST_ROOT/packer/scripts/seal-template.sh" \
+  "$TEST_ROOT/modules/features/xcp-ng/template/_source/scripts/seal-template.sh" \
   || fail "Packer sealing does not record its successful system switch"
 grep -qx 'nh clean all' \
-  "$TEST_ROOT/packer/scripts/seal-template.sh" \
+  "$TEST_ROOT/modules/features/xcp-ng/template/_source/scripts/seal-template.sh" \
   || fail "Packer sealing does not remove obsolete Nix generations"
 grep -q 'last_apply_head=.*git -C /home/maestro/maestro rev-parse HEAD' \
-  "$TEST_ROOT/packer/scripts/verify-clone.sh" \
+  "$TEST_ROOT/modules/features/xcp-ng/template/_source/scripts/verify-clone.sh" \
   || fail "clone verification does not validate the sealed apply state"
 grep -Fq 'd /var/lib/maestro 0755 root root' \
-  "$TEST_ROOT/modules/_nixos/operator.nix" \
+  "$TEST_ROOT/modules/features/operator/account.nix" \
   || fail "the shared Maestro status directory is not operator-readable"
 grep -Fq 'd /var/lib/nfs/sm.bak 0755 root root' \
-  "$TEST_ROOT/modules/_nixos/xo/storage.nix" \
+  "$TEST_ROOT/modules/features/xo/storage.nix" \
   || fail "NFS notification state is not created before first boot"
 grep -Fq 'd /run/maestro-xo-cifs-credentials 0700 root root' \
-  "$TEST_ROOT/modules/_nixos/xo/storage.nix" \
+  "$TEST_ROOT/modules/features/xo/storage.nix" \
   || fail "CIFS credential directory must have a root-owned parent"
 grep -q 'org\.freedesktop\.hostname1\.set-hostname' \
-  "$TEST_ROOT/modules/_nixos/platform.nix" \
+  "$TEST_ROOT/modules/features/platform/system.nix" \
   || fail "platform does not authorize DHCP hostname adoption"
 grep -q 'passwd --lock maestro' \
-  "$TEST_ROOT/packer/scripts/seal-template.sh" \
+  "$TEST_ROOT/modules/features/xcp-ng/template/_source/scripts/seal-template.sh" \
   || fail "Packer sealing does not lock the temporary operator password"
 grep -q 'Timed out waiting for the Xen Orchestra HTTPS endpoint' \
-  "$TEST_ROOT/packer/scripts/verify-template.sh" \
+  "$TEST_ROOT/modules/features/xcp-ng/template/_source/scripts/verify-template.sh" \
   || fail "Packer verification does not wait for XO HTTPS readiness"
 test "$(grep -c 'XO_READINESS_GRACE_SECONDS=240' \
-  "$TEST_ROOT/packer/builds.pkr.hcl")" -eq 1 \
+  "$TEST_ROOT/modules/features/xcp-ng/template/_source/builds.pkr.hcl")" -eq 1 \
   || fail "Packer must apply the four-minute XO grace period exactly once"
 grep -q 'XO_READINESS_GRACE_SECONDS:-0' \
-  "$TEST_ROOT/packer/scripts/verify-template.sh" \
+  "$TEST_ROOT/modules/features/xcp-ng/template/_source/scripts/verify-template.sh" \
   || fail "template verification does not default to immediate XO retries"
 
 # Bootstrap settings generation populates the fixed identity and supplied keys.
 mkdir -p "$temporary/generated/host"
 MAESTRO_SYSTEM_ROOT="$temporary/generated" bash -c '
-  source "'"$TEST_ROOT"'/scripts/lib/common.sh"
+  source "'"$TEST_ROOT"'/modules/features/operator/cli/_source/lib/common.sh"
   keys=("ssh-ed25519 AAAATEST operator@example")
   maestro_write_host_settings \
     "$MAESTRO_SETTINGS_FILE" \
@@ -762,7 +762,7 @@ test ! -e "$TEST_ROOT/host/config.maestro.toml" \
 cp "$TEST_ROOT/host/settings.nix" "$temporary/generated/host/settings.nix"
 cp "$TEST_ROOT/host/menu.nix" "$temporary/generated/host/menu.nix"
 MAESTRO_SYSTEM_ROOT="$temporary/generated" bash -c '
-  source "'"$TEST_ROOT"'/scripts/tui/lib.sh"
+  source "'"$TEST_ROOT"'/modules/features/operator/menu/_source/backend/lib.sh"
   keys=("ssh-ed25519 AAAATEST operator@example")
   system_packages=("ripgrep")
   user_packages=("jq")
@@ -795,7 +795,7 @@ key = "/etc/ssl/xo/key.pem"
 port = 443
 EOF
 MAESTRO_SYSTEM_ROOT="$temporary/generated" bash -c '
-  source "'"$TEST_ROOT"'/scripts/tui/lib.sh"
+  source "'"$TEST_ROOT"'/modules/features/operator/menu/_source/backend/lib.sh"
   maestro_tui_xo_tls_enabled "'"$temporary"'/xo-tls.toml"
 ' || fail "TUI does not detect TLS from the rendered XO configuration"
 
@@ -804,7 +804,7 @@ cat >"$temporary/xo-http.toml" <<'EOF'
 port = 80
 EOF
 if MAESTRO_SYSTEM_ROOT="$temporary/generated" bash -c '
-  source "'"$TEST_ROOT"'/scripts/tui/lib.sh"
+  source "'"$TEST_ROOT"'/modules/features/operator/menu/_source/backend/lib.sh"
   maestro_tui_xo_tls_enabled "'"$temporary"'/xo-http.toml"
 '; then
   fail "TUI reports TLS without a certificate and key listener"
@@ -823,7 +823,7 @@ cat >"$temporary/default-options.nix" <<'EOF'
 EOF
 actual="$(
   MAESTRO_SYSTEM_ROOT="$temporary/generated" bash -c '
-    source "'"$TEST_ROOT"'/scripts/tui/lib.sh"
+    source "'"$TEST_ROOT"'/modules/features/operator/menu/_source/backend/lib.sh"
     maestro_tui_read_bool_file enableExtras "'"$temporary"'/default-options.nix"
     maestro_tui_read_list_file sshKeys "'"$temporary"'/default-options.nix"
     maestro_tui_read_list_file extraSystemPackages "'"$temporary"'/default-options.nix"

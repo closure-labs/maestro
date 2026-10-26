@@ -15,11 +15,11 @@ selection.
 - `host/settings.nix`: hand-maintained appliance policy
 - `host/hardware-configuration.nix`: bootstrap-generated hardware module
 - `host/menu.nix`: TUI-generated overrides only
-- `installer/`: minimal NixOS ISO and destructive single-disk installer
-- `packer/`: native XCP-ng template build, verification, and sealing
-- `scripts/maestroctl.sh`: operator CLI source
-- `scripts/tui/`: console backend
-- `pkgs/maestro-menu/`: Ratatui frontend
+- `modules/features/installer/_source/`: minimal NixOS ISO and destructive single-disk installer
+- `modules/features/xcp-ng/template/_source/`: native XCP-ng template build, verification, and sealing
+- `modules/features/operator/cli/_source/maestroctl.sh`: operator CLI source
+- `modules/features/operator/menu/_source/backend/`: console backend
+- `modules/features/operator/menu/_source/frontend/`: Ratatui frontend
 
 ## Development
 

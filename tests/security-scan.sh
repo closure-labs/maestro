@@ -10,7 +10,7 @@ export MAESTRO_SYSTEM_ROOT="$temporary/repo"
 export SECURITY_INVENTORY="$temporary/inventory"
 export SECURITY_OUTPUT="$temporary/report"
 printf '{"schema_version":2,"mode":"report","dispositions":[],"exceptions":[]}\n' >"$temporary/repo/nix/automation/security-policy.json"
-printf 'lockfile fixture\n' >"$temporary/repo/pkgs/maestro-menu/Cargo.lock"
+printf 'lockfile fixture\n' >"$temporary/repo/modules/features/operator/menu/_source/frontend/Cargo.lock"
 python3 - "$temporary/inventory" "$(readlink -f "$BASH")" <<'PYTHON'
 import hashlib,json,sys,pathlib
 context = {"schemaVersion":2,"runtime":{

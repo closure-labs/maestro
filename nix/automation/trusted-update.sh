@@ -59,7 +59,7 @@ validate_changes() {
     [[ ${#changed_files[@]} -ge 1 && ${#changed_files[@]} -le 2 ]]
     for changed_file in "${changed_files[@]}"; do
       case "$changed_file" in
-        pkgs/maestro-menu/Cargo.toml | pkgs/maestro-menu/Cargo.lock) ;;
+        modules/features/operator/menu/_source/frontend/Cargo.toml | modules/features/operator/menu/_source/frontend/Cargo.lock) ;;
         *) return 1 ;;
       esac
     done

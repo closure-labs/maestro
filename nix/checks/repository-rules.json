@@ -235,7 +235,7 @@
   },
   {
     "kind": "contains",
-    "path": "modules/outputs/lib.nix",
+    "path": "modules/ci/graph/identities.nix",
     "needle": "mkCiPlan",
     "message": "CI target lists must be exported as pure flake plans"
   },

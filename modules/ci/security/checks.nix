@@ -1,0 +1,121 @@
+{
+  inputs,
+  lib,
+  ...
+}: {
+  perSystem = {
+    pkgs,
+    system,
+    ...
+  }: let
+    packages = inputs.self.packages.${system};
+    appliance = inputs.self.nixosConfigurations.maestro.config;
+    xoPackages = inputs.xen-orchestra-ce.packages.${system};
+    managementCIDRType = inputs.self.nixosConfigurations.maestro.options.maestro.operator.managementCIDRs.type.nestedTypes.elemType;
+    xoConfigFeatures = ["http" "redis" "remotes" "web"];
+    xoConfigFragments = appliance.maestro.xo.internal.configFragments;
+    fixtureInputs = [
+      pkgs.bash
+      pkgs.coreutils
+      pkgs.findutils
+      pkgs.git
+      pkgs.gnugrep
+      pkgs.gnused
+      pkgs.jq
+    ];
+    mkSourceCheck = import ../checks/_lib/source-check.nix {inherit pkgs lib inputs packages fixtureInputs;};
+  in {
+    checks = {
+      security-fixtures = mkSourceCheck {
+        name = "security-fixtures";
+        command = ''
+          PYTHONDONTWRITEBYTECODE=1 python3 ./tests/security-inventory.py
+          PYTHONDONTWRITEBYTECODE=1 python3 ./tests/security-components.py
+          PYTHONDONTWRITEBYTECODE=1 python3 ./tests/file-restore.py
+          bash ./tests/policy-drift.sh
+          bash ./tests/security-contracts.sh
+          bash ./tests/evidence-download.sh
+          bash ./tests/provenance-requests.sh
+          bash ./tests/security-scan.sh
+          bash ./tests/codeql-rust-toolchain.sh ${lib.getExe packages.maestro-ci-codeql-rust-toolchain}
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/decision-observations.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/test_secret_inventory.py
+          PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests/decisions -p '*.py'
+          MAESTRO_TEST_PUBLISH_COMMAND=${lib.getExe packages.maestro-ci-publish} \
+            MAESTRO_TEST_INSPECT_COMMAND=${lib.getExe packages.maestro-ci-publication-inspect} \
+            PYTHONDONTWRITEBYTECODE=1 python3 tests/test_publish_readback.py
+          MAESTRO_TEST_PUBLISH_COMMAND=${lib.getExe packages.maestro-ci-publish} \
+            MAESTRO_TEST_INSPECT_COMMAND=${lib.getExe packages.maestro-ci-publication-inspect} \
+            PYTHONDONTWRITEBYTECODE=1 python3 tests/test_readonly_preflight.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/test_cache_cancellation.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/test_cache_recovery.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/test_scheduling.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/test_operations.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/test_consumer_probe.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/test_consumer_result.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/publication-journal.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/test_release_transaction.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/test_ci_admission.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/publication-diagnostics.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/test_request_attribution.py
+          MAESTRO_TEST_LIBCURL=${pkgs.curl.out}/lib/libcurl.so.4 \
+            MAESTRO_TEST_CURL=${pkgs.curl.bin}/bin/curl \
+            MAESTRO_TEST_OPENSSL=${pkgs.openssl.bin}/bin/openssl \
+            PYTHONDONTWRITEBYTECODE=1 python3 tests/test_public_cache_transport.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/distribution-cache.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/qualification-restore.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/installer-coverage.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/decision-operations.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/decision-only.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/audit-diagnostics.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/qualification-diagnostics.py
+        '';
+        nativeBuildInputs = fixtureInputs ++ [pkgs.openssh pkgs.python3 pkgs.gitleaks pkgs.yq-go];
+      };
+
+      runtime-security = import ../../../nix/tests/runtime-security.nix {inherit pkgs inputs appliance;};
+      secretspec-contract =
+        pkgs.runCommandLocal "maestro-secretspec-contract" {
+          nativeBuildInputs = [
+            pkgs.jq
+            pkgs.python3
+            packages.secretspec
+          ];
+        } ''
+          export HOME="$TMPDIR/home"
+          mkdir -p "$HOME"
+          SECRETSPEC_BIN=${inputs.devenv.packages.${system}.devenv}/bin/secretspec \
+            PYTHONDONTWRITEBYTECODE=1 python3 ${inputs.self}/tests/test_cache_doctor.py
+          secretspec schema --file ${inputs.self}/secretspec.toml \
+            --profile development --output development-schema.json
+          jq -e '[.properties | keys[] | select(test("TOKEN|PASSWORD|PEM|DECIDER_KEY"))] == []' \
+            development-schema.json >/dev/null
+          secretspec schema \
+            --file ${inputs.self}/secretspec.toml \
+            --profile github \
+            --output github-schema.json
+          jq -e '.required == ["CACHIX_MAESTRO_PUBKEY", "MAESTRO_DECISION_ONLY_REUSE_ENABLED", "MAESTRO_PACKET_METADATA_BATCH_ENABLED", "MAESTRO_PACKET_METADATA_REUSE_ENABLED", "MAESTRO_PUBLIC_CACHE_TRANSPORT_REUSE_ENABLED", "MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS", "MAESTRO_RELEASE_TRANSACTION_ENABLED", "MAESTRO_RELEASE_VERIFICATION_REUSE_ENABLED"]' github-schema.json >/dev/null
+          secretspec schema \
+            --file ${inputs.self}/secretspec.toml \
+            --profile github-queue \
+            --output queue-schema.json
+          jq -e '.required == ["CACHIX_MAESTRO_PUBKEY", "MAESTRO_DECISION_ONLY_REUSE_ENABLED", "MAESTRO_PACKET_METADATA_BATCH_ENABLED", "MAESTRO_PACKET_METADATA_REUSE_ENABLED", "MAESTRO_PUBLIC_CACHE_TRANSPORT_REUSE_ENABLED", "MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS", "MAESTRO_RELEASE_TRANSACTION_ENABLED", "MAESTRO_RELEASE_VERIFICATION_REUSE_ENABLED", "MERGE_QUEUE_TOKEN"]' queue-schema.json >/dev/null
+          secretspec schema \
+            --file ${inputs.self}/secretspec.toml \
+            --profile github-publish \
+            --output publish-schema.json
+          jq -e \
+            '.required == ["CACHIX_MAESTRO_AUTH_TOKEN", "CACHIX_MAESTRO_PUBKEY", "MAESTRO_DECISION_ONLY_REUSE_ENABLED", "MAESTRO_PACKET_METADATA_BATCH_ENABLED", "MAESTRO_PACKET_METADATA_REUSE_ENABLED", "MAESTRO_PUBLIC_CACHE_TRANSPORT_REUSE_ENABLED", "MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS", "MAESTRO_RELEASE_TRANSACTION_ENABLED", "MAESTRO_RELEASE_VERIFICATION_REUSE_ENABLED"]' \
+            publish-schema.json >/dev/null
+          secretspec schema \
+            --file ${inputs.self}/secretspec.toml \
+            --profile local-publish \
+            --output local-schema.json
+          jq -e \
+            '.required == ["CACHIX_MAESTRO_AUTH_TOKEN", "CACHIX_MAESTRO_PUBKEY", "MAESTRO_DECISION_ONLY_REUSE_ENABLED", "MAESTRO_PACKET_METADATA_BATCH_ENABLED", "MAESTRO_PACKET_METADATA_REUSE_ENABLED", "MAESTRO_PUBLIC_CACHE_TRANSPORT_REUSE_ENABLED", "MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED", "MAESTRO_RELEASE_CONTINUATION_ENABLED", "MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS", "MAESTRO_RELEASE_TRANSACTION_ENABLED", "MAESTRO_RELEASE_VERIFICATION_REUSE_ENABLED"]' \
+            local-schema.json >/dev/null
+          touch "$out"
+        '';
+    };
+  };
+}

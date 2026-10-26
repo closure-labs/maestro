@@ -66,7 +66,7 @@ case "$QUALIFICATION_MODE" in
     maestro-ci-verify-inventory reused-media "$reused_sha"
     [[ $(jq -er .media_input reused-media/maestro-qualification-state.json) == "${EXPECTED_MEDIA_INPUT:?}" ]]
     reused_installer=reused-media/result-installer
-    [[ -f "$reused_installer/iso/maestro-installer.iso" ]]
+    [[ -f "$reused_modules/features/installer/_source/iso/maestro-installer.iso" ]]
     mv "$reused_installer" result-installer
     jq '.mediaReuseVerified = true' "$diagnostics/reuse.json" >"$diagnostics/reuse.tmp"
     mv "$diagnostics/reuse.tmp" "$diagnostics/reuse.json"
