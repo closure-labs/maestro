@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Release job eligibility against GitHub's inherited job-status semantics."""
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -103,15 +104,30 @@ class ReleaseGraph(unittest.TestCase):
                     values['inputs.candidate_run'] = ''
                     self.assertEqual(bool(expression(publisher['if'], values)), not trial)
                     values.update({'env.PUBLICATION_REQUIRE_VERIFIED': verified,
-                                   'steps.cache.outputs.status': 'missing', 'steps.flakehub.outputs.status': 'missing'})
+                                   'steps.cache.outputs.status': 'missing'})
                     for step in publisher['steps']:
                         command = step.get('run', '')
-                        if command.endswith((' ci:distribution:restore', ' release:advance')) or 'flakehub-push@' in step.get('uses', ''):
+                        if command.endswith((' ci:distribution:restore', ' release:advance')):
                             self.assertEqual(bool(expression(step['if'], values)), not trial)
                         if 'create-github-app-token@' in step.get('uses', '') and step['with']['repositories'] != 'xo-nixpkg':
                             for permission in ('contents', 'pull-requests', 'actions'):
                                 self.assertEqual(expression(step['with']['permission-' + permission], values),
                                                  'read' if trial else 'write')
+
+    def test_publishers_have_no_flakehub_steps_or_oidc_permission(self):
+        for filename in ('publication.yml', 'release-publication.yml'):
+            publisher = jobs(filename)['publish']
+            self.assertNotIn('id-token', publisher['permissions'])
+            self.assertNotIn('flakehub', json.dumps(publisher).lower())
+        policy = json.loads((ROOT / 'nix/automation/github/security-policy.json').read_text())
+        self.assertNotIn('flakehub-push', json.dumps(policy))
+        self.assertNotIn('flakehub-push@', (ROOT / 'modules/outputs/checks.nix').read_text())
+        result = subprocess.run(['bash', str(ROOT / 'nix/automation/publication-inspect.sh')],
+            env=dict(os.environ, PUBLICATION_DESTINATION='flakehub',
+                     DECISION_PRODUCT='/does-not-exist', PUBLICATION_DESTINATIONS_SOURCE='/does-not-exist'),
+            capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Only cache publication inspection is supported', result.stderr)
 
     def test_serial_candidate_signal_survives_skipped_overlap_ancestor(self):
         states = dict.fromkeys(CI, 'success') | {'audit': 'skipped'}

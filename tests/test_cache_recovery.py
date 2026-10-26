@@ -410,7 +410,7 @@ class RecoveryWorkflow(unittest.TestCase):
         self.assertIn("github.ref == 'refs/heads/main'", job['if'])
         self.assertEqual(job['environment'], 'publication')
         self.assertEqual(job['permissions'], {'actions': 'read', 'packages': 'read', 'attestations': 'read',
-                                             'contents': 'read', 'id-token': 'write'})
+                                             'contents': 'read'})
         self.assertEqual(job['env']['PUBLICATION_PURPOSE'],
                          "${{ inputs.proposal_hash != '' && 'release' || 'rolling' }}")
         steps = job['steps']
@@ -452,22 +452,11 @@ class RecoveryWorkflow(unittest.TestCase):
             'name': 'maestro-decision-byte-reuse-${{ github.job }}',
             'path': '${{ runner.temp }}/decision-git-blobs/*/observations.jsonl',
             'if-no-files-found': 'ignore', 'retention-days': 30})
-        flakehub = [step for step in following if 'inputs.proposal_hash' in step.get('if', '')]
-        self.assertEqual(len(flakehub), 5)
-        for step in flakehub:
-            condition = step['if']
-            self.assertIn(condition, ("inputs.proposal_hash == ''",
-                "inputs.proposal_hash == '' && steps.flakehub.outputs.status != 'verified'"))
-            # Both missing and existing remote states must skip all five steps
-            # for an explicit official recovery; normal rolling mode remains enabled.
-            for proposal, status, expected in [('a' * 64, 'missing', False), ('a' * 64, 'verified', False),
-                                               ('', 'missing', True)]:
-                enabled = proposal == '' and ('&&' not in condition or status != 'verified')
-                self.assertEqual(enabled, expected)
+        self.assertFalse(any('flakehub' in json.dumps(step).lower() for step in following))
         shown = Counter(step['run'].rsplit(' ', 1)[-1] for step in steps
                         if '--show-output' in step.get('run', ''))
-        self.assertEqual(shown, Counter({'ci:decision:download': 1, 'release:inspect': 3,
-                                        'ci:publish': 1, 'release:journal': 3, 'ci:decision:publication': 2}))
+        self.assertEqual(shown, Counter({'ci:decision:download': 1, 'release:inspect': 1,
+                                        'ci:publish': 1, 'release:journal': 2, 'ci:decision:publication': 1}))
         for step in steps:
             self.assertNotIn('PUBLICATION_PURPOSE', step.get('env', {}), 'step overrides the selected purpose')
             if 'run' in step:

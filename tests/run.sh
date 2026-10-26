@@ -217,8 +217,7 @@ for workflow in "$TEST_ROOT"/.github/workflows/*.yml; do
     all(to_entries[];
       .key as $job | .value |
       if any(.steps[]?;
-        ((.run // "") | test("(^|[[:space:]])nix[[:space:]]")) or
-        ((.uses // "") | startswith("DeterminateSystems/flakehub-push@")))
+        ((.run // "") | test("(^|[[:space:]])nix[[:space:]]")))
       then any(.steps[]?; .uses == "$/.github/actions/setup-nix") or
         ($workflow == "ci.yml" and $job == "retained" and
          any(.steps[]?; .uses == "./controller/.github/actions/setup-nix") and
@@ -347,13 +346,9 @@ grep -Fq 'maestro-system.cdx.json' \
 grep -Fq 'xen-orchestra-supply.assertion.json' \
   "$TEST_ROOT/.github/workflows/ci.yml" \
   || fail "installer artifact omits the verified upstream XO evidence"
-yq -o=json '.jobs.publish.steps' "$TEST_ROOT/.github/workflows/publication.yml" | jq -e '
-  any(.[]; (.uses // "") | test("^DeterminateSystems/flakehub-push@[0-9a-f]{40}$"))
-' >/dev/null \
-  || fail "rolling FlakeHub publication does not use an immutable action"
-grep -Fq 'rolling-minor: 2' \
-  "$TEST_ROOT/.github/workflows/publication.yml" \
-  || fail "rolling FlakeHub publication does not avoid the legacy version line"
+if grep -RiE 'flakehub-push|PUBLICATION_DESTINATION: flakehub|PUBLICATION_STEP: flakehub' "$TEST_ROOT/.github/workflows"; then
+  fail "FlakeHub publication remains configured"
+fi
 grep -Fq -- '--status success' \
   "$TEST_ROOT/nix/automation/qualification-resolve.sh" \
   || fail "installer state must accept only successful producers"

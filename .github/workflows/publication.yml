@@ -63,7 +63,6 @@ jobs:
       packages: read
       attestations: read
       contents: read
-      id-token: write
     steps:
       - name: Monitor hosted runner
         uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2
@@ -158,45 +157,6 @@ jobs:
           PUBLICATION_STEP: cache
           PUBLICATION_STATE: complete
           PUBLICATION_RECEIPT: ${{ runner.temp }}/cache-receipt.json
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:journal
-      - name: Inspect exact rolling FlakeHub destination
-        if: inputs.proposal_hash == ''
-        id: flakehub
-        env:
-          PUBLICATION_DESTINATION: flakehub
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:inspect
-      - name: Recheck live admission before FlakeHub publication
-        if: inputs.proposal_hash == ''
-        env:
-          GH_TOKEN: ${{ steps.authority.outputs.token }}
-          XO_AUTHORITY_TOKEN: ${{ steps.upstream.outputs.token }}
-          REGISTRY_TOKEN: ${{ github.token }}
-          DECISION_REQUIRE_HANDOFF: 'true'
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' ci:decision:publication
-      - name: Publish exact admitted rolling revision
-        if: inputs.proposal_hash == '' && steps.flakehub.outputs.status != 'verified'
-        uses: DeterminateSystems/flakehub-push@dceefcb33cba27bde28f8540d8b4537cb925c46b # main, Node.js 24
-        with:
-          visibility: public
-          name: closure-labs/maestro
-          rolling: true
-          rolling-minor: 2
-          rev: ${{ steps.candidate.outputs.source_sha }}
-          include-output-paths: true
-      - name: Verify published rolling FlakeHub revision
-        if: inputs.proposal_hash == ''
-        env:
-          PUBLICATION_DESTINATION: flakehub
-          PUBLICATION_REQUIRE_VERIFIED: 'true'
-          PUBLICATION_RECEIPT: ${{ runner.temp }}/flakehub-receipt.json
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:inspect
-      - name: Record freshly verified rolling FlakeHub destination
-        if: inputs.proposal_hash == ''
-        env:
-          GH_TOKEN: ${{ steps.authority.outputs.token }}
-          PUBLICATION_STEP: flakehub
-          PUBLICATION_STATE: complete
-          PUBLICATION_RECEIPT: ${{ runner.temp }}/flakehub-receipt.json
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:journal
       - name: Retain immutable decision byte reuse observations
         if: always()

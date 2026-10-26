@@ -284,7 +284,7 @@ def finish_stage(member, value, started):
 
 def capture_receipts(root):
     captures = {}
-    for destination in ('cache', 'flakehub', 'github'):
+    for destination in ('cache', 'github'):
         name = destination + '-receipt.json'
         target = root / name
         if target.is_symlink():

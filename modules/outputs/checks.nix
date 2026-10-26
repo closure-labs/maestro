@@ -180,7 +180,7 @@ in {
                 ;;
             esac
             case "$action" in
-              '$/'* | './controller/.github/actions/setup-nix' | actions/checkout@* | actions/upload-artifact@* | actions/download-artifact@* | actions/attest@* | actions/create-github-app-token@* | DeterminateSystems/determinate-nix-action@* | DeterminateSystems/flakehub-push@* | step-security/harden-runner@* | github/codeql-action/*@*) ;;
+              '$/'* | './controller/.github/actions/setup-nix' | actions/checkout@* | actions/upload-artifact@* | actions/download-artifact@* | actions/attest@* | actions/create-github-app-token@* | DeterminateSystems/determinate-nix-action@* | step-security/harden-runner@* | github/codeql-action/*@*) ;;
               *)
                 printf 'Action is not an approved GitHub-platform boundary: %s\n' "$action" >&2
                 exit 1

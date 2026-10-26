@@ -65,7 +65,7 @@ environment, final filename SBOM binding, and FIFO `maestro-publication` steps
 remain in place. No PR receives new cache or publication permissions.
 
 The final release filename receives new provenance and SPDX attestations. Before
-either FlakeHub or GitHub publication, `release:attestations` verifies its local
+GitHub publication, `release:attestations` verifies its local
 checksum, protected-main source and reusable release-workflow signer digests,
 subject filename/hash, and exact SPDX predicate. Checking out the requested source
 does not change the caller's OIDC identity: if main advances and the caller or

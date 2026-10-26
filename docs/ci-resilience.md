@@ -137,7 +137,7 @@ This mode uses the publication environment and serialized publisher, reserves
 the native release tag's exact product identity before cache writes, and repeats
 the full `release` authority/freshness gate for restoration, upload and journal
 updates. A source review never substitutes for exact product approval. Cache
-recovery skips every FlakeHub operation and does not stage hosted assets, change
+recovery does not stage hosted assets, change
 tags or advance development. Existing receipts alone never bypass fresh remote
 verification. After a verified cache checkpoint, run the clean-store consumer.
 
@@ -232,9 +232,9 @@ fresh readback. XO's admitted retained packets use original signed metadata
 bytes before any payload materialization, and OCI retries verify immutable
 manifest/descriptor identities before copying absent content.
 
-Maestro reconciles immutable hosted bytes and independently inspects FlakeHub
-through the exact-version immutable source/revision HEAD chain. A current
-destination skips its upload. Upstream handoff verification reads signed
+Maestro reconciles immutable hosted bytes. A current destination skips its
+upload. FlakeHub publication has been removed; historical receipts remain
+readable without making FlakeHub a required publication destination. Upstream handoff verification reads signed
 metadata without downloading NARs. Native actual-XO identity still comes from
 local or fresh public Nix metadata and is checked against the scanned runtime
 context and independent upstream authority. Explicit Actions run recovery

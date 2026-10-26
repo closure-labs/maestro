@@ -194,8 +194,8 @@ class MetadataBatch(unittest.TestCase):
         steps = workflow['jobs']['publish']['steps']
         names = [step.get('name') for step in steps]
         self.assertLess(names.index('Inspect current public cache before closure materialization'), names.index('Restore authenticated qualified Nix closures without builders'))
-        self.assertLess(names.index('Inspect exact rolling FlakeHub destination'), names.index('Publish exact admitted rolling revision'))
-        for destination in ('cache', 'flakehub'):
+        self.assertFalse(any('flakehub' in json.dumps(step).lower() for step in steps))
+        for destination in ('cache',):
             with self.subTest(destination=destination), tempfile.TemporaryDirectory() as temp:
                 directory = Path(temp)
                 product = directory / 'product.json'
@@ -203,7 +203,6 @@ class MetadataBatch(unittest.TestCase):
                 stub = directory / 'inspect.py'
                 stub.write_text('import destinations\n'
                     'destinations.cache = lambda *a, **k: {"schema":1,"destination":"cache","status":"partial","expected":{},"observed":{}}\n'
-                    'destinations.flakehub = lambda *a, **k: {"schema":1,"destination":"flakehub","status":"partial","expected":{},"observed":{}}\n'
                     'destinations.main()\n')
                 output = directory / 'github-output'
                 result = subprocess.run(['bash', str(ROOT / 'nix/automation/publication-inspect.sh')],
@@ -213,6 +212,7 @@ class MetadataBatch(unittest.TestCase):
                         PUBLICATION_PURPOSE='release', RELEASE_TAG='v1.2.3', GITHUB_OUTPUT=str(output)),
                     capture_output=True, text=True, timeout=10)
                 self.assertNotEqual(result.returncode, 0)
+                self.assertTrue(result.stdout.strip(), result.stderr)
                 self.assertEqual(json.loads(result.stdout)['status'], 'partial')
                 self.assertFalse(output.exists())
 

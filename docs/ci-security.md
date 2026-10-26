@@ -51,8 +51,8 @@ public App ID is also declared as a repository variable in both repositories.
   packets. Consumers verify provenance, archive members, part hashes, and final
   root NAR hashes before import. Publishers execute no candidate code or builders.
   The evidence registry is not a trusted public substituter; accepted publication
-  to Cachix, FlakeHub, and GitHub remains separately gated.
-- `publication.yml` handles rolling Cachix/FlakeHub distribution after the
+  to Cachix and GitHub remains separately gated.
+- `publication.yml` handles Cachix distribution after the
   producer completes. `release.yml` prepares and retains official release bytes;
   `release-publication.yml` reconciles and publishes them after approval.
   Both publishers use the shared FIFO publication queue.
@@ -270,7 +270,7 @@ budget. It fetches no closure payloads and caches no authorization result.
 Rolling publication offers `metadata_batch_trial=false`. A true manual trial
 sets the runtime flag and requires all selected destinations already verified.
 The existing cache inspector rejects partial destinations before closure
-restore, and the existing FlakeHub inspector rejects them before publication.
+restore.
 Every admission, handoff, pre-write and journal gate remains. Existing manual
 candidate and proposal selectors, original producer/signers and freshness limits
 are unchanged. The flag supplies no approval or authority.
@@ -306,7 +306,7 @@ search or runtime dependency download. Each cache inspection owns at most eight
 workers. Every worker retains its own connections only until that inspection
 ends. The second inspection starts new workers and performs fresh requests.
 Public workers inherit only transport/certificate settings, never GitHub or
-Cachix credentials. No GitHub, attestation, registry, handoff, FlakeHub or write
+Cachix credentials. No GitHub, attestation, registry, handoff or write
 operation uses this reader.
 
 The experiment intentionally revises retries. A single budget permits at most
@@ -414,7 +414,7 @@ fresh authority for every command and retains the recovery hosted-byte pass.
 The `release:complete` task performs the final complete hosted-byte download,
 prepares its journal update, obtains fresh downstream/upstream authorization,
 publishes the draft, verifies publication and records the receipt in the same
-group. The existing independently authorized, pinned FlakeHub action is unchanged.
+group.
 
 A journal conflict, uncertain write acknowledgement or failed readback stops the
 group. The controller reads back the remote state without retrying a mutation;
@@ -437,13 +437,13 @@ performance experiment.
 ### Verified-only release transaction trials
 
 The versioned publisher accepts `transaction_trial=disabled` or `enabled` only
-with an explicit `candidate_run`. Both modes require already-verified cache and
-FlakeHub destinations, an existing published GitHub release with all approved
+with an explicit `candidate_run`. Both modes require an already-verified cache and an existing published GitHub
+release with all approved
 assets, and unchanged journal proofs. A missing or changed destination fails;
 the trial cannot repair it. Trial authority tokens have read-only contents,
 pull-request and Actions permissions. Native journal and asset helpers also
 reject writes, including asset uploads and draft publication. Development
-advancement and the external FlakeHub action are skipped.
+advancement is skipped.
 
 Compare both modes on the same protected controller, approved product, producer
 and evidence with all other flags fixed. Both hosted-byte readbacks, live gates,
@@ -451,3 +451,17 @@ upstream handoff checks and fresh receipts still execute. Successful receipt
 files do not grant authority. The `default` mode retains the repository's
 `MAESTRO_RELEASE_TRANSACTION_ENABLED` setting and normal publication behavior;
 trials never change that setting or affect scheduled publishers.
+
+### Publication destinations
+
+Active publication targets are Cachix and GitHub releases. Both rolling and
+versioned workflows remove FlakeHub publication, destination checks, receipt
+capture and OIDC permissions. The action allowlists exclude `flakehub-push`,
+and `release:inspect` accepts only the cache destination.
+
+Existing FlakeHub versions and historical journal receipts are preserved.
+Read-only historical destination and receipt readers remain compatible with
+retained evidence; they do not publish or grant authority. Keeping the shared
+receipt verifier unchanged preserves the identity of existing cache and GitHub
+proofs. Upstream FlakeHub input URLs and public binary-cache configuration are
+independent of publishing Maestro and retain their existing policy.

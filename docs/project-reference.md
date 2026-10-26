@@ -142,10 +142,10 @@ normal Nix realisation still checks the reviewed trusted signatures.
   enables protected-branch auto-merge while CI is pending, and explicitly
   enqueues a ready, revalidated exact head through the normal protected queue.
   Ordinary bot updates remain asynchronous.
-- Successful installer builds publish the `0.2` rolling FlakeHub release. The
+- Approved installer products publish their exact closures to Cachix. The
   dedicated release workflow selects a semantic version through a protected
   pull request, verifies the complete signed builder inventory and rescans vulnerabilities, fills a draft GitHub
-  release, publishes the versioned flake, and makes the GitHub release
+  release and makes the GitHub release
   immutable. Rolling and versioned publication wait in the same non-canceling
   queue so they do not build identical outputs concurrently. The next
   development version passes through the same protection.
