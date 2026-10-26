@@ -23,6 +23,7 @@
     checks = {
       operator-fixtures = mkSourceCheck {
         name = "operator-fixtures";
+        exportCommands = false;
         source = lib.fileset.toSource {
           root = ../../..;
           fileset = lib.fileset.unions [
