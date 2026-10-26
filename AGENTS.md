@@ -76,3 +76,13 @@ Use `jj` for local status, history, commits, and bookmarks; GitHub remains the
 push and pull-request transport. Commit coherent implementation, tests, and
 documentation checkpoints. Keep historical changelog entries intact and
 describe public-interface changes in the current changelog section.
+
+## Pull requests
+
+Agent-created and automation PRs must be authored by the configured Decider App,
+`cl-decider[bot]`. Use a short-lived installation token scoped to this repository
+and verify the returned PR author. Never fall back to Dale's personal GitHub
+session when bot authentication is unavailable. Dale is currently the sole
+Super Admin and must remain able to approve these PRs independently; GitHub
+prevents a PR author from approving their own PR. Preserve actual commit
+attribution and keep approval, signing, and publication safeguards unchanged.
