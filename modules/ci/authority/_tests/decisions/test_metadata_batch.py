@@ -205,7 +205,7 @@ class MetadataBatch(unittest.TestCase):
                     'destinations.cache = lambda *a, **k: {"schema":1,"destination":"cache","status":"partial","expected":{},"observed":{}}\n'
                     'destinations.main()\n')
                 output = directory / 'github-output'
-                result = subprocess.run(['bash', str(ROOT / 'modules/ci/authority/_source/publication-inspect.sh')],
+                result = subprocess.run(['bash', str(ROOT / 'modules/release/publication/_source/publication-inspect.sh')],
                     env=dict(os.environ, PYTHONPATH=str(ROOT / 'modules/ci/authority/_source/decisions'),
                         PUBLICATION_DESTINATIONS_SOURCE=str(stub), DECISION_PRODUCT=str(product),
                         PUBLICATION_DESTINATION=destination, PUBLICATION_REQUIRE_VERIFIED='true',

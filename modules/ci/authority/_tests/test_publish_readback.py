@@ -96,7 +96,7 @@ class PublishReadback(unittest.TestCase):
         self.fixture.write_text(json.dumps(dict(fixture,remote=remote,local=self.local)))
         self.env.pop('PYTHONPATH',None)
         command=([os.environ['MAESTRO_TEST_PUBLISH_COMMAND']] if os.environ.get('MAESTRO_TEST_PUBLISH_COMMAND')
-                 else ['bash',str(ROOT/'modules/ci/authority/_source/publish.sh')])
+                 else ['bash',str(ROOT/'modules/release/publication/_source/publish.sh')])
         result=subprocess.run(command,env=self.env,
                               text=True,capture_output=True,timeout=20)
         calls=[json.loads(line) for line in self.calls.read_text().splitlines()] if self.calls.exists() else []
@@ -140,7 +140,7 @@ class PublishReadback(unittest.TestCase):
                  GITHUB_OUTPUT=str(self.work/'output'))
         env.pop('PYTHONPATH',None)
         command=([os.environ['MAESTRO_TEST_INSPECT_COMMAND']] if os.environ.get('MAESTRO_TEST_INSPECT_COMMAND')
-                 else ['bash',str(ROOT/'modules/ci/authority/_source/publication-inspect.sh')])
+                 else ['bash',str(ROOT/'modules/release/publication/_source/publication-inspect.sh')])
         result=subprocess.run(command,env=env,
                               capture_output=True,text=True,timeout=20)
         self.assertEqual(result.returncode,0,result.stderr)

@@ -18,11 +18,11 @@ in {
   security-inventory-preflight = mkCommand {
     name = "security-inventory-preflight";
     prefix = ''
-      MAESTRO_SECURITY_INVENTORY_SOURCE=${../../authority/_source/security-inventory.py}
+      MAESTRO_SECURITY_INVENTORY_SOURCE=${../_source/security-inventory.py}
       export MAESTRO_SECURITY_INVENTORY_SOURCE
     '';
     runtimeInputs = commonInputs ++ [pkgs.python3];
-    source = ../../authority/_source/security-inventory-preflight.sh;
+    source = ../_source/security-inventory-preflight.sh;
   };
   security-inventory = mkCommand {
     name = "security-inventory";
@@ -38,8 +38,8 @@ in {
         installerQualification = builtins.fromJSON (builtins.unsafeDiscardStringContext (builtins.toJSON installerQualification));
         lockDigest = builtins.hashFile "sha256" lockFile;
         inherit packageSourceRoots;
-        inventoryDigest = builtins.hashFile "sha256" ../../authority/_source/security-inventory.py;
-        normalizerDigest = builtins.hashFile "sha256" ../../authority/_source/security-normalize.py;
+        inventoryDigest = builtins.hashFile "sha256" ../_source/security-inventory.py;
+        normalizerDigest = builtins.hashFile "sha256" ../../security/_source/security-normalize.py;
         runtime = {
           inherit (appliance.networking.firewall) allowedTCPPorts allowedUDPPorts;
           managementCIDRs = appliance.maestro.operator.managementCIDRs;
@@ -61,20 +61,20 @@ in {
       });
     in ''
       export MAESTRO_FINGERPRINTS_CORE=${../../authority/_source/decisions}
-      MAESTRO_SECURITY_INVENTORY_SOURCE=${../../authority/_source/security-inventory.py}
+      MAESTRO_SECURITY_INVENTORY_SOURCE=${../_source/security-inventory.py}
       MAESTRO_SECURITY_CONTEXT=${context}
       export MAESTRO_SECURITY_INVENTORY_SOURCE MAESTRO_SECURITY_CONTEXT
     '';
     runtimeInputs = commonInputs ++ [pkgs.python3];
-    source = ../../authority/_source/security-inventory.sh;
+    source = ../_source/security-inventory.sh;
   };
   security-applicability = mkCommand {
     name = "security-applicability";
     prefix = ''
-      MAESTRO_SECURITY_APPLICABILITY_RULES=${../../authority/_source/security-applicability.json}
+      MAESTRO_SECURITY_APPLICABILITY_RULES=${../_source/security-applicability.json}
       export MAESTRO_SECURITY_APPLICABILITY_RULES
     '';
     runtimeInputs = commonInputs ++ [applicabilityCommand];
-    source = ../../authority/_source/security-applicability.sh;
+    source = ../_source/security-applicability.sh;
   };
 }

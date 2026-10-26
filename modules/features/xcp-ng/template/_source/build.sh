@@ -8,8 +8,8 @@ REPO_ROOT=${MAESTRO_SYSTEM_ROOT:-}
 if [[ -z "$REPO_ROOT" ]]; then
   if git_root=$(git rev-parse --show-toplevel 2>/dev/null); then
     REPO_ROOT=$git_root
-  elif [[ -f "$SCRIPT_DIR/../flake.nix" ]]; then
-    REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
+  elif [[ -f "$SCRIPT_DIR/../../../../../flake.nix" ]]; then
+    REPO_ROOT=$(cd "$SCRIPT_DIR/../../../../.." && pwd)
   else
     printf 'Run this command from a Maestro checkout or set MAESTRO_SYSTEM_ROOT.\n' >&2
     exit 1

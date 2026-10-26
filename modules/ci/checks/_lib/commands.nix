@@ -22,12 +22,12 @@ in {
       export MAESTRO_CI_PLAN_CONTRACT
     '';
     runtimeInputs = commonInputs ++ [pkgs.cachix commands.decision-publication commands.decision-handoff];
-    source = ../../authority/_source/cache-validation.sh;
+    source = ../_source/cache-validation.sh;
   };
   repository-audit = mkCommand {
     name = "repository-audit";
     runtimeInputs = commonInputs ++ [planRunner commands.security-inventory-preflight];
-    source = ../../authority/_source/repository-audit.sh;
+    source = ../_source/repository-audit.sh;
   };
   verdict = mkCommand {
     name = "verdict";
@@ -36,6 +36,6 @@ in {
       coreutils
       jq
     ];
-    source = ../../authority/_source/verdict.sh;
+    source = ../_source/verdict.sh;
   };
 }

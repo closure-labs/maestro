@@ -50,7 +50,7 @@ esac''',
                                DIAGNOSTIC_PLAN_CALLED=str(root / 'plan-called'))
             # Run in a synthetic source root; every Nix/verification executable is
             # a stub. Only the declared plan data comes from the real source.
-            result = subprocess.run(['bash', str(ROOT / 'modules/ci/authority/_source/qualification-assets.sh')],
+            result = subprocess.run(['bash', str(ROOT / 'modules/features/installer/_source/qualification-assets.sh')],
                                     cwd=root, env=environment,
                                     capture_output=True, timeout=15)
             diagnostics = root / 'maestro-qualification-diagnostics'

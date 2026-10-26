@@ -262,7 +262,7 @@ class Operations(unittest.TestCase):
             root = Path(temporary)
             (root / 'modules/ci/authority/_source').mkdir(parents=True)
             live = {'schema': 1, 'mode': 'official', 'revision': 'f' * 40}
-            (root / 'modules/ci/authority/_source/xo-handoff.json').write_text(json.dumps(live))
+            (root / 'modules/ci/security/_source/xo-handoff.json').write_text(json.dumps(live))
             identity = {'storePath': '/nix/store/' + 'a' * 32 + '-xo', 'narHash': 'sha256-' + 'A' * 43 + '='}
             candidate = {'schema': 1, 'mode': 'official', 'repository': 'closure-labs/xo-nixpkg',
                          'revision': 'e' * 40, 'channel': 'xo-latest', **identity,
@@ -298,7 +298,7 @@ class Operations(unittest.TestCase):
                 handoff.main()
             self.assertEqual([call.args[2] for call in metadata.call_args_list], ['scans.json','product.json','handoff-xo-latest.json'])
             self.assertIn(('closure-labs/maestro', 'flake.lock', 'a' * 40), queried)
-            self.assertIn(('closure-labs/maestro', 'modules/ci/authority/_source/xo-handoff.json', 'a' * 40), queried)
+            self.assertIn(('closure-labs/maestro', 'modules/ci/security/_source/xo-handoff.json', 'a' * 40), queried)
             self.assertTrue(config.call_args.kwargs['live'])
             self.assertTrue(config.call_args.kwargs['enabled'])
             args = verify.call_args.args[0]

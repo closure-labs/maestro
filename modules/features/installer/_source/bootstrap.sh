@@ -33,7 +33,7 @@ resolve_script_checkout() {
     return
   fi
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || true)"
-  candidate="$(cd "$script_dir/.." 2>/dev/null && pwd || true)"
+  candidate="$(cd "$script_dir/../../../.." 2>/dev/null && pwd || true)"
   if [ -f "$candidate/modules/features/operator/cli/_source/lib/common.sh" ]; then
     printf '%s\n' "$candidate"
     return

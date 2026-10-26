@@ -138,7 +138,7 @@ The `maestro-ci-route` command emits one versioned JSON route plan. Focused
 qualification, protected-main publication, and the required verdict all
 consume that exact output, so downstream jobs cannot independently reinterpret
 classification or reuse state. Both the router and verdict validate
-`modules/ci/authority/_source/qualification-plan.schema.json`; schema-v3 rejects undeclared
+`modules/features/installer/_source/qualification-plan.schema.json`; schema-v3 rejects undeclared
 fields, invalid Nix graph digests, and publication without qualification.
 The path policy decides whether a change can affect the appliance. When it
 can, `lib.ciQualificationInputs.x86_64-linux` supplies separate canonical Nix

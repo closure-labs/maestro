@@ -9,7 +9,7 @@ export MAESTRO_CI_PATH_PREFIX="$temporary/bin"
 export MAESTRO_SYSTEM_ROOT="$temporary/repo"
 export SECURITY_INVENTORY="$temporary/inventory"
 export SECURITY_OUTPUT="$temporary/report"
-printf '{"schema_version":2,"mode":"report","dispositions":[],"exceptions":[]}\n' >"$temporary/repo/modules/ci/authority/_source/security-policy.json"
+printf '{"schema_version":2,"mode":"report","dispositions":[],"exceptions":[]}\n' >"$temporary/repo/modules/ci/security/_source/security-policy.json"
 printf 'lockfile fixture\n' >"$temporary/repo/modules/features/operator/menu/_source/frontend/Cargo.lock"
 python3 - "$temporary/inventory" "$(readlink -f "$BASH")" <<'PYTHON'
 import hashlib,json,sys,pathlib
@@ -108,8 +108,8 @@ if FAKE_GRYPE_DB_VALID=false "$MAESTRO_CI_SECURITY_SCAN" >/dev/null 2>&1; then
   echo 'Scanner accepted invalid database status.' >&2; exit 1
 fi
 [[ ! -e "$temporary/report/findings.json" ]]
-jq '.mode="enforce"' "$temporary/repo/modules/ci/authority/_source/security-policy.json" >"$temporary/enforce.json"
-mv "$temporary/enforce.json" "$temporary/repo/modules/ci/authority/_source/security-policy.json"
+jq '.mode="enforce"' "$temporary/repo/modules/ci/security/_source/security-policy.json" >"$temporary/enforce.json"
+mv "$temporary/enforce.json" "$temporary/repo/modules/ci/security/_source/security-policy.json"
 if "$MAESTRO_CI_SECURITY_SCAN" >/dev/null 2>&1; then
   echo 'Enforced scan accepted new high/critical findings.' >&2; exit 1
 fi
@@ -118,7 +118,7 @@ fi
 cp "$temporary/report/findings.json" "$temporary/original-findings.json"
 jq --arg created "$(date -u +%F)" --arg expires "$(date -u -d tomorrow +%F)" '
   {schema_version:2,mode:"enforce",exceptions:[],dispositions:map({advisory,component,version,severity,identity,kind:"fixed",owner:"fixture",reason:"reviewed fixture",evidence:["https://example.invalid/patch"],created:$created,expires:$expires})}
-' "$temporary/original-findings.json" >"$temporary/repo/modules/ci/authority/_source/security-policy.json"
+' "$temporary/original-findings.json" >"$temporary/repo/modules/ci/security/_source/security-policy.json"
 "$MAESTRO_CI_SECURITY_SCAN"
 cmp "$temporary/original-findings.json" "$temporary/report/findings.json"
 if FAKE_AUDIT_VERSION='cargo-audit changed' "$MAESTRO_CI_SECURITY_SCAN" >/dev/null 2>&1; then

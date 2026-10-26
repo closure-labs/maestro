@@ -16,7 +16,7 @@
       };
       maestro-ci-graph-plan = pkgs.writeShellApplication {
         name = "maestro-ci-graph-plan";
-        runtimeInputs = [pkgs.coreutils pkgs.git pkgs.gnutar pkgs.jq ciNix];
+        runtimeInputs = [pkgs.coreutils pkgs.diffutils pkgs.git pkgs.gnutar pkgs.jq ciNix];
         text = ''
           export PATH=${lib.makeBinPath [pkgs.python3]}:"$PATH"
           maestro-ci-graph() { python3 ${./_source/graph.py} "$@"; }

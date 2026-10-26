@@ -11,10 +11,10 @@ import sys
 import tempfile
 from urllib.parse import quote
 
-sys.path.insert(0, os.environ.get('MAESTRO_DECISIONS_SOURCE', str(Path(__file__).with_name('decisions'))))
+sys.path.insert(0, os.environ.get('MAESTRO_DECISIONS_SOURCE', str((Path(__file__).parent / '../../../ci/authority/_source/decisions'))))
 import common
 
-_spec = importlib.util.spec_from_file_location('publication_journal', os.environ.get('MAESTRO_PUBLICATION_JOURNAL_SOURCE', str(Path(__file__).with_name('publication-journal.py'))))
+_spec = importlib.util.spec_from_file_location('publication_journal', os.environ.get('MAESTRO_PUBLICATION_JOURNAL_SOURCE', str((Path(__file__).parent / 'publication-journal.py'))))
 journal = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(journal)
 

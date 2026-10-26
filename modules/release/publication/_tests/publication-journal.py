@@ -11,7 +11,7 @@ import tempfile
 
 
 def load(name):
-    spec = importlib.util.spec_from_file_location(name.replace('-', '_'), Path(__file__).parents[4] / 'modules/ci/authority/_source' / f'{name}.py')
+    spec = importlib.util.spec_from_file_location(name.replace('-', '_'), Path(__file__).parents[4] / 'modules/release/publication/_source' / f'{name}.py')
     result = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(result)
     return result

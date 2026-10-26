@@ -19,10 +19,10 @@ in {
     name = "cache-doctor";
     prefix = ''
       export PYTHONPATH=${../../../ci/authority/_source/decisions}
-      export MAESTRO_CACHE_DOCTOR_SOURCE=${../../../ci/authority/_source/cache-doctor.py}
+      export MAESTRO_CACHE_DOCTOR_SOURCE=${../_source/cache-doctor.py}
     '';
     runtimeInputs = [pkgs.python3 devenv];
-    source = ../../../ci/authority/_source/cache-doctor.sh;
+    source = ../_source/cache-doctor.sh;
   };
   codeql-rust-toolchain = let
     toolchain = pkgs.runCommand "maestro-codeql-rust-toolchain" {} ''
@@ -42,31 +42,31 @@ in {
         export MAESTRO_CODEQL_RUST_TOOLCHAIN MAESTRO_CODEQL_RUSTUP MAESTRO_CODEQL_RUST_SRC
       '';
       runtimeInputs = commonInputs ++ [pkgs.rustup];
-      source = ../../../ci/authority/_source/codeql-rust-toolchain.sh;
+      source = ../_source/codeql-rust-toolchain.sh;
     };
   fix-hashes = mkCommand {
     name = "fix-hashes";
     runtimeInputs = commonInputs;
-    source = ../../../ci/authority/_source/fix-hashes.sh;
+    source = ../_source/fix-hashes.sh;
   };
   lock-validate = mkCommand {
     name = "lock-validate";
     runtimeInputs = commonInputs;
-    source = ../../../ci/authority/_source/lock-validate.sh;
+    source = ../_source/lock-validate.sh;
   };
   open-update-pr = mkCommand {
     name = "open-update-pr";
     runtimeInputs = commonInputs;
-    source = ../../../ci/authority/_source/open-update-pr.sh;
+    source = ../_source/open-update-pr.sh;
   };
   trusted-update = mkCommand {
     name = "trusted-update";
     runtimeInputs = commonInputs;
-    source = ../../../ci/authority/_source/trusted-update.sh;
+    source = ../_source/trusted-update.sh;
   };
   update-locks = mkCommand {
     name = "update-locks";
     runtimeInputs = commonInputs;
-    source = ../../../ci/authority/_source/update-locks.sh;
+    source = ../_source/update-locks.sh;
   };
 }

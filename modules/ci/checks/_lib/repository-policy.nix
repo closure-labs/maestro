@@ -28,12 +28,19 @@
   "modules/ci/checks/_lib/repository-rules.json contains an invalid rule";
     map evaluateDefinition staticDefinitions;
 
-  automationDirectory = builtins.readDir "${source}/modules/ci/authority/_source";
-  automationScripts = lib.sort builtins.lessThan (
-    builtins.filter
-    (name: lib.hasSuffix ".sh" name && automationDirectory.${name} == "regular")
-    (builtins.attrNames automationDirectory)
-  );
+  # Source packaging is declared beside each owner. Native wrapper files must
+  # remain represented in the owner package definitions and common helper.
+  automationDirectories = [
+    "modules/ci/authority/_source"
+    "modules/ci/checks/_source"
+    "modules/ci/security/_source"
+    "modules/ci/inventory/_source"
+    "modules/features/development/_source"
+    "modules/features/installer/_source"
+    "modules/features/xcp-ng/template/_source"
+    "modules/ci/graph/_source"
+    "modules/release/publication/_source"
+  ];
   automationDefinition = lib.concatStringsSep "\n" (map read [
     "modules/ci/authority/_lib/common.nix"
     "modules/ci/authority/_lib/commands.nix"
@@ -47,14 +54,20 @@
     "modules/release/consumer/_lib/commands.nix"
     "modules/release/publication/_lib/commands.nix"
   ]);
-  automationWrapperRules =
+  automationWrapperRules = lib.concatMap (directory: let
+    scripts = builtins.readDir "${source}/${directory}";
+    names = builtins.filter (name: lib.hasSuffix ".sh" name && scripts.${name} == "regular") (builtins.attrNames scripts);
+  in
     map (script: {
+      # Build/install/boot evidence leaves are independently packaged by their
+      # feature modules; the migrated automation names keep native wrappers.
       ok =
-        lib.hasInfix "/${script};" automationDefinition
-        || lib.hasInfix "/${script}" automationDefinition;
-      message = "modules/ci/authority/_source/${script} must be wrapped by the Nix automation package set";
+        lib.hasInfix "/${script}" automationDefinition
+        || builtins.elem script ["build.sh" "bootstrap.sh" "bootstrap-key.sh" "install-maestro.sh" "deploy-template.sh" "plan.sh" "nix.sh" "assets.sh"];
+      message = "${directory}/${script} must be wrapped by its owning native package";
     })
-    automationScripts;
+    names)
+  automationDirectories;
 
   workflowDirectory = builtins.readDir "${source}/.github/workflows";
   workflowFiles = lib.sort builtins.lessThan (

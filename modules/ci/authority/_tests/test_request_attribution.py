@@ -25,7 +25,7 @@ import diagnostic_artifacts as artifacts
 import destinations
 import operations
 
-spec = importlib.util.spec_from_file_location('journal_fixture', ROOT / 'modules/ci/authority/_source/publication-journal.py')
+spec = importlib.util.spec_from_file_location('journal_fixture', ROOT / 'modules/release/publication/_source/publication-journal.py')
 journal = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(journal)
 PATH = '/nix/store/' + '0' * 32 + '-fixture'

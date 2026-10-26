@@ -37,7 +37,7 @@ in {
     prefix = ''
       MAESTRO_DECISION_CORE=${../_source/decisions}
       export PYTHONPATH=${../_source/decisions}
-      MAESTRO_DISTRIBUTION_CACHE_SOURCE=${../_source/distribution-cache.py}
+      MAESTRO_DISTRIBUTION_CACHE_SOURCE=${../../graph/_source/distribution-cache.py}
       MAESTRO_DISTRIBUTION_RESTORE_SOURCE=${../_source/distribution-restore.py}
       export MAESTRO_DECISION_CORE MAESTRO_DISTRIBUTION_CACHE_SOURCE MAESTRO_DISTRIBUTION_RESTORE_SOURCE
     '';
@@ -49,7 +49,7 @@ in {
     prefix = ''
       MAESTRO_DECISION_CORE=${../_source/decisions}
       export PYTHONPATH=${../_source/decisions}
-      MAESTRO_DISTRIBUTION_CACHE_SOURCE=${../_source/distribution-cache.py}
+      MAESTRO_DISTRIBUTION_CACHE_SOURCE=${../../graph/_source/distribution-cache.py}
       export MAESTRO_DISTRIBUTION_CACHE_SOURCE
       MAESTRO_DECISION_OPERATIONS_SOURCE=${../_source/decision-refresh.py}
       export MAESTRO_DECISION_CORE MAESTRO_DECISION_OPERATIONS_SOURCE
@@ -95,7 +95,7 @@ in {
     name = "decision-candidate";
     prefix = ''
       export PYTHONPATH=${../_source/decisions}
-      MAESTRO_DISTRIBUTION_CACHE_SOURCE=${../_source/distribution-cache.py}
+      MAESTRO_DISTRIBUTION_CACHE_SOURCE=${../../graph/_source/distribution-cache.py}
       export MAESTRO_DISTRIBUTION_CACHE_SOURCE
       MAESTRO_DECISION_CANDIDATE_SOURCE=${../_source/decision-candidate.py}
       export MAESTRO_DECISION_CANDIDATE_SOURCE

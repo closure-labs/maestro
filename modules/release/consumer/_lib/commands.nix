@@ -19,9 +19,9 @@ in {
     name = "consumer-probe";
     prefix = ''
       export PYTHONPATH=${../../../ci/authority/_source/decisions}
-      export MAESTRO_CONSUMER_PROBE_SOURCE=${../../../ci/authority/_source/consumer-probe.py}
+      export MAESTRO_CONSUMER_PROBE_SOURCE=${../_source/consumer-probe.py}
     '';
     runtimeInputs = commonInputs ++ [pkgs.python3];
-    source = ../../../ci/authority/_source/consumer-probe.sh;
+    source = ../_source/consumer-probe.sh;
   };
 }

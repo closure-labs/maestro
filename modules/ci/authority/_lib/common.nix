@@ -49,16 +49,16 @@
   validatePlan = mkCommand {
     name = "validate-plan";
     prefix = ''
-      MAESTRO_CI_PLAN_SCHEMA="''${MAESTRO_CI_PLAN_SCHEMA:-${../_source/qualification-plan.schema.json}}"
+      MAESTRO_CI_PLAN_SCHEMA="''${MAESTRO_CI_PLAN_SCHEMA:-${../../../features/installer/_source/qualification-plan.schema.json}}"
       export MAESTRO_CI_PLAN_SCHEMA
     '';
     runtimeInputs = commonInputs ++ [pkgs.check-jsonschema];
-    source = ../_source/validate-plan.sh;
+    source = ../../graph/_source/validate-plan.sh;
   };
 
   classifyPaths = mkCommand {
     name = "classify-paths";
     runtimeInputs = commonInputs;
-    source = ../_source/classify-paths.sh;
+    source = ../../graph/_source/classify-paths.sh;
   };
 in {inherit mkCommand commonInputs spdxSchema boundedGh publicCacheWorker validatePlan classifyPaths;}

@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 import sys
 
-sys.path.insert(0, os.environ.get('MAESTRO_DECISION_CORE', str(Path(__file__).with_name('decisions'))))
+sys.path.insert(0, os.environ.get('MAESTRO_DECISION_CORE', str((Path(__file__).parent / '../../authority/_source/decisions'))))
 import common
 from security_decisions import normalize_findings
 

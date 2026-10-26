@@ -58,8 +58,8 @@ in {
         inputs.self.lib.ciInstallerQualification.${system}.roots;
     };
     policy = {
-      boot = builtins.hashFile "sha256" ../authority/_source/boot-media.sh;
-      scan = builtins.hashFile "sha256" ../authority/_source/security-policy.json;
+      boot = builtins.hashFile "sha256" ../../features/installer/_source/boot-media.sh;
+      scan = builtins.hashFile "sha256" ../security/_source/security-policy.json;
       verifier = builtins.hashFile "sha256" ./_source/transfer.py;
       authority = builtins.hashFile "sha256" ../authority/_source/decision-policy.json;
     };
@@ -87,7 +87,7 @@ in {
         nixpkgs = inputs.nixpkgs.outPath;
         xenOrchestra = inputs.xen-orchestra-ce.packages.${system}.latest.outPath;
       };
-      bootPolicy = builtins.hashFile "sha256" ../authority/_source/boot-media.sh;
+      bootPolicy = builtins.hashFile "sha256" ../../features/installer/_source/boot-media.sh;
     };
     evidence = {
       distribution = inputs.self.packages.${system}.distribution-inventory.outPath;
@@ -96,11 +96,13 @@ in {
       xenOrchestra = inputs.self.packages.${system}.xen-orchestra-ce.outPath;
       xenOrchestraSupply = inputs.self.packages.${system}.xen-orchestra-supply-protector.outPath;
       assetPolicy = builtins.hashString "sha256" (builtins.concatStringsSep "\n" [
-        (builtins.hashFile "sha256" ../authority/_source/qualification-assets.sh)
-        (builtins.hashFile "sha256" ../authority/_source/default.nix)
-        (builtins.hashFile "sha256" ../authority/_source/security-inventory.py)
-        (builtins.hashFile "sha256" ../authority/_source/security-inventory.sh)
-        (builtins.hashFile "sha256" ../authority/_source/security-normalize.py)
+        (builtins.hashFile "sha256" ../../features/installer/_source/qualification-assets.sh)
+        (builtins.hashFile "sha256" ../authority/_lib/common.nix)
+        (builtins.hashFile "sha256" ../inventory/_lib/commands.nix)
+        (builtins.hashFile "sha256" ../../features/installer/_lib/commands.nix)
+        (builtins.hashFile "sha256" ../inventory/_source/security-inventory.py)
+        (builtins.hashFile "sha256" ../inventory/_source/security-inventory.sh)
+        (builtins.hashFile "sha256" ../security/_source/security-normalize.py)
         (builtins.hashFile "sha256" ../../../.github/workflows/ci.yml)
         (builtins.toJSON definitions.evidence)
       ]);

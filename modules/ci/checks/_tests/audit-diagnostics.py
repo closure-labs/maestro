@@ -44,7 +44,7 @@ exit "${FAIL_TARGETS:-0}"
                                FAIL_PREFLIGHT='7' if failure == 'inventory-preflight' else '0',
                                FAIL_EVALUATION='8' if failure == 'flake-evaluation' else '0',
                                FAIL_TARGETS='9' if failure == 'validation-targets' else '0')
-            result = subprocess.run(['bash', str(ROOT / 'modules/ci/authority/_source/repository-audit.sh')],
+            result = subprocess.run(['bash', str(ROOT / 'modules/ci/checks/_source/repository-audit.sh')],
                                     cwd=root, env=environment, capture_output=True, timeout=15)
             summary = json.loads((evidence / 'timings.summary.json').read_text())
             self.assertEqual(summary['exitCode'], result.returncode)

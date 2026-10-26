@@ -18,7 +18,7 @@ in {
   classify = mkCommand {
     name = "classify";
     runtimeInputs = commonInputs ++ [classifyPaths];
-    source = ../../authority/_source/classify.sh;
+    source = ../_source/classify.sh;
   };
   classify-paths = classifyPaths;
   route = mkCommand {
@@ -31,7 +31,7 @@ in {
         validatePlan
         commands.decision-only
       ];
-    source = ../../authority/_source/route-plan.sh;
+    source = ../_source/route-plan.sh;
   };
   validate-plan = validatePlan;
 }

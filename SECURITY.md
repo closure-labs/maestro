@@ -34,7 +34,7 @@ media explicitly when working on unpublished changes.
 
 Vulnerability scans remain in report mode until complete Nix/npm inventories,
 runtime remediation, and appliance acceptance pass. Policy schema v2 in
-`modules/ci/authority/_source/security-policy.json` contains `dispositions` and `exceptions`;
+`modules/ci/security/_source/security-policy.json` contains `dispositions` and `exceptions`;
 permanent version-only baselines are rejected. Each record identifies the
 advisory, component, version, severity, and exact `identity` from the fresh
 finding, plus an owner, reason, HTTPS evidence, and `created`/`expires` dates.

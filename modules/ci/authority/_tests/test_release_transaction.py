@@ -13,7 +13,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[4]
-spec = importlib.util.spec_from_file_location('completion', ROOT / 'modules/ci/authority/_source/release-completion.py')
+spec = importlib.util.spec_from_file_location('completion', ROOT / 'modules/release/publication/_source/release-completion.py')
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 SHA = 'a' * 40

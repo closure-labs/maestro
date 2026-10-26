@@ -11,7 +11,7 @@ from unittest.mock import patch
 
 
 def load(name):
-    spec = importlib.util.spec_from_file_location(name, Path(__file__).parents[4] / 'modules/ci/authority/_source' / f'security-{name}.py')
+    spec = importlib.util.spec_from_file_location(name, Path(__file__).parents[4] / f"modules/ci/{'inventory' if name == 'inventory' else 'security'}/_source/security-{name}.py")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

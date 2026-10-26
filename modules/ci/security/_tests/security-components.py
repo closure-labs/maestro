@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-spec = importlib.util.spec_from_file_location('normalizer', Path(__file__).parents[4] / 'modules/ci/authority/_source/security-normalize.py')
+spec = importlib.util.spec_from_file_location('normalizer', Path(__file__).parents[4] / 'modules/ci/security/_source/security-normalize.py')
 normalizer = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(normalizer)
 

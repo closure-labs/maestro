@@ -109,7 +109,7 @@ reject "$MAESTRO_CI_VERIFY_INVENTORY" "$inventory" "$sha"
 # Report-only findings do not block; scanner failures are handled by the scan
 # command. Enforcement compares reviewed baselines and expiring exceptions.
 printf '[{"advisory":"CVE-fixture","component":"example","version":"1","severity":"high","identity":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]\n' >"$temporary/findings.json"
-cp "$root/modules/ci/authority/_source/security-policy.json" "$temporary/policy.json"
+cp "$root/modules/ci/security/_source/security-policy.json" "$temporary/policy.json"
 "$MAESTRO_CI_SECURITY_VERDICT" "$temporary/findings.json" "$temporary/policy.json" >/dev/null
 jq '.mode="enforce"' "$temporary/policy.json" >"$temporary/enforce.json"
 reject "$MAESTRO_CI_SECURITY_VERDICT" "$temporary/findings.json" "$temporary/enforce.json"

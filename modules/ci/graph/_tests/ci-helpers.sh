@@ -21,7 +21,7 @@ trap 'rm -rf -- "$temporary"' EXIT
 [[ $(printf '%s\n' README.md docs/ci.md VERSION modules/features/xcp-ng/template/_source/build.sh modules/ci/checks/contracts.nix modules/features/development/shell.nix modules/ci/checks/_lib/repository-policy.nix | "$MAESTRO_CI_CLASSIFY_PATHS") == false ]]
 [[ $(printf '%s\n' modules/features/platform/nix.nix | "$MAESTRO_CI_CLASSIFY_PATHS") == true ]]
 [[ $(printf '%s\n' modules/ci/graph/_lib/plans.json | "$MAESTRO_CI_CLASSIFY_PATHS") == true ]]
-[[ $(printf '%s\n' modules/ci/authority/_source/qualification-assets.sh | "$MAESTRO_CI_CLASSIFY_PATHS") == true ]]
+[[ $(printf '%s\n' modules/features/installer/_source/qualification-assets.sh | "$MAESTRO_CI_CLASSIFY_PATHS") == true ]]
 [[ $(printf '%s\n' .github/workflows/ci.yml | "$MAESTRO_CI_CLASSIFY_PATHS") == true ]]
 [[ $(printf '%s\n' modules/ci/authority/_source/github/main-ruleset.json | "$MAESTRO_CI_CLASSIFY_PATHS") == false ]]
 [[ $(printf '%s\n' future/unknown-output | "$MAESTRO_CI_CLASSIFY_PATHS") == true ]]
@@ -52,7 +52,7 @@ divergent_head=$(git -C "$merge_fixture" rev-parse HEAD)
 
 classifier_env=(
   EVENT_NAME=merge_group
-  MAESTRO_INSTALLER_POLICY="$test_root/modules/ci/authority/_source/installer-policy.json"
+  MAESTRO_INSTALLER_POLICY="$test_root/modules/ci/graph/_source/installer-policy.json"
   MAESTRO_SYSTEM_ROOT="$merge_fixture"
 )
 [[ $(env "${classifier_env[@]}" MERGE_BASE_SHA="$merge_base" MERGE_HEAD_SHA="$irrelevant_head" "$MAESTRO_CI_CLASSIFY") == false ]]
@@ -350,7 +350,7 @@ route_mode() {
     env -u ALLOW_REUSE \
       MAESTRO_CI_PATH_PREFIX="$qualification_bin" \
       MAESTRO_SYSTEM_ROOT="$merge_fixture" \
-      MAESTRO_INSTALLER_POLICY="$test_root/modules/ci/authority/_source/installer-policy.json" \
+      MAESTRO_INSTALLER_POLICY="$test_root/modules/ci/graph/_source/installer-policy.json" \
       FAKE_QUALIFICATION_GRAPH="$graph" \
       FAKE_QUALIFICATION_ARTIFACTS="$qualification_artifacts" \
       GITHUB_OUTPUT="$output" \
@@ -481,7 +481,7 @@ if "$MAESTRO_CI_RELEASE_NOTES" 9.9.9 "$test_root/CHANGELOG.md" >/dev/null 2>&1; 
 fi
 
 grep -Fq 'gh release view --json tagName --jq .tagName' \
-  "$test_root/modules/ci/authority/_source/release-manager.sh"
+  "$test_root/modules/release/publication/_source/release-manager.sh"
 if grep -Eq 'secrets\.MERGE_QUEUE_(TOKEN|PAT)|RELEASE_AUTOMATION_LOGIN' \
   "$test_root/.github/workflows/release.yml" \
   "$test_root/.github/workflows/queue-automation.yml" \

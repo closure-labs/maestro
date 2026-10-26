@@ -377,7 +377,7 @@ if __name__ == "__main__" and sys.argv[1:2] == ["--result"]:
     # Create only a fresh completed result; a failed attempt leaves no stale pass.
     with (output / "security-result.json").open("x") as handle:
         handle.write(json.dumps(document, sort_keys=True, indent=2, allow_nan=False) + "\n")
-    sys.path.insert(0,os.environ.get('MAESTRO_FINGERPRINTS_CORE',str(Path(__file__).with_name('decisions'))))
+    sys.path.insert(0,os.environ.get('MAESTRO_FINGERPRINTS_CORE',str((Path(__file__).parent / '../../authority/_source/decisions'))))
     import fingerprints
     props={p['name']:p['value'] for p in json.loads(paths['inventory'].read_text()).get('properties',[])}
     keys=fingerprints.bindings({'inventory':evidence['inventory'],'inputHashes':evidence['inputHashes']},

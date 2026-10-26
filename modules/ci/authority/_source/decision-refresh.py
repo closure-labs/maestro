@@ -58,7 +58,7 @@ def path_identities(paths):
 
 
 def distribution_cache():
-    source = Path(os.environ.get('MAESTRO_DISTRIBUTION_CACHE_SOURCE', str(Path(__file__).with_name('distribution-cache.py'))))
+    source = Path(os.environ.get('MAESTRO_DISTRIBUTION_CACHE_SOURCE', str((Path(__file__).parent / '../../graph/_source/distribution-cache.py'))))
     spec = importlib.util.spec_from_file_location('maestro_distribution_cache', source)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

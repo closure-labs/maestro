@@ -169,9 +169,9 @@ def materialize():
     with common.diagnostics.boundary('handoff'):
         scan = common.scans(local / 'scans.json', cfg)
     product = common.product(local / 'product.json', cfg, scan)
-    policy_path = Path(os.environ.get('MAESTRO_XO_HANDOFF_POLICY', str(root / 'modules/ci/authority/_source/xo-handoff.json')))
+    policy_path = Path(os.environ.get('MAESTRO_XO_HANDOFF_POLICY', str(root / 'modules/ci/security/_source/xo-handoff.json')))
     live_policy = load_json(policy_path)
-    checked = document_at(github_api, cfg['repository'], 'modules/ci/authority/_source/xo-handoff.json', common.main_revision(cfg))
+    checked = document_at(github_api, cfg['repository'], 'modules/ci/security/_source/xo-handoff.json', common.main_revision(cfg))
     common.require(canonical_hash(live_policy) == canonical_hash(checked)
                    and type(live_policy.get('schema')) is int and live_policy['schema'] == 1,
                    'Local handoff policy differs from checked main policy')
@@ -180,7 +180,7 @@ def materialize():
     # A historical candidate carries its own checked immutable binding. The
     # binding is provenance only: enabled current policy and current upstream
     # admission below remain mandatory at the distribution boundary.
-    policy = document_at(github_api, cfg['repository'], 'modules/ci/authority/_source/xo-handoff.json', product['revision'])
+    policy = document_at(github_api, cfg['repository'], 'modules/ci/security/_source/xo-handoff.json', product['revision'])
     common.require(type(policy.get('schema')) is int and policy['schema'] == 1,
                    'Invalid candidate-source handoff binding')
     mode = policy.get('mode')

@@ -73,13 +73,13 @@
   },
   {
     "kind": "contains",
-    "path": "modules/ci/authority/_source/publication-assets.py",
+    "path": "modules/release/publication/_source/publication-assets.py",
     "needle": "'draft': True",
     "message": "Official publication must first stage a draft with exact immutable assets"
   },
   {
     "kind": "contains",
-    "path": "modules/ci/authority/_source/publication-assets.py",
+    "path": "modules/release/publication/_source/publication-assets.py",
     "needle": "{'draft': False}",
     "message": "Official publication must explicitly publish the verified draft"
   },
@@ -103,7 +103,7 @@
   },
   {
     "kind": "contains",
-    "path": "modules/ci/authority/_source/release-manager.sh",
+    "path": "modules/release/publication/_source/release-manager.sh",
     "needle": "EXPECTED_CHANGE_KIND=version",
     "message": "Release automation must allowlist version-only changes"
   },
@@ -127,13 +127,13 @@
   },
   {
     "kind": "contains",
-    "path": "modules/ci/authority/_source/trusted-update.sh",
+    "path": "modules/features/development/_source/trusted-update.sh",
     "needle": "changed_files[0]} == VERSION",
     "message": "Trusted version updates must change only VERSION"
   },
   {
     "kind": "contains",
-    "path": "modules/ci/authority/_source/trusted-update.sh",
+    "path": "modules/features/development/_source/trusted-update.sh",
     "needle": "devenv.lock | flake.lock",
     "message": "Trusted lock updates must allowlist only the two Nix lockfiles"
   },
@@ -229,7 +229,7 @@
   },
   {
     "kind": "contains",
-    "path": "modules/ci/authority/_source/qualification-assets.sh",
+    "path": "modules/features/installer/_source/qualification-assets.sh",
     "needle": "flake-plan-runner",
     "message": "Qualification closure targets must use the shared schema-v2 plan runner"
   },
@@ -247,19 +247,19 @@
   },
   {
     "kind": "contains",
-    "path": "modules/ci/authority/_source/route-plan.sh",
+    "path": "modules/ci/graph/_source/route-plan.sh",
     "needle": "maestro-ci-validate-plan",
     "message": "CI routing must validate its plan against the shared schema"
   },
   {
     "kind": "contains",
-    "path": "modules/ci/authority/_source/verdict.sh",
+    "path": "modules/ci/checks/_source/verdict.sh",
     "needle": ".schema_version == 3",
     "message": "The required verdict must enforce route-plan schema version 3"
   },
   {
     "kind": "contains",
-    "path": "modules/ci/authority/_source/qualification-plan.schema.json",
+    "path": "modules/features/installer/_source/qualification-plan.schema.json",
     "needle": "\"additionalProperties\": false",
     "message": "The route plan schema must reject undeclared fields"
   },
@@ -301,31 +301,31 @@
   },
   {
     "kind": "contains",
-    "path": "modules/ci/authority/_source/release-manager.sh",
+    "path": "modules/release/publication/_source/release-manager.sh",
     "needle": "-f release_candidate=true",
     "message": "The Nix-packaged release dispatcher must request isolated qualification"
   },
   {
     "kind": "contains",
-    "path": "modules/ci/authority/_source/classify.sh",
+    "path": "modules/ci/graph/_source/classify.sh",
     "needle": "merge-base --is-ancestor",
     "message": "Dormant merge-group classification must require an ancestral SHA range"
   },
   {
     "kind": "contains",
-    "path": "modules/ci/authority/_source/installer-policy.json",
+    "path": "modules/ci/graph/_source/installer-policy.json",
     "needle": "alwaysRelevantPatterns",
     "message": "Installer path policy must declare overrides to ignored metadata patterns"
   },
   {
     "kind": "contains",
-    "path": "modules/ci/authority/_source/qualification-inputs.sh",
+    "path": "modules/features/installer/_source/qualification-inputs.sh",
     "needle": "lib.ciQualificationInputs",
     "message": "Qualification identities must come from the Nix-owned output graph"
   },
   {
     "kind": "excludes",
-    "path": "modules/ci/authority/_source/installer-policy.json",
+    "path": "modules/ci/graph/_source/installer-policy.json",
     "needle": "buildInputPaths",
     "message": "Installer fingerprints must not maintain a second path allowlist"
   },
@@ -387,19 +387,19 @@
   },
   {
     "kind": "contains",
-    "path": "modules/ci/authority/_source/publish.sh",
+    "path": "modules/release/publication/_source/publish.sh",
     "needle": "maestro-ci-decision-publication",
     "message": "The direct Cachix command must require live admission"
   },
   {
     "kind": "contains",
-    "path": "modules/ci/authority/_source/publication-assets.py",
+    "path": "modules/release/publication/_source/publication-assets.py",
     "needle": "common.gate(cfg, args.scans, args.product, 'release')",
     "message": "Official recovery must repeat current security and release approval"
   },
   {
     "kind": "excludes",
-    "path": "modules/ci/authority/_source/publication-assets.py",
+    "path": "modules/release/publication/_source/publication-assets.py",
     "needle": "--clobber",
     "message": "Official publication must never overwrite mismatched asset bytes"
   }

@@ -10,7 +10,7 @@ import re
 import subprocess
 import sys
 
-sys.path.insert(0, os.environ.get('MAESTRO_DECISIONS_SOURCE', str(Path(__file__).with_name('decisions'))))
+sys.path.insert(0, os.environ.get('MAESTRO_DECISIONS_SOURCE', str((Path(__file__).parent / '../../../ci/authority/_source/decisions'))))
 import common
 import publication_receipts
 import destinations

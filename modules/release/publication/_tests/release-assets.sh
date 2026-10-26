@@ -8,7 +8,7 @@ set -euo pipefail
 : "${MAESTRO_CI_RELEASE_SPLIT:?MAESTRO_CI_RELEASE_SPLIT must point to the packaged release splitter}"
 
 test_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)
-export MAESTRO_INSTALLER_POLICY="$test_root/modules/ci/authority/_source/installer-policy.json"
+export MAESTRO_INSTALLER_POLICY="$test_root/modules/ci/graph/_source/installer-policy.json"
 
 temporary=$(mktemp -d "${TMPDIR:-/tmp}/maestro-release-assets.XXXXXX")
 trap 'rm -rf -- "$temporary"' EXIT

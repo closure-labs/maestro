@@ -37,7 +37,7 @@ reset() {
 invoke() {
   FIXTURES="$temporary" PATH="$temporary/bin:$PATH" GITHUB_REPOSITORY=fixture/maestro \
     MAESTRO_GITHUB_SECURITY_POLICY="$policy" MAESTRO_MAIN_RULESET="$rules" \
-    bash "$repo_root/modules/ci/authority/_source/policy-drift.sh" >/dev/null 2>&1
+    bash "$repo_root/modules/ci/security/_source/policy-drift.sh" >/dev/null 2>&1
 }
 reject() {
   if invoke; then echo 'Policy check accepted missing or unsafe bypass evidence' >&2; exit 1; fi

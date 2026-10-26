@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 CORE=Path(__file__).resolve().parents[5]
-CORE=CORE/'ci/decisions' if (CORE/'ci').exists() else CORE/'modules/ci/authority/_source/decisions'
+CORE = CORE / 'modules/ci/authority/_source/decisions'
 sys.path.insert(0,str(CORE))
 import decision_packets as packets
 

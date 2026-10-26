@@ -10,7 +10,7 @@
       text = ''
         export PYTHONDONTWRITEBYTECODE=1
         export PYTHONPATH=${../../ci/graph/_source}
-        export MAESTRO_BOOT_VERIFIER=${../../ci/authority/_source/boot-media.sh}
+        export MAESTRO_BOOT_VERIFIER=${./_source/boot-media.sh}
         exec python3 ${./_source/boot-evidence.py}
       '';
     };

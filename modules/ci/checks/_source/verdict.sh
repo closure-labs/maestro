@@ -64,6 +64,9 @@ if [[ ${RETAINED_REUSE:-false} == true ]]; then
   descriptor_hash=$(jq -cSj .retained_evidence <<<"$CI_PLAN" | sha256sum | cut -d' ' -f1)
   [[ ${RETAINED_DESCRIPTOR_HASH:?} == "$descriptor_hash" ]]
   [[ ${QUALIFICATION_RESULT:?} == skipped && ${SECURITY_RESULT:?} == skipped && ${SIGNING_RESULT:-skipped} == skipped ]]
+  if [[ ${SPLIT_QUALIFICATION:-false} == true ]]; then
+    [[ ${APPLIANCE_RESULT:?} == skipped && ${INSTALLER_RESULT:?} == skipped && ${BOOT_RESULT:?} == skipped && ${SCAN_RESULT:?} == skipped ]]
+  fi
   exit 0
 fi
 if [[ ${MAESTRO_DECISION_ONLY_REUSE_ENABLED:-false} == true && ${RETAINED_RESULT:-skipped} != skipped ]]; then

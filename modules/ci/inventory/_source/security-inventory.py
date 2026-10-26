@@ -601,7 +601,7 @@ def main():
                           'generator':hashlib.sha256(Path(__file__).read_bytes()).hexdigest()}
     result = enrich(system, json.loads(supply_path.read_text()), context, derivations)
     system_path.write_text(json.dumps(result, sort_keys=True, indent=2) + "\n")
-    sys.path.insert(0,os.environ.get('MAESTRO_FINGERPRINTS_CORE',str(Path(__file__).with_name('decisions'))))
+    sys.path.insert(0,os.environ.get('MAESTRO_FINGERPRINTS_CORE',str((Path(__file__).parent / '../../authority/_source/decisions'))))
     import fingerprints
     keys=fingerprints.bindings(raw_inventory_inputs,{'normalizer':context.get('normalizerDigest','unbound')},{key:context[key] for key in ('platform','runtime','installerQualification') if key in context},{}, {})
     system_path.with_name('inventory-fingerprints.json').write_text(json.dumps(keys,sort_keys=True)+'\n')

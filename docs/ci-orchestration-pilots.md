@@ -259,7 +259,7 @@ native toolchain and a fresh unmodified GitHub jobs response:
 
 ```bash
 gh api 'repos/closure-labs/maestro/actions/runs/38623241194/jobs?per_page=100' > /tmp/maestro-jobs.json
-devenv shell -- python3 modules/ci/authority/_source/pilot-benchmark.py /tmp/maestro-jobs.json
+devenv shell -- python3 modules/ci/graph/_source/pilot-benchmark.py /tmp/maestro-jobs.json
 ```
 
 Event continuation saves the idle release runner's CI watch period; it does not

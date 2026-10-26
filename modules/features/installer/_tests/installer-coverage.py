@@ -20,10 +20,10 @@ def load(name, relative):
     return module
 
 
-inventory = load('inventory', 'modules/ci/authority/_source/security-inventory.py')
+inventory = load('inventory', 'modules/ci/inventory/_source/security-inventory.py')
 candidate = load('candidate', 'modules/ci/authority/_source/decision-candidate.py')
 decisions = load('decisions', 'modules/ci/authority/_source/decisions/security_decisions.py')
-normalizer = load('normalizer', 'modules/ci/authority/_source/security-normalize.py')
+normalizer = load('normalizer', 'modules/ci/security/_source/security-normalize.py')
 
 
 def reject(call, text=None):

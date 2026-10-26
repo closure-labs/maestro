@@ -7,7 +7,7 @@ import sys
 import tempfile
 import unittest
 
-SCRIPT = Path(__file__).resolve().parents[4] / 'modules/ci/authority/_source/pilot-benchmark.py'
+SCRIPT = Path(__file__).resolve().parents[4] / 'modules/ci/graph/_source/pilot-benchmark.py'
 
 
 class Benchmark(unittest.TestCase):

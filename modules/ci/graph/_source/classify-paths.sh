@@ -7,7 +7,7 @@ repo_root=${MAESTRO_SYSTEM_ROOT:-}
 if [[ -z "$repo_root" ]]; then
   repo_root=$(git rev-parse --show-toplevel)
 fi
-policy=${MAESTRO_INSTALLER_POLICY:-$repo_root/modules/ci/authority/_source/installer-policy.json}
+policy=${MAESTRO_INSTALLER_POLICY:-$repo_root/modules/ci/graph/_source/installer-policy.json}
 
 jq -e '
   (.alwaysRelevantPatterns | type == "array") and

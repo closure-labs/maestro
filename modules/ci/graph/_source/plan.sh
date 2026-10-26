@@ -36,6 +36,9 @@ fi
 maestro-ci-graph "$output/candidate.json" --revision "$candidate" "${args[@]}" >"$output/plan.json"
 maestro-ci-graph "$output/candidate.json" --ownership >"$output/ownership.md" || printf 'Graph unavailable; complete validation required.\n' >"$output/ownership.md"
 # This output authenticates the graph artifact within this workflow attempt.
+if [[ $(jq -r '.schemaVersion // 0' "$output/candidate.json") == 1 ]]; then
+  diff -u docs/feature-outputs.md "$output/ownership.md"
+fi
 manifest_sha=$(sha256sum "$output/plan.json" | cut -d' ' -f1)
 if [[ -n ${GITHUB_OUTPUT:-} ]]; then
   printf 'manifest_sha256=%s\n' "$manifest_sha" >>"$GITHUB_OUTPUT"

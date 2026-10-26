@@ -9,7 +9,7 @@ import subprocess
 import sys
 
 _spec = importlib.util.spec_from_file_location('release_assets', os.environ.get(
-    'MAESTRO_PUBLICATION_ASSETS_SOURCE', str(Path(__file__).with_name('publication-assets.py'))))
+    'MAESTRO_PUBLICATION_ASSETS_SOURCE', str((Path(__file__).parent / 'publication-assets.py'))))
 assets = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(assets)
 common, journal = assets.common, assets.journal

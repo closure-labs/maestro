@@ -20,11 +20,11 @@ import operations
 import scheduling
 from security_decisions import normalize_findings
 
-GENERATORS = ('modules/ci/authority/_source/security-inventory.py', 'modules/ci/authority/_source/security-inventory.sh',
-              'modules/ci/authority/_source/security-normalize.py', 'modules/ci/authority/_source/security-scan.sh',
-              'modules/ci/authority/_source/security-applicability.sh', 'modules/ci/authority/_source/security-applicability.json',
+GENERATORS = ('modules/ci/inventory/_source/security-inventory.py', 'modules/ci/inventory/_source/security-inventory.sh',
+              'modules/ci/security/_source/security-normalize.py', 'modules/ci/security/_source/security-scan.sh',
+              'modules/ci/inventory/_source/security-applicability.sh', 'modules/ci/inventory/_source/security-applicability.json',
               'modules/ci/authority/_source/decisions/fingerprints.py',
-              'modules/ci/authority/_source/qualification-assets.sh', 'modules/ci/authority/_source/boot-media.sh')
+              'modules/features/installer/_source/qualification-assets.sh', 'modules/features/installer/_source/boot-media.sh')
 GENERATOR_PACKAGES = ('maestro-ci-security-inventory', 'maestro-ci-security-scan',
                       'maestro-ci-qualification-assets', 'maestro-ci-boot-media', 'maestro-ci-decision-candidate')
 

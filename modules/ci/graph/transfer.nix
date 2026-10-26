@@ -10,7 +10,7 @@
       text = ''
         export PYTHONDONTWRITEBYTECODE=1
         export MAESTRO_DECISION_CORE=${../authority/_source/decisions}
-        export MAESTRO_DISTRIBUTION_CACHE_SOURCE=${../authority/_source/distribution-cache.py}
+        export MAESTRO_DISTRIBUTION_CACHE_SOURCE=${./_source/distribution-cache.py}
         exec python3 ${./_source/transfer.py} "$@"
       '';
     };

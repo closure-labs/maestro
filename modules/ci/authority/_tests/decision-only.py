@@ -293,7 +293,7 @@ class Verdict(unittest.TestCase):
                            AUDIT_RESULT='skipped', QUALIFICATION_RESULT='skipped', SECURITY_RESULT='skipped',
                            SIGNING_RESULT='skipped', RETAINED_RESULT='success', RETAINED_REUSE='true',
                            RETAINED_DESCRIPTOR_HASH=reuse.common.canonical_hash(descriptor), MAESTRO_DECISION_ONLY_REUSE_ENABLED='true')
-        command = ['bash', str(ROOT / 'modules/ci/authority/_source/verdict.sh')]
+        command = ['bash', str(ROOT / 'modules/ci/checks/_source/verdict.sh')]
         self.assertEqual(subprocess.run(command, env=environment).returncode, 0)
         for field, value in (('RETAINED_RESULT', 'failure'), ('RETAINED_DESCRIPTOR_HASH', 'f' * 64),
                              ('MAESTRO_DECISION_ONLY_REUSE_ENABLED', 'false'), ('SECURITY_RESULT', 'success')):

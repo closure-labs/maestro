@@ -15,7 +15,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 from urllib.parse import parse_qs, urlparse
 
-spec = importlib.util.spec_from_file_location('distribution_cache', Path(__file__).parents[4] / 'modules/ci/authority/_source/distribution-cache.py')
+spec = importlib.util.spec_from_file_location('distribution_cache', Path(__file__).parents[4] / 'modules/ci/graph/_source/distribution-cache.py')
 cache = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(cache)
 ROOT = '/nix/store/' + 'a' * 32 + '-runtime'
@@ -149,7 +149,7 @@ with tempfile.TemporaryDirectory() as temporary:
         'DISTRIBUTION_CLOSURE_METADATA': str(metadata)}
     with patch.dict(os.environ, environment, clear=True):
         spec = importlib.util.spec_from_file_location('repair_restore',
-                                                     Path(cache.__file__).with_name('distribution-restore.py'))
+                                                     Path(__file__).parents[4] / 'modules/ci/authority/_source/distribution-restore.py')
         restore = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(restore)
         events = []

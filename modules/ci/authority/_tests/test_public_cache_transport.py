@@ -487,7 +487,7 @@ class PublicTransport(unittest.TestCase):
             self.assertIn(name, names)
         self.assertLess(names.index('Inspect current public cache before closure materialization'),
                         names.index('Restore authenticated qualified Nix closures without builders'))
-        source = (ROOT/'modules/ci/authority/_source/publish.sh').read_text()
+        source = (ROOT/'modules/release/publication/_source/publish.sh').read_text()
         self.assertIn('${PUBLICATION_REQUIRE_VERIFIED:-false} == true', source)
         self.assertIn('cache_readback+=(--require-verified)', source)
         self.assertIn('MAESTRO_PUBLIC_CACHE_TRANSPORT_REUSE_ENABLED PUBLICATION_CURL_WORKER_SOURCE', source)

@@ -421,7 +421,7 @@ class Diagnostics(unittest.TestCase):
             calls = Path(temp) / 'calls'
             output = Path(temp) / 'github-output'
             source.write_text(f'from pathlib import Path\nPath({str(calls)!r}).open("a").write("call\\n")\nprint(\'{{"status":"conflict","expected":{{"full":"evidence"}}}}\')\nraise SystemExit(17)\n')
-            result = subprocess.run(['bash', str(ROOT / 'modules/ci/authority/_source/publication-inspect.sh')], env=dict(
+            result = subprocess.run(['bash', str(ROOT / 'modules/release/publication/_source/publication-inspect.sh')], env=dict(
                 os.environ, PUBLICATION_DESTINATIONS_SOURCE=str(source), DECISION_PRODUCT='unused',
                 PUBLICATION_DESTINATION='cache', GITHUB_OUTPUT=str(output)), text=True, capture_output=True)
             self.assertEqual(result.returncode, 17, result.stderr)

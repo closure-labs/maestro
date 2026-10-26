@@ -18,6 +18,6 @@ in {
   packer-validate = mkCommand {
     name = "packer-validate";
     runtimeInputs = commonInputs ++ [packerXenserver pkgs.openssh];
-    source = ../../../../ci/authority/_source/packer-validate.sh;
+    source = ../_source/packer-validate.sh;
   };
 }

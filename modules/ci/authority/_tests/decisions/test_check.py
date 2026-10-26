@@ -50,7 +50,7 @@ class Checks(unittest.TestCase):
 
     def test_regular_pr_passes_without_approval(self):
         api = GitHub()
-        api.files = [{'filename': 'recipes/finite.yml', 'status': 'modified'}]
+        api.files = [{'filename': 'docs/operator.md', 'status': 'modified'}]
         api.reviews = []
         self.assertEqual(mod.check_pr(REPO, 7, BOT, github=api)['status'], 'not-required')
 
@@ -67,7 +67,7 @@ class Checks(unittest.TestCase):
         api.pr['user'] = {'type': 'User', 'login': 'maintainer'}
         with self.assertRaises(mod.authority.AuthorityError):
             mod.check_pr(REPO, 7, BOT, github=api)
-        api.files = [{'filename': 'scripts/bluebuild/security-policy.py', 'status': 'modified'}]
+        api.files = [{'filename': 'modules/ci/security/policy.nix', 'status': 'modified'}]
         self.assertEqual(mod.check_pr(REPO, 7, BOT, github=api)['status'], 'authorized')
 
     def test_exact_canonical_bot_proposal(self):
@@ -81,7 +81,7 @@ class Checks(unittest.TestCase):
 
     def test_renamed_governed_path_cannot_hide_review_requirement(self):
         api = GitHub()
-        api.files = [{'filename': 'docs/policy.txt', 'previous_filename': 'scripts/ci/decision-authority.py', 'status': 'renamed'}]
+        api.files = [{'filename': 'docs/policy.txt', 'previous_filename': 'modules/ci/authority/policy.nix', 'status': 'renamed'}]
         api.reviews = []
         with self.assertRaises(mod.authority.AuthorityError):
             mod.check_pr(REPO, 7, BOT, github=api)
@@ -133,18 +133,11 @@ class Checks(unittest.TestCase):
             mod.run_checks(REPO, 1, BOT, 999, api, post)
 
     def test_security_authority_boundary_paths(self):
-        for path in ('scripts/ci/applicability-evidence.py', 'scripts/bluebuild/future-scan-helper.py', 'flake.lock', 'flake.nix', 'cosign.pub', 'lib/mk-pkgs.nix',
-                     'lib/project-policy.nix', 'lib/secretspec.nix', 'sources/bluefin-trust.json',
-                     'sources/bluefin.pub', 'sources/cosign-runtime.json', 'secretspec.toml', 'lib/ci-tools.nix', 'lib/ci-secrets.nix',
-                     'scripts/ci/security_decisions.py', '.github/actions/setup-nix/action.yml',
-                     'scripts/bluebuild/publication.py', 'scripts/ci/release-recovery.py',
-                     'automation/github/repository-security.json'):
+        for path in ('modules/ci/inventory/future-helper.py', 'modules/features/xo/storage.nix',
+                     'modules/release/publication/commands.nix', 'host/settings.nix', 'flake.lock', 'flake.nix',
+                     'devenv.lock', 'devenv.nix', 'secretspec.toml',
+                     '.github/actions/setup-nix/action.yml', 'automation/decisions/security/fixture.json'):
             self.assertTrue(mod.governed(path), path)
-        for boundary in ('verify-security-admission.py', 'reconcile-decisions.py',
-                         'verify-attestation-subject.py', 'inventory-evidence.py'):
-            self.assertTrue(mod.governed('scripts/ci/' + boundary))
-        self.assertTrue(mod.governed('scripts/ci/decision_revocation.py'))
-        self.assertTrue(mod.governed('scripts/ci/execute-release-set.py'))
         for path in ('.gitleaks.toml', 'gitleaks.toml', '.gitleaksignore'):
             self.assertTrue(mod.governed(path), path)
         self.assertFalse(mod.governed('docs/README.md'))

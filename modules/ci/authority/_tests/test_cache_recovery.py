@@ -392,7 +392,7 @@ class RecoveryWorkflow(unittest.TestCase):
                         prefix + '--show-output ' + options + 'ci:publish; echo bypass',
                         prefix + '--show-output ' + options + 'ci:publish --extra',
                         prefix + '--show-output ' + "--option 'packages:pkgs!' curl ci:publish",
-                        'bash modules/ci/authority/_source/publish.sh'):
+                        'bash modules/release/publication/_source/publish.sh'):
             with self.subTest(command=command):
                 self.assertNotRegex(command, pattern)
 

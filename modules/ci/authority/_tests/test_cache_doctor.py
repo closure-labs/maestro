@@ -16,7 +16,7 @@ import urllib.error
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[4]
-SOURCE = ROOT / 'modules/ci/authority/_source/cache-doctor.py'
+SOURCE = ROOT / 'modules/features/development/_source/cache-doctor.py'
 sys.path.insert(0, str(ROOT / 'modules/ci/authority/_source/decisions'))
 spec = importlib.util.spec_from_file_location('cache_doctor', SOURCE)
 doctor = importlib.util.module_from_spec(spec)

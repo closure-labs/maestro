@@ -142,13 +142,13 @@ chmod +x "$temporary/bin/"*
 (
   unset MAESTRO_CI_AUDIT_MANIFEST
   PATH="$temporary/bin:$PATH" MAESTRO_SYSTEM_ROOT="$temporary" \
-    bash "$root/modules/ci/authority/_source/repository-audit.sh" --no-write-lock-file
+    bash "$root/modules/ci/checks/_source/repository-audit.sh" --no-write-lock-file
 )
 printf '%s\n' --flake "path:$temporary" --plan lib.ciPlans.x86_64-linux.validation >"$temporary/expected-args"
 cmp "$temporary/expected-args" "$temporary/runner-args"
 PATH="$temporary/bin:$PATH" MAESTRO_SYSTEM_ROOT="$temporary" \
   MAESTRO_CI_AUDIT_MANIFEST="$temporary/manifest with spaces.json" \
-  bash "$root/modules/ci/authority/_source/repository-audit.sh" --no-write-lock-file
+  bash "$root/modules/ci/checks/_source/repository-audit.sh" --no-write-lock-file
 printf '%s\n' --manifest "$temporary/manifest with spaces.json" >>"$temporary/expected-args"
 cmp "$temporary/expected-args" "$temporary/runner-args"
 printf 'Validation cache fixtures passed.\n'

@@ -13,7 +13,7 @@ import subprocess
 import tarfile
 import tempfile
 
-sys.path.insert(0, os.environ.get('MAESTRO_DECISION_CORE', str(Path(__file__).with_name('decisions'))))
+sys.path.insert(0, os.environ.get('MAESTRO_DECISION_CORE', str((Path(__file__).parent / '../../authority/_source/decisions'))))
 import operations
 import destinations
 

@@ -15,7 +15,7 @@ resolve_repo_root() {
   fi
 
   script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  candidate="$(cd "$script_dir/.." && pwd)"
+  candidate="$(cd "$script_dir/../../../../.." && pwd)"
   if [ -f "$candidate/modules/features/operator/cli/_source/lib/common.sh" ]; then
     printf '%s\n' "$candidate"
     return

@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 os.environ['PYTHONDONTWRITEBYTECODE'] = '1'
 os.environ['GITHUB_REPOSITORY'] = 'example/maestro'
-spec = importlib.util.spec_from_file_location('request', Path(__file__).resolve().parents[4] / 'modules/ci/authority/_source/release-request.py')
+spec = importlib.util.spec_from_file_location('request', Path(__file__).resolve().parents[4] / 'modules/release/publication/_source/release-request.py')
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 SOURCE = 'a' * 40
