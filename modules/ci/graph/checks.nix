@@ -50,6 +50,10 @@
           systemd.enable = true;
           prepend = ["unattributed-archive"];
         }).success;
+        assert lib.assertMsg
+        ((lib.mapAttrs (_: plan: {inherit (plan) name targets;}) plans)
+          == builtins.fromJSON (builtins.readFile ./_lib/plans.json))
+        "Generated native plan data is stale; run ci:graph:write-plans";
         assert builtins.length plans.publish.targets == 7;
         assert builtins.attrNames inputs.self.nixosConfigurations == ["maestro"];
         assert packages.distribution-inventory.qualification.system != appliance.system.build.toplevel.outPath;

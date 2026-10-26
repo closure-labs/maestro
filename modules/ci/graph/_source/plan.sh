@@ -19,6 +19,10 @@ if ! nix eval --accept-flake-config --no-write-lock-file --json \
   printf 'null\n' >"$output/candidate.json"
 fi
 args=()
+if [[ -n ${CI_PLAN:-} ]]; then
+  printf '%s\n' "$CI_PLAN" >"$output/route.json"
+  args+=(--route-plan "$output/route.json")
+fi
 if [[ $base =~ ^[0-9a-f]{40}$ ]] && git cat-file -e "$base^{commit}"; then
   mkdir -p "$work/base"
   git archive "$base" | tar -x -C "$work/base"

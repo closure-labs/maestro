@@ -13,7 +13,7 @@ esac
 export PUBLICATION_PURPOSE
 preflight_enabled=${MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED:-false}
 case $preflight_enabled in true|false) ;; *) exit 2 ;; esac
-preflight_source=${PUBLICATION_PREFLIGHT_SOURCE:-$(dirname -- "${BASH_SOURCE[0]}")/decisions/publication_preflight.py}
+preflight_source=${PUBLICATION_PREFLIGHT_SOURCE:-$(dirname -- "${BASH_SOURCE[0]}")/../../../ci/authority/_source/decisions/publication_preflight.py}
 preflight_directory=
 preflight_digest=
 metadata=
@@ -60,7 +60,7 @@ if [[ $preflight_enabled == false ]]; then
   publication_admission
 fi
 # Inspect public identities before importing or transferring any closure.
-cache_readback=("${public_environment[@]}" python3 "${PUBLICATION_DESTINATIONS_SOURCE:-$(dirname -- "${BASH_SOURCE[0]}")/decisions/destinations.py}"
+cache_readback=("${public_environment[@]}" python3 "${PUBLICATION_DESTINATIONS_SOURCE:-$(dirname -- "${BASH_SOURCE[0]}")/../../../ci/authority/_source/decisions/destinations.py}"
   cache --product "$inspection_product" --cache-url "https://maestro.cachix.org"
   --upstream-cache-url "https://cache.nixos.org" --upstream-cache-url "https://xen-orchestra-ce.cachix.org")
 if [[ ${PUBLICATION_REQUIRE_VERIFIED:-false} == true ]]; then

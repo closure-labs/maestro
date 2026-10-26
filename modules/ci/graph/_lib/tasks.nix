@@ -2,6 +2,8 @@
   inherit (import ../../../features/development/_lib/task-helpers.nix {}) withFlake runFlakePackage;
 in {
   tasks = {
+    "ci:graph:write-plans".exec = runFlakePackage "maestro-ci-graph-write-plans" "";
+    "ci:graph:equivalence".exec = runFlakePackage "maestro-ci-graph-equivalence" "";
     "ci:graph:result".exec = runFlakePackage "maestro-ci-graph-result" "";
     "ci:transport:restore-appliance".exec = runFlakePackage "maestro-ci-job-transfer" "restore appliance appliance-transfer";
     "ci:transport:restore-installer".exec = runFlakePackage "maestro-ci-job-transfer" "restore installer installer-transfer";

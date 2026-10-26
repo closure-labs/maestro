@@ -7,7 +7,7 @@
   }: {
     packages.maestro-ci-inventory-assets = pkgs.writeShellApplication {
       name = "maestro-ci-inventory-assets";
-      runtimeInputs = [ciNix pkgs.coreutils pkgs.gnugrep pkgs.jq pkgs.check-jsonschema config.packages.maestro-ci-verify-state config.packages.maestro-ci-verify-inventory config.packages.maestro-ci-security-inventory];
+      runtimeInputs = [pkgs.git ciNix pkgs.coreutils pkgs.gnugrep pkgs.jq pkgs.check-jsonschema config.packages.maestro-ci-verify-state config.packages.maestro-ci-verify-inventory config.packages.maestro-ci-security-inventory];
       text = ''
         export MAESTRO_SPDX_SCHEMA=${pkgs.fetchurl {
           url = "https://raw.githubusercontent.com/spdx/spdx-spec/v2.3/schemas/spdx-schema.json";

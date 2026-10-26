@@ -7,14 +7,19 @@
   system = "x86_64-linux";
   mkPlan = inputs.xen-orchestra-ce.lib.mkCiPlan;
   targets = config.maestro.ci.targets;
-  definitions = lib.mapAttrs (phase: plan:
-    plan
-    // {
+  definitions =
+    lib.mapAttrs (phase: name: {
+      inherit name;
       targets =
         map (target: {inherit (target) name attribute;} // lib.optionalAttrs (target.link != null) {inherit (target) link;})
         (lib.sort (a: b: a.order.${phase} < b.order.${phase})
           (lib.filter (target: builtins.elem phase target.phases) (builtins.attrValues targets)));
-    }) (builtins.fromJSON (builtins.readFile ./_lib/plans.json));
+    }) {
+      validation = "maestro-validation";
+      media = "maestro-media-qualification";
+      evidence = "maestro-evidence-qualification";
+      publish = "maestro-publish";
+    };
   validTarget = target: target ? name && target ? attribute;
   validPlan = plan: builtins.all validTarget plan.targets;
 in {

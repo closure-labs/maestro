@@ -4,7 +4,7 @@ set -euo pipefail
 : "${MAESTRO_CI_SECURITY_SCAN:?}"
 temporary=$(mktemp -d)
 trap 'rm -rf -- "$temporary"' EXIT
-mkdir -p "$temporary/bin" "$temporary/inventory" "$temporary/repo/modules/features/operator/menu/_source/frontend" "$temporary/repo/modules/ci/authority/_source"
+mkdir -p "$temporary/bin" "$temporary/inventory" "$temporary/repo/modules/features/operator/menu/_source/frontend" "$temporary/repo/modules/ci/security/_source"
 export MAESTRO_CI_PATH_PREFIX="$temporary/bin"
 export MAESTRO_SYSTEM_ROOT="$temporary/repo"
 export SECURITY_INVENTORY="$temporary/inventory"

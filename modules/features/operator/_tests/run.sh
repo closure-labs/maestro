@@ -65,7 +65,6 @@ bash -n \
   "$TEST_ROOT/modules/features/xo/_tests/xo-storage-helper.sh" \
   "$TEST_ROOT"/modules/features/xcp-ng/template/_source/scripts/*.sh
 
-bash "$TEST_ROOT/modules/features/xo/_tests/xo-storage-helper.sh"
 bash "$TEST_ROOT/modules/ci/checks/_tests/fix-nix-hashes.sh"
 bash "$TEST_ROOT/modules/ci/checks/_tests/ci-runtime-config.sh"
 
@@ -717,7 +716,7 @@ grep -Fq 'd /run/maestro-xo-cifs-credentials 0700 root root' \
   "$TEST_ROOT/modules/features/xo/storage.nix" \
   || fail "CIFS credential directory must have a root-owned parent"
 grep -q 'org\.freedesktop\.hostname1\.set-hostname' \
-  "$TEST_ROOT/modules/features/platform/nix.nix" \
+  "$TEST_ROOT/modules/features/platform/security.nix" \
   || fail "platform does not authorize DHCP hostname adoption"
 grep -q 'passwd --lock maestro' \
   "$TEST_ROOT/modules/features/xcp-ng/template/_source/scripts/seal-template.sh" \

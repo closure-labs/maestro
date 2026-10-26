@@ -32,6 +32,8 @@ def main():
     graph = json.loads(Path('ci-graph/candidate.json').read_text())
     bindings(graph, Path('ci-graph/plan.json'), os.environ.get('GRAPH_PLAN_SHA256'))
     route = json.loads(os.environ['CI_PLAN'])
+    plan = json.loads(Path('ci-graph/plan.json').read_text())
+    require(plan['decisions']['routePlanSha256'] == digest(route), 'Route differs from bound job decisions')
     boot = json.loads(Path('boot-result.json').read_text())
     require(file_digest('boot-result.json') == os.environ['BOOT_RESULT_SHA256'], 'Boot result digest mismatch')
     validate_boot(boot, graph, route, producer())
@@ -49,6 +51,9 @@ def main():
                     schedulingMode='shadow', completeValidationRequired=True)
     output = Path('ci-result.json')
     output.write_text(json.dumps(manifest, sort_keys=True, indent=2) + '\n')
+    if os.environ.get('GITHUB_OUTPUT'):
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as stream:
+            stream.write('manifest_sha256=' + file_digest(output) + '\n')
     if os.environ.get('GITHUB_STEP_SUMMARY'):
         with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as stream:
             stream.write(f"Bound release evidence to graph `{digest(graph)}`. Boot: **{boot['disposition']}**. Complete audit and fresh native scan passed.\n")

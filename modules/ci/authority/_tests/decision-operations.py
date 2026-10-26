@@ -261,6 +261,7 @@ class Operations(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             (root / 'modules/ci/authority/_source').mkdir(parents=True)
+            (root / 'modules/ci/security/_source').mkdir(parents=True)
             live = {'schema': 1, 'mode': 'official', 'revision': 'f' * 40}
             (root / 'modules/ci/security/_source/xo-handoff.json').write_text(json.dumps(live))
             identity = {'storePath': '/nix/store/' + 'a' * 32 + '-xo', 'narHash': 'sha256-' + 'A' * 43 + '='}

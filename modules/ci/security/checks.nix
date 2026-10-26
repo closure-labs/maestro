@@ -31,7 +31,8 @@
         command = ''
           PYTHONDONTWRITEBYTECODE=1 python3 ./modules/ci/security/_tests/security-inventory.py
           PYTHONDONTWRITEBYTECODE=1 python3 ./modules/ci/security/_tests/security-components.py
-          PYTHONDONTWRITEBYTECODE=1 python3 ./modules/features/xo/file-restore/_tests/file-restore.py
+          test -e ${inputs.self.checks.${system}.xo-file-restore-fixtures}
+          test -e ${inputs.self.checks.${system}.xo-storage-fixtures}
           bash ./modules/ci/security/_tests/policy-drift.sh
           bash ./modules/ci/security/_tests/security-contracts.sh
           bash ./modules/ci/security/_tests/evidence-download.sh

@@ -12,16 +12,22 @@ import common
 
 
 def expected_paths(root, include_installer=True):
+    flake_ref = f'path:{root}'
+    if os.environ.get('GITHUB_ACTIONS') == 'true' and (root / '.git').exists():
+        revision = os.environ['GITHUB_SHA']
+        common.require(common.command(['git', '-C', str(root), 'rev-parse', 'HEAD']).strip() == revision,
+                       'Qualification checkout differs from immutable candidate')
+        flake_ref = f'git+file:{root}?rev={revision}' 
     values = [common.command(['nix', 'eval', '--accept-flake-config', '--raw',
-                             f'path:{root}#nixosConfigurations.maestro.config.system.build.toplevel.outPath']).strip()]
+                             f'{flake_ref}#nixosConfigurations.maestro.config.system.build.toplevel.outPath']).strip()]
     plan = common.load_json(root / 'modules/ci/graph/_lib/plans.json')['publish']['targets']
     for target in plan:
         values.append(common.command(['nix', 'eval', '--accept-flake-config', '--raw',
-                                      f'path:{root}#{target["attribute"]}.outPath']).strip())
+                                      f'{flake_ref}#{target["attribute"]}.outPath']).strip())
     if include_installer:
         import json
         manifest = json.loads(common.command(['nix', 'eval', '--accept-flake-config', '--json',
-                                              f'path:{root}#lib.ciInstallerQualification.x86_64-linux']))
+                                              f'{flake_ref}#lib.ciInstallerQualification.x86_64-linux']))
         values.extend(manifest['roots'].values())
     return set(values)
 

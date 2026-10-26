@@ -28,6 +28,7 @@
     checks = {
       packer-policy = mkSourceCheck {
         name = "packer-policy";
+        exportCommands = false;
         source = lib.fileset.toSource {
           root = ../../../..;
           fileset = lib.fileset.unions [./_source ./_source/packer-validate.sh];

@@ -49,8 +49,9 @@ def prepare(native, root, revision, run, attempt, workflow, now=None):
         "scannedAt": scanned.isoformat(), "expiresAt": (scanned + dt.timedelta(hours=24)).isoformat(),
         "profiles": {"maestro": native},
     }
+    flake_ref = f"git+file:{root}?rev={revision}" if (root / '.git').exists() else f"path:{root}"
     primary = command("nix", "eval", "--accept-flake-config", "--raw",
-                      f"path:{root}#nixosConfigurations.maestro.config.system.build.toplevel.outPath")
+                      f"{flake_ref}#nixosConfigurations.maestro.config.system.build.toplevel.outPath")
     identities = {subject["storePath"]: subject for subject in native["subjects"]}
     if primary not in identities:
         raise ValueError("The appliance root is absent from scanned subjects")
@@ -58,12 +59,12 @@ def prepare(native, root, revision, run, attempt, workflow, now=None):
     targets = json.loads((root / "modules/ci/graph/_lib/plans.json").read_text())["publish"]["targets"]
     for target in targets:
         path = command("nix", "eval", "--accept-flake-config", "--raw",
-                       f"path:{root}#{target['attribute']}.outPath")
+                       f"{flake_ref}#{target['attribute']}.outPath")
         if path not in identities:
             raise ValueError("A distribution root is absent from the native inventory")
         roots[target["name"]] = {**identities[path], "profile": "maestro"}
     qualification = json.loads(command("nix", "eval", "--accept-flake-config", "--json",
-                                      f"path:{root}#lib.ciInstallerQualification.x86_64-linux"))
+                                      f"{flake_ref}#lib.ciInstallerQualification.x86_64-linux"))
     coverage = native.get("coverage", {})
     if coverage.get("contract") != "maestro-distribution-v2" or coverage.get("manifest") != qualification:
         raise ValueError("Native installer coverage differs from evaluated qualification manifest")

@@ -63,7 +63,7 @@
       # feature modules; the migrated automation names keep native wrappers.
       ok =
         lib.hasInfix "/${script}" automationDefinition
-        || builtins.elem script ["build.sh" "bootstrap.sh" "bootstrap-key.sh" "install-maestro.sh" "deploy-template.sh" "plan.sh" "nix.sh" "assets.sh"];
+        || builtins.elem script ["build.sh" "bootstrap.sh" "bootstrap-key.sh" "install-maestro.sh" "deploy-template.sh" "plan.sh" "nix.sh" "assets.sh" "equivalence.sh" "write-plans.sh"];
       message = "${directory}/${script} must be wrapped by its owning native package";
     })
     names)

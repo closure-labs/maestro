@@ -10,6 +10,8 @@ if [[ -z "$repo_root" ]]; then
   repo_root=$(git rev-parse --show-toplevel)
 fi
 cd "$repo_root"
+[[ $(git rev-parse HEAD) == "${GITHUB_SHA:?}" ]]
+flake_ref="git+file:$repo_root?rev=$GITHUB_SHA"
 runner_temp=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
 diagnostics="$runner_temp/maestro-qualification-diagnostics"
 mkdir -p "$diagnostics"
@@ -37,7 +39,7 @@ trap cleanup EXIT
 
 
 manifest=appliance-transfer/evidence.json
-xo_out=$(nix eval --accept-flake-config --raw .#packages.x86_64-linux.xen-orchestra-ce.outPath)
+xo_out=$(nix eval --accept-flake-config --raw "$flake_ref#packages.x86_64-linux.xen-orchestra-ce.outPath")
 sbomnix_out=$(jq -er '.results[] | select(.name == "sbomnix") | .outputs | select(length == 1) | .[0]' "$manifest")
 manifest_xo_out=$(jq -er '.results[] | select(.name == "xen-orchestra-ce") | .outputs | select(length == 1) | .[0]' "$manifest")
 [[ "$manifest_xo_out" == "$xo_out" ]]
@@ -78,7 +80,7 @@ else
   sbom_work=$(mktemp -d "${runner_temp}/maestro-sbom.XXXXXX")
   (
     cd "$sbom_work"
-    "$sbomnix_out/bin/sbomnix" "path:${repo_root}#packages.x86_64-linux.distribution-inventory"
+    "$sbomnix_out/bin/sbomnix" "$flake_ref#packages.x86_64-linux.distribution-inventory"
   )
   mv "$sbom_work/sbom.spdx.json" maestro-system.spdx.json
   mv "$sbom_work/sbom.cdx.json" maestro-system.cdx.json
