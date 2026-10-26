@@ -71,8 +71,10 @@ def main():
         evidence = 'verified-retained-complete'
     elif Path('ci-result.json').is_file():
         evidence = json.loads(Path('ci-result.json').read_text())['boot']['disposition']
+    comparison_path = Path('ci-comparison/comparison.json')
+    comparison = json.loads(comparison_path.read_text()) if comparison_path.is_file() else None
     result = dict(schemaVersion=1, candidateRevision=os.environ['GITHUB_SHA'], runId=run, runAttempt=attempt,
-                  jobs=jobs, nixActivities=native, graph=graph, authorityClaim=False,
+                  jobs=jobs, nixActivities=native, graph=graph, validationComparison=comparison, authorityClaim=False,
                   timingDiagnosticError=error, bootEvidenceDisposition=evidence)
     Path('ci-summary.json').write_text(json.dumps(result, sort_keys=True, indent=2)+'\n')
     if os.environ.get('GITHUB_STEP_SUMMARY'):
@@ -83,6 +85,12 @@ def main():
                 out.write(f"| {row['name']} | {row['conclusion'] or row['status']} | {row['elapsedSeconds']}{suffix} |\n")
             out.write(f"\nBoot evidence disposition: **{evidence}**. Timing API diagnostic: {error or 'available'}.\n")
             out.write(f"\nObserved source-build derivations: {len(native['buildDerivationsObserved'])}; substitution paths: {len(native['substitutionPathsObserved'])}. Failed or incomplete traces: {native['incompleteOrFailedTraceCount']}. Raw events and native realization manifests are retained. Skipped execution is never counted as a new test.\n")
+            if comparison:
+                observations = comparison['nixActivities']
+                out.write(f"\nSame-candidate audit comparison: **{comparison['status']}**, "
+                          f"{comparison['targetCount']} exact obligations; graph-run native builds: "
+                          f"{len(observations['buildDerivationsObserved'])}; substitution paths: "
+                          f"{len(observations['substitutionPathsObserved'])}. Selective media scheduling remains disabled.\n")
             if graph:
                 out.write(f"\nGraph mode: **{graph['mode']}**. Changed derivations: {len(graph['changedDerivations'])}; equal derivations: {len(graph['equalDerivations'])}. Fallback: {', '.join(graph['fallbackReasons']) or 'none'}.\n")
 

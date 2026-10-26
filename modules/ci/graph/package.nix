@@ -30,7 +30,18 @@
         nativeBuildInputs = [pkgs.python3 pkgs.bash pkgs.coreutils pkgs.jq];
         source = lib.fileset.toSource {
           root = ./.;
-          fileset = lib.fileset.unions [./_source ./_tests/test_graph.py ./_tests/test_results.py ./_tests/test_verdict.py ./_tests/test_summary.py];
+          fileset = lib.fileset.unions [
+            ./_source/graph.py
+            ./_source/result.py
+            ./_source/transfer.py
+            ./_source/summary.py
+            ./_source/comparison.py
+            ./_tests/test_graph.py
+            ./_tests/test_results.py
+            ./_tests/test_verdict.py
+            ./_tests/test_summary.py
+            ./_tests/test_comparison.py
+          ];
         };
       } ''
         export PYTHONDONTWRITEBYTECODE=1

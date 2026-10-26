@@ -2,7 +2,8 @@
 
 The migration starts from protected main `d07995fec748a4e1cea456e3e8b4f2558e937573`.
 The original workspace remains untouched; implementation lives in the isolated
-`maestroden` jj workspace and draft PR [#170](https://github.com/closure-labs/maestro/pull/170).
+`maestroden` jj workspace and draft PR [#171](https://github.com/closure-labs/maestro/pull/171), authored by
+`cl-decider[bot]`. It supersedes the Dale-authored #170 so Dale can review.
 
 Graph gating is disabled in the exported graph and the pure planner. Complete
 validation remains authoritative. The existing route-plan v3/v4 and historical
@@ -103,3 +104,41 @@ as changes to the explicit verifier/policy source hashes. Full end-to-end
 verification of that final checkpoint is pending. Graph gating remains disabled;
 there is no same-candidate full-versus-graph scheduling comparison yet, and the
 measured transport cost must be included in that comparison.
+
+The [40377085629 full checkpoint](https://github.com/closure-labs/maestro/actions/runs/40377085629)
+passed all planned jobs and **Required CI verdict** on immutable merge candidate
+`db6178114f6264b36d80bc585170eff35c32a826`: all 20 audit obligations, effective
+policy/public-interface equivalence, appliance/standalone and ISO builds,
+inventory, an executed QEMU boot, current-database scanning and complete bound
+release evidence. CodeQL passed independently. The summary recorded 247 distinct
+build-derivation activities, 1,806 substitution paths and zero incomplete/failed
+traces. Those observations do not count reused derivations as newly run tests.
+
+| Job | Seconds |
+| --- | ---: |
+| Plan CI | 314 |
+| Repository checks | 637 |
+| Equivalence and mutation checks | 414 |
+| Build appliance | 526 |
+| Build installer ISO | 524 |
+| Generate release inventory | 1054 |
+| Test installer boot | 195 |
+| Scan release outputs | 494 |
+| Verify release evidence | 179 |
+| Required CI verdict | 164 |
+
+Concurrent durations are not additive. This full run is the completed migration
+baseline; it was not a full-versus-selective scheduling experiment.
+
+The continuation adds a separate, same-attempt audit comparison: first bind the
+complete audit manifest and timings, then re-evaluate the identical candidate and
+realize all 20 validation derivations directly from its graph on a separate
+runner. `maestro-ci-comparison` retains raw traces, full/graph timings and exact
+output-identity comparisons; `maestro-ci-comparison-binding` contains the small
+producer-bound receipt used by release evidence and the required verdict.
+Hosted acceptance of this new comparison is pending. It does not authorize
+selective media/inventory/boot reuse, so graph gating remains disabled.
+
+Continuation fixtures: 24 graph/result/verdict/comparison cases pass within a
+512 MiB address-space limit; all 291 authority cases pass. ShellCheck, modified
+Nix syntax and workflow syntax checks pass locally without full Nix evaluation.

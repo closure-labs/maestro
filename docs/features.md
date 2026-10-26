@@ -53,6 +53,8 @@ databases and live review authority remain separate obligations.
 flowchart TD
   P[Plan CI] --> R[Repository checks]
   P --> A[Build appliance]
+  R --> C[Compare complete and graph-driven validation]
+  C --> V
   A --> I[Build installer ISO]
   I --> N[Generate release inventory]
   N --> B[Test installer boot]
@@ -89,7 +91,24 @@ existing input pins when the immutable base predates the graph. Subsequent
 policy and dependency updates retain observed differences and run normal
 qualification; the migration does not freeze appliance policy forever.
 
+The hosted comparison job follows the complete audit on the same immutable
+candidate. A producer-bound reference authenticates the full audit and its raw
+per-target timings. On a separate runner, the comparison re-evaluates the graph,
+checks native derivation recipes and realizes every validation `.drv` directly
+in graph dependency order. It compares all 20 output identities and records
+native build/substitution observations and timings; no obligation is omitted.
+Missing results, conflicting outputs, changed producers and interrupted runs
+cannot produce a matching comparison receipt. The required verdict and release
+evidence require the successful, digest-bound receipt. Existing result readers
+remain compatible with the additive comparison binding.
+
+The qualification-input fixture uses only its own test source and packaged
+resolver. The boot verifier's Python path contains only the graph and transfer
+helpers it imports; unrelated graph diagnostics do not invalidate boot evidence.
+
 Graph scheduling is **disabled**. Hosted complete validation, mutation/equivalence
 checks and same-candidate comparisons must pass before any future enablement.
+The complete-audit comparison proves exact validation routing; it does not
+prove selective media/evidence reuse or authorize omitting a job.
 See [migration evidence](maestroden-evidence.md) for raw run links and remaining
 comparison status. No speedup is assumed from the new job boundaries.

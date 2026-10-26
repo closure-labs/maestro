@@ -22,6 +22,12 @@ correspond to published GitHub tags.
   evidence readers. Graph scheduling remains in shadow mode pending hosted
   comparison; equal derivations alone never authorize skipping a test.
 
+- Compare the complete audit against independent, exact graph-derived
+  realizations on the same candidate and workflow attempt. Bind comparison
+  receipts into release evidence and the required verdict while selective
+  scheduling remains disabled. Narrow qualification and boot-verifier sources
+  to their actual dependencies.
+
 - Automatically admit pending CI for draft and ready PRs from the pinned Decider
   bot or live Super Admins, without granting review, merge or publication authority.
 

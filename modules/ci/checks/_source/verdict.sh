@@ -16,6 +16,9 @@ if [[ ${GRAPH_RESULT_REQUIRED:-false} == true || -n ${CI_RESULT_SHA256:-} ]]; th
 fi
 
 test "${ROUTE_RESULT:?}" = success
+if [[ ${COMPARISON_REQUIRED:-false} == true ]]; then
+  [[ ${COMPARISON_RESULT:?} == success ]]
+fi
 if [[ ${AUDIT_REQUIRED:-false} == true ]]; then
   [[ ${AUDIT_RESULT:?} == success && ${EQUIVALENCE_RESULT:?} == success ]]
 else

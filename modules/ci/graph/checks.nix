@@ -10,16 +10,6 @@
   }: let
     packages = inputs.self.packages.${system};
     appliance = inputs.self.nixosConfigurations.maestro.config;
-    fixtureInputs = [
-      pkgs.bash
-      pkgs.coreutils
-      pkgs.findutils
-      pkgs.git
-      pkgs.gnugrep
-      pkgs.gnused
-      pkgs.jq
-    ];
-    mkSourceCheck = import ../checks/_lib/source-check.nix {inherit pkgs lib inputs packages fixtureInputs;};
   in {
     checks = {
       ci-plan-contract = let
@@ -80,10 +70,18 @@
             touch "$out"
           '';
 
-      qualification-input-fixtures = mkSourceCheck {
-        name = "qualification-input-fixtures";
-        command = "bash ./modules/ci/graph/_tests/qualification-inputs.sh";
-      };
+      qualification-input-fixtures =
+        pkgs.runCommandLocal "maestro-qualification-input-fixtures" {
+          nativeBuildInputs = [pkgs.bash pkgs.coreutils pkgs.gnused pkgs.jq];
+          source = lib.fileset.toSource {
+            root = ./.;
+            fileset = ./_tests/qualification-inputs.sh;
+          };
+        } ''
+          export MAESTRO_CI_QUALIFICATION_INPUTS=${lib.getExe packages.maestro-ci-qualification-inputs}
+          bash "$source/_tests/qualification-inputs.sh"
+          touch "$out"
+        '';
     };
   };
 }

@@ -126,10 +126,13 @@ jobs:
   audit:
     name: Repository checks
     needs: route
+    outputs:
+      reference_sha256: ${{ steps.reference.outputs.manifest_sha256 }}
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     permissions:
       contents: read
+      actions: read
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -137,12 +140,24 @@ jobs:
           persist-credentials: false
       - name: Set up Nix
         uses: $/.github/actions/setup-nix
+      - name: Download candidate graph for full-audit binding
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: maestro-ci-graph
+          path: ci-graph
       - name: Validate repository
         env:
           MAESTRO_CI_AUDIT_MANIFEST: ${{ runner.temp }}/maestro-audit/audit.json
           MAESTRO_CI_AUDIT_TIMINGS: ${{ runner.temp }}/maestro-audit/timings.json
           MAESTRO_NIX_EVENTS_DIR: ${{ runner.temp }}/maestro-audit/nix-events
         run: nix run --accept-flake-config .#devenv -- tasks run --option 'packages:pkgs!' '' ci:repository-audit
+
+      - name: Bind complete audit reference to this candidate and attempt
+        id: reference
+        env:
+          GRAPH_PLAN_SHA256: ${{ needs.route.outputs.graph_sha256 }}
+          MAESTRO_AUDIT_DIRECTORY: ${{ runner.temp }}/maestro-audit
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:graph:reference
 
       - name: Retain native audit manifest and timings
         if: always()
@@ -152,6 +167,55 @@ jobs:
           path: ${{ runner.temp }}/maestro-audit/
           if-no-files-found: ignore
           retention-days: 30
+
+  comparison:
+    name: Compare complete and graph-driven validation
+    needs: [route, audit]
+    outputs:
+      result_sha256: ${{ steps.compare.outputs.manifest_sha256 }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout immutable candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Nix
+        uses: $/.github/actions/setup-nix
+      - name: Download candidate graph
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: maestro-ci-graph
+          path: ci-graph
+      - name: Download bound complete-audit reference
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: maestro-audit-audit
+          path: complete-audit
+      - name: Realize exact graph obligations and compare complete-audit results
+        id: compare
+        env:
+          GRAPH_PLAN_SHA256: ${{ needs.route.outputs.graph_sha256 }}
+          AUDIT_REFERENCE_SHA256: ${{ needs.audit.outputs.reference_sha256 }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:graph:compare
+      - name: Retain bound comparison result
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-ci-comparison-binding
+          path: ci-comparison/comparison.json
+          if-no-files-found: error
+          retention-days: 90
+      - name: Retain raw same-candidate comparison
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-ci-comparison
+          path: ci-comparison/
+          if-no-files-found: error
+          retention-days: 90
 
   equivalence:
     name: Check appliance equivalence and derivation propagation
@@ -730,12 +794,12 @@ jobs:
 
   security:
     name: Verify release evidence
-    needs: [route, audit, equivalence, retained, qualification, boot, scan]
+    needs: [route, audit, comparison, equivalence, retained, qualification, boot, scan]
     if: >-
       !cancelled() && needs.route.result == 'success' &&
       fromJSON(needs.route.outputs.plan).qualification.required && needs.retained.outputs.reused != 'true' &&
       (vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED != 'true' || contains(fromJSON('["success","skipped"]'), needs.retained.result)) &&
-      needs.equivalence.result == 'success' && needs.audit.result == 'success' && needs.qualification.result == 'success' && needs.boot.result == 'success' && needs.scan.result == 'success'
+      needs.equivalence.result == 'success' && needs.audit.result == 'success' && needs.comparison.result == 'success' && needs.qualification.result == 'success' && needs.boot.result == 'success' && needs.scan.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -775,6 +839,11 @@ jobs:
         with:
           name: maestro-ci-graph
           path: ci-graph
+      - name: Download bound same-candidate comparison
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: maestro-ci-comparison-binding
+          path: ci-comparison
       - name: Bind complete graph and release results
         id: bound_result
         env:
@@ -783,6 +852,8 @@ jobs:
           BOOT_RESULT_SHA256: ${{ needs.boot.outputs.manifest_sha256 }}
           INVENTORY_TRANSFER_SHA256: ${{ needs.qualification.outputs.manifest_sha256 }}
           AUDIT_RESULT: ${{ needs.audit.result }}
+          COMPARISON_RESULT: ${{ needs.comparison.result }}
+          COMPARISON_SHA256: ${{ needs.comparison.outputs.result_sha256 }}
           QUALIFICATION_RESULT: ${{ needs.qualification.result }}
           SCAN_RESULT: ${{ needs.scan.result }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:graph:result
@@ -919,6 +990,7 @@ jobs:
       - route
       - audit
       - equivalence
+      - comparison
       - retained
       - qualification
       - appliance
@@ -952,6 +1024,8 @@ jobs:
       - name: Enforce the conditional CI graph
         env:
           AUDIT_REQUIRED: true
+          COMPARISON_REQUIRED: true
+          COMPARISON_RESULT: ${{ needs.comparison.result }}
           VALIDATE_ONLY: ${{ inputs.validate_only || false }}
           FORCE_BUILD: ${{ (github.event_name == 'schedule' || inputs.force_artifact == true) && 'true' || 'false' }}
           FORCE_ARTIFACT: ${{ inputs.force_artifact || false }}
@@ -994,6 +1068,12 @@ jobs:
         with:
           name: maestro-ci-graph
           path: ci-graph
+      - name: Download same-candidate comparison diagnostics
+        if: always() && needs.comparison.result == 'success'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: maestro-ci-comparison-binding
+          path: ci-comparison
       - name: Summarize observed work and durations
         if: always()
         env:

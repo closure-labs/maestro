@@ -23,7 +23,7 @@ def route(mode):
 class VerdictTests(unittest.TestCase):
     def execute(self, mode='qualify-media', **changes):
         env = dict(os.environ, ROUTE_RESULT='success', AUDIT_REQUIRED='true', AUDIT_RESULT='success',
-                   EQUIVALENCE_RESULT='success', SPLIT_QUALIFICATION='true', CI_PLAN=json.dumps(route(mode)),
+                   EQUIVALENCE_RESULT='success', COMPARISON_REQUIRED='true', COMPARISON_RESULT='success', SPLIT_QUALIFICATION='true', CI_PLAN=json.dumps(route(mode)),
                    GITHUB_EVENT_NAME='pull_request', GITHUB_REF='refs/pull/1/merge', GITHUB_SHA='c' * 40,
                    GITHUB_REPOSITORY='closure-labs/maestro', GITHUB_RUN_ID='1', GITHUB_RUN_ATTEMPT='1', MAESTRO_DECISION_ONLY_REUSE_ENABLED='false',
                    APPLIANCE_RESULT='success', INSTALLER_RESULT='success', QUALIFICATION_RESULT='success',
@@ -54,7 +54,7 @@ class VerdictTests(unittest.TestCase):
                 self.assertEqual(self.execute(mode), 0)
 
     def test_missing_interrupted_or_unjustified_skips_rejected(self):
-        for key in ('ROUTE_RESULT', 'AUDIT_RESULT', 'EQUIVALENCE_RESULT', 'APPLIANCE_RESULT', 'INSTALLER_RESULT',
+        for key in ('ROUTE_RESULT', 'AUDIT_RESULT', 'EQUIVALENCE_RESULT', 'COMPARISON_RESULT', 'APPLIANCE_RESULT', 'INSTALLER_RESULT',
                     'QUALIFICATION_RESULT', 'BOOT_RESULT', 'SCAN_RESULT', 'SECURITY_RESULT'):
             for status in ('', 'failure', 'cancelled', 'skipped'):
                 with self.subTest(key=key, status=status):
