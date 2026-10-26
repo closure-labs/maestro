@@ -64,6 +64,7 @@ in {
     };
     policy = {
       boot = import ../../features/installer/_lib/boot-policy.nix;
+      bootVerifier = inputs.self.packages.${system}.maestro-ci-boot-evidence.drvPath;
       bootCommand = builtins.hashFile "sha256" ../../features/installer/_source/boot-media.sh;
       scanner = inputs.self.packages.${system}.maestro-ci-security-scan.drvPath;
       authorityVerifier = inputs.self.packages.${system}.maestro-ci-decision-admission.drvPath;
@@ -82,6 +83,8 @@ in {
   # exact output requested by the current source tree.
   flake.lib.ciQualificationInputs.${system} = {
     media = {
+      bootExecution = inputs.self.packages.${system}.maestro-ci-boot-media.drvPath;
+      bootVerifier = inputs.self.packages.${system}.maestro-ci-boot-evidence.drvPath;
       dependencies = {
         # Exact evaluated media captures every material recipe/input change.
         # Source-only edits elsewhere in packages.nix must not rebuild an ISO.
