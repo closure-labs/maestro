@@ -380,10 +380,20 @@ for event in push merge_group workflow_dispatch; do
 done
 [[ $(route_mode "$baseline_graph" pull_request example/maestro) == reuse ]]
 [[ $(route_mode "$baseline_graph" schedule '') == qualify-media ]]
-if route_mode "$baseline_graph" unknown-event ''; then
+# Keep the expected schema rejection out of GitHub's live error annotations,
+# while proving this failed for the intended event-boundary reason.
+unknown_event_log="$temporary/unknown-event.log"
+if route_mode "$baseline_graph" unknown-event '' 2>"$unknown_event_log"; then
+  cat "$unknown_event_log" >&2
   echo 'CI routing accepted an unknown producer event.' >&2
   exit 1
 fi
+if ! grep -Fq "'unknown-event' is not one of" "$unknown_event_log"; then
+  cat "$unknown_event_log" >&2
+  echo 'Unknown-event fixture failed without the expected schema rejection.' >&2
+  exit 1
+fi
+printf 'Unsupported producer event rejected as expected.\n'
 [[ $(route_mode "$baseline_graph" pull_request '') == qualify-media ]]
 [[ $(route_mode "$baseline_graph" merge_group '' true) == qualify-media ]]
 [[ $(route_mode "$baseline_graph" workflow_dispatch '' true) == qualify-media ]]

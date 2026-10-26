@@ -59,6 +59,9 @@ correspond to published GitHub tags.
 
 ### Fixed
 
+- Capture the expected unknown-event rejection in CI routing fixtures so passing
+  negative tests do not emit misleading live schema-error annotations.
+
 - Group small release assets into bounded uploads with fresh authority checks
   per batch and before publication. Renew scoped tokens before asset and
   completion work, and retain safe HTTP status diagnostics for authority failures.
