@@ -1,6 +1,6 @@
 {...}: {
   perSystem = {pkgs, ...}: {
-    metadata = pkgs.stdenv.mkDerivation {
+    packages.metadata = pkgs.stdenv.mkDerivation {
       pname = "maestro-metadata";
       version = "3.1.0";
       dontUnpack = true;

@@ -49,7 +49,7 @@ permissions:
 
 jobs:
   route:
-    name: Audit repository and route downstream work
+    name: Plan CI
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     permissions:
@@ -58,6 +58,7 @@ jobs:
       contents: read
     outputs:
       plan: ${{ steps.plan.outputs.plan }}
+      graph_sha256: ${{ steps.graph.outputs.manifest_sha256 }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -85,21 +86,23 @@ jobs:
           VALIDATE_ONLY: ${{ inputs.validate_only || false }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:route
 
-      - name: Validate repository
+      - name: Compare immutable derivation graphs in shadow mode
+        id: graph
         env:
-          MAESTRO_CI_AUDIT_MANIFEST: ${{ runner.temp }}/maestro-audit/audit.json
-          MAESTRO_CI_AUDIT_TIMINGS: ${{ runner.temp }}/maestro-audit/timings.json
-        if: github.event_name != 'workflow_dispatch' || inputs.audit_overlap != true
-        run: nix run --accept-flake-config .#devenv -- tasks run --option 'packages:pkgs!' '' ci:repository-audit
+          MERGE_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BASE_SHA: ${{ github.event.before }}
+          FORCE_BUILD: ${{ (github.event_name == 'schedule' || inputs.force_artifact == true) && 'true' || 'false' }}
+          GRAPH_FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'true' || 'false' }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:graph:plan
 
-      - name: Retain native audit manifest and timings
-        if: always()
+      - name: Retain bound derivation graph and shadow routing plan
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: maestro-audit-${{ github.job }}
-          path: ${{ runner.temp }}/maestro-audit/
-          if-no-files-found: ignore
-          retention-days: 30
+          name: maestro-ci-graph
+          path: ci-graph/
+          if-no-files-found: error
+          retention-days: 90
 
       - name: Retain decision-only structural eligibility
         if: always()
@@ -120,9 +123,8 @@ jobs:
           retention-days: 90
 
   audit:
-    name: Pilot overlapping repository audit
+    name: Repository checks
     needs: route
-    if: github.event_name == 'workflow_dispatch' && inputs.audit_overlap == true
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     permissions:
@@ -433,8 +435,7 @@ jobs:
     needs: [route, audit, qualification, security]
     if: >-
       !cancelled() && needs.route.result == 'success' && needs.security.result == 'success' &&
-      ((github.event_name == 'workflow_dispatch' && inputs.audit_overlap == true && needs.audit.result == 'success') ||
-       ((github.event_name != 'workflow_dispatch' || inputs.audit_overlap != true) && needs.audit.result == 'skipped')) &&
+      needs.audit.result == 'success' &&
       github.ref == 'refs/heads/main' &&
       contains(fromJSON('["push","schedule","workflow_dispatch"]'), github.event_name) &&
       fromJSON(needs.route.outputs.plan).qualification.required &&
@@ -549,7 +550,7 @@ jobs:
 
       - name: Enforce the conditional CI graph
         env:
-          AUDIT_OVERLAP: ${{ github.event_name == 'workflow_dispatch' && inputs.audit_overlap == true && 'true' || 'false' }}
+          AUDIT_REQUIRED: true
           AUDIT_RESULT: ${{ needs.audit.result }}
           SECURITY_RESULT: ${{ needs.security.result }}
           SIGNING_RESULT: ${{ needs.signing.result }}

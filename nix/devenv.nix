@@ -27,6 +27,8 @@ in {
   ];
 
   tasks = {
+    "ci:graph:plan".exec = runFlakePackage "maestro-ci-graph-plan" "";
+    "flake:write".exec = runFlakePackage "write-flake" "";
     "cache:doctor".exec = runFlakePackage "maestro-ci-cache-doctor" "";
     "ci:codeql:rust-toolchain".exec = runFlakePackage "maestro-ci-codeql-rust-toolchain" "";
     "ci:qualification:restore".exec = runFlakePackage "maestro-ci-qualification-restore" "";

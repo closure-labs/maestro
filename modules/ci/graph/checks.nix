@@ -75,6 +75,8 @@
               (.publish.name == "maestro-publish") and
               (.publish.targets | length == 7)
             ' plans.json >/dev/null
+            test -e ${inputs.self.checks.${system}.check-flake-file}
+            test -e ${inputs.self.checks.${system}.ci-graph-fixtures}
             touch "$out"
           '';
 
