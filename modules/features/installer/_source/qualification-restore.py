@@ -17,7 +17,7 @@ def expected_paths(root, include_installer=True):
         revision = os.environ['GITHUB_SHA']
         common.require(common.command(['git', '-C', str(root), 'rev-parse', 'HEAD']).strip() == revision,
                        'Qualification checkout differs from immutable candidate')
-        flake_ref = f'git+file:{root}?rev={revision}' 
+        flake_ref = f'git+file:{root}?shallow=1&rev={revision}' 
     values = [common.command(['nix', 'eval', '--accept-flake-config', '--raw',
                              f'{flake_ref}#nixosConfigurations.maestro.config.system.build.toplevel.outPath']).strip()]
     plan = common.load_json(root / 'modules/ci/graph/_lib/plans.json')['publish']['targets']

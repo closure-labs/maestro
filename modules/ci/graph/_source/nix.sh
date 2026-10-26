@@ -14,4 +14,16 @@ else
   nix_bin=@fallback@/$nix_command
 fi
 [[ -x $nix_bin ]] || { echo "Missing Nix companion executable: $nix_bin" >&2; exit 1; }
+if [[ $nix_command == nix && -n ${MAESTRO_NIX_EVENTS_DIR:-} ]]; then
+  mkdir -p "$MAESTRO_NIX_EVENTS_DIR"
+  events=$(mktemp "$MAESTRO_NIX_EVENTS_DIR/nix.XXXXXX.jsonl")
+  if "$nix_bin" --log-format internal-json "$@" 2> >(tee "$events" >&2); then
+    status=0
+  else
+    status=$?
+  fi
+  wait
+  printf '{"exitCode":%s}\n' "$status" >"$events.result.json"
+  exit "$status"
+fi
 exec "$nix_bin" "$@"

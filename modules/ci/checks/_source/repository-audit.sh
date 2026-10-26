@@ -16,7 +16,7 @@ fi
 
 flake_ref="path:$repo_root"
 if git -C "$repo_root" rev-parse --show-toplevel >/dev/null 2>&1; then
-  flake_ref="git+file:$repo_root"
+  flake_ref="git+file:$repo_root?shallow=1"
 fi
 
 audit_started=$(date +%s)

@@ -37,6 +37,14 @@ if [[ $base =~ ^[0-9a-f]{40}$ ]] && git cat-file -e "$base^{commit}"; then
 fi
 [[ ${FORCE_BUILD:-false} != true ]] || args+=(--force)
 [[ ${GRAPH_FORK:-false} != true ]] || args+=(--fork)
+if [[ $(jq -r '.schemaVersion // 0' "$output/candidate.json") == 1 ]]; then
+  mapfile -t derivations < <(jq -r '.targets[].derivation' "$output/candidate.json" | sort -u)
+  nix derivation show "${derivations[@]}" | jq '
+    (if has("derivations") then
+      if .version == 4 then .derivations else error("Unknown derivation JSON envelope") end
+    else . end) | with_entries(.value |= {outputs,inputDrvs:(if .version == 4 then .inputs.drvs else .inputDrvs end)})' >"$output/derivations.json"
+  args+=(--derivations "$output/derivations.json")
+fi
 maestro-ci-graph "$output/candidate.json" --revision "$candidate" "${args[@]}" >"$output/plan.json"
 maestro-ci-graph "$output/candidate.json" --ownership >"$output/ownership.md" || printf 'Graph unavailable; complete validation required.\n' >"$output/ownership.md"
 # This output authenticates the graph artifact within this workflow attempt.

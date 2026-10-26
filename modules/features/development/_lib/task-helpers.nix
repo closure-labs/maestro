@@ -5,7 +5,7 @@
   withFlake = command: ''
     flake_ref="path:$DEVENV_ROOT"
     if git -C "$DEVENV_ROOT" rev-parse --show-toplevel >/dev/null 2>&1; then
-      flake_ref="git+file:$DEVENV_ROOT"
+      flake_ref="git+file:$DEVENV_ROOT?shallow=1"
     fi
     ${command}
   '';

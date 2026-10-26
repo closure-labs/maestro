@@ -14,16 +14,6 @@
     managementCIDRType = inputs.self.nixosConfigurations.maestro.options.maestro.operator.managementCIDRs.type.nestedTypes.elemType;
     xoConfigFeatures = ["http" "redis" "remotes" "web"];
     xoConfigFragments = appliance.maestro.xo.internal.configFragments;
-    fixtureInputs = [
-      pkgs.bash
-      pkgs.coreutils
-      pkgs.findutils
-      pkgs.git
-      pkgs.gnugrep
-      pkgs.gnused
-      pkgs.jq
-    ];
-    mkSourceCheck = import ../../ci/checks/_lib/source-check.nix {inherit pkgs lib inputs packages fixtureInputs;};
   in {
     checks = {
       configuration = assert inputs.self.lib.ciQualificationInputs.${system}.media.dependencies.applianceToplevel == appliance.system.build.toplevel.outPath;

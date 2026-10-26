@@ -16,8 +16,10 @@ def main():
     graph = json.loads(Path('ci-graph/candidate.json').read_text())
     bindings(graph, Path('ci-graph/plan.json'), os.environ.get('GRAPH_PLAN_SHA256'))
     mode = os.environ['QUALIFICATION_MODE']
-    policy = hashlib.sha256(Path(os.environ['MAESTRO_BOOT_VERIFIER']).read_bytes()).hexdigest()
-    require(graph['policy']['boot'] == policy, 'Changed boot verifier')
+    command_policy = hashlib.sha256(Path(os.environ['MAESTRO_BOOT_VERIFIER']).read_bytes()).hexdigest()
+    require(graph['policy']['bootCommand'] == command_policy, 'Changed boot execution policy')
+    policy = os.environ['MAESTRO_BOOT_POLICY_SHA256']
+    require(graph['policy']['boot'] == policy, 'Changed boot evidence verifier')
     if mode in ('qualify-media', 'qualify-media-reuse-evidence'):
         disposition = 'executed'
         iso = Path('result-installer/iso/maestro-installer.iso')

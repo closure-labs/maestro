@@ -34,7 +34,8 @@ class VerdictTests(unittest.TestCase):
         if mode == 'refresh-evidence':
             env['INSTALLER_RESULT'] = 'skipped'
         if mode == 'skip':
-            env.update(QUALIFICATION_RESULT='skipped', BOOT_RESULT='skipped', SCAN_RESULT='skipped', SECURITY_RESULT='skipped')
+            env.update(QUALIFICATION_RESULT='skipped', BOOT_RESULT='skipped', SCAN_RESULT='skipped', SECURITY_RESULT='skipped',
+                       GITHUB_EVENT_NAME='workflow_dispatch', VALIDATE_ONLY='true')
         env.update(changes)
         with tempfile.TemporaryDirectory() as work:
             if 'CI_RESULT_SHA256' in changes and changes['CI_RESULT_SHA256'] != 'missing':
@@ -58,6 +59,13 @@ class VerdictTests(unittest.TestCase):
             for status in ('', 'failure', 'cancelled', 'skipped'):
                 with self.subTest(key=key, status=status):
                     self.assertNotEqual(self.execute(**{key: status}), 0)
+
+    def test_paths_and_force_controls_cannot_justify_skipped_qualification(self):
+        self.assertNotEqual(self.execute('skip', GITHUB_EVENT_NAME='pull_request'), 0)
+        self.assertNotEqual(self.execute('skip', GITHUB_EVENT_NAME='merge_group'), 0)
+        self.assertNotEqual(self.execute('skip', VALIDATE_ONLY='false'), 0)
+        self.assertNotEqual(self.execute('skip', FORCE_BUILD='true'), 0)
+        self.assertNotEqual(self.execute('skip', FORCE_ARTIFACT='true'), 0)
 
     def test_merge_queue_never_signs_and_main_requires_signing(self):
         self.assertEqual(self.execute(GITHUB_EVENT_NAME='merge_group', GITHUB_REF='refs/heads/gh-readonly-queue/main/pr-1'), 0)

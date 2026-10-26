@@ -1,5 +1,6 @@
 {...}: {
   den.aspects.operator.nixos = {
+    # Den v0.16 can include this aspect through both host and user providers.
     key = "modules/features/operator/account/nixos";
     imports = [
       (

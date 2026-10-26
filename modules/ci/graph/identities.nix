@@ -63,7 +63,10 @@ in {
         inputs.self.lib.ciInstallerQualification.${system}.roots;
     };
     policy = {
-      boot = builtins.hashFile "sha256" ../../features/installer/_source/boot-media.sh;
+      boot = import ../../features/installer/_lib/boot-policy.nix;
+      bootCommand = builtins.hashFile "sha256" ../../features/installer/_source/boot-media.sh;
+      scanner = inputs.self.packages.${system}.maestro-ci-security-scan.drvPath;
+      authorityVerifier = inputs.self.packages.${system}.maestro-ci-decision-admission.drvPath;
       scan = builtins.hashFile "sha256" ../security/_source/security-policy.json;
       verifier = builtins.hashFile "sha256" ./_source/transfer.py;
       authority = builtins.hashFile "sha256" ../authority/_source/decision-policy.json;
@@ -92,7 +95,7 @@ in {
         nixpkgs = inputs.nixpkgs.outPath;
         xenOrchestra = inputs.xen-orchestra-ce.packages.${system}.latest.outPath;
       };
-      bootPolicy = builtins.hashFile "sha256" ../../features/installer/_source/boot-media.sh;
+      bootPolicy = import ../../features/installer/_lib/boot-policy.nix;
     };
     evidence = {
       distribution = inputs.self.packages.${system}.distribution-inventory.outPath;
@@ -104,6 +107,10 @@ in {
         (builtins.hashFile "sha256" ../../features/installer/_source/qualification-assets.sh)
         (builtins.hashFile "sha256" ../authority/_lib/common.nix)
         (builtins.hashFile "sha256" ../inventory/_lib/commands.nix)
+        (builtins.hashFile "sha256" ../inventory/_source/assets.sh)
+        (builtins.hashFile "sha256" ../inventory/assets.nix)
+        (builtins.hashFile "sha256" ../../features/installer/_source/verify-inventory.sh)
+        (builtins.hashFile "sha256" ../../features/installer/_source/verify-state.sh)
         (builtins.hashFile "sha256" ../../features/installer/_lib/commands.nix)
         (builtins.hashFile "sha256" ../inventory/_source/security-inventory.py)
         (builtins.hashFile "sha256" ../inventory/_source/security-inventory.sh)

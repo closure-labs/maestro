@@ -11,7 +11,7 @@ if [[ -z "$repo_root" ]]; then
 fi
 cd "$repo_root"
 [[ $(git rev-parse HEAD) == "${GITHUB_SHA:?}" ]]
-flake_ref="git+file:$repo_root?rev=$GITHUB_SHA"
+flake_ref="git+file:$repo_root?shallow=1&rev=$GITHUB_SHA"
 runner_temp=${RUNNER_TEMP:-${TMPDIR:-/tmp}}
 diagnostics="$runner_temp/maestro-qualification-diagnostics"
 mkdir -p "$diagnostics"

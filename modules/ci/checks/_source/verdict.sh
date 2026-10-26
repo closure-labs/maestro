@@ -85,6 +85,10 @@ if [[ ${MAESTRO_DECISION_ONLY_REUSE_ENABLED:-false} == true && ${RETAINED_RESULT
   [[ $RETAINED_RESULT == success ]]
 fi
 if [[ ${SPLIT_QUALIFICATION:-false} == true ]]; then
+  if [[ $mode == skip ]]; then
+    [[ ${GITHUB_EVENT_NAME:-} == workflow_dispatch && ${VALIDATE_ONLY:-false} == true &&
+       ${FORCE_BUILD:-false} != true && ${FORCE_ARTIFACT:-false} != true ]]
+  fi
   case "$mode" in
     qualify-media|qualify-media-reuse-evidence)
       [[ ${APPLIANCE_RESULT:?} == success && ${INSTALLER_RESULT:?} == success ]] ;;

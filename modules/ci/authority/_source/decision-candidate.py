@@ -49,7 +49,7 @@ def prepare(native, root, revision, run, attempt, workflow, now=None):
         "scannedAt": scanned.isoformat(), "expiresAt": (scanned + dt.timedelta(hours=24)).isoformat(),
         "profiles": {"maestro": native},
     }
-    flake_ref = f"git+file:{root}?rev={revision}" if (root / '.git').exists() else f"path:{root}"
+    flake_ref = f"git+file:{root}?shallow=1&rev={revision}" if (root / '.git').exists() else f"path:{root}"
     primary = command("nix", "eval", "--accept-flake-config", "--raw",
                       f"{flake_ref}#nixosConfigurations.maestro.config.system.build.toplevel.outPath")
     identities = {subject["storePath"]: subject for subject in native["subjects"]}

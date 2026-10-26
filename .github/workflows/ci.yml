@@ -141,6 +141,7 @@ jobs:
         env:
           MAESTRO_CI_AUDIT_MANIFEST: ${{ runner.temp }}/maestro-audit/audit.json
           MAESTRO_CI_AUDIT_TIMINGS: ${{ runner.temp }}/maestro-audit/timings.json
+          MAESTRO_NIX_EVENTS_DIR: ${{ runner.temp }}/maestro-audit/nix-events
         run: nix run --accept-flake-config .#devenv -- tasks run --option 'packages:pkgs!' '' ci:repository-audit
 
       - name: Retain native audit manifest and timings
@@ -294,6 +295,17 @@ jobs:
           compression-level: 0
           retention-days: 90
 
+      - name: Retain native realization diagnostics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-native-results-appliance
+          path: |
+            appliance-transfer/*.json
+            appliance-transfer/nix-events/
+          if-no-files-found: ignore
+          retention-days: 90
+
   installer:
     name: Build installer ISO
     needs: [route, retained, appliance]
@@ -342,13 +354,27 @@ jobs:
           compression-level: 0
           retention-days: 90
 
+      - name: Retain native realization diagnostics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-native-results-installer
+          path: |
+            installer-transfer/*.json
+            installer-transfer/nix-events/
+          if-no-files-found: ignore
+          retention-days: 90
+
   qualification:
     name: Generate release inventory
     needs: [route, retained, appliance, installer]
     if: >-
       !cancelled() && needs.route.result == 'success' &&
       fromJSON(needs.route.outputs.plan).qualification.required && needs.retained.outputs.reused != 'true' &&
-      (vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED != 'true' || contains(fromJSON('["success","skipped"]'), needs.retained.result))
+      (vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED != 'true' || contains(fromJSON('["success","skipped"]'), needs.retained.result)) &&
+      (fromJSON(needs.route.outputs.plan).qualification.mode == 'reuse' ||
+       (needs.appliance.result == 'success' &&
+        (fromJSON(needs.route.outputs.plan).qualification.mode == 'refresh-evidence' || needs.installer.result == 'success')))
     runs-on: ubuntu-24.04
     timeout-minutes: 240
     permissions:
@@ -869,6 +895,9 @@ jobs:
       - scan
       - signing
       - security
+    permissions:
+      contents: read
+      actions: read
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -891,6 +920,9 @@ jobs:
       - name: Enforce the conditional CI graph
         env:
           AUDIT_REQUIRED: true
+          VALIDATE_ONLY: ${{ inputs.validate_only || false }}
+          FORCE_BUILD: ${{ (github.event_name == 'schedule' || inputs.force_artifact == true) && 'true' || 'false' }}
+          FORCE_ARTIFACT: ${{ inputs.force_artifact || false }}
           EQUIVALENCE_RESULT: ${{ needs.equivalence.result }}
           SPLIT_QUALIFICATION: true
           GRAPH_RESULT_REQUIRED: ${{ needs.security.result == 'success' && 'true' || 'false' }}
@@ -911,3 +943,36 @@ jobs:
           RETAINED_DESCRIPTOR_HASH: ${{ needs.retained.outputs.descriptor_hash }}
           MAESTRO_DECISION_ONLY_REUSE_ENABLED: ${{ vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED || 'false' }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:verdict
+
+      - name: Download small native realization diagnostics
+        if: always()
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: maestro-native-results-*
+          path: ci-observed/builds
+      - name: Download native audit diagnostics
+        if: always() && needs.audit.result != 'skipped'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: maestro-audit-audit
+          path: ci-observed/audit
+      - name: Download graph diagnostics
+        if: always() && needs.route.result == 'success'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: maestro-ci-graph
+          path: ci-graph
+      - name: Summarize observed work and durations
+        if: always()
+        env:
+          RETAINED_REUSE: ${{ needs.retained.outputs.reused || 'false' }}
+          GH_TOKEN: ${{ github.token }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:graph:summary
+      - name: Retain observed CI summary
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-ci-summary
+          path: ci-summary.json
+          if-no-files-found: ignore
+          retention-days: 90

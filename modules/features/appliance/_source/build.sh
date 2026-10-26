@@ -3,7 +3,8 @@
 set -euo pipefail
 cd "${MAESTRO_SYSTEM_ROOT:-$PWD}"
 [[ $(git rev-parse HEAD) == "${GITHUB_SHA:?}" ]]
-flake_ref="git+file:$PWD?rev=$GITHUB_SHA"
+flake_ref="git+file:$PWD?shallow=1&rev=$GITHUB_SHA"
+export MAESTRO_NIX_EVENTS_DIR="$PWD/appliance-transfer/nix-events"
 mkdir -p appliance-transfer
 flake-plan-runner --flake "$flake_ref" --plan lib.ciPlans.x86_64-linux.evidence \
   --manifest appliance-transfer/evidence.json --timings appliance-transfer/evidence.timings.json

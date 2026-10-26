@@ -42,7 +42,9 @@ nix run .#maestro-ci-graph -- candidate.json --ownership
 
 CI evaluates immutable candidate/base source archives for PR, merge queue and
 main events. Unknown graph versions, absent base graphs and unmapped inputs
-require complete validation. Target equality describes potential deterministic
+require complete validation. Ordinary CI resolves evaluated qualification identities
+even for documentation-only changes; changed-path hints cannot authorize a skip.
+The explicit validation-only dispatch remains available. Target equality describes potential deterministic
 cache reuse; authenticated producer bindings, verifier/policy identity, current
 databases and live review authority remain separate obligations.
 

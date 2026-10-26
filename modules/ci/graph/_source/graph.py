@@ -65,13 +65,15 @@ def validate(graph):
 
 def plan(candidate, base, revision, base_revision, changed_inputs=None, force=False, fork=False):
     require(bool(SHA.fullmatch(revision)), 'Immutable candidate revision required')
-    reasons, changed, equal = [], [], []
+    reasons, changed, equal, policies = [], [], [], []
     try:
         validate(candidate)
         require(bool(base_revision and SHA.fullmatch(base_revision)), 'Immutable base unavailable')
         require(base is not None, 'base-graph-unavailable')
         validate(base)
         require(set(candidate['targets']) == set(base['targets']), 'Target set changed')
+        policies = sorted(key for key in set(candidate.get('policy', {})) | set(base.get('policy', {}))
+                          if candidate.get('policy', {}).get(key) != base.get('policy', {}).get(key))
         for key, target in candidate['targets'].items():
             prior = base['targets'][key]
             (equal if (target['derivation'], target['outputs'], target['requirements']) ==
@@ -94,7 +96,7 @@ def plan(candidate, base, revision, base_revision, changed_inputs=None, force=Fa
             'candidateGraphSha256': digest(candidate), 'baseGraphSha256': digest(base),
             'completeValidationRequired': True, 'fallbackReasons': reasons,
             'changedInputs': changed_inputs, 'changedDerivations': sorted(changed),
-            'equalDerivations': sorted(equal), 'evidenceReuseAuthorized': False}
+            'equalDerivations': sorted(equal), 'changedPolicies': policies, 'evidenceReuseAuthorized': False}
 
 
 def job_decisions(route):
@@ -140,6 +142,7 @@ def main():
     parser.add_argument('--fork', action='store_true')
     parser.add_argument('--ownership', action='store_true')
     parser.add_argument('--route-plan', type=Path)
+    parser.add_argument('--derivations', type=Path)
     args = parser.parse_args()
     candidate = json.loads(args.candidate.read_text())
     if args.ownership:
@@ -150,6 +153,7 @@ def main():
         value = plan(candidate, base, args.revision, args.base_revision, inputs, args.force, args.fork)
         route = json.loads(args.route_plan.read_text()) if args.route_plan else None
         value['decisions'] = job_decisions(route)
+        value['evaluatedDerivationsSha256'] = digest(json.loads(args.derivations.read_text())) if args.derivations else None
         print(json.dumps(value, sort_keys=True, indent=2))
     else:
         validate(candidate)

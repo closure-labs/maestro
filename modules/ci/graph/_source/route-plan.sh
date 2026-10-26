@@ -19,14 +19,16 @@ cleanup() {
 }
 trap cleanup EXIT
 
-qualification_required=$(GITHUB_OUTPUT='' maestro-ci-classify)
-case "$qualification_required" in
-  true | false) ;;
-  *)
-    printf 'Qualification classifier returned an invalid boolean: %s\n' "$qualification_required" >&2
-    exit 1
-    ;;
-esac
+# Paths explain changes, but cannot authorize dropping qualification. The native
+# resolver evaluates exact output/verifier identities and authenticates retained
+# evidence even for documentation-only candidates.
+path_hint=$(GITHUB_OUTPUT='' maestro-ci-classify) || path_hint=unknown
+printf 'Changed-path hint: %s; qualification uses evaluated identities.\n' "$path_hint" >&2
+qualification_required=true
+if [[ ${EVENT_NAME:-${GITHUB_EVENT_NAME:-}} == workflow_dispatch && ${VALIDATE_ONLY:-false} == true &&
+      ${FORCE_BUILD:-false} != true && ${FORCE_ARTIFACT:-false} != true ]]; then
+  qualification_required=false
+fi
 
 mode=skip
 artifact_run_id=null

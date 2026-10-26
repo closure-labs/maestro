@@ -4,7 +4,7 @@ set -euo pipefail
 cd "${MAESTRO_SYSTEM_ROOT:-$PWD}"
 flake_ref="path:$PWD"
 if git rev-parse --show-toplevel >/dev/null 2>&1; then
-  flake_ref="git+file:$PWD"
+  flake_ref="git+file:$PWD?shallow=1"
 fi
 output=$(mktemp "${TMPDIR:-/tmp}/maestro-plans.XXXXXX")
 trap 'rm -f -- "$output"' EXIT

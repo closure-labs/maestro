@@ -29,7 +29,7 @@
         nativeBuildInputs = [pkgs.python3];
         source = lib.fileset.toSource {
           root = ./.;
-          fileset = lib.fileset.unions [./_source ./_tests/test_graph.py ./_tests/test_results.py ./_tests/test_verdict.py];
+          fileset = lib.fileset.unions [./_source ./_tests/test_graph.py ./_tests/test_results.py ./_tests/test_verdict.py ./_tests/test_summary.py];
         };
       } ''
         export PYTHONDONTWRITEBYTECODE=1
