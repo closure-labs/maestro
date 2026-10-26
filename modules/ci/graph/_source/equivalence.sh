@@ -62,7 +62,7 @@ fi
 python3 - "$output" "$work" "$EQUIVALENCE_MIGRATION_MODE" <<'PY'
 import json,sys
 from pathlib import Path
-out,work=map(Path,sys.argv[1:])
+out,work=map(Path,sys.argv[1:3])
 for kind in ['packages','apps','checks']:
     before=json.loads((out/f'base.{kind}.json').read_text())
     after=json.loads((out/f'candidate.{kind}.json').read_text())
