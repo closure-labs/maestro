@@ -11,6 +11,9 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Automatically admit pending CI for draft and ready PRs from the pinned Decider
+  bot or live Super Admins, without granting review, merge or publication authority.
+
 - Remove rolling and versioned FlakeHub publication, its workflow OIDC
   permissions and action allowance. Publication now targets Cachix and GitHub;
   historical receipts and published versions remain readable.

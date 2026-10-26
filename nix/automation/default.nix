@@ -72,6 +72,14 @@
   };
 
   commands = {
+    trusted-ci-admission = pkgs.writeShellApplication {
+      name = "maestro-ci-trusted-ci-admission";
+      runtimeInputs = [pkgs.python3 boundedGh];
+      text = ''
+        export PYTHONPATH=${./decisions}
+        exec python3 ${./decisions/ci_admission.py} --policy ${./ci-admission-policy.json}
+      '';
+    };
     decision-only = mkCommand {
       name = "decision-only";
       prefix = ''
