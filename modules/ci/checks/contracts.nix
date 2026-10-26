@@ -166,12 +166,16 @@
       shell-lint =
         pkgs.runCommandLocal "maestro-shell-lint" {
           nativeBuildInputs = [
+            pkgs.bash
             pkgs.shellcheck
             pkgs.findutils
           ];
         } ''
           cd ${inputs.self}
           mapfile -d "" -t shell_files < <(find modules .github -type f -name '*.sh' -print0)
+          for shell_file in "''${shell_files[@]}"; do
+            bash -n "$shell_file"
+          done
           shellcheck "''${shell_files[@]}"
           touch "$out"
         '';
