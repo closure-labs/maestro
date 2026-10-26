@@ -1,0 +1,406 @@
+[
+  {
+    "kind": "contains",
+    "path": "flake.nix",
+    "needle": "nixpkgs.url = \"https://flakehub.com/f/NixOS/nixpkgs/0\";",
+    "message": "The appliance must follow FlakeHub's stable Nixpkgs train"
+  },
+  {
+    "kind": "contains",
+    "path": "flake.nix",
+    "needle": "url = \"https://flakehub.com/f/nix-community/home-manager/0\";",
+    "message": "Home Manager must follow its matching stable FlakeHub train"
+  },
+  {
+    "kind": "contains",
+    "path": "flake.nix",
+    "needle": "inputs.nixpkgs.follows = \"nixpkgs\";",
+    "message": "Home Manager must share the appliance's stable Nixpkgs input"
+  },
+  {
+    "kind": "contains",
+    "path": ".github/actions/setup-nix/action.yml",
+    "needle": "DeterminateSystems/determinate-nix-action@61cbfe2efc2d4e7a8a6d56967c3c1058e846c858",
+    "message": "CI must pin Determinate Nix to the reviewed revision"
+  },
+  {
+    "kind": "excludes",
+    "path": ".github/workflows/ci.yml",
+    "needle": "magic-nix-cache-action",
+    "message": "CI must publish only explicitly planned protected-main closures"
+  },
+  {
+    "kind": "excludes",
+    "path": ".github/actions/setup-nix/action.yml",
+    "needle": "cachix/cachix-action@",
+    "message": "CI setup must not implicitly push every realized closure"
+  },
+  {
+    "kind": "excludes",
+    "path": ".github/actions/setup-nix/action.yml",
+    "needle": "actions/cache@",
+    "message": "CI must rely on Nix binary caches instead of mutable runner metadata"
+  },
+  {
+    "kind": "contains",
+    "path": "secretspec.toml",
+    "needle": "CACHIX_MAESTRO_AUTH_TOKEN",
+    "message": "Secretspec must declare the Maestro Cachix publishing credential"
+  },
+  {
+    "kind": "contains",
+    "path": "secretspec.toml",
+    "needle": "CACHIX_MAESTRO_PUBKEY",
+    "message": "Secretspec must declare the Maestro Cachix public-key variable"
+  },
+  {
+    "kind": "excludes",
+    "path": ".github/workflows/ci.yml",
+    "needle": "maestro-reusable-cache",
+    "message": "CI must not retain the superseded closure artifact cache"
+  },
+  {
+    "kind": "contains",
+    "path": ".github/workflows/ci.yml",
+    "needle": "name: Required CI verdict",
+    "message": "CI must expose its stable required verdict"
+  },
+  {
+    "kind": "contains",
+    "path": ".github/workflows/release.yml",
+    "needle": ".#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:stage",
+    "message": "Release staging must use its isolated declared devenv task"
+  },
+  {
+    "kind": "contains",
+    "path": "modules/release/publication/_source/publication-assets.py",
+    "needle": "'draft': True",
+    "message": "Official publication must first stage a draft with exact immutable assets"
+  },
+  {
+    "kind": "contains",
+    "path": "modules/release/publication/_source/publication-assets.py",
+    "needle": "{'draft': False}",
+    "message": "Official publication must explicitly publish the verified draft"
+  },
+  {
+    "kind": "contains",
+    "path": ".github/workflows/release.yml",
+    "needle": ".#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:prepare",
+    "message": "Release version changes must use the isolated protected devenv task"
+  },
+  {
+    "kind": "contains",
+    "path": ".github/workflows/release.yml",
+    "needle": "GH_TOKEN: ${{ github.token }}",
+    "message": "Release automation must use the repository-scoped GitHub token"
+  },
+  {
+    "kind": "contains",
+    "path": ".github/workflows/release.yml",
+    "needle": "EXPECTED_AUTHOR: cl-decider",
+    "message": "Version automation must validate the scoped App identity"
+  },
+  {
+    "kind": "contains",
+    "path": "modules/release/publication/_source/release-manager.sh",
+    "needle": "EXPECTED_CHANGE_KIND=version",
+    "message": "Release automation must allowlist version-only changes"
+  },
+  {
+    "kind": "excludes",
+    "path": ".github/workflows/release.yml",
+    "needle": "${{ secrets.MERGE_QUEUE_TOKEN }}",
+    "message": "Release preparation must mint its queue token at runtime"
+  },
+  {
+    "kind": "contains",
+    "path": ".github/workflows/queue-automation.yml",
+    "needle": ".#devenv -- tasks run --mode single --option 'packages:pkgs!' '' automation:queue",
+    "message": "Scheduled recovery must use the isolated declared trusted-update task"
+  },
+  {
+    "kind": "excludes",
+    "path": ".github/workflows/queue-automation.yml",
+    "needle": "${{ secrets.MERGE_QUEUE_TOKEN }}",
+    "message": "Scheduled queue recovery must mint its queue token at runtime"
+  },
+  {
+    "kind": "contains",
+    "path": "modules/features/development/_source/trusted-update.sh",
+    "needle": "changed_files[0]} == VERSION",
+    "message": "Trusted version updates must change only VERSION"
+  },
+  {
+    "kind": "contains",
+    "path": "modules/features/development/_source/trusted-update.sh",
+    "needle": "devenv.lock | flake.lock",
+    "message": "Trusted lock updates must allowlist only the two Nix lockfiles"
+  },
+  {
+    "kind": "excludes",
+    "path": ".github/workflows/release.yml",
+    "needle": "--generate-notes",
+    "message": "Release notes must come from the curated changelog"
+  },
+  {
+    "kind": "contains",
+    "path": ".github/workflows/update-flake-lock.yml",
+    "needle": "cron: \"17 9 * * 3\"",
+    "message": "Flake input refresh must remain weekly"
+  },
+  {
+    "kind": "contains",
+    "path": ".github/workflows/update-flake-lock.yml",
+    "needle": ".#devenv -- tasks run --mode single --option 'packages:pkgs!' '' automation:update-locks",
+    "message": "Input refresh must update both lockfiles through its isolated declared task"
+  },
+  {
+    "kind": "contains",
+    "path": ".github/workflows/update-flake-lock.yml",
+    "needle": ".#devenv -- tasks run --mode single --option 'packages:pkgs!' '' automation:validate-locks",
+    "message": "Input refresh must validate synchronized lockfiles through its isolated declared task"
+  },
+  {
+    "kind": "contains",
+    "path": ".github/workflows/update-flake-lock.yml",
+    "needle": "GH_TOKEN: ${{ github.token }}",
+    "message": "Flake input refresh must use the repository-scoped GitHub token"
+  },
+  {
+    "kind": "excludes",
+    "path": ".github/workflows/update-flake-lock.yml",
+    "needle": "MERGE_QUEUE_TOKEN",
+    "message": "Flake input refresh must not require an external merge token"
+  },
+  {
+    "kind": "excludes",
+    "path": ".github/workflows/update-flake-lock.yml",
+    "needle": "inputs:",
+    "message": "Flake input refresh must not silently omit inputs"
+  },
+  {
+    "kind": "contains",
+    "path": ".github/dependabot.yml",
+    "needle": "package-ecosystem: github-actions",
+    "message": "Dependabot must monitor GitHub Actions"
+  },
+  {
+    "kind": "contains",
+    "path": ".github/dependabot.yml",
+    "needle": "package-ecosystem: cargo",
+    "message": "Dependabot must monitor Cargo dependencies"
+  },
+  {
+    "kind": "contains",
+    "path": ".github/workflows/ci.yml",
+    "needle": ".#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:route",
+    "message": "CI routing must use its isolated flake-packaged task"
+  },
+  {
+    "kind": "contains",
+    "path": ".github/workflows/ci.yml",
+    "needle": "fetch-depth: ${{ contains(fromJSON('[\"pull_request\",\"push\",\"merge_group\"]'), github.event_name) && '0' || '1' }}",
+    "message": "CI must fetch full history only for path-classifying events"
+  },
+  {
+    "kind": "contains",
+    "path": ".github/workflows/ci.yml",
+    "needle": "if: fromJSON(steps.plan.outputs.plan).qualification.required",
+    "message": "Qualification state upload must consume the route plan directly"
+  },
+  {
+    "kind": "contains",
+    "path": ".github/workflows/ci.yml",
+    "needle": "fromJSON(needs.route.outputs.plan).qualification.mode",
+    "message": "Focused qualification must consume the route plan"
+  },
+  {
+    "kind": "contains",
+    "path": ".github/workflows/publication.yml",
+    "needle": "ci:decision:publication",
+    "message": "Rolling publication must require live immutable-candidate admission"
+  },
+  {
+    "kind": "contains",
+    "path": ".github/workflows/ci.yml",
+    "needle": ".#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:inventory:assets",
+    "message": "Focused qualification must use its isolated declared devenv task"
+  },
+  {
+    "kind": "contains",
+    "path": "modules/features/installer/_source/qualification-assets.sh",
+    "needle": "flake-plan-runner",
+    "message": "Qualification closure targets must use the shared schema-v2 plan runner"
+  },
+  {
+    "kind": "contains",
+    "path": "modules/ci/graph/identities.nix",
+    "needle": "mkCiPlan",
+    "message": "CI target lists must be exported as pure flake plans"
+  },
+  {
+    "kind": "contains",
+    "path": ".github/workflows/ci.yml",
+    "needle": "CI_PLAN: ${{ needs.route.outputs.plan }}",
+    "message": "The required verdict must consume the route plan"
+  },
+  {
+    "kind": "contains",
+    "path": "modules/ci/graph/_source/route-plan.sh",
+    "needle": "maestro-ci-validate-plan",
+    "message": "CI routing must validate its plan against the shared schema"
+  },
+  {
+    "kind": "contains",
+    "path": "modules/ci/checks/_source/verdict.sh",
+    "needle": ".schema_version == 3",
+    "message": "The required verdict must enforce route-plan schema version 3"
+  },
+  {
+    "kind": "contains",
+    "path": "modules/features/installer/_source/qualification-plan.schema.json",
+    "needle": "\"additionalProperties\": false",
+    "message": "The route plan schema must reject undeclared fields"
+  },
+  {
+    "kind": "contains",
+    "path": ".github/workflows/publication.yml",
+    "needle": "group: maestro-publication",
+    "message": "Rolling publication must use the shared publication queue"
+  },
+  {
+    "kind": "contains",
+    "path": ".github/workflows/publication.yml",
+    "needle": "queue: max",
+    "message": "Publication must retain every pending run in the shared FIFO queue"
+  },
+  {
+    "kind": "contains",
+    "path": ".github/workflows/release-publication.yml",
+    "needle": "group: maestro-publication",
+    "message": "Versioned publication must use the shared publication queue"
+  },
+  {
+    "kind": "contains",
+    "path": ".github/workflows/release-publication.yml",
+    "needle": "queue: max",
+    "message": "Versioned publication must retain every pending run in the shared FIFO queue"
+  },
+  {
+    "kind": "contains",
+    "path": ".github/workflows/release.yml",
+    "needle": "group: maestro-release",
+    "message": "Release orchestration must not hold the publication queue while qualifying artifacts"
+  },
+  {
+    "kind": "contains",
+    "path": ".github/workflows/ci.yml",
+    "needle": "inputs.release_candidate",
+    "message": "Release qualification must have a run-scoped CI concurrency identity"
+  },
+  {
+    "kind": "contains",
+    "path": "modules/release/publication/_source/release-manager.sh",
+    "needle": "-f release_candidate=true",
+    "message": "The Nix-packaged release dispatcher must request isolated qualification"
+  },
+  {
+    "kind": "contains",
+    "path": "modules/ci/graph/_source/classify.sh",
+    "needle": "merge-base --is-ancestor",
+    "message": "Dormant merge-group classification must require an ancestral SHA range"
+  },
+  {
+    "kind": "contains",
+    "path": "modules/ci/graph/_source/installer-policy.json",
+    "needle": "alwaysRelevantPatterns",
+    "message": "Installer path policy must declare overrides to ignored metadata patterns"
+  },
+  {
+    "kind": "contains",
+    "path": "modules/features/installer/_source/qualification-inputs.sh",
+    "needle": "lib.ciQualificationInputs",
+    "message": "Qualification identities must come from the Nix-owned output graph"
+  },
+  {
+    "kind": "excludes",
+    "path": "modules/ci/graph/_source/installer-policy.json",
+    "needle": "buildInputPaths",
+    "message": "Installer fingerprints must not maintain a second path allowlist"
+  },
+  {
+    "kind": "contains",
+    "path": ".github/workflows/ci.yml",
+    "needle": "merge_group:",
+    "message": "Organization CI must validate merge-queue groups"
+  },
+  {
+    "kind": "contains",
+    "path": "modules/ci/authority/_source/github/main-ruleset.json",
+    "needle": "\"type\": \"merge_queue\"",
+    "message": "Organization protection must require the merge queue"
+  },
+  {
+    "kind": "absent",
+    "path": ".github/actions/setup-devenv/action.yml",
+    "message": "Hosted CI must not install a second devenv orchestration layer"
+  },
+  {
+    "kind": "excludes",
+    "path": ".github/workflows/ci.yml",
+    "needle": "./ci/",
+    "message": "CI must not call unpackaged repository scripts"
+  },
+  {
+    "kind": "excludes",
+    "path": ".github/workflows/release.yml",
+    "needle": "./ci/",
+    "message": "Release automation must not call unpackaged repository scripts"
+  },
+  {
+    "kind": "excludes",
+    "path": ".github/workflows/queue-automation.yml",
+    "needle": "./ci/",
+    "message": "Trusted-update recovery must not call unpackaged repository scripts"
+  },
+  {
+    "kind": "absent",
+    "path": ".github/workflows/cache-maestro-menu.yml",
+    "message": "The superseded package cache workflow must stay removed"
+  },
+  {
+    "kind": "absent",
+    "path": ".github/workflows/validate.yml",
+    "message": "The superseded validation workflow must stay removed"
+  },
+  {
+    "kind": "absent",
+    "path": ".github/workflows/flakehub-publish-tagged.yml",
+    "message": "The obsolete tagged FlakeHub workflow must stay removed"
+  },
+  {
+    "kind": "contains",
+    "path": ".github/workflows/ci.yml",
+    "needle": "'' ci:verdict",
+    "message": "Required verdict must invoke its declared devenv task"
+  },
+  {
+    "kind": "contains",
+    "path": "modules/release/publication/_source/publish.sh",
+    "needle": "maestro-ci-decision-publication",
+    "message": "The direct Cachix command must require live admission"
+  },
+  {
+    "kind": "contains",
+    "path": "modules/release/publication/_source/publication-assets.py",
+    "needle": "common.gate(cfg, args.scans, args.product, 'release')",
+    "message": "Official recovery must repeat current security and release approval"
+  },
+  {
+    "kind": "excludes",
+    "path": "modules/release/publication/_source/publication-assets.py",
+    "needle": "--clobber",
+    "message": "Official publication must never overwrite mismatched asset bytes"
+  }
+]

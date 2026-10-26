@@ -6,13 +6,13 @@ maestro-vm-bundle.md
 result
 result-*
 output/
-pkgs/maestro-menu/target/
-packer/output/
-packer/packer_cache/
-packer/.packer/
-packer/*.pkrvars.hcl
-packer/*.pkrvars.json
-!packer/example.pkrvars.json
+modules/features/operator/menu/_source/frontend/target/
+modules/features/xcp-ng/template/_source/output/
+modules/features/xcp-ng/template/_source/packer_cache/
+modules/features/xcp-ng/template/_source/.modules/features/xcp-ng/template/_source/
+modules/features/xcp-ng/template/_source/*.pkrvars.hcl
+modules/features/xcp-ng/template/_source/*.pkrvars.json
+!modules/features/xcp-ng/template/_source/example.pkrvars.json
 
 # Nix build artifacts
 .direnv/

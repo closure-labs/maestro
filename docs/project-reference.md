@@ -166,7 +166,7 @@ normal Nix realisation still checks the reviewed trusted signatures.
   changes it to the selected stable version and advances it to the next patch
   development version after publication.
 
-See the [Packer reference](../packer/README.md) for the installer build and
+See the [Packer reference](../modules/features/xcp-ng/template/_source/README.md) for the installer build and
 template-sealing contract.
 
 Same-repository actions and reusable workflows use GitHub's `$/` references,

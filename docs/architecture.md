@@ -58,46 +58,41 @@ The organization audit App requests repository-scoped Administration read
 access; the policy endpoints do not require Contents permission.
 The work router combines source classification and immutable artifact reuse
 into one versioned JSON plan consumed by later jobs and the required verdict.
-A Nix policy declares which source paths affect the immutable installer
-fingerprint, allowing metadata-only commits to reuse a previously verified
-artifact while unknown paths fail safely toward rebuilding. The same policy
-filters both changed paths and the tracked-file fingerprint, preventing
-classification and reuse from disagreeing. Only
-path-classifying events fetch full Git history, and future merge-group
-classification also fails toward rebuilding unless its base is a known
-ancestor of its head. Hosted leaf tasks run in isolated Devenv mode. Release
-workflows serialize independently, release-owned qualification runs use a
-run-scoped CI identity, and only rolling and versioned publication jobs share
-the non-canceling publication queue. The router and required verdict validate
-the same strict JSON Schema, so field, type, digest, and lifecycle invariants
-cannot drift between them.
+Changed-path classification is diagnostic. Every ordinary CI candidate resolves
+exact evaluated qualification identities and authenticated prior evidence;
+paths alone never drop media, scan or boot obligations. The explicit
+validation-only dispatch remains available. Immutable candidate/base graph
+comparison runs in shadow mode, with complete repository validation retained.
+Independent repository checks and build work follow planning; ISO, inventory,
+boot, native scans, verification and protected signing have explicit dependencies.
+The [feature guide](features.md) documents the job graph and exact-output transport.
+Release-owned qualification still has a run-scoped CI identity. Rolling and
+versioned publication retain their separate non-canceling queue and live
+permission/review checks. Historical routing and release readers remain available.
 
 ## Module layout
 
 ```text
 modules/
-├── dendritic.nix
-├── den-defaults.nix
-├── host.nix
-├── aspects/
-│   ├── platform.nix
-│   ├── xcp-ng.nix
-│   ├── xo.nix
-│   └── operator.nix
-├── _nixos/
-│   ├── platform.nix
-│   ├── xcp-ng.nix
-│   ├── operator.nix
-│   └── xo/
-│       ├── default.nix
-│       ├── service.nix
-│       ├── tls.nix
-│       └── storage.nix
-└── _homeManager/
+├── flake/                 # inputs, required frameworks, caches, systems
+├── features/
+│   ├── appliance/         # explicit Den composition and effective policy checks
+│   ├── platform/          # boot, networking, Nix and security
+│   ├── operator/          # account/access, shell, CLI and menu
+│   ├── xo/                # service, storage, TLS and file restore
+│   ├── installer/         # minimal ISO and installation
+│   ├── xcp-ng/            # guest integration and native template tooling
+│   └── development/       # native shell, toolchain and formatting
+├── ci/                    # graph, repository contracts, inventory and authority
+└── release/               # publication contracts
 ```
 
-The underscore directories contain class modules composed through the aspect
-tree.
+Every ordinary Nix file is a flake-parts module discovered by one import-tree.
+Den definitions are option values inside those modules. Private source, test and
+helper directories start with `_` and are excluded from discovery. Appliance
+aspect includes stay explicit; directory names never grant permission to skip
+validation. See [feature navigation](features.md) and the generated
+[output ownership table](feature-outputs.md).
 
 ## Host ownership
 
@@ -128,7 +123,7 @@ before the operator connects.
 
 ## XO runtime
 
-`modules/_nixos/xo/service.nix` owns the `xo` account, Valkey instance,
+`modules/features/xo/service.nix` owns the `xo` account, Valkey instance,
 generated TOML, filesystem layout, and hardened `xo-server` unit.
 
 `tls.nix` creates a long-lived self-signed certificate when configured files

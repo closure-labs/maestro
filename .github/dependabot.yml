@@ -12,7 +12,7 @@ updates:
           - "*"
 
   - package-ecosystem: cargo
-    directory: /pkgs/maestro-menu
+    directory: /modules/features/operator/menu/_source/frontend
     schedule:
       interval: weekly
     cooldown:

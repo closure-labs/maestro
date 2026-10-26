@@ -1,0 +1,49 @@
+{...}: {
+  maestro.ci.targets = {
+    checks-x86_64-linux-metadata = {
+      owner = "features/appliance";
+      attribute = "checks.x86_64-linux.metadata";
+      name = "metadata";
+      phases = ["validation"];
+      order = {
+        validation = 0;
+      };
+      dependencies = [];
+      requirements = ["deterministic"];
+    };
+    checks-x86_64-linux-configuration = {
+      owner = "features/appliance";
+      attribute = "checks.x86_64-linux.configuration";
+      name = "configuration";
+      phases = ["validation"];
+      order = {
+        validation = 14;
+      };
+      dependencies = [];
+      requirements = ["deterministic"];
+    };
+    nixosConfigurations-maestro-config-system-build-toplevel = {
+      owner = "features/appliance";
+      attribute = "nixosConfigurations.maestro.config.system.build.toplevel";
+      name = "toplevel";
+      phases = ["evidence" "publish"];
+      order = {
+        evidence = 0;
+        publish = 2;
+      };
+      dependencies = [];
+      requirements = ["deterministic"];
+    };
+    packages-x86_64-linux-metadata = {
+      owner = "features/appliance";
+      attribute = "packages.x86_64-linux.metadata";
+      name = "metadata";
+      phases = ["publish"];
+      order = {
+        publish = 4;
+      };
+      dependencies = [];
+      requirements = ["deterministic"];
+    };
+  };
+}

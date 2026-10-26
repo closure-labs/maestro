@@ -9,21 +9,27 @@ selection.
 
 ## Structure
 
-- `modules/aspects/`: Den composition for platform, XCP-ng, XO, and operator
-- `modules/_nixos/`: focused native NixOS modules
-- `modules/_homeManager/`: the `maestro` operator home
+- `modules/flake/`: pinned framework composition, input declarations and caches
+- `modules/features/`: appliance, platform, operator, XO, installer, XCP-ng and development owners
+- `modules/ci/`: graph, checks, inventory, security and live decision authority
+- `modules/release/`: publication and consumer contracts
+- Ordinary `.nix` files under `modules/` are flake-parts modules. Native NixOS and Home Manager definitions are Den aspect values. Only `_source/`, `_tests/` and `_lib/` contain private files excluded by import-tree.
 - `host/settings.nix`: hand-maintained appliance policy
 - `host/hardware-configuration.nix`: bootstrap-generated hardware module
 - `host/menu.nix`: TUI-generated overrides only
-- `installer/`: minimal NixOS ISO and destructive single-disk installer
-- `packer/`: native XCP-ng template build, verification, and sealing
-- `scripts/maestroctl.sh`: operator CLI source
-- `scripts/tui/`: console backend
-- `pkgs/maestro-menu/`: Ratatui frontend
+- `docs/features.md`: where to change policy, implementations, tests and CI outputs
+- `automation/decisions/`: immutable historical records; never rewrite them during source moves
 
 ## Development
 
-Use `.#maestro` in commands and documentation.
+Use `.#maestro` in commands and documentation. Edit input declarations in
+`modules/flake/inputs.nix`, then regenerate the committed entry point with
+`nix run .#write-flake`. Keep input pins unchanged outside deliberate updates.
+
+Full Nix evaluation, audits, builds and VM/ISO tests run in hosted CI. Local
+focused fixtures must fit within 512 MiB; never use local full Nix work to bypass
+that resource boundary. Graph gating stays disabled until hosted comparison
+against complete validation passes.
 
 ```bash
 nix flake check --no-write-lock-file
@@ -70,3 +76,13 @@ Use `jj` for local status, history, commits, and bookmarks; GitHub remains the
 push and pull-request transport. Commit coherent implementation, tests, and
 documentation checkpoints. Keep historical changelog entries intact and
 describe public-interface changes in the current changelog section.
+
+## Pull requests
+
+Agent-created and automation PRs must be authored by the configured Decider App,
+`cl-decider[bot]`. Use a short-lived installation token scoped to this repository
+and verify the returned PR author. Never fall back to Dale's personal GitHub
+session when bot authentication is unavailable. Dale is currently the sole
+Super Admin and must remain able to approve these PRs independently; GitHub
+prevents a PR author from approving their own PR. Preserve actual commit
+attribution and keep approval, signing, and publication safeguards unchanged.

@@ -11,6 +11,26 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Generate the flake with pinned flake-file and flake-parts while retaining
+  Den v0.16.0 and the single `maestro` appliance. Colocate policy, packages,
+  operator/installer/Packer sources and validation with feature owners.
+- Export `lib.ciGraph.x86_64-linux` with evaluated derivation/output identities
+  and add graph inspection alongside the existing CI plan interfaces.
+- Split repository audit, appliance, ISO, boot, inventory, scanning and evidence
+  verification into explicit jobs with digest-bound exact-output transport.
+  Keep all twenty validation obligations, live release authority and historical
+  evidence readers. Graph scheduling remains in shadow mode pending hosted
+  comparison; equal derivations alone never authorize skipping a test.
+
+- Compare the complete audit against independent, exact graph-derived
+  realizations on the same candidate and workflow attempt. Bind comparison
+  receipts into release evidence and the required verdict while selective
+  scheduling remains disabled. Narrow qualification and boot-verifier sources
+  to their actual dependencies.
+
+- Remove obsolete CLI staging pathspecs after source relocation, and consolidate
+  repeated operator fixtures under their canonical repository audit owners.
+
 - Automatically admit pending CI for draft and ready PRs from the pinned Decider
   bot or live Super Admins, without granting review, merge or publication authority.
 

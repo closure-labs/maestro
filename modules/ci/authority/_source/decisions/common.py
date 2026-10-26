@@ -1,0 +1,608 @@
+"""Shared validation and live trust boundaries for small automation commands."""
+import argparse
+from contextlib import nullcontext
+import os
+import datetime as dt
+import json
+from pathlib import Path
+import re
+import subprocess
+import sys
+import tempfile
+
+import operations
+import diagnostics
+import decision_authority as authority
+import decision_packets as packets
+from verification_context import VerificationContext
+from security_decisions import (canonical_hash, load_json, evaluate, validate_normalized,
+                                validate_context, compare_context)
+
+HASH = re.compile(r'[0-9a-f]{64}')
+SHA = authority.SHA
+
+
+def require(value, message):
+    if not value:
+        raise ValueError(message)
+
+
+@diagnostics.requests.process
+def command(args, timeout=None, **kwargs):
+    diagnostics.profile('transport', diagnostics.transport_category(args), wrappers=1)
+    if args[:2] == ['gh', 'api']:
+        diagnostics.count('apiWrapperInvocations')
+        diagnostics.count('apiTransportInvocations')
+    return operations.run(args, check=True, capture_output=True, text=True,
+                          timeout=timeout if timeout is not None else (30 if args[:2] == ['gh', 'api'] else 180),
+                          **kwargs).stdout
+
+
+def emit(result, output=None):
+    value = json.dumps(result, sort_keys=True, indent=2, allow_nan=False) + '\n'
+    if output:
+        Path(output).write_text(value)
+    print(diagnostics.record(result) or value, end='')
+
+
+@diagnostics.staged
+def run(main):
+    try:
+        return main() or 0
+    except (ValueError, KeyError, TypeError, OSError, subprocess.SubprocessError) as error:
+        result = {'schema': 1, 'status': 'blocked', 'error': str(error)}
+        # Subprocess errors can contain argv. Keep credential-bearing exception
+        # text out of the optional CI artifact and its public summary.
+        reasons = {'Expired or future native health': 'native-health-expired-or-future'}
+        for reason in ('repository', 'verifier', 'main', 'policy', 'ledger', 'product', 'inputs', 'membership'):
+            key = 'verification-context-' + reason + '-changed'
+            reasons[key] = key
+        for reason in ('observation-expired', 'database-expired', 'invalid', 'already-used', 'live-pass-invalid'):
+            key = 'verification-context-' + reason
+            reasons[key] = key
+        safe_result = {'schema': 1, 'status': 'blocked', 'errorType': type(error).__name__,
+                       'reason': reasons.get(str(error), 'native-command-failed')}
+        if isinstance(error, authority.AuthorityAPIError):
+            safe_result['httpStatus'] = error.http_status
+        summary = diagnostics.record(safe_result)
+        if summary is None and diagnostics.enabled():
+            # Wrapper names are not publication result kinds. Their failures
+            # still need one safe same-execution record, never raw exception argv.
+            summary = diagnostics.record(safe_result, 'admission')
+        print(summary or json.dumps(result), end='' if summary else '\n', file=sys.stderr)
+        return 2
+    finally:
+        # Successful helpers may intentionally keep their historical full JSON
+        # rather than emit a diagnostic result kind. Retain their measurements too.
+        diagnostics.snapshot()
+
+
+def parser(description):
+    result = argparse.ArgumentParser(description=description)
+    result.add_argument('--config', required=True, type=Path)
+    result.add_argument('--output', type=Path)
+    return result
+
+
+def config(path, live=False, enabled=False, api=None):
+    api = api or authority.github_api
+    value = load_json(path)
+    require(isinstance(value, dict) and type(value.get('schema')) is int and value['schema'] == 1, 'Invalid decision policy')
+    authority.validate_context(value.get('repository'), value.get('botLogin'))
+    require(type(value.get('enabled')) is bool, 'Explicit enabled policy required')
+    require(type(value.get('appId')) is int and value['appId'] > 0, 'Pinned App integration ID required')
+    profiles = value.get('profiles')
+    require(isinstance(profiles, list) and profiles and len(set(profiles)) == len(profiles)
+            and all(isinstance(p, str) and re.fullmatch(r'[a-z][a-z0-9-]{0,63}', p) for p in profiles),
+            'Invalid complete profile set')
+    coverage = value.get('requiredCoverage', {})
+    require(isinstance(coverage, dict) and set(coverage).issubset(profiles)
+            and all(isinstance(contract, str) and re.fullmatch(r'[a-z][a-z0-9-]{0,63}', contract)
+                    for contract in coverage.values()), 'Invalid required native coverage policy')
+    require(value.get('decisionRoot', 'automation/decisions') == 'automation/decisions', 'Unsupported decision root')
+    require(isinstance(value.get('producerWorkflows'), list) and value['producerWorkflows']
+            and all(re.fullmatch(r'\.github/workflows/[A-Za-z0-9_.-]+\.ya?ml', w)
+                    for w in value['producerWorkflows']), 'Pinned producer workflows required')
+    policy_path = value.get('policyPath')
+    require(isinstance(policy_path, str) and re.fullmatch(r'(?:modules/ci/authority/_source|nix/automation|ci)/decision-policy\.json', policy_path),
+            'Pinned policy repository path required')
+    packets.REGISTRY = 'ghcr.io/' + value['repository'].lower() + '-decisions'
+    packets.REFERENCE = re.compile(re.escape(packets.REGISTRY) + r'@sha256:[0-9a-f]{64}')
+    if live:
+        revision = main_revision(value, api)
+        checked = authority.document_at(api, value['repository'], policy_path, revision)
+        require(canonical_hash(checked) == canonical_hash(value), 'Local policy differs from current main')
+    if enabled:
+        require(value['enabled'], 'Publication is disabled pending coordinated activation')
+    return value
+
+
+def main_revision(cfg, api=None):
+    api = api or authority.github_api
+    result = api('repos/' + cfg['repository'] + '/git/ref/heads/main')
+    revision = result.get('object', {}).get('sha', '')
+    require(SHA.fullmatch(revision), 'Invalid main revision')
+    return revision
+
+
+@diagnostics.measured('gatePhases', 'ledger')
+def ledger(cfg, api=None, context=None):
+    """Fetch every immutable canonical decision from an untruncated current-main tree."""
+    api = api or authority.github_api
+    revision = main_revision(cfg, api)
+    if context is not None and context.binding is not None and revision != context.revision:
+        context.fail('verification-context-main-changed')
+    tree = api(f'repos/{cfg["repository"]}/git/trees/{revision}?recursive=1')
+    require(isinstance(tree, dict) and tree.get('truncated') is False and isinstance(tree.get('tree'), list),
+            'Complete current-main Git tree required')
+    records, seen = {}, set()
+    for item in tree['tree']:
+        path = item.get('path', '')
+        if not path.startswith('automation/decisions/') or item.get('type') == 'tree':
+            continue
+        require(path not in seen, 'Duplicate ledger Git tree entry')
+        seen.add(path)
+        require(item.get('type') == 'blob' and item.get('mode') == '100644'
+                and re.fullmatch(r'automation/decisions/(security|releases)/[0-9a-f]{64}\.json', path),
+                'Malformed decision ledger path or mode')
+        # The freshly read, complete tree already binds this regular path to
+        # its immutable blob. Avoid a redundant Contents lookup for every row.
+        proposal = authority.document_blob(api, cfg['repository'], item.get('sha'), item.get('size'), context=context)
+        require(authority.proposal_path(proposal) == path, 'Decision content hash/path mismatch')
+        records[canonical_hash(proposal)] = proposal
+    return revision, records
+
+
+@diagnostics.requests.owned(authority='current')
+def authorize(cfg, proposal, api=None, pr=None, allow_open=False, context=None):
+    api = api or authority.github_api
+    number = pr or origin(cfg, proposal, api, context)
+    return authority.verify_proposal(proposal, number, cfg['repository'], cfg['botLogin'],
+                                     require_merged=not allow_open, github=api, context=context)
+
+
+@diagnostics.requests.owned(authority='historical')
+def historical_provenance(cfg, proposal, api=None, context=None):
+    """A superseded parent needs immutable bot merge provenance, never live authority."""
+    api = api or authority.github_api
+    digest = canonical_hash(proposal)
+    if context is not None:
+        context.repository(cfg['repository'])
+    if context is not None and digest in context.history:
+        return context.history[digest]
+    number = origin(cfg, proposal, api, context)
+    result = authority.verify_proposal(proposal, number, cfg['repository'], cfg['botLogin'],
+                                       require_merged=True, github=api, require_live_review=False, context=context)
+    if context is not None:
+        context.history[digest] = result
+    return result
+
+
+def origin(cfg, proposal, api, context=None):
+    digest = canonical_hash(proposal)
+    if context is None:
+        return authority.find_origin_pr(proposal, cfg['repository'], cfg['botLogin'], github=api)
+    if digest not in context.origins:
+        context.origins[digest] = authority.find_origin_pr(
+            proposal, cfg['repository'], cfg['botLogin'], github=api, revision=context.revision)
+    return context.origins[digest]
+
+
+def security_contexts(native):
+    return {profile: validate_context(scan['securityContext'])
+            for profile, scan in native['profiles'].items() if 'securityContext' in scan}
+
+
+def accepted_contexts(payload):
+    """Retain policy review even when a profile has no vulnerability findings."""
+    profiles = payload['profiles']
+    if 'securityContexts' in payload:
+        contexts = payload['securityContexts']
+        require(isinstance(contexts, dict) and set(contexts).issubset(profiles),
+                'Invalid accepted profile security contexts')
+        return {profile: validate_context(context) for profile, context in contexts.items()}
+    # Existing nonempty decisions already bind a context in each finding.
+    # Empty legacy decisions cannot claim knowledge of an unrecorded policy.
+    contexts = {}
+    for profile, findings in profiles.items():
+        values = [finding['securityContext'] for finding in findings if 'securityContext' in finding]
+        if values:
+            require(len(values) == len(findings) and all(value == values[0] for value in values),
+                    'Ambiguous accepted profile security context')
+            contexts[profile] = validate_context(values[0])
+    return contexts
+
+
+def compare_security_contexts(native, payload):
+    current, accepted = security_contexts(native), accepted_contexts(payload)
+    return {profile: compare_context(current.get(profile), accepted.get(profile))
+            for profile in native['profiles']}
+
+
+def active_security(cfg, records, api=None, authenticate=True, context=None):
+    validate = lambda: security_graph(cfg, records, api, context)
+    digest, proposal = (context.select('security', cfg, records, None, validate)
+                        if context is not None else validate())
+    if authenticate and proposal is not None:
+        authorize(cfg, proposal, api, context=context)
+    return digest, proposal
+
+
+def security_graph(cfg, records, api=None, context=None):
+    candidates = {h: p for h, p in records.items() if p['kind'] in ('security-findings', 'security-revocation')}
+    superseded = set()
+    for digest, proposal in candidates.items():
+        payload = proposal['payload']
+        require(payload.get('disposition') in ('accepted', 'rejected', 'revoked'), 'Invalid security disposition')
+        require(isinstance(payload.get('profiles'), dict) and set(payload['profiles']) == set(cfg['profiles']),
+                'Security decision must cover complete configured profile set')
+        for profile, findings in payload['profiles'].items():
+            validate_normalized(findings)
+            require(all(f['profile'] == profile for f in findings), 'Cross-profile decision confusion')
+        accepted_contexts(payload)
+        parents = payload.get('supersedes', [])
+        require(isinstance(parents, list) and len(set(parents)) == len(parents)
+                and all(h in candidates and h != digest for h in parents), 'Invalid supersession parents')
+        require(isinstance(payload.get('rationale'), str) and payload['rationale'].strip(), 'Decision rationale required')
+        packet = payload.get('packet', {})
+        require(isinstance(packet, dict) and packets.REFERENCE.fullmatch(packet.get('reference', ''))
+                and HASH.fullmatch(packet.get('sha256', '')), 'Immutable decision packet required')
+        if proposal['kind'] == 'security-revocation':
+            require(payload['disposition'] == 'revoked' and len(parents) == 1, 'Revocation requires one parent')
+            parent = candidates[parents[0]]['payload']
+            require(parent['disposition'] == 'accepted' and payload['profiles'] == parent['profiles']
+                    and payload.get('securityContexts') == parent.get('securityContexts')
+                    and packet == parent['packet'], 'Revocation must preserve exact accepted scope and evidence')
+        superseded.update(parents)
+    # Detect cycles even when a separate apparently-valid leaf exists.
+    visited, visiting = set(), set()
+    def visit(digest):
+        require(digest not in visiting, 'Cyclic decision supersession')
+        if digest in visited:
+            return
+        visiting.add(digest)
+        for parent in candidates[digest]['payload'].get('supersedes', []):
+            visit(parent)
+        visiting.remove(digest)
+        visited.add(digest)
+    for digest in candidates:
+        visit(digest)
+    for digest in superseded:
+        historical_provenance(cfg, candidates[digest], api, context=context)
+    leaves = set(candidates) - superseded
+    require(len(leaves) <= 1, 'Ambiguous concurrent security decisions require explicit reconciliation')
+    if not leaves:
+        return None, None
+    digest = next(iter(leaves))
+    return digest, candidates[digest]
+
+
+@diagnostics.measured('gatePhases', 'release')
+def active_release(cfg, records, identity, api=None, authenticate=True, context=None):
+    validate = lambda: release_graph(cfg, records, identity, api, context)
+    digest, proposal = (context.select('release', cfg, records, identity, validate)
+                        if context is not None else validate())
+    if authenticate and proposal is not None:
+        authorize(cfg, proposal, api, context=context)
+    return digest, proposal
+
+
+def release_graph(cfg, records, identity, api=None, context=None):
+    """Select one explicitly superseding release approval for these exact bytes."""
+    product_hash = canonical_hash(identity)
+    candidates = {h: p for h, p in records.items() if p['kind'] == 'release-product'
+                  and canonical_hash(p['payload'].get('product')) == product_hash}
+    superseded = set()
+    for digest, proposal in candidates.items():
+        payload = proposal['payload']
+        require(payload.get('disposition') in ('accepted', 'rejected', 'revoked')
+                and isinstance(payload.get('rationale'), str) and payload['rationale'].strip(),
+                'Invalid release decision disposition or rationale')
+        packet = payload.get('packet', {})
+        require(isinstance(packet, dict) and packets.REFERENCE.fullmatch(packet.get('reference', ''))
+                and HASH.fullmatch(packet.get('sha256', '')), 'Immutable release packet required')
+        parents = payload.get('supersedes', [])
+        require(isinstance(parents, list) and len(parents) == len(set(parents))
+                and all(parent in candidates and parent != digest for parent in parents),
+                'Release supersession must preserve exact product identity')
+        superseded.update(parents)
+    visited, visiting = set(), set()
+    def visit(digest):
+        require(digest not in visiting, 'Cyclic release decision supersession')
+        if digest in visited:
+            return
+        visiting.add(digest)
+        for parent in candidates[digest]['payload'].get('supersedes', []):
+            visit(parent)
+        visiting.remove(digest)
+        visited.add(digest)
+    for digest in candidates:
+        visit(digest)
+    for digest in superseded:
+        historical_provenance(cfg, candidates[digest], api, context=context)
+    leaves = set(candidates) - superseded
+    require(len(leaves) <= 1, 'Ambiguous release decisions require explicit supersession')
+    if not leaves:
+        return None, None
+    digest = next(iter(leaves))
+    return digest, candidates[digest]
+
+
+def admitted_release(cfg, records, digest):
+    """Select exact current official product data; live gates grant authority."""
+    require(isinstance(digest, str) and HASH.fullmatch(digest), 'Canonical admitted proposal required')
+    selected = records.get(digest)
+    require(selected and selected['kind'] == 'release-product'
+            and selected['payload']['disposition'] == 'accepted',
+            'Exact cache recovery needs an admitted official product')
+    active_hash, active = active_release(cfg, records, selected['payload']['product'], authenticate=False)
+    require(active_hash == digest and active == selected, 'Exact cache recovery proposal is no longer active')
+    tags = {match[1] for name in selected['payload']['product'].get('assets', {})
+            if (match := re.fullmatch(r'maestro-(v[0-9]+\.[0-9]+\.[0-9]+)\.iso\.sha256', name))}
+    require(len(tags) == 1, 'Admitted cache recovery requires one official release tag')
+    return selected
+
+
+def timestamp(value):
+    require(isinstance(value, str), 'UTC timestamp required')
+    parsed = dt.datetime.fromisoformat(value.replace('Z', '+00:00'))
+    require(parsed.tzinfo is not None and parsed.utcoffset() == dt.timedelta(), 'UTC timestamp required')
+    return parsed
+
+
+def attest(path, cfg, revision, workflow):
+    return json.loads(command(['gh', 'attestation', 'verify', str(path), '--repo', cfg['repository'],
+                              '--signer-workflow', cfg['repository'] + '/' + workflow,
+                              '--source-digest', revision, '--source-ref', 'refs/heads/main',
+                              '--deny-self-hosted-runners', '--format', 'json']))
+
+
+def attest_product(path, cfg, revision):
+    """Original product bytes may have a different producer than a later rescan."""
+    for workflow in cfg['producerWorkflows']:
+        try:
+            return attest(path, cfg, revision, workflow)
+        except subprocess.CalledProcessError:
+            continue
+    raise ValueError('Product has no trusted original producer attestation')
+
+
+def verify_producer(cfg, producer, source_revision, api=None, require_main=False):
+    """Authenticate the caller run separately from its reusable signing workflow."""
+    api = api or authority.github_api
+    require(isinstance(producer, dict), 'Invalid producer metadata')
+    workflow = producer.get('workflow')
+    signer = producer.get('signerWorkflow', workflow)
+    revision = producer.get('revision', source_revision)
+    require(workflow in cfg['producerWorkflows'] and signer in cfg['producerWorkflows']
+            and type(producer.get('runId')) is int and producer['runId'] > 0
+            and type(producer.get('runAttempt')) is int and producer['runAttempt'] > 0
+            and isinstance(revision, str) and SHA.fullmatch(revision), 'Invalid producer identity')
+    run = api(f'repos/{cfg["repository"]}/actions/runs/{producer["runId"]}/attempts/{producer["runAttempt"]}')
+    require(run.get('id') == producer['runId'] and run.get('run_attempt') == producer['runAttempt']
+            and run.get('head_sha') == revision and run.get('head_branch') == 'main'
+            and run.get('event') in ('push', 'workflow_dispatch', 'schedule', 'workflow_run')
+            and run.get('path', '').split('@')[0] == workflow and run.get('status') == 'completed'
+            and run.get('conclusion') == 'success'
+            and run.get('repository', {}).get('full_name') == cfg['repository'], 'Untrusted or incomplete native producer')
+    if revision != source_revision:
+        comparison = api(f'repos/{cfg["repository"]}/compare/{source_revision}...{revision}')
+        require(comparison.get('status') in ('ahead', 'identical'), 'Rescan source must be an ancestor of trusted producer')
+    if require_main:
+        current = main_revision(cfg, api)
+        comparison = api(f'repos/{cfg["repository"]}/compare/{revision}...{current}')
+        require(comparison.get('status') in ('ahead', 'identical'), 'Original product producer is not on current protected main ancestry')
+    return revision, signer
+
+
+def coverage_roots(native, contract):
+    coverage = native.get('coverage')
+    require(isinstance(coverage, dict) and coverage.get('contract') == contract,
+            'Native scan predates required distribution coverage')
+    manifest = coverage.get('manifest')
+    roots = manifest.get('roots') if isinstance(manifest, dict) else None
+    require(isinstance(roots, dict) and roots
+            and all(isinstance(name, str) and name and isinstance(path, str)
+                    and re.fullmatch(r'/nix/store/[a-z0-9]{32}-[^/\s]+', path)
+                    for name, path in roots.items()), 'Invalid distribution coverage roots')
+    require(set(roots.values()) <= {subject.get('storePath') for subject in native.get('subjects', [])},
+            'Distribution coverage roots absent from authenticated scanned subjects')
+    return set(roots.values())
+
+
+@diagnostics.measured('gatePhases', 'scans')
+def scans(path, cfg, api=None, allow_expired=False):
+    api = api or authority.github_api
+    value = load_json(path)
+    require(value.get('schema') == 1 and value.get('repository') == cfg['repository']
+            and SHA.fullmatch(value.get('revision', '')), 'Invalid scan source identity')
+    require(isinstance(value.get('profiles'), dict) and value['profiles']
+            and set(value['profiles']).issubset(cfg['profiles']), 'Invalid scanned profile set')
+    now = dt.datetime.now(dt.timezone.utc)
+    scanned, expires = timestamp(value['scannedAt']), timestamp(value['expiresAt'])
+    evidence_hours = cfg.get('maxEvidenceAgeHours', 24)
+    database_hours = cfg.get('maxDatabaseAgeHours', 48)
+    require(type(evidence_hours) is int and 0 < evidence_hours <= 48
+            and type(database_hours) is int and 0 < database_hours <= 168, 'Invalid native health age policy')
+    valid_lifetime = scanned <= now and scanned < expires and expires - scanned <= dt.timedelta(hours=evidence_hours)
+    diagnostics.freshness((expires - now).total_seconds(), valid_lifetime, allow_expired)
+    require(valid_lifetime and (allow_expired or now < expires), 'Expired or future native health')
+    producer = value.get('producer', {})
+    producer_revision, signer = verify_producer(cfg, producer, value['revision'], api)
+    attest(path, cfg, producer_revision, signer)
+    for profile, native in value['profiles'].items():
+        require(native.get('status') == 'complete' and native.get('scannerHealth') == 'healthy', 'Native scanner unhealthy')
+        required_coverage = cfg.get('requiredCoverage', {}).get(profile)
+        if required_coverage and not allow_expired:
+            coverage_roots(native, required_coverage)
+        native_time = timestamp(native.get('scannedAt'))
+        require(scanned <= native_time <= now, 'Native observation predates envelope or is in the future')
+        database = native.get('database', {})
+        require(isinstance(database, dict) and database.get('valid') is True, 'Native scanner database is invalid')
+        database_time = timestamp(database.get('built'))
+        reference_time = native_time if allow_expired else now
+        diagnostics.freshness((dt.timedelta(hours=database_hours) - (reference_time - database_time)).total_seconds(),
+                              database_time <= native_time, allow_expired, lifetime='database')
+        require(database_time <= native_time and reference_time - database_time <= dt.timedelta(hours=database_hours),
+                'Native scanner database is stale or newer than its observation')
+    return value
+
+
+@diagnostics.measured('gatePhases', 'product')
+def product(path, cfg, scan, api=None):
+    value = load_json(path)
+    require(set(value).issubset({'schema', 'repository', 'revision', 'products', 'assets', 'roots'})
+            and type(value.get('schema')) is int and value['schema'] == 1 and value.get('repository') == cfg['repository']
+            and value.get('revision') == scan['revision'], 'Invalid immutable product identity')
+    require(isinstance(value.get('products'), dict) and value['products']
+            and set(value['products']).issubset(scan['profiles']), 'Product profiles lack native evidence')
+    def root(identity, profile):
+        require(isinstance(identity, dict) and re.fullmatch(r'/nix/store/[a-z0-9]{32}-[^/\s]+', identity.get('storePath', ''))
+                and re.fullmatch(r'sha256-[A-Za-z0-9+/]{43}=', identity.get('narHash', '')),
+                'Invalid output store/NAR identity')
+        subjects = scan['profiles'][profile].get('subjects', [])
+        require({'storePath': identity['storePath'], 'narHash': identity['narHash']} in subjects,
+                'Distribution root absent from authenticated scanned subjects')
+    for profile, identity in value['products'].items():
+        require(set(identity) == {'storePath', 'narHash'}, 'Unsupported product root fields')
+        root(identity, profile)
+    require(isinstance(value.get('roots', {}), dict), 'Invalid auxiliary roots')
+    for name, identity in value.get('roots', {}).items():
+        require(re.fullmatch(r'[A-Za-z0-9_.-]+', name) and isinstance(identity, dict)
+                and set(identity) == {'storePath', 'narHash', 'profile'}
+                and identity['profile'] in value['products'], 'Invalid auxiliary root profile')
+        root(identity, identity['profile'])
+    for profile, primary in value['products'].items():
+        native = scan['profiles'][profile]
+        contract = cfg.get('requiredCoverage', {}).get(profile)
+        # Historical products without the new marker remain restorable. A product
+        # claiming complete coverage must retain every authenticated manifest root.
+        if contract and native.get('coverage', {}).get('contract') == contract:
+            retained = {primary['storePath']} | {
+                identity['storePath'] for identity in value.get('roots', {}).values()
+                if identity['profile'] == profile}
+            require(coverage_roots(native, contract) <= retained,
+                    'Distribution coverage roots absent from retained product')
+    require(isinstance(value.get('assets'), dict)
+            and all(re.fullmatch(r'[A-Za-z0-9_.+-]+', name) and isinstance(digest, str) and HASH.fullmatch(digest)
+                    for name, digest in value['assets'].items()), 'Invalid product asset hashes')
+    if 'productProducer' in scan:
+        original = scan['productProducer']
+        require(isinstance(original, dict) and isinstance(original.get('revision'), str), 'Original product producer revision required')
+        revision, signer = verify_producer(cfg, original, value['revision'], api, require_main=True)
+        attest(path, cfg, revision, signer)
+    else:
+        attest_product(path, cfg, value['revision'])
+    return value
+
+
+@diagnostics.measured('gatePhases', 'admission')
+def admission(cfg, scan, records, api=None, context=None):
+    digest, proposal = active_security(cfg, records, api, context=context)
+    require(proposal is not None and proposal['payload']['disposition'] == 'accepted', 'Current human risk acceptance required')
+    require(all(not expanded for expanded, _ in compare_security_contexts(scan, proposal['payload']).values()),
+            'Runtime security policy changes require a human decision')
+    result = {profile: evaluate(native, profile, proposal['payload']['profiles'][profile])
+              for profile, native in scan['profiles'].items()}
+    require(all(r['status'] == 'covered' for r in result.values()), 'New or worsened findings require a human decision')
+    return {'schema': 1, 'status': 'covered', 'decisionHash': digest, 'profiles': result}
+
+
+@diagnostics.measured('gatePhases', 'policy')
+def required_check(cfg, api=None):
+    api = api or authority.github_api
+    rules = api(f'repos/{cfg["repository"]}/rules/branches/main')
+    require(isinstance(rules, list), 'Effective main rules must be readable')
+    checks = [check for rule in rules if rule.get('type') == 'required_status_checks'
+              for check in rule.get('parameters', {}).get('required_status_checks', [])]
+    require(any(c.get('context') == cfg.get('requiredAuthorityCheck', 'Maintainer decision authority')
+                and c.get('integration_id') == cfg['appId'] for c in checks),
+            'Expected App-bound main authority check is not enforced')
+
+
+def gate(cfg, scan_path, product_path=None, purpose='rolling', api=None, context=None):
+    diagnostics.count('gateInvocations')
+    if context is None and os.environ.get('MAESTRO_RELEASE_VERIFICATION_REUSE_ENABLED', 'false') == 'true':
+        context = VerificationContext()
+    try:
+        with diagnostics.boundary('gate'), diagnostics.measuring('gatePhases', 'gate'):
+            result = _gate(cfg, scan_path, product_path, purpose, api, context)
+    except Exception as error:
+        diagnostics.record({'schema': 1, 'status': 'blocked', 'errorType': type(error).__name__}, 'gate', logged=False)
+        raise
+    finally:
+        if context is not None:
+            context.discard()
+    diagnostics.snapshot()
+    return result
+
+
+def _gate(cfg, scan_path, product_path=None, purpose='rolling', api=None, context=None):
+    api = api or authority.github_api
+    require(cfg['enabled'], 'Publication disabled')
+    required_check(cfg, api)
+    reuse = os.environ.get('MAESTRO_RELEASE_VERIFICATION_REUSE_ENABLED', 'false')
+    require(reuse in ('true', 'false'), 'MAESTRO_RELEASE_VERIFICATION_REUSE_ENABLED must be true or false')
+    if context is None and reuse == 'true':
+        context = VerificationContext()
+    revision, records = ledger(cfg, api, context=context)
+    if context is not None:
+        context.bind(cfg, revision, records, load_json(product_path) if product_path else None)
+    scan = scans(scan_path, cfg, api)
+    with diagnostics.measuring('gatePhases', 'ancestry'):
+        comparison = api(f'repos/{cfg["repository"]}/compare/{scan["revision"]}...{revision}')
+        require(comparison.get('status') in ('ahead', 'identical'), 'Candidate source is not on protected main ancestry')
+        producer_revision = scan['producer'].get('revision', scan['revision'])
+        if producer_revision != scan['revision']:
+            comparison = api(f'repos/{cfg["repository"]}/compare/{producer_revision}...{revision}')
+            require(comparison.get('status') in ('ahead', 'identical'), 'Rescan producer is not on protected main ancestry')
+    with context.live_pass(api) if context is not None else nullcontext():
+        result = admission(cfg, scan, records, api, context=context)
+        if product_path:
+            identity = product(product_path, cfg, scan, api)
+            digest = canonical_hash(identity)
+            result['productHash'] = digest
+            release_digest, release = active_release(cfg, records, identity, api, context=context)
+            require(release is not None and release['payload'].get('disposition') == 'accepted',
+                    'Exact immutable product approval required')
+    # Final complete-ledger refresh catches concurrent additions/revocations.
+    with diagnostics.measuring('gatePhases', 'refresh'):
+        refreshed_revision, current = ledger(cfg, api, context=context)
+        if context is not None:
+            context.check(cfg, refreshed_revision, current, load_json(product_path) if product_path else None)
+        require(current == records, 'Current-main ledger changed during admission')
+        # Policy and effective rules are live observations, never context hits.
+        policy = authority.document_at(api, cfg['repository'], cfg['policyPath'], main_revision(cfg, api))
+        if context is not None:
+            if canonical_hash(policy) != context.binding[3]:
+                context.fail('verification-context-policy-changed')
+            context.check(policy, refreshed_revision, current, load_json(product_path) if product_path else None)
+        require(policy == cfg and policy['enabled'], 'Publication policy changed during admission')
+        required_check(cfg, api)
+        with context.live_pass(api) if context is not None else nullcontext():
+            active_security(cfg, current, api, context=context)
+            if product_path:
+                authorize(cfg, release, api, context=context)
+        if context is not None:
+            context.check(policy, main_revision(cfg, api), current,
+                          load_json(product_path) if product_path else None)
+            fresh_scan(scan, cfg)
+    if diagnostics.enabled():
+        diagnostics.record({**result, 'producer': scan['producer'],
+                            'rootCount': len(identity['products']) + len(identity.get('roots', {})) if product_path else 0,
+                            'findingCount': sum(len(profile['findings']) for profile in result['profiles'].values())},
+                           'gate', logged=False)
+    return result
+
+
+def fresh_scan(value, cfg):
+    now = dt.datetime.now(dt.timezone.utc)
+    scanned, expires = timestamp(value['scannedAt']), timestamp(value['expiresAt'])
+    require(scanned <= now < expires and expires - scanned <= dt.timedelta(hours=cfg.get('maxEvidenceAgeHours', 24)),
+            'verification-context-observation-expired')
+    for native in value['profiles'].values():
+        observed = timestamp(native['scannedAt'])
+        built = timestamp(native['database']['built'])
+        require(scanned <= observed <= now and built <= observed
+                and now - built <= dt.timedelta(hours=cfg.get('maxDatabaseAgeHours', 48)),
+                'verification-context-database-expired')
