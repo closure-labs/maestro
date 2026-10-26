@@ -11,6 +11,9 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Limit CI closure transport to selected, inventory-covered outputs so signed
+  cross-run restores do not depend on undistributed secondary build outputs.
+
 - Generate the flake with pinned flake-file and flake-parts while retaining
   Den v0.16.0 and the single `maestro` appliance. Colocate policy, packages,
   operator/installer/Packer sources and validation with feature owners.

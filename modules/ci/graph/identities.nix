@@ -44,7 +44,9 @@ in {
       in {
         inherit attribute;
         derivation = derivation.drvPath;
-        outputs = lib.genAttrs derivation.outputs (name: derivation.${name}.outPath);
+        # Only the selected output is distributed by ciPlans. Other outputs
+        # may exist after a source build but are absent from signed restores.
+        outputs.out = derivation.outPath;
       };
       appliance =
         map (target: root target.attribute)
