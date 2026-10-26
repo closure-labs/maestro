@@ -124,6 +124,7 @@ in {
     "ci:packer:validate".exec = runFlakePackage "maestro-ci-packer-validate" "";
     "ci:verdict".exec = runFlakePackage "maestro-ci-verdict" "";
 
+    "ci:admit-trusted".exec = runFlakePackage "maestro-ci-trusted-ci-admission" "";
     "automation:queue".exec = runFlakePackage "maestro-ci-queue" "";
     "automation:fix-hashes".exec = runFlakePackage "maestro-ci-fix-hashes" "";
     "automation:update-locks".exec = runFlakePackage "maestro-ci-update-locks" "";

@@ -347,6 +347,7 @@ in {
           PYTHONDONTWRITEBYTECODE=1 python3 tests/test_consumer_result.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/publication-journal.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/test_release_transaction.py
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/test_ci_admission.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/publication-diagnostics.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/test_request_attribution.py
           MAESTRO_TEST_LIBCURL=${pkgs.curl.out}/lib/libcurl.so.4 \
