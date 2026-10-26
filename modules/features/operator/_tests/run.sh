@@ -25,48 +25,8 @@ assert_eq() {
 temporary="$(mktemp -d)"
 trap 'rm -rf "$temporary"' EXIT
 
-# The released changelog remains an immutable historical record. No active
-# product or CLI identity may survive the clean-break rebrand.
-old_product='nix''oa'
-old_cli='nx''cli'
-while IFS= read -r -d '' source_file; do
-  relative_path=${source_file#"$TEST_ROOT"/}
-  case "$relative_path" in
-    docs/history/legacy-changelog.md | modules/features/operator/menu/_source/frontend/Cargo.lock)
-      continue
-      ;;
-  esac
-  if [[ ${relative_path,,} == *"$old_product"* || ${relative_path,,} == *"$old_cli"* ]]; then
-    fail "legacy identity remains in active path: $relative_path"
-  fi
-  matches=$(grep -InEi "${old_product}|${old_cli}" "$source_file" || true)
-  [[ -z $matches ]] || fail "legacy identity remains in $relative_path: $matches"
-done < <(
-  find "$TEST_ROOT" \
-    \( -path "$TEST_ROOT/.git" -o -path "$TEST_ROOT/.jj" -o -path "$TEST_ROOT/.devenv" -o -path "$TEST_ROOT/modules/features/operator/menu/_source/frontend/target" \) -prune \
-    -o -type f -print0
-)
-
-bash -n \
-  "$TEST_ROOT"/modules/ci/authority/_source/*.sh \
-  "$TEST_ROOT"/modules/features/xo/_source/*.sh \
-  "$TEST_ROOT/modules/features/operator/cli/_source/lib/common.sh" \
-  "$TEST_ROOT/modules/features/operator/cli/_source/maestroctl.sh" \
-  "$TEST_ROOT/modules/features/installer/_source/bootstrap.sh" \
-  "$TEST_ROOT/modules/features/operator/menu/_source/backend/lib.sh" \
-  "$TEST_ROOT/modules/features/operator/menu/_source/backend/action.sh" \
-  "$TEST_ROOT/modules/features/operator/menu/_source/backend/state.sh" \
-  "$TEST_ROOT/modules/features/installer/_source/install-maestro.sh" \
-  "$TEST_ROOT/modules/features/xcp-ng/template/_source/build.sh" \
-  "$TEST_ROOT/modules/features/xcp-ng/template/_source/deploy-template.sh" \
-  "$TEST_ROOT/modules/ci/graph/_tests/qualification-inputs.sh" \
-  "$TEST_ROOT/modules/ci/graph/_tests/ci-helpers.sh" \
-  "$TEST_ROOT/modules/ci/checks/_tests/fix-nix-hashes.sh" \
-  "$TEST_ROOT/modules/features/xo/_tests/xo-storage-helper.sh" \
-  "$TEST_ROOT"/modules/features/xcp-ng/template/_source/scripts/*.sh
-
-bash "$TEST_ROOT/modules/ci/checks/_tests/fix-nix-hashes.sh"
-bash "$TEST_ROOT/modules/ci/checks/_tests/ci-runtime-config.sh"
+# Repository-wide identity, shell parsing, hash-update and CI runtime contracts
+# run once under repository-policy, shell-lint and automation-fixtures.
 
 # Fixed target resolution.
 actual="$(
@@ -81,6 +41,22 @@ expected="$(
   printf 'maestro\nmaestro\npath:%s#maestro' "$TEST_ROOT"
 )"
 assert_eq "$actual" "$expected"
+
+# Staging must work in the current feature layout without removed root directories.
+mkdir -p "$temporary/managed/host" "$temporary/managed/modules/features/operator" "$temporary/managed/docs"
+for file in AGENTS.md CHANGELOG.md README.md flake.lock flake.nix; do
+  touch "$temporary/managed/$file"
+done
+printf '{}\n' >"$temporary/managed/host/menu.nix"
+printf '{}\n' >"$temporary/managed/modules/features/operator/example.nix"
+printf 'fixture\n' >"$temporary/managed/docs/guide.md"
+git -C "$temporary/managed" init -q
+actual="$(MAESTRO_SYSTEM_ROOT="$temporary/managed" bash -c '
+  source "$1"
+  maestro_stage_changes && git -C "$MAESTRO_SYSTEM_ROOT" diff --cached --name-only
+' bash "$TEST_ROOT/modules/features/operator/cli/_source/lib/common.sh")"
+grep -Fxq 'host/menu.nix' <<<"$actual" || fail "current host configuration was not staged"
+grep -Fxq 'modules/features/operator/example.nix' <<<"$actual" || fail "feature implementation was not staged"
 
 # First-install builds use Determinate Systems' unauthenticated bootstrap cache
 # rather than the authenticated FlakeHub Cache endpoint.

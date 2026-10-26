@@ -28,6 +28,9 @@ correspond to published GitHub tags.
   scheduling remains disabled. Narrow qualification and boot-verifier sources
   to their actual dependencies.
 
+- Remove obsolete CLI staging pathspecs after source relocation, and consolidate
+  repeated operator fixtures under their canonical repository audit owners.
+
 - Automatically admit pending CI for draft and ready PRs from the pinned Decider
   bot or live Super Admins, without granting review, merge or publication authority.
 

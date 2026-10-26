@@ -142,3 +142,12 @@ selective media/inventory/boot reuse, so graph gating remains disabled.
 Continuation fixtures: 24 graph/result/verdict/comparison cases pass within a
 512 MiB address-space limit; all 291 authority cases pass. ShellCheck, modified
 Nix syntax and workflow syntax checks pass locally without full Nix evaluation.
+
+The source-ownership continuation removes duplicate hash-update and CI-runtime
+fixture executions from the operator suite and moves the repository-wide
+identity scan into `repository-policy`. Shell parsing remains covered by
+`shell-lint`. The operator suite passes against an explicit source subset that
+excludes documentation, unrelated release logic and authority fixtures. Its
+real Git-staging regression exposed obsolete root pathspecs left after source
+relocation; the CLI now stages the current `host/` and `modules/` layout without
+requiring removed implementation directories.

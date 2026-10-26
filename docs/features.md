@@ -103,7 +103,10 @@ evidence require the successful, digest-bound receipt. Existing result readers
 remain compatible with the additive comparison binding.
 
 The qualification-input fixture uses only its own test source and packaged
-resolver. The boot verifier's Python path contains only the graph and transfer
+resolver. Operator fixtures copy their declared feature and workflow inputs;
+repository-wide identity checks belong to `repository-policy`. Hash-update and
+CI-runtime fixtures run once under `automation-fixtures`, and shell parsing
+belongs to `shell-lint`. The boot verifier's Python path contains only the graph and transfer
 helpers it imports; unrelated graph diagnostics do not invalidate boot evidence.
 
 Graph scheduling is **disabled**. Hosted complete validation, mutation/equivalence

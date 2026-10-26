@@ -32,12 +32,7 @@ readonly -a MAESTRO_TRACKED_PATHS=(
   flake.lock
   flake.nix
   host
-  installer
   modules
-  packer
-  pkgs
-  scripts
-  tests
 )
 
 maestro_print_error() {
