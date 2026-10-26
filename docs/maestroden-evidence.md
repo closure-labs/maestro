@@ -14,7 +14,7 @@ output evaluation or builds. Eighteen graph/result/verdict/diagnostic fixtures a
 fixtures pass. One duplicate workflow source-shape assertion was removed;
 repository policy still enforces the exact signal-only relay. Obsolete dual-layout
 fixture lookups and foreign-product path examples were also removed. No identical
-authority test bodies were found. The Nix parser checked 97 files with a measured maximum child
+authority test bodies were found. The Nix parser checked 145 files with a measured maximum child
 RSS of 38,612 KiB. The standalone flake-file renderer regenerated `flake.nix`
 without evaluating the appliance.
 
@@ -51,3 +51,35 @@ outputs did not. These are evaluation timings, not execution-time savings.
 The same run exposed an explicit Git-reference failure on shallow hosted
 checkouts; native task/build references now declare `shallow=1`. Full build and
 boot acceptance is still pending a successful subsequent run.
+
+The [40368324646 checkpoint](https://github.com/closure-labs/maestro/actions/runs/40368324646)
+passed graph planning, all CodeQL languages, the appliance/standalone build and
+hosted migration equivalence on immutable merge candidate
+`de5c318cea4172e4bd1c515280c068e4862a41de`. The graph contains 31 targets and
+13 appliance, one ISO and 60 inventory transport roots. Planning took 16 seconds
+inside the native graph command. Complete validation was selected because the
+base has no graph.
+
+| Mutation | Seconds | Changed registered derivations |
+| --- | ---: | ---: |
+| Documentation | 28.966 | 10 |
+| CLI | 26.571 | 14 |
+| XO storage helper | 26.573 | 13 |
+| Installer implementation | 30.847 | 11 |
+| Packer implementation | 29.001 | 12 |
+| Scan policy | 27.615 | 10 |
+
+The complete audit accounted for all 20 obligations: 18 passed, including
+runtime-security, operator, release, security and Packer fixtures. Two migration
+plumbing checks failed: the isolated graph fixture derivation omitted its Bash,
+coreutils and jq command dependencies, and the formatting fallback used a path
+that did not match its contract. Both are corrected in the next checkpoint.
+Raw Nix events remain retained; console output now renders messages and build
+logs without copying high-volume progress events into the job log. Full
+installer/boot/scan acceptance remains pending.
+
+The retained 291 authority fixtures passed locally in 1.99 seconds with a
+measured peak resident set of 224,420 KiB. Graph fixtures also pass with a
+512 MiB virtual-address limit. Tools implemented in Go reserve more virtual
+address space than their resident memory, so their memory observations use
+measured RSS rather than that address-space limit.

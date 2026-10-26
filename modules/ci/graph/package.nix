@@ -27,7 +27,7 @@
     };
     checks.ci-graph-fixtures =
       pkgs.runCommandLocal "maestro-ci-graph-fixtures" {
-        nativeBuildInputs = [pkgs.python3];
+        nativeBuildInputs = [pkgs.python3 pkgs.bash pkgs.coreutils pkgs.jq];
         source = lib.fileset.toSource {
           root = ./.;
           fileset = lib.fileset.unions [./_source ./_tests/test_graph.py ./_tests/test_results.py ./_tests/test_verdict.py ./_tests/test_summary.py];

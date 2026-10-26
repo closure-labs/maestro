@@ -17,7 +17,13 @@ fi
 if [[ $nix_command == nix && -n ${MAESTRO_NIX_EVENTS_DIR:-} ]]; then
   mkdir -p "$MAESTRO_NIX_EVENTS_DIR"
   events=$(mktemp "$MAESTRO_NIX_EVENTS_DIR/nix.XXXXXX.jsonl")
-  if "$nix_bin" --log-format internal-json "$@" 2> >(tee "$events" >&2); then
+  if "$nix_bin" --log-format internal-json "$@" 2> >(tee "$events" | jq --unbuffered -Rr '
+    if startswith("@nix ") then
+      (ltrimstr("@nix ") | fromjson? |
+        if .action == "msg" then .msg
+        elif .action == "result" and .type == 101 then .fields[0]
+        else empty end)
+    else . end' >&2); then
     status=0
   else
     status=$?

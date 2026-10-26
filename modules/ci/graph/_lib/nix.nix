@@ -2,7 +2,7 @@
   command = name:
     pkgs.writeShellApplication {
       inherit name;
-      runtimeInputs = [pkgs.coreutils];
+      runtimeInputs = [pkgs.coreutils pkgs.jq];
       text =
         builtins.replaceStrings ["@fallback@"] ["${pkgs.nix}/bin"]
         (builtins.readFile ../_source/nix.sh);

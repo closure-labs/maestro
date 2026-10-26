@@ -12,7 +12,7 @@ in {
           # jj workspaces do not expose .git. Ignore generated environment
           # state while retaining a useful local formatting check.
           mapfile -d $'\0' -t nix_files < <(
-            find . \( -path '.devenv' -o -path '.direnv' \) -prune \
+            find . \( -path './.devenv' -o -path './.direnv' \) -prune \
               -o -type f -name '*.nix' -print0
           )
         fi
