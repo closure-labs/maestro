@@ -5,8 +5,12 @@ cd "${MAESTRO_SYSTEM_ROOT:-$PWD}"
 output=$PWD/ci-equivalence
 mkdir -p "$output"
 candidate=${GITHUB_SHA:?}
-base=${EQUIVALENCE_BASE_SHA:?}
-[[ $candidate =~ ^[0-9a-f]{40}$ && $base =~ ^[0-9a-f]{40}$ ]]
+base=${EQUIVALENCE_BASE_SHA:-}
+[[ $candidate =~ ^[0-9a-f]{40}$ ]]
+if [[ -z $base || $base == 0000000000000000000000000000000000000000 ]]; then
+  base=$(git rev-parse "$candidate^")
+fi
+[[ $base =~ ^[0-9a-f]{40}$ ]]
 [[ $(git rev-parse HEAD) == "$candidate" ]]
 work=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/maestro-equivalence.XXXXXX")
 trap 'rm -rf -- "$work"' EXIT
@@ -41,8 +45,21 @@ for revision in candidate base; do
       "path:$work/$revision#$kind.x86_64-linux" --apply builtins.attrNames >"$output/$revision.$kind.json"
   done
 done
-diff -u "$output/base.security.json" "$output/candidate.security.json"
-python3 - "$output" "$work" <<'PY'
+# Enforce migration equivalence while the immutable base predates this graph.
+# Once the graph is established, legitimate policy/input updates remain possible;
+# their observed differences are retained and ordinary qualification still runs.
+export EQUIVALENCE_MIGRATION_MODE=true
+if base_graph=$(nix eval --accept-flake-config --no-write-lock-file --json \
+  "path:$work/base#lib.ciGraph.x86_64-linux.schemaVersion" 2>"$output/base-graph.log") && [[ $base_graph == 1 ]]; then
+  EQUIVALENCE_MIGRATION_MODE=false
+fi
+if ! diff -u "$output/base.security.json" "$output/candidate.security.json" >"$output/security.diff"; then
+  if [[ $EQUIVALENCE_MIGRATION_MODE == true ]]; then
+    cat "$output/security.diff" >&2
+    exit 1
+  fi
+fi
+python3 - "$output" "$work" "$EQUIVALENCE_MIGRATION_MODE" <<'PY'
 import json,sys
 from pathlib import Path
 out,work=map(Path,sys.argv[1:])
@@ -73,8 +90,9 @@ def unchanged(old_name,new_name,path):
     for name,reference in old.get('inputs',{}).items():
         if name not in new.get('inputs',{}):raise ValueError('Existing input removed: '+path+'/'+name)
         unchanged(resolve(before,reference),resolve(after,new['inputs'][name]),path+'/'+name)
-for name,reference in before['root']['inputs'].items():
-    unchanged(resolve(before,reference),resolve(after,after['root']['inputs'][name]),name)
+if sys.argv[3] == 'true':
+    for name,reference in before['root']['inputs'].items():
+        unchanged(resolve(before,reference),resolve(after,after['root']['inputs'][name]),name)
 
 PY
 nix eval --accept-flake-config --no-write-lock-file --json \

@@ -98,6 +98,8 @@ in {
       bootPolicy = import ../../features/installer/_lib/boot-policy.nix;
     };
     evidence = {
+      inventoryGenerator = inputs.self.packages.${system}.maestro-ci-security-inventory.drvPath;
+      inventoryVerifier = inputs.self.packages.${system}.maestro-ci-security-native-check.drvPath;
       distribution = inputs.self.packages.${system}.distribution-inventory.outPath;
       toplevel = inputs.self.nixosConfigurations.maestro.config.system.build.toplevel.outPath;
       sbomnix = inputs.self.packages.${system}.sbomnix.outPath;

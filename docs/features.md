@@ -84,6 +84,11 @@ protected-main signing also attests the complete graph result. The required
 check remains **Required CI verdict**, alongside separate CodeQL and review
 requirements.
 
+The migration equivalence check requires unchanged effective settings and
+existing input pins when the immutable base predates the graph. Subsequent
+policy and dependency updates retain observed differences and run normal
+qualification; the migration does not freeze appliance policy forever.
+
 Graph scheduling is **disabled**. Hosted complete validation, mutation/equivalence
 checks and same-candidate comparisons must pass before any future enablement.
 See [migration evidence](maestroden-evidence.md) for raw run links and remaining

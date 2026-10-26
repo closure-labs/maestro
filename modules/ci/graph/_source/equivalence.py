@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Hosted derivation mutation checks; uses complete graph evaluation for each case."""
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -42,4 +43,5 @@ for name, path, expect_appliance, expect_iso, changed_target in cases:
     finally:
         source.write_bytes(before)
     (output / 'results.json').write_text(json.dumps(dict(schemaVersion=1, candidateRevision=sys.argv[3],
-        baseRevision=sys.argv[4], gatingEnabled=False, results=results), sort_keys=True, indent=2)+'\n')
+        baseRevision=sys.argv[4], gatingEnabled=False,
+        migrationEquivalenceRequired=os.environ.get('EQUIVALENCE_MIGRATION_MODE') == 'true', results=results), sort_keys=True, indent=2)+'\n')

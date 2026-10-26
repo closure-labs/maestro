@@ -170,7 +170,7 @@ jobs:
         uses: $/.github/actions/setup-nix
       - name: Compare public interfaces, effective policy and mutated derivations
         env:
-          EQUIVALENCE_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before || 'd07995fec748a4e1cea456e3e8b4f2558e937573' }}
+          EQUIVALENCE_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before || '' }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:graph:equivalence
       - name: Retain raw equivalence and propagation evidence
         if: always()
