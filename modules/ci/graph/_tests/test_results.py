@@ -42,13 +42,14 @@ class BoundResults(unittest.TestCase):
 
     def test_transfer_rejects_changed_producer_derivation_and_missing_roots(self):
         target = dict(attribute='packages.x86_64-linux.fixture', derivation='fixture.drv', outputs={'out': '/nix/store/fixture'})
-        manifest = dict(schemaVersion=1, phase='appliance', producer=PRODUCER, graphSha256='f' * 64,
-                        targets=[target], roots=[dict(storePath='/nix/store/fixture', narHash='identity')], transport={})
+        manifest = dict(schemaVersion=2, phase='appliance', producer=PRODUCER, graphSha256='f' * 64,
+                        targets=[target], roots=[dict(storePath='/nix/store/fixture', narHash='identity')], transport={},
+                        files={name:'e' * 64 for name in transfer.INDEX_FILES['appliance']}, evidenceFiles={}, isoSha256=None)
         with patch.dict(os.environ, PRODUCER):
             transfer.validate(manifest, 'appliance', [target], 'f' * 64)
             for key, value in [('producer', dict(PRODUCER, GITHUB_SHA='b' * 40)),
                                ('targets', [dict(target, derivation='different.drv')]), ('roots', []),
-                               ('phase', 'installer'), ('schemaVersion', 2)]:
+                               ('phase', 'installer'), ('schemaVersion', 1), ('files', {}), ('evidenceFiles', {'unexpected':'f' * 64})]:
                 with self.subTest(key=key), self.assertRaises(ValueError):
                     transfer.validate(dict(manifest, **{key: value}), 'appliance', [target], 'f' * 64)
 

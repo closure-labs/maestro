@@ -9,13 +9,16 @@ import re
 import subprocess
 
 from graph import digest, require
-from transfer import bindings, producer
+from transfer import bindings, producer, validate, file_digest
 
 
 def main():
     graph = json.loads(Path('ci-graph/candidate.json').read_text())
     bindings(graph, Path('ci-graph/plan.json'), os.environ.get('GRAPH_PLAN_SHA256'))
     mode = os.environ['QUALIFICATION_MODE']
+    inventory_file = Path('inventory-binding/manifest.json')
+    require(file_digest(inventory_file) == os.environ['INVENTORY_MANIFEST_SHA256'], 'Inventory manifest digest mismatch')
+    inventory = validate(json.loads(inventory_file.read_text()), 'inventory', graph['transport']['inventory'], digest(graph))
     command_policy = hashlib.sha256(Path(os.environ['MAESTRO_BOOT_VERIFIER']).read_bytes()).hexdigest()
     require(graph['policy']['bootCommand'] == command_policy, 'Changed boot execution policy')
     policy = os.environ['MAESTRO_BOOT_POLICY_SHA256']
@@ -38,6 +41,8 @@ def main():
         raise ValueError('Unknown boot evidence mode')
     with iso.open('rb') as stream:
         iso_digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+    if mode != 'reuse':
+        require(inventory['isoSha256'] == iso_digest, 'Booted ISO differs from bound inventory producer bytes')
     result = dict(schemaVersion=1, disposition=disposition, producer=producer(), origin=origin,
                   graphSha256=digest(graph), mediaInput=os.environ['EXPECTED_MEDIA_INPUT'],
                   verifierSha256=policy, isoSha256=iso_digest,

@@ -447,6 +447,8 @@ jobs:
       - name: Assemble qualified media and evidence
         if: fromJSON(needs.route.outputs.plan).qualification.mode != 'reuse'
         env:
+          APPLIANCE_MANIFEST_SHA256: ${{ needs.appliance.outputs.manifest_sha256 }}
+          INSTALLER_MANIFEST_SHA256: ${{ needs.installer.outputs.manifest_sha256 }}
           EXPECTED_MEDIA_INPUT: ${{ fromJSON(needs.route.outputs.plan).qualification.media_input }}
           EXPECTED_EVIDENCE_INPUT: ${{ fromJSON(needs.route.outputs.plan).qualification.evidence_input }}
           EXPECTED_EVIDENCE_RUN_ID: ${{ fromJSON(needs.route.outputs.plan).qualification.evidence_run_id }}
@@ -531,6 +533,7 @@ jobs:
       - name: Retain digest-bound distribution closure for scanning
         id: inventory_transfer
         env:
+          SECURITY_INVENTORY: ${{ fromJSON(needs.route.outputs.plan).qualification.mode == 'reuse' && 'reused-evidence' || '.' }}
           GRAPH_PLAN_SHA256: ${{ needs.route.outputs.graph_sha256 }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:transport:export-inventory
 
@@ -541,6 +544,14 @@ jobs:
           path: inventory-transfer/
           if-no-files-found: error
           compression-level: 0
+          retention-days: 90
+
+      - name: Retain small inventory and ISO binding
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-inventory-binding
+          path: inventory-transfer/manifest.json
+          if-no-files-found: error
           retention-days: 90
 
   boot:
@@ -594,9 +605,16 @@ jobs:
           path: reused-media
           run-id: ${{ fromJSON(needs.route.outputs.plan).qualification.media_run_id }}
 
+      - name: Download current inventory byte binding
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: maestro-inventory-binding
+          path: inventory-binding
+
       - name: Bind executed or verified retained boot evidence
         id: evidence
         env:
+          INVENTORY_MANIFEST_SHA256: ${{ needs.qualification.outputs.manifest_sha256 }}
           GH_TOKEN: ${{ github.token }}
           GRAPH_PLAN_SHA256: ${{ needs.route.outputs.graph_sha256 }}
           QUALIFICATION_MODE: ${{ fromJSON(needs.route.outputs.plan).qualification.mode }}
@@ -673,6 +691,13 @@ jobs:
           path: reused-evidence
           github-token: ${{ github.token }}
           run-id: ${{ fromJSON(needs.route.outputs.plan).qualification.evidence_run_id }}
+
+      - name: Verify inventory document bytes against the bound producer
+        env:
+          GRAPH_PLAN_SHA256: ${{ needs.route.outputs.graph_sha256 }}
+          TRANSFER_MANIFEST_SHA256: ${{ needs.qualification.outputs.manifest_sha256 }}
+          SECURITY_INVENTORY: ${{ fromJSON(needs.route.outputs.plan).qualification.mode == 'reuse' && 'reused-evidence' || '.' }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:transport:verify-inventory
 
       - name: Scan current databases beside the realized qualification outputs
         env:
@@ -819,6 +844,7 @@ jobs:
 
       - name: Validate protected source before signing
         env:
+          GRAPH_RESULT_REQUIRED: true
           CI_RESULT_SHA256: ${{ needs.security.outputs.result_sha256 }}
           CI_GRAPH_PLAN_SHA256: ${{ needs.route.outputs.graph_sha256 }}
           GH_TOKEN: ${{ github.token }}

@@ -38,12 +38,19 @@ cleanup() {
 trap cleanup EXIT
 
 
-manifest=appliance-transfer/evidence.json
+manifest=appliance-transfer/manifest.json
+[[ $(sha256sum "$manifest" | cut -d' ' -f1) == "${APPLIANCE_MANIFEST_SHA256:?}" ]]
 xo_out=$(nix eval --accept-flake-config --raw "$flake_ref#packages.x86_64-linux.xen-orchestra-ce.outPath")
-sbomnix_out=$(jq -er '.results[] | select(.name == "sbomnix") | .outputs | select(length == 1) | .[0]' "$manifest")
-manifest_xo_out=$(jq -er '.results[] | select(.name == "xen-orchestra-ce") | .outputs | select(length == 1) | .[0]' "$manifest")
+manifest_output() {
+  jq -er --arg attribute "$1" '
+    [.targets[] | select(.attribute == $attribute) | .outputs.out] |
+    unique | select(length == 1) | .[0]
+  ' "$manifest"
+}
+sbomnix_out=$(manifest_output packages.x86_64-linux.sbomnix)
+manifest_xo_out=$(manifest_output packages.x86_64-linux.xen-orchestra-ce)
 [[ "$manifest_xo_out" == "$xo_out" ]]
-xo_supply_out=$(jq -er '.results[] | select(.name == "xen-orchestra-supply-protector") | .outputs | select(length == 1) | .[0]' "$manifest")
+xo_supply_out=$(manifest_output packages.x86_64-linux.xen-orchestra-supply-protector)
 # These are identities already restored by the transport verifier, never build requests.
 nix path-info "$sbomnix_out" "$xo_out" "$xo_supply_out"
 if [[ $QUALIFICATION_MODE == refresh-evidence ]]; then
@@ -51,7 +58,8 @@ if [[ $QUALIFICATION_MODE == refresh-evidence ]]; then
   [[ $(jq -er .media_input reused-media/maestro-qualification-state.json) == "${EXPECTED_MEDIA_INPUT:?}" ]]
   mv reused-media/result-installer result-installer
 else
-  iso_out=$(jq -er '.results[] | select(.name == "installer-iso") | .outputs | select(length == 1) | .[0]' installer-transfer/media.json)
+  [[ $(sha256sum installer-transfer/manifest.json | cut -d' ' -f1) == "${INSTALLER_MANIFEST_SHA256:?}" ]]
+  iso_out=$(jq -er '.targets | map(select(.attribute == "packages.x86_64-linux.installer-iso")) | map(.outputs.out) | unique | select(length == 1) | .[0]' installer-transfer/manifest.json)
   ln -s "$iso_out" result-installer
 fi
 printf '{}\n' >"$diagnostics/reuse.json"

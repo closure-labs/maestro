@@ -67,9 +67,11 @@ flowchart TD
 ```
 
 The existing verified retained-evidence path remains separate and keeps its
-fork restrictions and force-build controls. Every cross-job transfer binds an
+fork restrictions and force-build controls. Same-attempt transfer manifests use version 2; existing release receipts and
+closure archive formats keep their historical readers. Every cross-job transfer binds an
 immutable workflow attempt, graph digest, derivations, output paths and NAR
-hashes to the producer job's manifest digest. Consumers restore those exact
+hashes to the producer job's manifest digest. Native index files, inventory
+documents and the exact booted ISO bytes are bound as well. Consumers restore those exact
 bytes through the existing bounded closure transport; transfer verification
 never silently builds replacements. Boot results distinguish `executed` from
 `verified-retained`. Inventory covers installer boot content and distributed

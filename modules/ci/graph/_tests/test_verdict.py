@@ -25,7 +25,7 @@ class VerdictTests(unittest.TestCase):
         env = dict(os.environ, ROUTE_RESULT='success', AUDIT_REQUIRED='true', AUDIT_RESULT='success',
                    EQUIVALENCE_RESULT='success', SPLIT_QUALIFICATION='true', CI_PLAN=json.dumps(route(mode)),
                    GITHUB_EVENT_NAME='pull_request', GITHUB_REF='refs/pull/1/merge', GITHUB_SHA='c' * 40,
-                   GITHUB_RUN_ID='1', GITHUB_RUN_ATTEMPT='1', MAESTRO_DECISION_ONLY_REUSE_ENABLED='false',
+                   GITHUB_REPOSITORY='closure-labs/maestro', GITHUB_RUN_ID='1', GITHUB_RUN_ATTEMPT='1', MAESTRO_DECISION_ONLY_REUSE_ENABLED='false',
                    APPLIANCE_RESULT='success', INSTALLER_RESULT='success', QUALIFICATION_RESULT='success',
                    BOOT_RESULT='success', SCAN_RESULT='success', SECURITY_RESULT='success', SIGNING_RESULT='skipped',
                    GRAPH_RESULT_REQUIRED='false')
@@ -40,7 +40,7 @@ class VerdictTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as work:
             if 'CI_RESULT_SHA256' in changes and changes['CI_RESULT_SHA256'] != 'missing':
                 result = dict(schemaVersion=1, planSha256='d' * 64, producer={
-                    'GITHUB_SHA': env['GITHUB_SHA'], 'GITHUB_RUN_ID': '1', 'GITHUB_RUN_ATTEMPT': '1'},
+                    'GITHUB_REPOSITORY': env['GITHUB_REPOSITORY'], 'GITHUB_SHA': env['GITHUB_SHA'], 'GITHUB_RUN_ID': '1', 'GITHUB_RUN_ATTEMPT': '1'},
                     completeValidationRequired=True, schedulingMode='shadow')
                 data = json.dumps(result).encode()
                 (Path(work) / 'ci-result.json').write_bytes(data)

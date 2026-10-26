@@ -5,10 +5,10 @@ set -euo pipefail
 if [[ ${GRAPH_RESULT_REQUIRED:-false} == true || -n ${CI_RESULT_SHA256:-} ]]; then
   [[ ${CI_RESULT_SHA256:?} =~ ^[0-9a-f]{64}$ && ${CI_GRAPH_PLAN_SHA256:?} =~ ^[0-9a-f]{64}$ ]]
   [[ $(sha256sum ci-result.json | cut -d' ' -f1) == "$CI_RESULT_SHA256" ]]
-  jq -e --arg revision "${GITHUB_SHA:?}" --arg run "${GITHUB_RUN_ID:?}" --arg attempt "${GITHUB_RUN_ATTEMPT:?}" \
+  jq -e --arg repository "${GITHUB_REPOSITORY:?}" --arg revision "${GITHUB_SHA:?}" --arg run "${GITHUB_RUN_ID:?}" --arg attempt "${GITHUB_RUN_ATTEMPT:?}" \
     --arg graph_plan "$CI_GRAPH_PLAN_SHA256" '
       .schemaVersion == 1 and .planSha256 == $graph_plan and
-      .producer.GITHUB_SHA == $revision and .producer.GITHUB_RUN_ID == $run and
+      .producer.GITHUB_REPOSITORY == $repository and .producer.GITHUB_SHA == $revision and .producer.GITHUB_RUN_ID == $run and
       .producer.GITHUB_RUN_ATTEMPT == $attempt and
       .completeValidationRequired == true and .schedulingMode == "shadow"
     ' ci-result.json >/dev/null

@@ -15,22 +15,23 @@ def activities(directory):
         complete = path.with_name(path.name + '.result.json')
         if not complete.is_file() or json.loads(complete.read_text()).get('exitCode') != 0:
             incomplete += 1
-        for line in path.open():
-            if not line.startswith('@nix '):
-                continue
-            try:
-                value = json.loads(line[5:])
-            except json.JSONDecodeError:
-                incomplete += 1
-                continue
-            fields = value.get('fields')
-            if value.get('action') == 'start' and isinstance(fields, list) and fields and isinstance(fields[0], str):
-                # Nix's stable native ActivityType values. These are observations,
-                # not assertions that a skipped test executed in this workflow.
-                if value.get('type') == 105 and re.fullmatch(r'/nix/store/[a-z0-9]{32}-[^/\s]+\.drv', fields[0]):
-                    builds.add(fields[0])
-                elif value.get('type') == 108 and re.fullmatch(r'/nix/store/[a-z0-9]{32}-[^/\s]+', fields[0]):
-                    substitutes.add(fields[0])
+        with path.open() as stream:
+            for line in stream:
+                if not line.startswith('@nix '):
+                    continue
+                try:
+                    value = json.loads(line[5:])
+                except json.JSONDecodeError:
+                    incomplete += 1
+                    continue
+                fields = value.get('fields')
+                if value.get('action') == 'start' and isinstance(fields, list) and fields and isinstance(fields[0], str):
+                    # Nix's stable native ActivityType values. These are observations,
+                    # not assertions that a skipped test executed in this workflow.
+                    if value.get('type') == 105 and re.fullmatch(r'/nix/store/[a-z0-9]{32}-[^/\s]+\.drv', fields[0]):
+                        builds.add(fields[0])
+                    elif value.get('type') == 108 and re.fullmatch(r'/nix/store/[a-z0-9]{32}-[^/\s]+', fields[0]):
+                        substitutes.add(fields[0])
     return dict(buildDerivationsObserved=sorted(builds), substitutionPathsObserved=sorted(substitutes),
                 incompleteOrFailedTraceCount=incomplete,
                 interpretation='Observed native build/substitution activities; native plan results retain realization success.')
