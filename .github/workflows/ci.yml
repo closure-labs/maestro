@@ -290,7 +290,9 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: maestro-appliance-transfer
-          path: appliance-transfer/
+          path: |
+            appliance-transfer/
+            !appliance-transfer/nix-events/**
           if-no-files-found: error
           compression-level: 0
           retention-days: 90
@@ -349,7 +351,9 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: maestro-installer-transfer
-          path: installer-transfer/
+          path: |
+            installer-transfer/
+            !installer-transfer/nix-events/**
           if-no-files-found: error
           compression-level: 0
           retention-days: 90
@@ -541,7 +545,9 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: maestro-inventory-transfer
-          path: inventory-transfer/
+          path: |
+            inventory-transfer/
+            !inventory-transfer/nix-events/**
           if-no-files-found: error
           compression-level: 0
           retention-days: 90
