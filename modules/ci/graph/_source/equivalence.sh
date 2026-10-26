@@ -52,12 +52,30 @@ for kind in ['packages','apps','checks']:
     if set(before)-set(after):raise ValueError('Removed public outputs: '+repr(set(before)-set(after)))
 before=json.loads((work/'base/flake.lock').read_text())['nodes']
 after=json.loads((work/'candidate/flake.lock').read_text())['nodes']
-# Input graph node names can be renumbered when adding a root. Locked identities
-# themselves must all remain present, without opportunistic dependency updates.
-identities={json.dumps(v['locked'],sort_keys=True) for v in after.values() if 'locked' in v}
-for name,node in before.items():
-    if 'locked' in node and json.dumps(node['locked'],sort_keys=True) not in identities:
-        raise ValueError('Existing input changed: '+name)
+# Node names may be renumbered; compare every existing reachable input binding,
+# resolving follows and guarding cycles rather than accepting unused old nodes.
+def resolve(nodes, reference, trail=()):
+    if isinstance(reference,str):return reference
+    if not isinstance(reference,list) or tuple(reference) in trail:
+        raise ValueError('Invalid or cyclic input follows')
+    node='root'
+    for segment in reference:
+        node=resolve(nodes,nodes[node]['inputs'][segment],trail+(tuple(reference),))
+    return node
+seen=set()
+def unchanged(old_name,new_name,path):
+    key=(old_name,new_name)
+    if key in seen:return
+    seen.add(key)
+    old,new=before[old_name],after[new_name]
+    if old.get('locked') != new.get('locked') or old.get('flake',True) != new.get('flake',True):
+        raise ValueError('Existing input changed: '+path)
+    for name,reference in old.get('inputs',{}).items():
+        if name not in new.get('inputs',{}):raise ValueError('Existing input removed: '+path+'/'+name)
+        unchanged(resolve(before,reference),resolve(after,new['inputs'][name]),path+'/'+name)
+for name,reference in before['root']['inputs'].items():
+    unchanged(resolve(before,reference),resolve(after,after['root']['inputs'][name]),name)
+
 PY
 nix eval --accept-flake-config --no-write-lock-file --json \
   "path:$work/candidate#lib.ciGraph.x86_64-linux" >"$output/original.graph.json"
