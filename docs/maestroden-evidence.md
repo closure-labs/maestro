@@ -83,3 +83,23 @@ measured peak resident set of 224,420 KiB. Graph fixtures also pass with a
 512 MiB virtual-address limit. Tools implemented in Go reserve more virtual
 address space than their resident memory, so their memory observations use
 measured RSS rather than that address-space limit.
+
+The [40372043017 corrected checkpoint](https://github.com/closure-labs/maestro/actions/runs/40372043017)
+passed graph planning, hosted equivalence, all 20 audit targets (zero failures),
+the appliance/standalone build and the installer ISO build. Native validation
+took 533 seconds. The ISO job downloaded the 2.85 GB appliance transport in
+506 seconds, then restored/verified that closure and realized the exact ISO in
+302 seconds. Excluding separately retained raw diagnostics reduced the closure
+artifact from 4.92 GB to 2.85 GB. This does not establish an execution speedup.
+The earlier successful appliance trace observed 105 build derivations and 1,401
+substitution paths; those observations do not count substituted checks as newly
+executed tests.
+
+Hosted graph snapshots before and after the CI plumbing corrections have equal
+appliance, ISO, CLI and menu derivation identities. The final checkpoint also
+binds retained media to the compiled boot command and boot verifier derivations,
+so changes to their transitive packaged dependencies invalidate reuse as well
+as changes to the explicit verifier/policy source hashes. Full end-to-end
+verification of that final checkpoint is pending. Graph gating remains disabled;
+there is no same-candidate full-versus-graph scheduling comparison yet, and the
+measured transport cost must be included in that comparison.
