@@ -6,4 +6,6 @@ builtins.hashString "sha256" (builtins.concatStringsSep "\n" (map (builtins.hash
   ../_source/verify-state.sh
   ../_source/validate-state.sh
   ../_source/qualification-state.schema.json
+  ../../../ci/graph/_source/graph.py
+  ../../../ci/graph/_source/transfer.py
 ]))

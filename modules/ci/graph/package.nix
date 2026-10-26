@@ -3,6 +3,7 @@
     pkgs,
     lib,
     ciNix,
+    config,
     ...
   }: {
     packages = {
@@ -35,6 +36,7 @@
         export PYTHONDONTWRITEBYTECODE=1
         export MAESTRO_VERDICT_SOURCE=${../checks/_source/verdict.sh}
         python3 -m unittest discover -s "$source/_tests" -p 'test_*.py'
+        ${lib.getExe config.packages.maestro-ci-job-transfer} --help >/dev/null
         touch "$out"
       '';
   };

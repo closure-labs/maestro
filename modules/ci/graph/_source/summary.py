@@ -15,7 +15,7 @@ def activities(directory):
         complete = path.with_name(path.name + '.result.json')
         if not complete.is_file() or json.loads(complete.read_text()).get('exitCode') != 0:
             incomplete += 1
-        for line in path.read_text().splitlines():
+        for line in path.open():
             if not line.startswith('@nix '):
                 continue
             try:

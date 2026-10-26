@@ -31,6 +31,7 @@ files. `_source/`, `_tests/` and `_lib/` are private and never auto-imported.
 media, evidence and publication target. `lib.ciPlans.x86_64-linux` is generated
 from typed feature registrations. The committed graph plan data preserves
 existing native readers and is checked against those registrations. Regenerate
+plan data with `devenv tasks run ci:graph:write-plans`. Regenerate
 `flake.nix` with `nix run .#write-flake`; `check-flake-file` verifies it in CI.
 Inspect evaluated graph JSON with:
 
