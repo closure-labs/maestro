@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
-CORE = ROOT / 'nix/automation/decisions'
+CORE = ROOT / 'modules/ci/authority/_source/decisions'
 if not CORE.is_dir():
     CORE = ROOT / 'ci/decisions'
 sys.path.insert(0, str(CORE))

@@ -29,7 +29,7 @@
       operator-fixtures = mkSourceCheck {
         name = "operator-fixtures";
         command = "MAESTRO_SKIP_EVAL=1 bash ./tests/run.sh";
-        nativeBuildInputs = fixtureInputs ++ [pkgs.yq-go pkgs.openssh pkgs.gh (import ../../../nix/ci-nix.nix {inherit pkgs;})];
+        nativeBuildInputs = fixtureInputs ++ [pkgs.yq-go pkgs.openssh pkgs.gh (import ../../ci/graph/_lib/nix.nix {inherit pkgs;})];
       };
     };
   };

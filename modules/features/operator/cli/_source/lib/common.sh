@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
 
-readonly MAESTRO_SYSTEM_ROOT="${MAESTRO_SYSTEM_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+readonly MAESTRO_SYSTEM_ROOT="${MAESTRO_SYSTEM_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../../.." && pwd)}"
 readonly MAESTRO_TARGET="maestro"
 readonly MAESTRO_HOST_ROOT="$MAESTRO_SYSTEM_ROOT/host"
 readonly MAESTRO_SETTINGS_FILE="$MAESTRO_HOST_ROOT/settings.nix"

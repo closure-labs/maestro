@@ -15,7 +15,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
-FOLDER = ROOT / 'ci' if (ROOT / 'ci').is_dir() else ROOT / 'nix/automation'
+FOLDER = ROOT / 'ci' if (ROOT / 'ci').is_dir() else ROOT / 'modules/ci/authority/_source'
 sys.path.insert(0, str(FOLDER / 'decisions'))
 SPEC = importlib.util.spec_from_file_location('consumer_result_probe', FOLDER / 'consumer-probe.py')
 consumer = importlib.util.module_from_spec(SPEC)

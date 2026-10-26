@@ -6,7 +6,7 @@ import sys
 import unittest
 from unittest.mock import patch
 CORE=Path(__file__).resolve().parents[2]
-CORE=CORE/'ci/decisions' if (CORE/'ci').exists() else CORE/'nix/automation/decisions'
+CORE=CORE/'ci/decisions' if (CORE/'ci').exists() else CORE/'modules/ci/authority/_source/decisions'
 sys.path.insert(0,str(CORE))
 import destinations as d
 P='/nix/store/'+'0'*32+'-fixture'

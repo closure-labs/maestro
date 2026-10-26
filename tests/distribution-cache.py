@@ -15,7 +15,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 from urllib.parse import parse_qs, urlparse
 
-spec = importlib.util.spec_from_file_location('distribution_cache', Path(__file__).parents[1] / 'nix/automation/distribution-cache.py')
+spec = importlib.util.spec_from_file_location('distribution_cache', Path(__file__).parents[1] / 'modules/ci/authority/_source/distribution-cache.py')
 cache = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(cache)
 ROOT = '/nix/store/' + 'a' * 32 + '-runtime'

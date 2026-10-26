@@ -24,8 +24,8 @@ esac
 SH
 sed -i "1c#!${BASH}" "$temporary/bin/gh"
 chmod +x "$temporary/bin/gh"
-policy="$repo_root/nix/automation/github/security-policy.json"
-rules="$repo_root/nix/automation/github/main-ruleset.json"
+policy="$repo_root/modules/ci/authority/_source/github/security-policy.json"
+rules="$repo_root/modules/ci/authority/_source/github/main-ruleset.json"
 jq '{default_branch:"main",security_and_analysis:{secret_scanning:{status:.secret_scanning},secret_scanning_push_protection:{status:.secret_scanning_push_protection}}}' "$policy" >"$temporary/repository.json"
 jq '.actions + {enabled:true}' "$policy" >"$temporary/permissions.json"
 jq .selected_actions "$policy" >"$temporary/selected.json"
@@ -37,7 +37,7 @@ reset() {
 invoke() {
   FIXTURES="$temporary" PATH="$temporary/bin:$PATH" GITHUB_REPOSITORY=fixture/maestro \
     MAESTRO_GITHUB_SECURITY_POLICY="$policy" MAESTRO_MAIN_RULESET="$rules" \
-    bash "$repo_root/nix/automation/policy-drift.sh" >/dev/null 2>&1
+    bash "$repo_root/modules/ci/authority/_source/policy-drift.sh" >/dev/null 2>&1
 }
 reject() {
   if invoke; then echo 'Policy check accepted missing or unsafe bypass evidence' >&2; exit 1; fi

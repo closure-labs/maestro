@@ -13,7 +13,7 @@ from unittest.mock import patch
 import test_publish_readback as readback
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'nix/automation/decisions'))
+sys.path.insert(0, str(ROOT / 'modules/ci/authority/_source/decisions'))
 import publication_preflight
 
 
@@ -33,9 +33,9 @@ class ReadonlyPreflight(readback.PublishReadback):
                  'profiles': {'maestro': native}}
         (self.work / 'scans.json').write_text(json.dumps(scans))
         policy_root = self.work / 'controller'
-        self.policy = policy_root / 'nix/automation/decision-policy.json'
+        self.policy = policy_root / 'modules/ci/authority/_source/decision-policy.json'
         self.policy.parent.mkdir(parents=True)
-        self.policy.write_bytes((ROOT / 'nix/automation/decision-policy.json').read_bytes())
+        self.policy.write_bytes((ROOT / 'modules/ci/authority/_source/decision-policy.json').read_bytes())
         self.env.update(MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED='true',
                         MAESTRO_SYSTEM_ROOT=str(policy_root),
                         GH_TOKEN='private-reader', REGISTRY_TOKEN='private-registry',
@@ -202,7 +202,7 @@ class ReadonlyPreflight(readback.PublishReadback):
         observation = self.work / 'observation.json'
         observation.write_text('{}')
         environment = dict(self.env, MAESTRO_CI_DIAGNOSTICS='true', RUNNER_TEMP=str(self.work))
-        command = [sys.executable, str(ROOT / 'nix/automation/decisions/publication_preflight.py'), 'complete',
+        command = [sys.executable, str(ROOT / 'modules/ci/authority/_source/decisions/publication_preflight.py'), 'complete',
                    '--directory', str(directory), '--snapshot-digest', digest, '--observation', str(observation),
                    '--observation-digest', '0' * 64, '--receipt', str(self.receipt)]
         result = subprocess.run(command, env=environment, capture_output=True, text=True, check=False)

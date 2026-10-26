@@ -36,7 +36,7 @@ printf 'verified\n' >>"${FAKE_CACHE_FIXTURE:?}/handoff"
 HANDOFF
 sed -i "1c#!${BASH}" "$temporary/bin/maestro-ci-decision-handoff"
 chmod +x "$temporary/bin/maestro-ci-decision-handoff"
-jq -n --slurpfile contract "$root/nix/ci-plans.json" --arg first "$first" --arg second "$second" '
+jq -n --slurpfile contract "$root/modules/ci/graph/_lib/plans.json" --arg first "$first" --arg second "$second" '
   {schemaVersion:2,plan:"maestro-validation",flake:"path:/fixture",failureCount:0,
    targetCount:($contract[0].validation.targets | length),
    results:[$contract[0].validation.targets[] |
@@ -142,13 +142,13 @@ chmod +x "$temporary/bin/"*
 (
   unset MAESTRO_CI_AUDIT_MANIFEST
   PATH="$temporary/bin:$PATH" MAESTRO_SYSTEM_ROOT="$temporary" \
-    bash "$root/nix/automation/repository-audit.sh" --no-write-lock-file
+    bash "$root/modules/ci/authority/_source/repository-audit.sh" --no-write-lock-file
 )
 printf '%s\n' --flake "path:$temporary" --plan lib.ciPlans.x86_64-linux.validation >"$temporary/expected-args"
 cmp "$temporary/expected-args" "$temporary/runner-args"
 PATH="$temporary/bin:$PATH" MAESTRO_SYSTEM_ROOT="$temporary" \
   MAESTRO_CI_AUDIT_MANIFEST="$temporary/manifest with spaces.json" \
-  bash "$root/nix/automation/repository-audit.sh" --no-write-lock-file
+  bash "$root/modules/ci/authority/_source/repository-audit.sh" --no-write-lock-file
 printf '%s\n' --manifest "$temporary/manifest with spaces.json" >>"$temporary/expected-args"
 cmp "$temporary/expected-args" "$temporary/runner-args"
 printf 'Validation cache fixtures passed.\n'

@@ -10,7 +10,7 @@ import time
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-CORE = ROOT / 'nix/automation/decisions'
+CORE = ROOT / 'modules/ci/authority/_source/decisions'
 sys.path.insert(0, str(CORE))
 import operations
 

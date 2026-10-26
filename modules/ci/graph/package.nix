@@ -2,6 +2,7 @@
   perSystem = {
     pkgs,
     lib,
+    ciNix,
     ...
   }: {
     packages = {

@@ -1,7 +1,7 @@
 {...}: {
   perSystem = {pkgs, ...}: {
     devShells.default = pkgs.mkShellNoCC {
-      packages = import ../../../nix/devenv-packages.nix {inherit pkgs;};
+      packages = import ./_lib/packages.nix {inherit pkgs;};
     };
   };
 }

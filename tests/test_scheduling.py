@@ -12,7 +12,7 @@ from contextlib import redirect_stdout
 import io
 
 ROOT = Path(__file__).resolve().parents[1]
-FOLDER = ROOT / 'ci' if (ROOT / 'ci').is_dir() else ROOT / 'nix/automation'
+FOLDER = ROOT / 'ci' if (ROOT / 'ci').is_dir() else ROOT / 'modules/ci/authority/_source'
 sys.path.insert(0, str(FOLDER / 'decisions'))
 import scheduling
 import decision_packets as packets

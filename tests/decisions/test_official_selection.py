@@ -8,7 +8,7 @@ import sys
 import unittest
 from unittest.mock import patch
 
-AUTOMATION = Path(__file__).resolve().parents[2] / 'nix/automation'
+AUTOMATION = Path(__file__).resolve().parents[2] / 'modules/ci/authority/_source'
 sys.path.insert(0, str(AUTOMATION / 'decisions'))
 spec = importlib.util.spec_from_file_location('official_selection', AUTOMATION / 'decision-retained.py')
 retained = importlib.util.module_from_spec(spec)

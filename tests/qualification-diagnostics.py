@@ -26,8 +26,8 @@ class QualificationDiagnostics(unittest.TestCase):
             (media / 'maestro-qualification-state.json').write_text(json.dumps({
                 'artifact_source_commit': 'a' * 40, 'media_input': 'b' * 64}))
             (root / 'input.json').write_text(json.dumps(document))
-            (root / 'nix').mkdir()
-            (root / 'nix/ci-plans.json').write_bytes((ROOT / 'nix/ci-plans.json').read_bytes())
+            (root / 'modules/ci/graph/_lib').mkdir(parents=True)
+            (root / 'modules/ci/graph/_lib/plans.json').write_bytes((ROOT / 'modules/ci/graph/_lib/plans.json').read_bytes())
             for name, body in {
                 'maestro-ci-security-inventory-preflight': 'exit 0',
                 'maestro-ci-qualification-cache': 'exit 0',
@@ -50,7 +50,7 @@ esac''',
                                DIAGNOSTIC_PLAN_CALLED=str(root / 'plan-called'))
             # Run in a synthetic source root; every Nix/verification executable is
             # a stub. Only the declared plan data comes from the real source.
-            result = subprocess.run(['bash', str(ROOT / 'nix/automation/qualification-assets.sh')],
+            result = subprocess.run(['bash', str(ROOT / 'modules/ci/authority/_source/qualification-assets.sh')],
                                     cwd=root, env=environment,
                                     capture_output=True, timeout=15)
             diagnostics = root / 'maestro-qualification-diagnostics'

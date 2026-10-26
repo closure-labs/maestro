@@ -30,7 +30,7 @@ in {
     bootstrap = config.packages.bootstrap;
     buildTemplate = config.packages.build-template;
     deployTemplate = config.packages.deploy-template;
-    devenv = import ../../../../nix/devenv-launcher.nix {
+    devenv = import ../../development/_lib/launcher.nix {
       inherit pkgs lib;
       devenv = inputs.devenv.packages.${system}.devenv;
     };

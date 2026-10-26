@@ -17,7 +17,7 @@ import common
 import handoff as native_handoff
 
 ROOT = Path(__file__).resolve().parents[2]
-SPEC = importlib.util.spec_from_file_location('batch_handoff_fetch', ROOT / 'nix/automation/decision-handoff-fetch.py')
+SPEC = importlib.util.spec_from_file_location('batch_handoff_fetch', ROOT / 'modules/ci/authority/_source/decision-handoff-fetch.py')
 fetch = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(fetch)
 FLAG = 'MAESTRO_PACKET_METADATA_BATCH_ENABLED'
@@ -205,8 +205,8 @@ class MetadataBatch(unittest.TestCase):
                     'destinations.cache = lambda *a, **k: {"schema":1,"destination":"cache","status":"partial","expected":{},"observed":{}}\n'
                     'destinations.main()\n')
                 output = directory / 'github-output'
-                result = subprocess.run(['bash', str(ROOT / 'nix/automation/publication-inspect.sh')],
-                    env=dict(os.environ, PYTHONPATH=str(ROOT / 'nix/automation/decisions'),
+                result = subprocess.run(['bash', str(ROOT / 'modules/ci/authority/_source/publication-inspect.sh')],
+                    env=dict(os.environ, PYTHONPATH=str(ROOT / 'modules/ci/authority/_source/decisions'),
                         PUBLICATION_DESTINATIONS_SOURCE=str(stub), DECISION_PRODUCT=str(product),
                         PUBLICATION_DESTINATION=destination, PUBLICATION_REQUIRE_VERIFIED='true',
                         PUBLICATION_PURPOSE='release', RELEASE_TAG='v1.2.3', GITHUB_OUTPUT=str(output)),

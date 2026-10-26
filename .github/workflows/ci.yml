@@ -224,9 +224,98 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
-  qualification:
-    name: Qualify installer media and evidence
+  appliance:
+    name: Build appliance
     needs: [route, retained]
+    if: >-
+      !cancelled() && needs.route.result == 'success' && fromJSON(needs.route.outputs.plan).qualification.required && needs.retained.outputs.reused != 'true' && (vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED != 'true' || contains(fromJSON('["success","skipped"]'), needs.retained.result)) && fromJSON(needs.route.outputs.plan).qualification.mode != 'reuse'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    permissions:
+      actions: read
+      attestations: read
+      contents: read
+    outputs:
+      manifest_sha256: ${{ steps.transfer.outputs.manifest_sha256 }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Nix
+        uses: $/.github/actions/setup-nix
+      - name: Download maestro-ci-graph
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: maestro-ci-graph
+          path: ci-graph
+
+      - name: Realize exact appliance and standalone outputs
+        id: transfer
+        env:
+          GRAPH_PLAN_SHA256: ${{ needs.route.outputs.graph_sha256 }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:build:appliance
+
+      - name: Retain maestro-appliance-transfer
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-appliance-transfer
+          path: appliance-transfer/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90
+
+  installer:
+    name: Build installer ISO
+    needs: [route, retained, appliance]
+    if: >-
+      !cancelled() && needs.route.result == 'success' && fromJSON(needs.route.outputs.plan).qualification.required && needs.retained.outputs.reused != 'true' && (vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED != 'true' || contains(fromJSON('["success","skipped"]'), needs.retained.result)) && needs.appliance.result == 'success' && contains(fromJSON('["qualify-media","qualify-media-reuse-evidence"]'), fromJSON(needs.route.outputs.plan).qualification.mode)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    permissions:
+      actions: read
+      attestations: read
+      contents: read
+    outputs:
+      manifest_sha256: ${{ steps.transfer.outputs.manifest_sha256 }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Nix
+        uses: $/.github/actions/setup-nix
+      - name: Download maestro-ci-graph
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: maestro-ci-graph
+          path: ci-graph
+
+      - name: Download maestro-appliance-transfer
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: maestro-appliance-transfer
+          path: appliance-transfer
+
+      - name: Restore the exact appliance and realize installer image
+        id: transfer
+        env:
+          GRAPH_PLAN_SHA256: ${{ needs.route.outputs.graph_sha256 }}
+          TRANSFER_MANIFEST_SHA256: ${{ needs.appliance.outputs.manifest_sha256 }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:build:installer
+
+      - name: Retain maestro-installer-transfer
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-installer-transfer
+          path: installer-transfer/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90
+
+  qualification:
+    name: Generate release inventory
+    needs: [route, retained, appliance, installer]
     if: >-
       !cancelled() && needs.route.result == 'success' &&
       fromJSON(needs.route.outputs.plan).qualification.required && needs.retained.outputs.reused != 'true' &&
@@ -237,6 +326,8 @@ jobs:
       actions: read
       attestations: read
       contents: read
+    outputs:
+      manifest_sha256: ${{ steps.inventory_transfer.outputs.manifest_sha256 }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -245,6 +336,40 @@ jobs:
 
       - name: Set up Nix
         uses: $/.github/actions/setup-nix
+
+      - name: Download maestro-ci-graph
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: maestro-ci-graph
+          path: ci-graph
+
+      - name: Download maestro-appliance-transfer
+        if: fromJSON(needs.route.outputs.plan).qualification.mode != 'reuse'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: maestro-appliance-transfer
+          path: appliance-transfer
+
+      - name: Restore exact appliance closure for inventory
+        if: fromJSON(needs.route.outputs.plan).qualification.mode != 'reuse'
+        env:
+          GRAPH_PLAN_SHA256: ${{ needs.route.outputs.graph_sha256 }}
+          TRANSFER_MANIFEST_SHA256: ${{ needs.appliance.outputs.manifest_sha256 }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:transport:restore-appliance
+
+      - name: Download maestro-installer-transfer
+        if: contains(fromJSON('["qualify-media","qualify-media-reuse-evidence"]'), fromJSON(needs.route.outputs.plan).qualification.mode)
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: maestro-installer-transfer
+          path: installer-transfer
+
+      - name: Restore exact installer bytes for inventory
+        if: contains(fromJSON('["qualify-media","qualify-media-reuse-evidence"]'), fromJSON(needs.route.outputs.plan).qualification.mode)
+        env:
+          GRAPH_PLAN_SHA256: ${{ needs.route.outputs.graph_sha256 }}
+          TRANSFER_MANIFEST_SHA256: ${{ needs.installer.outputs.manifest_sha256 }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:transport:restore-installer
 
       - name: Download already-qualified media
         if: fromJSON(needs.route.outputs.plan).qualification.mode == 'refresh-evidence'
@@ -272,7 +397,7 @@ jobs:
           EXPECTED_EVIDENCE_RUN_ID: ${{ fromJSON(needs.route.outputs.plan).qualification.evidence_run_id }}
           GH_TOKEN: ${{ github.token }}
           QUALIFICATION_MODE: ${{ fromJSON(needs.route.outputs.plan).qualification.mode }}
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:qualification:assemble
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:inventory:assets
 
       - name: Download previously qualified distribution transport
         if: fromJSON(needs.route.outputs.plan).qualification.mode == 'reuse'
@@ -290,13 +415,6 @@ jobs:
           SECURITY_INVENTORY: reused-evidence
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:qualification:restore
 
-      - name: Boot the installer ISO
-        if: contains(fromJSON('["qualify-media-reuse-evidence","qualify-media"]'), fromJSON(needs.route.outputs.plan).qualification.mode)
-        env:
-          BOOT_LOG: ${{ runner.temp }}/qemu-boot.log
-          INSTALLER_ISO: result-installer/iso/maestro-installer.iso
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:qualification:boot-media
-
       - name: Retain qualification diagnostics
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -305,15 +423,6 @@ jobs:
           path: ${{ runner.temp }}/maestro-qualification-diagnostics/
           if-no-files-found: ignore
           retention-days: 30
-
-      - name: Upload boot log after failure
-        if: failure()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: maestro-installer-boot-log
-          path: ${{ runner.temp }}/qemu-boot.log
-          if-no-files-found: ignore
-          retention-days: 14
 
       - name: Download immutable qualification state
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -364,6 +473,152 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
+      - name: Retain digest-bound distribution closure for scanning
+        id: inventory_transfer
+        env:
+          GRAPH_PLAN_SHA256: ${{ needs.route.outputs.graph_sha256 }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:transport:export-inventory
+
+      - name: Retain maestro-inventory-transfer
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-inventory-transfer
+          path: inventory-transfer/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90
+
+  boot:
+    name: Test installer boot
+    needs: [route, retained, qualification]
+    if: >-
+      !cancelled() && needs.route.result == 'success' && fromJSON(needs.route.outputs.plan).qualification.required && needs.retained.outputs.reused != 'true' && (vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED != 'true' || contains(fromJSON('["success","skipped"]'), needs.retained.result)) && needs.qualification.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    permissions:
+      actions: read
+      attestations: read
+      contents: read
+    outputs:
+      manifest_sha256: ${{ steps.evidence.outputs.manifest_sha256 }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Nix
+        uses: $/.github/actions/setup-nix
+      - name: Download maestro-ci-graph
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: maestro-ci-graph
+          path: ci-graph
+
+      - name: Download maestro-installer
+        if: fromJSON(needs.route.outputs.plan).qualification.mode != 'reuse'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: maestro-installer
+          path: .
+          github-token: ${{ github.token }}
+          run-id: ${{ github.run_id }}
+
+      - name: Boot the installer ISO
+        if: contains(fromJSON('["qualify-media-reuse-evidence","qualify-media"]'), fromJSON(needs.route.outputs.plan).qualification.mode)
+        env:
+          BOOT_LOG: ${{ runner.temp }}/qemu-boot.log
+          INSTALLER_ISO: result-installer/iso/maestro-installer.iso
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:qualification:boot-media
+
+      - name: Download original media for retained boot verification
+        if: contains(fromJSON('["reuse","refresh-evidence"]'), fromJSON(needs.route.outputs.plan).qualification.mode)
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          github-token: ${{ github.token }}
+          name: maestro-installer
+          path: reused-media
+          run-id: ${{ fromJSON(needs.route.outputs.plan).qualification.media_run_id }}
+
+      - name: Bind executed or verified retained boot evidence
+        id: evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GRAPH_PLAN_SHA256: ${{ needs.route.outputs.graph_sha256 }}
+          QUALIFICATION_MODE: ${{ fromJSON(needs.route.outputs.plan).qualification.mode }}
+          EXPECTED_MEDIA_INPUT: ${{ fromJSON(needs.route.outputs.plan).qualification.media_input }}
+          BOOT_LOG: ${{ runner.temp }}/qemu-boot.log
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:boot:evidence
+
+      - name: Retain bound boot result
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-boot-result
+          path: boot-result.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Retain maestro-installer-boot-log
+        if: always() && contains(fromJSON('["qualify-media","qualify-media-reuse-evidence"]'), fromJSON(needs.route.outputs.plan).qualification.mode)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-installer-boot-log
+          path: ${{ runner.temp }}/qemu-boot.log
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90
+
+  scan:
+    name: Scan release outputs
+    needs: [route, retained, qualification]
+    if: >-
+      !cancelled() && needs.route.result == 'success' && fromJSON(needs.route.outputs.plan).qualification.required && needs.retained.outputs.reused != 'true' && (vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED != 'true' || contains(fromJSON('["success","skipped"]'), needs.retained.result)) && needs.qualification.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    permissions:
+      actions: read
+      attestations: read
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Nix
+        uses: $/.github/actions/setup-nix
+      - name: Download maestro-ci-graph
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: maestro-ci-graph
+          path: ci-graph
+
+      - name: Download maestro-inventory-transfer
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: maestro-inventory-transfer
+          path: inventory-transfer
+
+      - name: Authenticate and restore exact distribution for native scanning
+        env:
+          GRAPH_PLAN_SHA256: ${{ needs.route.outputs.graph_sha256 }}
+          TRANSFER_MANIFEST_SHA256: ${{ needs.qualification.outputs.manifest_sha256 }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:transport:restore-inventory
+
+      - name: Download maestro-evidence
+        if: fromJSON(needs.route.outputs.plan).qualification.mode != 'reuse'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: maestro-evidence
+          path: .
+
+      - name: Download maestro-evidence
+        if: fromJSON(needs.route.outputs.plan).qualification.mode == 'reuse'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: maestro-evidence
+          path: reused-evidence
+          github-token: ${{ github.token }}
+          run-id: ${{ fromJSON(needs.route.outputs.plan).qualification.evidence_run_id }}
+
       - name: Scan current databases beside the realized qualification outputs
         env:
           SECURITY_INVENTORY: ${{ fromJSON(needs.route.outputs.plan).qualification.mode == 'reuse' && 'reused-evidence' || '.' }}
@@ -388,13 +643,13 @@ jobs:
           retention-days: 90
 
   security:
-    name: Scan qualified dependency inventories
-    needs: [route, retained, qualification]
+    name: Verify release evidence
+    needs: [route, retained, qualification, boot, scan]
     if: >-
       !cancelled() && needs.route.result == 'success' &&
       fromJSON(needs.route.outputs.plan).qualification.required && needs.retained.outputs.reused != 'true' &&
       (vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED != 'true' || contains(fromJSON('["success","skipped"]'), needs.retained.result)) &&
-      (needs.qualification.result == 'success' || needs.qualification.result == 'skipped')
+      needs.qualification.result == 'success' && needs.boot.result == 'success' && needs.scan.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -432,10 +687,10 @@ jobs:
 
   signing:
     name: Sign protected-main qualification
-    needs: [route, audit, qualification, security]
+    needs: [route, audit, qualification, boot, scan, security]
     if: >-
       !cancelled() && needs.route.result == 'success' && needs.security.result == 'success' &&
-      needs.audit.result == 'success' &&
+      needs.audit.result == 'success' && needs.boot.result == 'success' && needs.scan.result == 'success' &&
       github.ref == 'refs/heads/main' &&
       contains(fromJSON('["push","schedule","workflow_dispatch"]'), github.event_name) &&
       fromJSON(needs.route.outputs.plan).qualification.required &&
@@ -534,6 +789,10 @@ jobs:
       - audit
       - retained
       - qualification
+      - appliance
+      - installer
+      - boot
+      - scan
       - signing
       - security
     runs-on: ubuntu-24.04
@@ -551,6 +810,11 @@ jobs:
       - name: Enforce the conditional CI graph
         env:
           AUDIT_REQUIRED: true
+          SPLIT_QUALIFICATION: true
+          APPLIANCE_RESULT: ${{ needs.appliance.result }}
+          INSTALLER_RESULT: ${{ needs.installer.result }}
+          BOOT_RESULT: ${{ needs.boot.result }}
+          SCAN_RESULT: ${{ needs.scan.result }}
           AUDIT_RESULT: ${{ needs.audit.result }}
           SECURITY_RESULT: ${{ needs.security.result }}
           SIGNING_RESULT: ${{ needs.signing.result }}

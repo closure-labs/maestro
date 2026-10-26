@@ -20,7 +20,7 @@ import zipfile
 from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'nix/automation/decisions'))
+sys.path.insert(0, str(ROOT / 'modules/ci/authority/_source/decisions'))
 import decision_only as reuse
 
 
@@ -132,7 +132,7 @@ class RetainedEvidence(unittest.TestCase):
         self.proposal = {'schema': 1, 'kind': 'security-findings', 'payload': {
             'packet': self.descriptor['packet'], 'profiles': {'maestro': []}, 'disposition': 'accepted',
             'rationale': 'Fixture retained native findings', 'supersedes': []}}
-        self.patch(patch.dict(os.environ, {'MAESTRO_DECISION_RETAINED_SOURCE': str(ROOT / 'nix/automation/decision-retained.py')}))
+        self.patch(patch.dict(os.environ, {'MAESTRO_DECISION_RETAINED_SOURCE': str(ROOT / 'modules/ci/authority/_source/decision-retained.py')}))
         self.patch(patch.object(reuse, 'inspect', return_value=self.descriptor))
         self.patch(patch.object(reuse, 'git', return_value=b''))
         self.patch(patch.object(reuse, 'source_proposal', return_value=self.proposal))
@@ -293,7 +293,7 @@ class Verdict(unittest.TestCase):
                            AUDIT_RESULT='skipped', QUALIFICATION_RESULT='skipped', SECURITY_RESULT='skipped',
                            SIGNING_RESULT='skipped', RETAINED_RESULT='success', RETAINED_REUSE='true',
                            RETAINED_DESCRIPTOR_HASH=reuse.common.canonical_hash(descriptor), MAESTRO_DECISION_ONLY_REUSE_ENABLED='true')
-        command = ['bash', str(ROOT / 'nix/automation/verdict.sh')]
+        command = ['bash', str(ROOT / 'modules/ci/authority/_source/verdict.sh')]
         self.assertEqual(subprocess.run(command, env=environment).returncode, 0)
         for field, value in (('RETAINED_RESULT', 'failure'), ('RETAINED_DESCRIPTOR_HASH', 'f' * 64),
                              ('MAESTRO_DECISION_ONLY_REUSE_ENABLED', 'false'), ('SECURITY_RESULT', 'success')):

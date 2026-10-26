@@ -8,7 +8,7 @@
       inherit system;
       config.allowUnfreePredicate = package: lib.getName package == "packer";
     };
-    _module.args.ciNix = import ../../nix/ci-nix.nix {
+    _module.args.ciNix = import ../ci/graph/_lib/nix.nix {
       pkgs = import inputs.nixpkgs {inherit system;};
     };
   };

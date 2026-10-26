@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'nix/automation/decisions'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'modules/ci/authority/_source/decisions'))
 import common
 import decision_authority as authority
 import security_decisions as findings
@@ -18,7 +18,7 @@ from recovery import validate_journal
 
 CFG = {'schema': 1, 'repository': 'closure-labs/maestro', 'enabled': False,
        'botLogin': 'review[bot]', 'appId': 123, 'profiles': ['maestro'],
-       'policyPath': 'nix/automation/decision-policy.json',
+       'policyPath': 'modules/ci/authority/_source/decision-policy.json',
        'producerWorkflows': ['.github/workflows/ci.yml']}
 ROOT = '/nix/store/' + 'a' * 32 + '-runtime'
 NAR = 'sha256-' + 'A' * 43 + '='

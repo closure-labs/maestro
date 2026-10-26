@@ -18,16 +18,16 @@ test_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 temporary=$(mktemp -d "${TMPDIR:-/tmp}/maestro-ci-helpers.XXXXXX")
 trap 'rm -rf -- "$temporary"' EXIT
 
-[[ $(printf '%s\n' README.md docs/ci.md VERSION modules/features/xcp-ng/template/_source/build.sh modules/ci/checks/contracts.nix modules/features/development/shell.nix nix/checks/repository-policy.nix | "$MAESTRO_CI_CLASSIFY_PATHS") == false ]]
-[[ $(printf '%s\n' modules/features/platform/system.nix | "$MAESTRO_CI_CLASSIFY_PATHS") == true ]]
-[[ $(printf '%s\n' nix/ci-plans.json | "$MAESTRO_CI_CLASSIFY_PATHS") == true ]]
-[[ $(printf '%s\n' nix/automation/qualification-assets.sh | "$MAESTRO_CI_CLASSIFY_PATHS") == true ]]
+[[ $(printf '%s\n' README.md docs/ci.md VERSION modules/features/xcp-ng/template/_source/build.sh modules/ci/checks/contracts.nix modules/features/development/shell.nix modules/ci/checks/_lib/repository-policy.nix | "$MAESTRO_CI_CLASSIFY_PATHS") == false ]]
+[[ $(printf '%s\n' modules/features/platform/nix.nix | "$MAESTRO_CI_CLASSIFY_PATHS") == true ]]
+[[ $(printf '%s\n' modules/ci/graph/_lib/plans.json | "$MAESTRO_CI_CLASSIFY_PATHS") == true ]]
+[[ $(printf '%s\n' modules/ci/authority/_source/qualification-assets.sh | "$MAESTRO_CI_CLASSIFY_PATHS") == true ]]
 [[ $(printf '%s\n' .github/workflows/ci.yml | "$MAESTRO_CI_CLASSIFY_PATHS") == true ]]
-[[ $(printf '%s\n' nix/automation/github/main-ruleset.json | "$MAESTRO_CI_CLASSIFY_PATHS") == false ]]
+[[ $(printf '%s\n' modules/ci/authority/_source/github/main-ruleset.json | "$MAESTRO_CI_CLASSIFY_PATHS") == false ]]
 [[ $(printf '%s\n' future/unknown-output | "$MAESTRO_CI_CLASSIFY_PATHS") == true ]]
 
 merge_fixture="$temporary/merge-group"
-mkdir -p "$merge_fixture/docs" "$merge_fixture/modules/_nixos"
+mkdir -p "$merge_fixture/docs" "$merge_fixture/modules/features/platform"
 git -C "$merge_fixture" init -q
 git -C "$merge_fixture" config user.email fixture@example.invalid
 git -C "$merge_fixture" config user.name Fixture
@@ -39,8 +39,8 @@ printf 'irrelevant\n' >"$merge_fixture/docs/irrelevant.md"
 git -C "$merge_fixture" add docs/irrelevant.md
 git -C "$merge_fixture" commit -qm irrelevant
 irrelevant_head=$(git -C "$merge_fixture" rev-parse HEAD)
-printf '{}\n' >"$merge_fixture/modules/_nixos/merge-group-fixture.nix"
-git -C "$merge_fixture" add modules/_nixos/merge-group-fixture.nix
+printf '{}\n' >"$merge_fixture/modules/features/platform/merge-group-fixture.nix"
+git -C "$merge_fixture" add modules/features/platform/merge-group-fixture.nix
 git -C "$merge_fixture" commit -qm relevant
 relevant_head=$(git -C "$merge_fixture" rev-parse HEAD)
 git -C "$merge_fixture" switch -q --detach "$merge_base"
@@ -52,7 +52,7 @@ divergent_head=$(git -C "$merge_fixture" rev-parse HEAD)
 
 classifier_env=(
   EVENT_NAME=merge_group
-  MAESTRO_INSTALLER_POLICY="$test_root/nix/automation/installer-policy.json"
+  MAESTRO_INSTALLER_POLICY="$test_root/modules/ci/authority/_source/installer-policy.json"
   MAESTRO_SYSTEM_ROOT="$merge_fixture"
 )
 [[ $(env "${classifier_env[@]}" MERGE_BASE_SHA="$merge_base" MERGE_HEAD_SHA="$irrelevant_head" "$MAESTRO_CI_CLASSIFY") == false ]]
@@ -350,7 +350,7 @@ route_mode() {
     env -u ALLOW_REUSE \
       MAESTRO_CI_PATH_PREFIX="$qualification_bin" \
       MAESTRO_SYSTEM_ROOT="$merge_fixture" \
-      MAESTRO_INSTALLER_POLICY="$test_root/nix/automation/installer-policy.json" \
+      MAESTRO_INSTALLER_POLICY="$test_root/modules/ci/authority/_source/installer-policy.json" \
       FAKE_QUALIFICATION_GRAPH="$graph" \
       FAKE_QUALIFICATION_ARTIFACTS="$qualification_artifacts" \
       GITHUB_OUTPUT="$output" \
@@ -444,7 +444,7 @@ read -r version bump < <(printf '%s\n' 'fix: correction' | "$MAESTRO_CI_RELEASE_
 read -r version bump < <(printf '%s\n' 'feat(maestro): capability' | "$MAESTRO_CI_RELEASE_VERSION" 2.0.0 auto)
 [[ "$version $bump" == '2.1.0 minor' ]]
 
-jq -e --slurpfile policy "$test_root/nix/automation/decision-policy.json" '
+jq -e --slurpfile policy "$test_root/modules/ci/authority/_source/decision-policy.json" '
   .enforcement == "active" and
   (.bypass_actors | length) == 0 and
   any(.rules[]; .type == "merge_queue" and
@@ -459,7 +459,7 @@ jq -e --slurpfile policy "$test_root/nix/automation/decision-policy.json" '
       {context:"Analyze (python)",integration_id:15368},
       {context:"Analyze (rust)",integration_id:15368}
     ])
-' "$test_root/nix/automation/github/main-ruleset.json" >/dev/null
+' "$test_root/modules/ci/authority/_source/github/main-ruleset.json" >/dev/null
 read -r version bump < <(printf '%s\n' 'feat!: incompatible' | "$MAESTRO_CI_RELEASE_VERSION" 2.0.0 auto)
 [[ "$version $bump" == '3.0.0 major' ]]
 read -r version bump < <(printf '%s\n' 'fix: correction' | "$MAESTRO_CI_RELEASE_VERSION" 2.0.0 minor)
@@ -481,7 +481,7 @@ if "$MAESTRO_CI_RELEASE_NOTES" 9.9.9 "$test_root/CHANGELOG.md" >/dev/null 2>&1; 
 fi
 
 grep -Fq 'gh release view --json tagName --jq .tagName' \
-  "$test_root/nix/automation/release-manager.sh"
+  "$test_root/modules/ci/authority/_source/release-manager.sh"
 if grep -Eq 'secrets\.MERGE_QUEUE_(TOKEN|PAT)|RELEASE_AUTOMATION_LOGIN' \
   "$test_root/.github/workflows/release.yml" \
   "$test_root/.github/workflows/queue-automation.yml" \

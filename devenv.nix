@@ -1,3 +1,3 @@
 {...}: {
-  imports = [./nix/devenv.nix];
+  imports = [./modules/features/development/_lib/devenv.nix];
 }

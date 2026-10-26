@@ -14,8 +14,8 @@ from unittest.mock import patch
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / 'nix/automation/decisions'))
-spec = importlib.util.spec_from_file_location('authority', ROOT / 'nix/automation/decisions/decision_authority.py')
+sys.path.insert(0, str(ROOT / 'modules/ci/authority/_source/decisions'))
+spec = importlib.util.spec_from_file_location('authority', ROOT / 'modules/ci/authority/_source/decisions/decision_authority.py')
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 REPO = 'closure-labs/finite'

@@ -19,7 +19,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
-AUTOMATION = ROOT / 'nix/automation'
+AUTOMATION = ROOT / 'modules/ci/authority/_source'
 sys.path.insert(0, str(AUTOMATION / 'decisions'))
 
 
@@ -106,7 +106,7 @@ class RecoveryDownload(unittest.TestCase):
                                     capture_output=True, text=True, timeout=10)
             self.assertEqual(result.returncode, 0, result.stderr)
             value = json.loads(result_path.read_text())
-            self.assertEqual(value['args'], ['--config', str(ROOT / 'nix/automation/decision-policy.json'),
+            self.assertEqual(value['args'], ['--config', str(ROOT / 'modules/ci/authority/_source/decision-policy.json'),
                 '--directory', str(folder / 'evidence'), '--release-only', '--proposal-hash', 'a' * 64,
                 '--admitted-release'])
             self.assertEqual(value['metadata'], 'true')
@@ -135,7 +135,7 @@ class AdmittedRelease(unittest.TestCase):
         self.digest = retained.canonical_hash(self.proposal)
 
     def invoke(self, records, *, pending=None, release_only=True, metadata=True, requested=None):
-        argv = ['retained', '--config', str(ROOT / 'nix/automation/decision-policy.json'),
+        argv = ['retained', '--config', str(ROOT / 'modules/ci/authority/_source/decision-policy.json'),
                 '--directory', str(self.folder / 'evidence'), '--admitted-release',
                 '--proposal-hash', self.digest if requested is None else requested]
         if release_only:
@@ -273,7 +273,7 @@ class FreshRecovery(unittest.TestCase):
                 patch.object(download.operations, 'run', side_effect=bulk), \
                 patch.object(download, 'extract', side_effect=extract), redirect_stdout(io.StringIO()) as stdout:
             download.main()
-        config.assert_called_once_with(ROOT / 'nix/automation/decision-policy.json', live=True)
+        config.assert_called_once_with(ROOT / 'modules/ci/authority/_source/decision-policy.json', live=True)
         return json.loads(stdout.getvalue())
 
     def assert_blocked(self, **options):
@@ -392,7 +392,7 @@ class RecoveryWorkflow(unittest.TestCase):
                         prefix + '--show-output ' + options + 'ci:publish; echo bypass',
                         prefix + '--show-output ' + options + 'ci:publish --extra',
                         prefix + '--show-output ' + "--option 'packages:pkgs!' curl ci:publish",
-                        'bash nix/automation/publish.sh'):
+                        'bash modules/ci/authority/_source/publish.sh'):
             with self.subTest(command=command):
                 self.assertNotRegex(command, pattern)
 

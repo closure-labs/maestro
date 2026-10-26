@@ -12,7 +12,7 @@ import unittest
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / 'nix/automation/decisions'))
+sys.path.insert(0, str(ROOT / 'modules/ci/authority/_source/decisions'))
 import decision_packets as mod
 
 

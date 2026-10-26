@@ -1,0 +1,243 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/closure-labs/maestro/blob/main/modules/ci/authority/_source/qualification-plan.schema.json",
+  "title": "Maestro focused qualification plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "qualification",
+    "publish_required"
+  ],
+  "properties": {
+    "schema_version": {
+      "enum": [
+        3,
+        4
+      ]
+    },
+    "qualification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required",
+        "mode",
+        "artifact_run_id",
+        "media_run_id",
+        "evidence_run_id",
+        "media_input",
+        "evidence_input"
+      ],
+      "properties": {
+        "required": {
+          "type": "boolean"
+        },
+        "mode": {
+          "enum": [
+            "skip",
+            "reuse",
+            "refresh-evidence",
+            "qualify-media-reuse-evidence",
+            "qualify-media"
+          ]
+        },
+        "artifact_run_id": {},
+        "media_run_id": {},
+        "evidence_run_id": {},
+        "media_input": {},
+        "evidence_input": {}
+      }
+    },
+    "publish_required": {
+      "type": "boolean"
+    },
+    "retained_evidence": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "schema",
+            "base",
+            "source",
+            "decisionPath",
+            "decisionHash",
+            "packet",
+            "productHash"
+          ],
+          "properties": {
+            "schema": {
+              "const": 1
+            },
+            "base": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{40}$"
+            },
+            "source": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{40}$"
+            },
+            "decisionPath": {
+              "type": "string",
+              "pattern": "^automation/decisions/(security|releases)/[a-f0-9]{64}\\.json$"
+            },
+            "decisionHash": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "packet": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "reference",
+                "sha256",
+                "producer"
+              ],
+              "properties": {
+                "reference": {
+                  "type": "string",
+                  "pattern": "^ghcr\\.io/closure-labs/maestro-decisions@sha256:[a-f0-9]{64}$"
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "producer": {
+                  "type": "object"
+                }
+              }
+            },
+            "productHash": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "qualification": {
+            "properties": {
+              "required": {
+                "const": true
+              }
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "qualification": {
+            "properties": {
+              "mode": {
+                "enum": [
+                  "reuse",
+                  "refresh-evidence",
+                  "qualify-media-reuse-evidence",
+                  "qualify-media"
+                ]
+              },
+              "artifact_run_id": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "media_run_id": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "evidence_run_id": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "media_input": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "evidence_input": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "qualification": {
+            "properties": {
+              "mode": {
+                "const": "skip"
+              },
+              "artifact_run_id": {
+                "type": "null"
+              },
+              "media_run_id": {
+                "type": "null"
+              },
+              "evidence_run_id": {
+                "type": "null"
+              },
+              "media_input": {
+                "type": "null"
+              },
+              "evidence_input": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "publish_required": {
+            "const": true
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "qualification": {
+            "properties": {
+              "required": {
+                "const": true
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "schema_version": {
+            "const": 4
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "retained_evidence"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "retained_evidence"
+          ]
+        }
+      }
+    }
+  ]
+}

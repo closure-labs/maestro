@@ -6,11 +6,11 @@
     config,
     ...
   }: {
-    packages.secretspec = pkgs.callPackage ../../../nix/pkgs/secretspec.nix {};
+    packages.secretspec = pkgs.callPackage ./_lib/secretspec.nix {};
     packages.maestro-ci-toolchain = pkgs.buildEnv {
       name = "maestro-ci-toolchain";
       paths = [
-        (import ../../../nix/devenv-launcher.nix {
+        (import ./_lib/launcher.nix {
           inherit pkgs lib;
           devenv = inputs.devenv.packages.${system}.devenv;
         })

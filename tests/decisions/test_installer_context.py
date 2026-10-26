@@ -5,7 +5,7 @@ import importlib.util
 from pathlib import Path
 import unittest
 
-spec = importlib.util.spec_from_file_location('security_decisions', Path(__file__).parents[2] / 'nix/automation/decisions/security_decisions.py')
+spec = importlib.util.spec_from_file_location('security_decisions', Path(__file__).parents[2] / 'modules/ci/authority/_source/decisions/security_decisions.py')
 core = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(core)
 

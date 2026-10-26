@@ -13,11 +13,11 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'nix/automation/decisions'))
+sys.path.insert(0, str(ROOT / 'modules/ci/authority/_source/decisions'))
 
 
 def module(name):
-    spec = importlib.util.spec_from_file_location(name.replace('-', '_'), ROOT / 'nix/automation' / (name + '.py'))
+    spec = importlib.util.spec_from_file_location(name.replace('-', '_'), ROOT / 'modules/ci/authority/_source' / (name + '.py'))
     result = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(result)
     return result
@@ -39,7 +39,7 @@ class Operations(unittest.TestCase):
             # isolate only remote policy/authority calls from this local test.
             (source / 'publication.py').write_text(
                 'import os, runpy, sys\n'
-                f'sys.path.insert(0, {str(ROOT / "nix/automation/decisions")!r})\n'
+                f'sys.path.insert(0, {str(ROOT / "modules/ci/authority/_source/decisions")!r})\n'
                 'import common\n'
                 'common.config = lambda *args, **kwargs: {}\n'
                 'def gate(*args):\n'
@@ -47,12 +47,12 @@ class Operations(unittest.TestCase):
                 '        raise ValueError("fixture authority denied")\n'
                 '    return {"schema": 1, "status": "allowed"}\n'
                 'common.gate = gate\n'
-                f'runpy.run_path({str(ROOT / "nix/automation/decisions/publication.py")!r}, run_name="__main__")\n'
+                f'runpy.run_path({str(ROOT / "modules/ci/authority/_source/decisions/publication.py")!r}, run_name="__main__")\n'
             )
             environment = dict(os.environ, MAESTRO_SYSTEM_ROOT=str(ROOT),
                                MAESTRO_DECISIONS_SOURCE=str(source), DECISION_REQUIRE_HANDOFF='false')
             environment.pop('DECISION_ADMISSION', None)
-            command = ['bash', str(ROOT / 'nix/automation/decision-publication.sh')]
+            command = ['bash', str(ROOT / 'modules/ci/authority/_source/decision-publication.sh')]
             for output in ('security-report/publication.json', 'custom/nested/publication.json'):
                 if output.startswith('custom/'):
                     environment['DECISION_ADMISSION'] = output
@@ -260,9 +260,9 @@ class Operations(unittest.TestCase):
     def test_historical_handoff_uses_candidate_binding_and_lock_with_current_live_gate(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            (root / 'nix/automation').mkdir(parents=True)
+            (root / 'modules/ci/authority/_source').mkdir(parents=True)
             live = {'schema': 1, 'mode': 'official', 'revision': 'f' * 40}
-            (root / 'nix/automation/xo-handoff.json').write_text(json.dumps(live))
+            (root / 'modules/ci/authority/_source/xo-handoff.json').write_text(json.dumps(live))
             identity = {'storePath': '/nix/store/' + 'a' * 32 + '-xo', 'narHash': 'sha256-' + 'A' * 43 + '='}
             candidate = {'schema': 1, 'mode': 'official', 'repository': 'closure-labs/xo-nixpkg',
                          'revision': 'e' * 40, 'channel': 'xo-latest', **identity,
@@ -298,7 +298,7 @@ class Operations(unittest.TestCase):
                 handoff.main()
             self.assertEqual([call.args[2] for call in metadata.call_args_list], ['scans.json','product.json','handoff-xo-latest.json'])
             self.assertIn(('closure-labs/maestro', 'flake.lock', 'a' * 40), queried)
-            self.assertIn(('closure-labs/maestro', 'nix/automation/xo-handoff.json', 'a' * 40), queried)
+            self.assertIn(('closure-labs/maestro', 'modules/ci/authority/_source/xo-handoff.json', 'a' * 40), queried)
             self.assertTrue(config.call_args.kwargs['live'])
             self.assertTrue(config.call_args.kwargs['enabled'])
             args = verify.call_args.args[0]

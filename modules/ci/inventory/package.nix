@@ -8,7 +8,7 @@
     ...
   }: {
     packages = {
-      sbomnix = import ../../../nix/pkgs/sbomnix.nix {inherit pkgs ciNix;};
+      sbomnix = import ./_lib/sbomnix.nix {inherit pkgs ciNix;};
       distribution-inventory = (pkgs.linkFarm "maestro-distribution-inventory" (
         map (target: {
           inherit (target) name;

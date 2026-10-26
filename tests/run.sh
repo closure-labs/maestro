@@ -11,7 +11,7 @@ readonly TEST_ROOT
 yq -e '.permissions.packages == "read"' "$TEST_ROOT/.github/workflows/decision-authority.yml" >/dev/null
 # shellcheck disable=SC2016
 grep -Fq 'REGISTRY_TOKEN: ${{ github.token }}' "$TEST_ROOT/.github/workflows/decision-authority.yml"
-grep -Fq 'oras login ghcr.io' "$TEST_ROOT/nix/automation/decision-check.sh"
+grep -Fq 'oras login ghcr.io' "$TEST_ROOT/modules/ci/authority/_source/decision-check.sh"
 
 fail() {
   printf 'FAIL: %s\n' "$1" >&2
@@ -48,8 +48,8 @@ done < <(
 )
 
 bash -n \
-  "$TEST_ROOT"/nix/automation/*.sh \
-  "$TEST_ROOT"/modules/_nixos/xo/*.sh \
+  "$TEST_ROOT"/modules/ci/authority/_source/*.sh \
+  "$TEST_ROOT"/modules/features/xo/_source/*.sh \
   "$TEST_ROOT/modules/features/operator/cli/_source/lib/common.sh" \
   "$TEST_ROOT/modules/features/operator/cli/_source/maestroctl.sh" \
   "$TEST_ROOT/modules/features/installer/_source/bootstrap.sh" \
@@ -136,23 +136,23 @@ if grep -Fq 'git ls-remote --tags' "$TEST_ROOT/modules/features/operator/menu/_s
   fail "XOA update still depends on removed moving channel tags"
 fi
 grep -Fq '.#packages.x86_64-linux.xen-orchestra-ce' \
-  "$TEST_ROOT/nix/automation/qualification-assets.sh" \
+  "$TEST_ROOT/modules/ci/authority/_source/qualification-assets.sh" \
   || fail "installer workflow does not build Xen Orchestra explicitly"
 # The variable reference must remain literal in the workflow source.
 # shellcheck disable=SC2016
 grep -Fq 'maestro-ci-qualification-cache "$xo_out"' \
-  "$TEST_ROOT/nix/automation/qualification-assets.sh" \
+  "$TEST_ROOT/modules/ci/authority/_source/qualification-assets.sh" \
   || fail "installer workflow does not verify that its Xen Orchestra output is cached"
 grep -Fq 'xen-orchestra-supply-protector' \
-  "$TEST_ROOT/nix/ci-plans.json" \
+  "$TEST_ROOT/modules/ci/graph/_lib/plans.json" \
   || fail "installer plan omits the upstream XO supply assertion"
 grep -Fq 'relationshipType: "DESCRIBED_BY"' \
-  "$TEST_ROOT/nix/automation/qualification-assets.sh" \
+  "$TEST_ROOT/modules/ci/authority/_source/qualification-assets.sh" \
   || fail "appliance SPDX does not link its XO component to upstream evidence"
 # The variable reference must remain literal in the packaged command source.
 # shellcheck disable=SC2016
 grep -Fq 'check-jsonschema --schemafile "$MAESTRO_SPDX_SCHEMA"' \
-  "$TEST_ROOT/nix/automation/qualification-assets.sh" \
+  "$TEST_ROOT/modules/ci/authority/_source/qualification-assets.sh" \
   || fail "enriched appliance SPDX is not schema validated"
 grep -Fq 'DeterminateSystems/determinate-nix-action@61cbfe2efc2d4e7a8a6d56967c3c1058e846c858' \
   "$TEST_ROOT/.github/actions/setup-nix/action.yml" \
@@ -190,10 +190,10 @@ yq -o=json '.jobs.policy.steps[] | select(.id == "policy-token") | .with' \
 ' >/dev/null \
   || fail "security policy token is not repository-scoped and read-only"
 grep -Fq 'determinate-nixd fix hashes --auto-apply' \
-  "$TEST_ROOT/nix/automation/fix-hashes.sh" \
+  "$TEST_ROOT/modules/ci/authority/_source/fix-hashes.sh" \
   || fail "packaged hash fixer does not invoke Determinate Nix"
 grep -Fq 'unset GH_TOKEN GITHUB_TOKEN' \
-  "$TEST_ROOT/nix/automation/fix-hashes.sh" \
+  "$TEST_ROOT/modules/ci/authority/_source/fix-hashes.sh" \
   || fail "packaged hash fixer exposes the write token during Nix evaluation"
 grep -Fq 'substituters = https://cache.nixos.org/' \
   "$TEST_ROOT/.github/actions/setup-nix/action.yml" \
@@ -270,23 +270,23 @@ yq -e \
   "$TEST_ROOT/.github/workflows/ci.yml" >/dev/null \
   || fail "release qualification can be replaced by an ordinary pending main run"
 grep -Fq -- '-f release_candidate=true' \
-  "$TEST_ROOT/nix/automation/release-manager.sh" \
+  "$TEST_ROOT/modules/ci/authority/_source/release-manager.sh" \
   || fail "release dispatch does not request an isolated qualification run"
 if grep -Fq 'run: nix flake update' \
   "$TEST_ROOT/.github/workflows/update-flake-lock.yml"; then
   fail "flake input refresh bypasses its packaged updater"
 fi
 grep -Fq 'nix flake update --accept-flake-config' \
-  "$TEST_ROOT/nix/automation/update-locks.sh" \
+  "$TEST_ROOT/modules/ci/authority/_source/update-locks.sh" \
   || fail "packaged updater does not refresh flake inputs"
 grep -Fq '"name": "maestro-validation"' \
-  "$TEST_ROOT/nix/ci-plans.json" \
+  "$TEST_ROOT/modules/ci/graph/_lib/plans.json" \
   || fail "flake does not expose pure CI attribute plans"
 grep -Fq 'flake-plan-runner' \
-  "$TEST_ROOT/nix/automation/qualification-assets.sh" \
+  "$TEST_ROOT/modules/ci/authority/_source/qualification-assets.sh" \
   || fail "installer builds bypass the shared schema-v2 plan runner"
 grep -Fq -- '--no-build --print-build-logs' \
-  "$TEST_ROOT/nix/automation/repository-audit.sh" \
+  "$TEST_ROOT/modules/ci/authority/_source/repository-audit.sh" \
   || fail "complete validation does not separate evaluation from planned builds"
 # GitHub and shell expressions must remain literal in the source contract.
 # shellcheck disable=SC2016
@@ -295,7 +295,7 @@ grep -Fq 'CACHIX_MAESTRO_AUTH_TOKEN: ${{ secrets.CACHIX_MAESTRO_AUTH_TOKEN }}' \
   || fail "protected publication does not receive the Cachix token"
 # shellcheck disable=SC2016
 grep -Fq '.products[].storePath, .roots[].storePath' \
-  "$TEST_ROOT/nix/automation/publish.sh" \
+  "$TEST_ROOT/modules/ci/authority/_source/publish.sh" \
   || fail "Cachix publication does not use the attested exact distribution roots"
 # Dependabot owns action revisions. Assert the action and immutable pin at its
 # call site without duplicating a revision that every update would invalidate.
@@ -306,7 +306,7 @@ yq -o=json '.jobs.qualification.steps' "$TEST_ROOT/.github/workflows/ci.yml" | j
 # The command substitution must remain literal in the workflow source.
 # shellcheck disable=SC2016
 grep -Fq 'inputs=$(maestro-ci-qualification-inputs)' \
-  "$TEST_ROOT/nix/automation/qualification-resolve.sh" \
+  "$TEST_ROOT/modules/ci/authority/_source/qualification-resolve.sh" \
   || fail "installer workflow does not calculate Nix-owned qualification state"
 grep -Fq 'contains(fromJSON' \
   "$TEST_ROOT/.github/workflows/ci.yml" \
@@ -327,7 +327,7 @@ grep -Fq 'qualify-media-reuse-evidence' \
   "$TEST_ROOT/.github/workflows/ci.yml" \
   || fail "installer workflow does not route media builds through reusable evidence"
 grep -Fq 'MAESTRO_INSTALLER_ARTIFACT_BUDGET_BYTES:-3000000000' \
-  "$TEST_ROOT/nix/automation/qualification-assets.sh" \
+  "$TEST_ROOT/modules/ci/authority/_source/qualification-assets.sh" \
   || fail "installer qualification does not enforce the 3.0 GB artifact budget"
 if grep -Fq 'maestro-reusable-cache' "$TEST_ROOT/.github/workflows/ci.yml"; then
   fail "installer workflow still transports a redundant closure cache artifact"
@@ -335,7 +335,7 @@ fi
 # The variable reference must remain literal in the workflow source.
 # shellcheck disable=SC2016
 grep -Fq '"$sbomnix_out/bin/sbomnix"' \
-  "$TEST_ROOT/nix/automation/qualification-assets.sh" \
+  "$TEST_ROOT/modules/ci/authority/_source/qualification-assets.sh" \
   || fail "installer workflow does not use the flake-provided sbomnix"
 grep -Fq 'maestro-system.spdx.json' \
   "$TEST_ROOT/.github/workflows/ci.yml" \
@@ -350,7 +350,7 @@ if grep -RiE 'flakehub-push|PUBLICATION_DESTINATION: flakehub|PUBLICATION_STEP: 
   fail "FlakeHub publication remains configured"
 fi
 grep -Fq -- '--status success' \
-  "$TEST_ROOT/nix/automation/qualification-resolve.sh" \
+  "$TEST_ROOT/modules/ci/authority/_source/qualification-resolve.sh" \
   || fail "installer state must accept only successful producers"
 grep -Fq 'name: Required CI verdict' "$TEST_ROOT/.github/workflows/ci.yml" \
   || fail "consolidated CI does not expose a stable verdict"
@@ -385,48 +385,48 @@ grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-dev\.[0-9]+)?$' "$TEST_ROOT/VERSION" \
   || fail "repository version is not a stable or development semantic version"
 grep -Fq ".#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:stage" "$TEST_ROOT/.github/workflows/release.yml" \
   || fail "release workflow does not split oversized installer assets through its declared task"
-grep -Fq '2147483648' "$TEST_ROOT/nix/automation/release-split.sh" \
+grep -Fq '2147483648' "$TEST_ROOT/modules/ci/authority/_source/release-split.sh" \
   || fail "release staging does not enforce GitHub's per-asset size limit"
 grep -Fq 'Release tag %s already exists without a GitHub release.' \
-  "$TEST_ROOT/nix/automation/release-manager.sh" \
+  "$TEST_ROOT/modules/ci/authority/_source/release-manager.sh" \
   || fail "release preparation does not reject pre-existing unpublished tags"
 # The variable references must remain literal in the trusted-update source.
 # shellcheck disable=SC2016
 grep -Fq 'if [[ $dispatched == false && $attempt -ge 2 ]]' \
-  "$TEST_ROOT/nix/automation/trusted-update.sh" \
+  "$TEST_ROOT/modules/ci/authority/_source/trusted-update.sh" \
   || fail "trusted updates do not wait for pull-request CI before fallback dispatch"
 # The variable references must remain literal in the workflow source.
 # shellcheck disable=SC2016
 grep -Fq 'Existing release tag points at another source' \
-  "$TEST_ROOT/nix/automation/publication-assets.py" \
+  "$TEST_ROOT/modules/ci/authority/_source/publication-assets.py" \
   || fail "release workflow does not reject an incompatible reserved tag"
-grep -Fq "'draft': True" "$TEST_ROOT/nix/automation/publication-assets.py" \
+grep -Fq "'draft': True" "$TEST_ROOT/modules/ci/authority/_source/publication-assets.py" \
   || fail "release workflow does not stage assets in a draft"
 # The variable reference must remain literal in the workflow source.
 # shellcheck disable=SC2016
 grep -Fq 'maestro-ci-release-notes "$RELEASE_VERSION" CHANGELOG.md' \
-  "$TEST_ROOT/nix/automation/release-manager.sh" \
+  "$TEST_ROOT/modules/ci/authority/_source/release-manager.sh" \
   || fail "release workflow does not use the curated changelog entry"
 # The variable reference must remain literal in the workflow source.
 # shellcheck disable=SC2016
 grep -Fq "'body': notes" \
-  "$TEST_ROOT/nix/automation/publication-assets.py" \
+  "$TEST_ROOT/modules/ci/authority/_source/publication-assets.py" \
   || fail "release workflow does not publish curated release notes"
-if grep -Fq -- '--generate-notes' "$TEST_ROOT/nix/automation/release-manager.sh"; then
+if grep -Fq -- '--generate-notes' "$TEST_ROOT/modules/ci/authority/_source/release-manager.sh"; then
   fail "release workflow still substitutes generated notes for the changelog"
 fi
 grep -Fq 'candidate-state/maestro-qualification-state.json' \
-  "$TEST_ROOT/nix/automation/release-manager.sh" \
+  "$TEST_ROOT/modules/ci/authority/_source/release-manager.sh" \
   || fail "release workflow does not resolve the immutable build state"
 # The variable reference must remain literal in the workflow source.
 # shellcheck disable=SC2016
 grep -Fq 'maestro-ci-verify-inventory candidate "$ARTIFACT_SOURCE_COMMIT"' \
-  "$TEST_ROOT/nix/automation/release-manager.sh" \
+  "$TEST_ROOT/modules/ci/authority/_source/release-manager.sh" \
   || fail "release workflow does not verify builder attestations"
 # The variable reference must remain literal in the workflow source.
 # shellcheck disable=SC2016
 grep -Fq -- '--signer-workflow "$signer_workflow"' \
-  "$TEST_ROOT/nix/automation/verify-inventory.sh" \
+  "$TEST_ROOT/modules/ci/authority/_source/verify-inventory.sh" \
   || fail "release verification does not constrain the signer workflow"
 grep -Fq 'sbom-path: candidate/maestro-system.spdx.json' \
   "$TEST_ROOT/.github/workflows/release.yml" \
@@ -441,12 +441,12 @@ yq -o=json '.jobs.release.steps' "$TEST_ROOT/.github/workflows/release.yml" | jq
 # The variable reference must remain literal in the workflow source.
 # shellcheck disable=SC2016
 grep -Fq "'PATCH', {'draft': False}" \
-  "$TEST_ROOT/nix/automation/publication-assets.py" \
+  "$TEST_ROOT/modules/ci/authority/_source/publication-assets.py" \
   || fail "release workflow does not publish the verified immutable draft"
 # The variable reference must remain literal in the workflow source.
 # shellcheck disable=SC2016
 grep -Fq 'Start Maestro ${next_version}' \
-  "$TEST_ROOT/nix/automation/release-manager.sh" \
+  "$TEST_ROOT/modules/ci/authority/_source/release-manager.sh" \
   || fail "release workflow does not advance the development version"
 grep -Fq 'package-ecosystem: github-actions' \
   "$TEST_ROOT/.github/dependabot.yml" \
@@ -454,23 +454,23 @@ grep -Fq 'package-ecosystem: github-actions' \
 grep -Fq 'package-ecosystem: cargo' \
   "$TEST_ROOT/.github/dependabot.yml" \
   || fail "Dependabot does not monitor the Rust application"
-grep -Fq 'directory: /pkgs/maestro-menu' \
+grep -Fq 'directory: /modules/features/operator/menu/_source/frontend' \
   "$TEST_ROOT/.github/dependabot.yml" \
   || fail "Dependabot does not target the Rust manifest directory"
 grep -Fq 'applies-to: security-updates' \
   "$TEST_ROOT/.github/dependabot.yml" \
   || fail "Dependabot does not group Rust security updates"
-grep -Fq 'flake.devShells = lib.genAttrs systems' \
+grep -Fq 'devShells.default = pkgs.mkShellNoCC' \
   "$TEST_ROOT/modules/features/development/shell.nix" \
   || fail "flake does not expose its development toolchain"
 grep -Fq 'pkgs.cargo' \
-  "$TEST_ROOT/nix/devenv-packages.nix" \
+  "$TEST_ROOT/modules/features/development/_lib/packages.nix" \
   || fail "development shell does not provide Cargo"
 grep -Fq 'devenv shell -- cargo test' \
   "$TEST_ROOT/AGENTS.md" \
   || fail "repository guidance bypasses the flake-provided Rust toolchain"
 grep -Fq 'automation/weekly-flake-input-refresh' \
-  "$TEST_ROOT/nix/automation/queue.sh" \
+  "$TEST_ROOT/modules/ci/authority/_source/queue.sh" \
   || fail "trusted flake updates are not eligible for the automation queue"
 # shellcheck disable=SC2016
 yq -e '
@@ -486,13 +486,13 @@ grep -Fq '"resizefs"' "$TEST_ROOT/modules/features/xcp-ng/guest/service.nix" \
 
 # Installed systems keep all public caches and select the patched runtime only.
 grep -Fq '"https://install.determinate.systems"' \
-  "$TEST_ROOT/modules/features/platform/system.nix" \
+  "$TEST_ROOT/modules/features/platform/nix.nix" \
   || fail "installed system omits the Determinate bootstrap cache"
 grep -Fq '"https://maestro.cachix.org"' \
-  "$TEST_ROOT/modules/features/platform/system.nix" \
+  "$TEST_ROOT/modules/features/platform/nix.nix" \
   || fail "installed system omits the Maestro Cachix cache"
 grep -Fq 'paths = [patchedDeterminateNix.out]' \
-  "$TEST_ROOT/modules/features/platform/system.nix" \
+  "$TEST_ROOT/modules/features/platform/nix.nix" \
   || fail "installed system does not isolate the patched Determinate runtime output"
 
 if MAESTRO_SYSTEM_ROOT="$TEST_ROOT" bash -c '
@@ -717,7 +717,7 @@ grep -Fq 'd /run/maestro-xo-cifs-credentials 0700 root root' \
   "$TEST_ROOT/modules/features/xo/storage.nix" \
   || fail "CIFS credential directory must have a root-owned parent"
 grep -q 'org\.freedesktop\.hostname1\.set-hostname' \
-  "$TEST_ROOT/modules/features/platform/system.nix" \
+  "$TEST_ROOT/modules/features/platform/nix.nix" \
   || fail "platform does not authorize DHCP hostname adoption"
 grep -q 'passwd --lock maestro' \
   "$TEST_ROOT/modules/features/xcp-ng/template/_source/scripts/seal-template.sh" \

@@ -9,7 +9,7 @@
     ...
   }: let
     planRunner = inputs.xen-orchestra-ce.packages.${system}.flake-plan-runner.override {nix = ciNix;};
-    commands = import ../../../nix/automation {
+    commands = import ./_source {
       inherit pkgs planRunner packerXenserver ciNix installerQualification;
       devenv = inputs.devenv.packages.${system}.devenv;
       applicabilityCommand = inputs.xen-orchestra-ce.packages.${system}.security-applicability;

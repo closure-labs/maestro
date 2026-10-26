@@ -6,7 +6,7 @@ from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-spec = importlib.util.spec_from_file_location('decisions', ROOT / 'nix/automation/decisions/security_decisions.py')
+spec = importlib.util.spec_from_file_location('decisions', ROOT / 'modules/ci/authority/_source/decisions/security_decisions.py')
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 

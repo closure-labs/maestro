@@ -1,0 +1,25 @@
+{
+  "alwaysRelevantPatterns": [
+    ".github/workflows/ci.yml"
+  ],
+  "ignoredChangePatterns": [
+    "AGENTS.md",
+    "LICENSE",
+    "VERSION",
+    "README*",
+    "CHANGELOG*",
+    "devenv.lock",
+    "devenv.nix",
+    "devenv.yaml",
+    "secretspec.toml",
+    "docs/*",
+    "modules/features/xcp-ng/template/_source/*",
+    "tests/*",
+    "modules/ci/checks/contracts.nix",
+    "modules/features/development/shell.nix",
+    "modules/ci/checks/_lib/*",
+    "modules/features/development/_lib/devenv.nix",
+    "modules/ci/authority/_source/github/*",
+    ".github/*"
+  ]
+}

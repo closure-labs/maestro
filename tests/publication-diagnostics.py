@@ -15,7 +15,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'nix/automation/decisions'))
+sys.path.insert(0, str(ROOT / 'modules/ci/authority/_source/decisions'))
 import common
 import diagnostics
 import diagnostic_artifacts as artifacts
@@ -121,7 +121,7 @@ class Diagnostics(unittest.TestCase):
     def test_separate_processes_share_objects_without_losing_occurrences(self):
         with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {
             'MAESTRO_CI_DIAGNOSTICS': 'true', 'RUNNER_TEMP': temp,
-            'PYTHONPATH': str(ROOT / 'nix/automation/decisions')
+            'PYTHONPATH': str(ROOT / 'modules/ci/authority/_source/decisions')
         }):
             script = 'import diagnostics; diagnostics.record({"status":"covered"}, "gate")'
             children = [subprocess.Popen([sys.executable, '-c', script]) for _ in range(4)]
@@ -421,7 +421,7 @@ class Diagnostics(unittest.TestCase):
             calls = Path(temp) / 'calls'
             output = Path(temp) / 'github-output'
             source.write_text(f'from pathlib import Path\nPath({str(calls)!r}).open("a").write("call\\n")\nprint(\'{{"status":"conflict","expected":{{"full":"evidence"}}}}\')\nraise SystemExit(17)\n')
-            result = subprocess.run(['bash', str(ROOT / 'nix/automation/publication-inspect.sh')], env=dict(
+            result = subprocess.run(['bash', str(ROOT / 'modules/ci/authority/_source/publication-inspect.sh')], env=dict(
                 os.environ, PUBLICATION_DESTINATIONS_SOURCE=str(source), DECISION_PRODUCT='unused',
                 PUBLICATION_DESTINATION='cache', GITHUB_OUTPUT=str(output)), text=True, capture_output=True)
             self.assertEqual(result.returncode, 17, result.stderr)

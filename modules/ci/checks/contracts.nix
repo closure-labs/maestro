@@ -91,7 +91,7 @@
               exit 1
             fi
           done
-          python3 nix/automation/decisions/signal_relay.py .github/workflows/decision-events.yml
+          python3 modules/ci/authority/_source/decisions/signal_relay.py .github/workflows/decision-events.yml
           command_workflows=()
           for workflow in .github/workflows/*.yml; do
             if [[ $workflow != .github/workflows/decision-events.yml ]]; then
@@ -126,27 +126,27 @@
             release:request release:signal release:pending release:continuation \
             release:prepare release:dispatch release:inventory release:verify \
             release:stage release:draft release:attestations release:publish release:advance; do
-            grep -Fq "\"$task\"" nix/devenv.nix
+            grep -Fq "\"$task\"" modules/features/development/_lib/devenv.nix
           done
-          grep -Fq 'pkgs.check-jsonschema' nix/automation/default.nix
+          grep -Fq 'pkgs.check-jsonschema' modules/ci/authority/_source/default.nix
           # A cold runner must receive literal source patches with the cached
           # toolchain, even if coreutils's runtime output was substituted.
           for patch in ${lib.escapeShellArgs (map (patch: "${patch}") (builtins.filter builtins.isPath (pkgs.coreutils.patches or [])))}; do
             grep -Fx "$patch" ${pkgs.closureInfo {rootPaths = [packages.maestro-ci-toolchain];}}/store-paths
           done
-          ! test -e nix/automation/cli.sh
-          ! grep -Fq 'maestroCiCommand' nix/devenv.nix
-          grep -Fq 'runFlakePackage "maestro-ci-route"' nix/devenv.nix
-          grep -Fq 'runFlakePackage "maestro-ci-fix-hashes"' nix/devenv.nix
-          grep -Fq 'runFlakePackage "maestro-ci-repository-audit"' nix/devenv.nix
-          grep -Fq 'runFlakePackage "maestro-ci-verdict"' nix/devenv.nix
-          grep -Fq 'runFlakePackage "maestro-ci-release-manager"' nix/devenv.nix
-          ! grep -RqE --exclude=checks.nix 'ci:(prepare|plan|check|gate)|maestro-ci-(prepare|plan|check|gate|release)([^a-z-]|$)|MAESTRO_CI_(PREPARE|PLAN|CHECK|GATE|RELEASE)([^A-Z_]|$)|PREPARE_RESULT|PLAN_RESULT' \
-            .github nix docs modules tests
-          test "$(grep -c 'execIfModified = ' nix/devenv.nix)" -eq 2
-          ! grep -Fq 'exec = "true";' nix/devenv.nix
-          grep -Fq "git ls-files -z -- '*.nix'" nix/devenv.nix
-          grep -Fq -- "-path './.devenv'" nix/devenv.nix
+          ! test -e modules/ci/authority/_source/cli.sh
+          ! grep -Fq 'maestroCiCommand' modules/features/development/_lib/devenv.nix
+          grep -Fq 'runFlakePackage "maestro-ci-route"' modules/features/development/_lib/devenv.nix
+          grep -Fq 'runFlakePackage "maestro-ci-fix-hashes"' modules/features/development/_lib/devenv.nix
+          grep -Fq 'runFlakePackage "maestro-ci-repository-audit"' modules/features/development/_lib/devenv.nix
+          grep -Fq 'runFlakePackage "maestro-ci-verdict"' modules/features/development/_lib/devenv.nix
+          grep -Fq 'runFlakePackage "maestro-ci-release-manager"' modules/features/development/_lib/devenv.nix
+          ! grep -RqE --exclude=contracts.nix 'ci:(prepare|plan|check|gate)|maestro-ci-(prepare|plan|check|gate|release)([^a-z-]|$)|MAESTRO_CI_(PREPARE|PLAN|CHECK|GATE|RELEASE)([^A-Z_]|$)|PREPARE_RESULT|PLAN_RESULT' \
+            .github docs modules tests
+          test "$(grep -c 'execIfModified = ' modules/features/development/_lib/devenv.nix)" -eq 2
+          ! grep -Fq 'exec = "true";' modules/features/development/_lib/devenv.nix
+          grep -Fq "git ls-files -z -- '*.nix'" modules/features/development/_lib/devenv.nix
+          grep -Fq -- "-path './.devenv'" modules/features/development/_lib/devenv.nix
           grep -Fq 'DeterminateSystems/determinate-nix-action@61cbfe2efc2d4e7a8a6d56967c3c1058e846c858' \
             .github/actions/setup-nix/action.yml
           if grep -RqE '\.#maestro-ci([ -]|$)|\.#maestro-ci-(boot-media|qualification-assets|qualification-inputs|resolve-qualification|update-locks)' .github/workflows; then
@@ -182,8 +182,8 @@
             modules/features/operator/cli/_source/*.sh \
             modules/features/operator/cli/_source/lib/*.sh \
             modules/features/operator/menu/_source/backend/*.sh \
-            nix/automation/*.sh \
-            nix/ci-nix.sh \
+            modules/ci/authority/_source/*.sh \
+            modules/ci/graph/_source/nix.sh \
             .github/actions/setup-nix/*.sh \
             tests/*.sh
           touch "$out"
@@ -191,7 +191,7 @@
 
       automation-fixtures = mkSourceCheck {
         name = "automation-fixtures";
-        nativeBuildInputs = fixtureInputs ++ [pkgs.python3 (import ../../../nix/ci-nix.nix {inherit pkgs;})];
+        nativeBuildInputs = fixtureInputs ++ [pkgs.python3 (import ../graph/_lib/nix.nix {inherit pkgs;})];
         command = ''
           bash ./tests/ci-helpers.sh
           bash ./tests/update-pr.sh
@@ -202,7 +202,7 @@
         '';
       };
 
-      repository-policy = import ../../../nix/checks/repository-policy.nix {
+      repository-policy = import ./_lib/repository-policy.nix {
         inherit lib pkgs;
         source = inputs.self;
       };

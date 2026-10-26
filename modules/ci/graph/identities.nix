@@ -14,7 +14,7 @@
         map (target: {inherit (target) name attribute;} // lib.optionalAttrs (target.link != null) {inherit (target) link;})
         (lib.sort (a: b: a.order.${phase} < b.order.${phase})
           (lib.filter (target: builtins.elem phase target.phases) (builtins.attrValues targets)));
-    }) (builtins.fromJSON (builtins.readFile ../../../nix/ci-plans.json));
+    }) (builtins.fromJSON (builtins.readFile ./_lib/plans.json));
   validTarget = target: target ? name && target ? attribute;
   validPlan = plan: builtins.all validTarget plan.targets;
 in {
@@ -33,6 +33,36 @@ in {
         outputs = lib.genAttrs derivation.outputs (name: derivation.${name}.outPath);
       })
       targets;
+    transport = let
+      root = attribute: let
+        derivation = lib.attrByPath (lib.splitString "." attribute) null inputs.self;
+      in {
+        inherit attribute;
+        derivation = derivation.drvPath;
+        outputs = lib.genAttrs derivation.outputs (name: derivation.${name}.outPath);
+      };
+      appliance =
+        map (target: root target.attribute)
+        (definitions.evidence.targets ++ definitions.publish.targets)
+        ++ [(root "packages.x86_64-linux.distribution-inventory")];
+      installer = [(root "packages.x86_64-linux.installer-iso")];
+    in {
+      inherit appliance installer;
+      inventory =
+        map (target: root target.attribute) definitions.publish.targets
+        ++ lib.mapAttrsToList (name: path: {
+          attribute = "lib.ciInstallerQualification.${system}.roots.${name}";
+          derivation = builtins.head (builtins.attrNames (builtins.getContext path));
+          outputs.out = path;
+        })
+        inputs.self.lib.ciInstallerQualification.${system}.roots;
+    };
+    policy = {
+      boot = builtins.hashFile "sha256" ../authority/_source/boot-media.sh;
+      scan = builtins.hashFile "sha256" ../authority/_source/security-policy.json;
+      verifier = builtins.hashFile "sha256" ./_source/transfer.py;
+      authority = builtins.hashFile "sha256" ../authority/_source/decision-policy.json;
+    };
     aspectIncludes = {maestro = ["platform" "xcp-ng" "xo" "operator"];};
   };
   flake.lib.ciInstallerQualification.${system} = inputs.self.packages.${system}.distribution-inventory.qualification;
@@ -57,7 +87,7 @@ in {
         nixpkgs = inputs.nixpkgs.outPath;
         xenOrchestra = inputs.xen-orchestra-ce.packages.${system}.latest.outPath;
       };
-      bootPolicy = builtins.hashFile "sha256" ../../../nix/automation/boot-media.sh;
+      bootPolicy = builtins.hashFile "sha256" ../authority/_source/boot-media.sh;
     };
     evidence = {
       distribution = inputs.self.packages.${system}.distribution-inventory.outPath;
@@ -66,11 +96,11 @@ in {
       xenOrchestra = inputs.self.packages.${system}.xen-orchestra-ce.outPath;
       xenOrchestraSupply = inputs.self.packages.${system}.xen-orchestra-supply-protector.outPath;
       assetPolicy = builtins.hashString "sha256" (builtins.concatStringsSep "\n" [
-        (builtins.hashFile "sha256" ../../../nix/automation/qualification-assets.sh)
-        (builtins.hashFile "sha256" ../../../nix/automation/default.nix)
-        (builtins.hashFile "sha256" ../../../nix/automation/security-inventory.py)
-        (builtins.hashFile "sha256" ../../../nix/automation/security-inventory.sh)
-        (builtins.hashFile "sha256" ../../../nix/automation/security-normalize.py)
+        (builtins.hashFile "sha256" ../authority/_source/qualification-assets.sh)
+        (builtins.hashFile "sha256" ../authority/_source/default.nix)
+        (builtins.hashFile "sha256" ../authority/_source/security-inventory.py)
+        (builtins.hashFile "sha256" ../authority/_source/security-inventory.sh)
+        (builtins.hashFile "sha256" ../authority/_source/security-normalize.py)
         (builtins.hashFile "sha256" ../../../.github/workflows/ci.yml)
         (builtins.toJSON definitions.evidence)
       ]);

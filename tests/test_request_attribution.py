@@ -17,7 +17,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'nix/automation/decisions'))
+sys.path.insert(0, str(ROOT / 'modules/ci/authority/_source/decisions'))
 import common
 import diagnostics as d
 import diagnostic_requests as r
@@ -25,7 +25,7 @@ import diagnostic_artifacts as artifacts
 import destinations
 import operations
 
-spec = importlib.util.spec_from_file_location('journal_fixture', ROOT / 'nix/automation/publication-journal.py')
+spec = importlib.util.spec_from_file_location('journal_fixture', ROOT / 'modules/ci/authority/_source/publication-journal.py')
 journal = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(journal)
 PATH = '/nix/store/' + '0' * 32 + '-fixture'
@@ -228,7 +228,7 @@ class Attribution(unittest.TestCase):
 
     def test_killed_native_process_retains_unknown_stage(self):
         script = 'import diagnostics as d,time\n@d.staged\ndef main():\n print("ready",flush=True)\n time.sleep(60)\nmain()\n'
-        env = dict(os.environ, PYTHONPATH=str(ROOT / 'nix/automation/decisions'))
+        env = dict(os.environ, PYTHONPATH=str(ROOT / 'modules/ci/authority/_source/decisions'))
         with subprocess.Popen([sys.executable, '-c', script], env=env, stdout=subprocess.PIPE, text=True) as child:
             try:
                 self.assertEqual(child.stdout.readline().strip(), 'ready')
@@ -270,7 +270,7 @@ class Attribution(unittest.TestCase):
 
     def test_child_profiles_and_repeated_parent_snapshots_count_once(self):
         script = 'import diagnostics as d; d.count("apiWrapperInvocations", 2); d.snapshot(); d.snapshot()'
-        env = dict(os.environ, PYTHONPATH=str(ROOT / 'nix/automation/decisions'))
+        env = dict(os.environ, PYTHONPATH=str(ROOT / 'modules/ci/authority/_source/decisions'))
         for _ in range(2):
             subprocess.run([sys.executable, '-c', script], env=env, check=True, timeout=10)
         d.count('apiWrapperInvocations', 3)

@@ -19,7 +19,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
-CORE = ROOT / 'nix/automation/decisions'
+CORE = ROOT / 'modules/ci/authority/_source/decisions'
 sys.path.insert(0, str(CORE))
 import destinations
 import diagnostics
@@ -487,7 +487,7 @@ class PublicTransport(unittest.TestCase):
             self.assertIn(name, names)
         self.assertLess(names.index('Inspect current public cache before closure materialization'),
                         names.index('Restore authenticated qualified Nix closures without builders'))
-        source = (ROOT/'nix/automation/publish.sh').read_text()
+        source = (ROOT/'modules/ci/authority/_source/publish.sh').read_text()
         self.assertIn('${PUBLICATION_REQUIRE_VERIFIED:-false} == true', source)
         self.assertIn('cache_readback+=(--require-verified)', source)
         self.assertIn('MAESTRO_PUBLIC_CACHE_TRANSPORT_REUSE_ENABLED PUBLICATION_CURL_WORKER_SOURCE', source)

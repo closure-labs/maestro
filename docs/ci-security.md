@@ -203,12 +203,12 @@ Publication diagnostic manifests use schema v2: `objects/<sha256>.result.json`
 contains the exact canonical full result bytes, while each occurrence retains
 its own execution, kind, timing, bounded summary and `resultReference`. Objects
 are shared only within one job's artifact, named by job, run and attempt. The
-internal reader in `nix/automation/decisions/diagnostic_artifacts.py` accepts v1
+internal reader in `modules/ci/authority/_source/decisions/diagnostic_artifacts.py` accepts v1
 and v2, verifies the complete inventory and rejects links, unsafe paths, absent
 objects and conflicting hashes. It grants no publication authority.
 
 For offline verification, run `python3
-nix/automation/decisions/diagnostics.py --verify <artifact-directory>`. To
+modules/ci/authority/_source/decisions/diagnostics.py --verify <artifact-directory>`. To
 attribute an original completed job log, run the same script with `--job-log
 <original.log> --job <completed-job.json>`. Log byte categories partition the
 original bytes, including timestamps and line endings; timestamps outside a

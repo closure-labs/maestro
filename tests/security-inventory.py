@@ -10,7 +10,7 @@ from unittest.mock import mock_open
 
 
 def module(name):
-    spec = importlib.util.spec_from_file_location(name, Path(__file__).parents[1] / f"nix/automation/security-{name}.py")
+    spec = importlib.util.spec_from_file_location(name, Path(__file__).parents[1] / f"modules/ci/authority/_source/security-{name}.py")
     result = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(result)
     return result

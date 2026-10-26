@@ -30,7 +30,7 @@
         name = "packer-policy";
         source = lib.fileset.toSource {
           root = ../../../..;
-          fileset = lib.fileset.unions [./_source ../../../../nix/automation/packer-validate.sh];
+          fileset = lib.fileset.unions [./_source ../../../ci/authority/_source/packer-validate.sh];
         };
         command = "${lib.getExe packages.maestro-ci-packer-validate}";
       };

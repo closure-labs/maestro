@@ -16,8 +16,8 @@ import urllib.error
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / 'nix/automation/cache-doctor.py'
-sys.path.insert(0, str(ROOT / 'nix/automation/decisions'))
+SOURCE = ROOT / 'modules/ci/authority/_source/cache-doctor.py'
+sys.path.insert(0, str(ROOT / 'modules/ci/authority/_source/decisions'))
 spec = importlib.util.spec_from_file_location('cache_doctor', SOURCE)
 doctor = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(doctor)
@@ -192,7 +192,7 @@ class DoctorTests(unittest.TestCase):
                                 f'Path({str(ready)!r}).write_text(str(os.getpid()))\ntime.sleep(20)\n')
             provider.chmod(0o700)
             env = {'PATH': directory + os.pathsep + os.environ['PATH'],
-                   'PYTHONPATH': str(ROOT / 'nix/automation/decisions')}
+                   'PYTHONPATH': str(ROOT / 'modules/ci/authority/_source/decisions')}
             process = subprocess.Popen([sys.executable, str(SOURCE), '--provider', 'env'],
                                        env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             try:

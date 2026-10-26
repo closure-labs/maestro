@@ -6,7 +6,7 @@ import sys
 import unittest
 
 CORE = Path(__file__).resolve().parents[2]
-CORE = CORE / 'ci/decisions' if (CORE / 'ci').is_dir() else CORE / 'nix/automation/decisions'
+CORE = CORE / 'ci/decisions' if (CORE / 'ci').is_dir() else CORE / 'modules/ci/authority/_source/decisions'
 sys.path.insert(0, str(CORE))
 import publication_receipts as receipts
 

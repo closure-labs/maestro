@@ -20,10 +20,10 @@ def load(name, relative):
     return module
 
 
-inventory = load('inventory', 'nix/automation/security-inventory.py')
-candidate = load('candidate', 'nix/automation/decision-candidate.py')
-decisions = load('decisions', 'nix/automation/decisions/security_decisions.py')
-normalizer = load('normalizer', 'nix/automation/security-normalize.py')
+inventory = load('inventory', 'modules/ci/authority/_source/security-inventory.py')
+candidate = load('candidate', 'modules/ci/authority/_source/decision-candidate.py')
+decisions = load('decisions', 'modules/ci/authority/_source/decisions/security_decisions.py')
+normalizer = load('normalizer', 'modules/ci/authority/_source/security-normalize.py')
 
 
 def reject(call, text=None):
@@ -84,8 +84,8 @@ for magic in (b'\x7fELF', b'MZxx'):
 
 with tempfile.TemporaryDirectory() as temporary:
     root = Path(temporary)
-    (root / 'nix').mkdir()
-    (root / 'nix/ci-plans.json').write_text(json.dumps({'publish': {'targets': [{'name': 'system', 'attribute': 'fixture'}]}}))
+    (root / 'modules/ci/graph/_lib').mkdir(parents=True)
+    (root / 'modules/ci/graph/_lib/plans.json').write_text(json.dumps({'publish': {'targets': [{'name': 'system', 'attribute': 'fixture'}]}}))
     def evaluate(*args):
         return json.dumps(manifest) if '--json' in args else paths[0]
     native = {'status': 'complete', 'scannerHealth': 'healthy', 'scannedAt': datetime.now(timezone.utc).isoformat(),

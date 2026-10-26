@@ -8,7 +8,7 @@ import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / ('nix/automation' if (ROOT / 'nix/automation').is_dir() else 'ci')
+SOURCE = ROOT / ('modules/ci/authority/_source' if (ROOT / 'modules/ci/authority/_source').is_dir() else 'ci')
 sys.path.insert(0, str(SOURCE / 'decisions'))
 import ci_admission as admission
 

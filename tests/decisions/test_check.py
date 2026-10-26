@@ -6,8 +6,8 @@ import unittest
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / 'nix/automation/decisions'))
-spec = importlib.util.spec_from_file_location('check', ROOT / 'nix/automation/decisions/check.py')
+sys.path.insert(0, str(ROOT / 'modules/ci/authority/_source/decisions'))
+spec = importlib.util.spec_from_file_location('check', ROOT / 'modules/ci/authority/_source/decisions/check.py')
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 spec = importlib.util.spec_from_file_location('fixtures', ROOT / 'tests/decisions/test_authority.py')

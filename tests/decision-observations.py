@@ -108,7 +108,7 @@ with patch.object(inventory.subprocess, 'check_output', return_value=json.dumps(
     reject(lambda: inventory.bind_inventory_roots(deepcopy(sbom), subjects))
 with patch.object(inventory.subprocess, 'check_output', return_value=json.dumps({root: {'narHash': subjects[0]['narHash']}}).encode()):
     inventory.bind_inventory_roots(deepcopy(sbom), subjects)
-spec = importlib.util.spec_from_file_location('candidate', Path(__file__).parents[1] / 'nix/automation/decision-candidate.py')
+spec = importlib.util.spec_from_file_location('candidate', Path(__file__).parents[1] / 'modules/ci/authority/_source/decision-candidate.py')
 candidate = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(candidate)
 builder = {'id': 12, 'run_attempt': 2, 'head_sha': 'a' * 40, 'head_branch': 'main',

@@ -13,7 +13,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
-AUTOMATION = ROOT / 'nix/automation'
+AUTOMATION = ROOT / 'modules/ci/authority/_source'
 sys.path.insert(0, str(AUTOMATION / 'decisions'))
 
 

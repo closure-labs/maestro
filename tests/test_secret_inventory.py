@@ -13,7 +13,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG = ROOT / '.gitleaks.toml'
-SOURCE_SECURITY = ROOT / 'nix/automation/source-security.py'
+SOURCE_SECURITY = ROOT / 'modules/ci/authority/_source/source-security.py'
 KEY = hashlib.sha256(b'public canonical vulnerability identity fixture').hexdigest()
 LEDGER = 'automation/decisions/security/' + 'a' * 64 + '.json'
 LINE = '          "key": "' + KEY + '",\n'

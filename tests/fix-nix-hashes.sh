@@ -74,7 +74,7 @@ run_fixer() {
     PR_HEAD_REF=dependabot/cargo/example \
     PR_HEAD_REPOSITORY=example/maestro \
     PR_HEAD_SHA="$head_sha" \
-      bash "$root/nix/automation/fix-hashes.sh"
+      bash "$root/modules/ci/authority/_source/fix-hashes.sh"
 }
 
 : >"$temporary/git.log"
