@@ -18,7 +18,7 @@ COLLECTOR = '.github/workflows/decision-events.yml'
 QUEUE = re.compile(r'gh-readonly-queue/main/pr-([1-9][0-9]*)-[0-9a-f]{7,40}')
 PROPOSAL = re.compile(r'automation/decisions/(security|releases)/([0-9a-f]{64})\.json')
 GOVERNED_PREFIXES = ('nix/', 'ci/', 'lib/', 'pkgs/', 'npins/', 'scripts/', 'sources/', '.github/', 'automation/',
-                     'tests/decisions/', 'modules/', 'host/', 'modules/features/installer/_source/', 'modules/features/xcp-ng/template/_source/')
+                     'modules/ci/authority/_tests/decisions/', 'modules/', 'host/', 'modules/features/installer/_source/', 'modules/features/xcp-ng/template/_source/')
 GOVERNED_FILES = {'default.nix', 'flake.nix', 'flake.lock', 'devenv.nix', 'devenv.yaml', 'devenv.lock', 'secretspec.toml',
                   'cosign.pub', 'zizmor.yml', '.zizmor.yml', '.gitleaks.toml', 'gitleaks.toml', '.gitleaksignore'}
 

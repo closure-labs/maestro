@@ -31,8 +31,8 @@
           nativeBuildInputs = fixtureInputs;
         } ''
           export MAESTRO_SBOMNIX=${lib.getExe packages.sbomnix}
-          bash ${../../../tests/sbomnix-runtime.sh}
-          bash ${../../../tests/sbomnix-lock-root.sh}
+          bash ${../checks/_tests/sbomnix-runtime.sh}
+          bash ${../checks/_tests/sbomnix-lock-root.sh}
           touch "$out"
         '';
     };

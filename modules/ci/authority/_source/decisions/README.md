@@ -3,7 +3,7 @@
 These commands adapt Finite's `decision-authority.py`, `decision-check.py`,
 `security_decisions.py`, and `decision_packets.py`. Their original authority,
 normalization, hostile-packet and merge-queue fixtures are retained under
-`tests/decisions` alongside adaptation tests. Python's standard library, `gh`
+`modules/ci/authority/_tests/decisions` alongside adaptation tests. Python's standard library, `gh`
 and `oras` are the only runtime dependencies.
 
 Every command accepts `--config POLICY.json` and optional `--output FILE`.
@@ -92,5 +92,5 @@ AI assessment or old signature substitutes for current GitHub authority.
 No live service is needed to run the fixture suite:
 
 ```console
-python3 -m unittest discover -s tests/decisions -q
+python3 -m unittest discover -s modules/ci/authority/_tests/decisions -q
 ```

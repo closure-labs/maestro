@@ -29,11 +29,11 @@
         nativeBuildInputs = [pkgs.python3];
         source = lib.fileset.toSource {
           root = ./.;
-          fileset = lib.fileset.unions [./_source/graph.py ./_tests];
+          fileset = lib.fileset.unions [./_source ./_tests/test_graph.py ./_tests/test_results.py];
         };
       } ''
         export PYTHONDONTWRITEBYTECODE=1
-        python3 "$source/_tests/test_graph.py"
+        python3 -m unittest discover -s "$source/_tests" -p 'test_*.py'
         touch "$out"
       '';
   };

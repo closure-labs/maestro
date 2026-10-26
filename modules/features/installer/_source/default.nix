@@ -36,7 +36,7 @@
   };
 in {
   imports = [
-    (modulesPath + "/modules/features/installer/_source/cd-dvd/installation-cd-minimal.nix")
+    (modulesPath + "/installer/cd-dvd/installation-cd-minimal.nix")
   ];
 
   image.baseName = lib.mkForce "maestro-installer";

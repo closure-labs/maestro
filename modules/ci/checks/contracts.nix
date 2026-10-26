@@ -142,7 +142,7 @@
           grep -Fq 'runFlakePackage "maestro-ci-verdict"' modules/features/development/_lib/devenv.nix
           grep -Fq 'runFlakePackage "maestro-ci-release-manager"' modules/features/development/_lib/devenv.nix
           ! grep -RqE --exclude=contracts.nix 'ci:(prepare|plan|check|gate)|maestro-ci-(prepare|plan|check|gate|release)([^a-z-]|$)|MAESTRO_CI_(PREPARE|PLAN|CHECK|GATE|RELEASE)([^A-Z_]|$)|PREPARE_RESULT|PLAN_RESULT' \
-            .github docs modules tests
+            .github docs modules
           test "$(grep -c 'execIfModified = ' modules/features/development/_lib/devenv.nix)" -eq 2
           ! grep -Fq 'exec = "true";' modules/features/development/_lib/devenv.nix
           grep -Fq "git ls-files -z -- '*.nix'" modules/features/development/_lib/devenv.nix
@@ -171,21 +171,12 @@
         pkgs.runCommandLocal "maestro-shell-lint" {
           nativeBuildInputs = [
             pkgs.shellcheck
+            pkgs.findutils
           ];
         } ''
           cd ${inputs.self}
-          shellcheck \
-            modules/features/installer/_source/*.sh \
-            modules/features/xo/_source/*.sh \
-            modules/features/xcp-ng/template/_source/*.sh \
-            modules/features/xcp-ng/template/_source/scripts/*.sh \
-            modules/features/operator/cli/_source/*.sh \
-            modules/features/operator/cli/_source/lib/*.sh \
-            modules/features/operator/menu/_source/backend/*.sh \
-            modules/ci/authority/_source/*.sh \
-            modules/ci/graph/_source/nix.sh \
-            .github/actions/setup-nix/*.sh \
-            tests/*.sh
+          mapfile -d "" -t shell_files < <(find modules .github -type f -name '*.sh' -print0)
+          shellcheck "''${shell_files[@]}"
           touch "$out"
         '';
 
@@ -193,12 +184,12 @@
         name = "automation-fixtures";
         nativeBuildInputs = fixtureInputs ++ [pkgs.python3 (import ../graph/_lib/nix.nix {inherit pkgs;})];
         command = ''
-          bash ./tests/ci-helpers.sh
-          bash ./tests/update-pr.sh
-          bash ./tests/qualification-cache.sh
-          bash ./tests/fix-nix-hashes.sh
-          bash ./tests/ci-runtime-config.sh
-          bash ./tests/cache-validation.sh
+          bash ./modules/ci/graph/_tests/ci-helpers.sh
+          bash ./modules/ci/checks/_tests/update-pr.sh
+          bash ./modules/ci/graph/_tests/qualification-cache.sh
+          bash ./modules/ci/checks/_tests/fix-nix-hashes.sh
+          bash ./modules/ci/checks/_tests/ci-runtime-config.sh
+          bash ./modules/ci/checks/_tests/cache-validation.sh
         '';
       };
 

@@ -14,7 +14,7 @@
     assert lib.assertMsg (matched != null) "Installer content must have an immutable store origin";
     # substring retains the producing derivation's string context.
       builtins.substring 0 (builtins.stringLength (builtins.head matched)) value;
-  isoRecipe = pkgs.path + "/nixos/modules/modules/features/installer/_source/cd-dvd/iso-image.nix";
+  isoRecipe = pkgs.path + "/nixos/modules/installer/cd-dvd/iso-image.nix";
   initrdRecipe = pkgs.path + "/pkgs/build-support/kernel/make-initrd-ng.nix";
   # These adapters describe copied/generated code, whose output deliberately
   # drops references. Recipe drift needs a reviewed attribution update.

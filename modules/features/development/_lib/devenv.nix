@@ -27,6 +27,7 @@ in {
   ];
 
   tasks = {
+    "ci:graph:result".exec = runFlakePackage "maestro-ci-graph-result" "";
     "ci:boot:evidence".exec = runFlakePackage "maestro-ci-boot-evidence" "";
     "ci:build:appliance".exec = runFlakePackage "maestro-ci-build-appliance" "";
     "ci:build:installer".exec = runFlakePackage "maestro-ci-build-installer" "";

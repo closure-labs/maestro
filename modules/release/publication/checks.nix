@@ -29,11 +29,11 @@
       release-fixtures = mkSourceCheck {
         name = "release-fixtures";
         command = ''
-          bash ./tests/release-assets.sh
-          bash ./tests/release-attestations.sh
-          PYTHONDONTWRITEBYTECODE=1 ${pkgs.python3}/bin/python3 tests/release-request.py
-          PYTHONDONTWRITEBYTECODE=1 ${pkgs.python3}/bin/python3 tests/release-graph.py
-          PYTHONDONTWRITEBYTECODE=1 ${pkgs.python3}/bin/python3 tests/pilot-benchmark.py
+          bash ./modules/release/publication/_tests/release-assets.sh
+          bash ./modules/release/publication/_tests/release-attestations.sh
+          PYTHONDONTWRITEBYTECODE=1 ${pkgs.python3}/bin/python3 modules/release/publication/_tests/release-request.py
+          PYTHONDONTWRITEBYTECODE=1 ${pkgs.python3}/bin/python3 modules/release/publication/_tests/release-graph.py
+          PYTHONDONTWRITEBYTECODE=1 ${pkgs.python3}/bin/python3 modules/ci/graph/_tests/pilot-benchmark.py
         '';
         nativeBuildInputs = fixtureInputs ++ [pkgs.yq-go];
       };

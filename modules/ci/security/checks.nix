@@ -29,46 +29,46 @@
       security-fixtures = mkSourceCheck {
         name = "security-fixtures";
         command = ''
-          PYTHONDONTWRITEBYTECODE=1 python3 ./tests/security-inventory.py
-          PYTHONDONTWRITEBYTECODE=1 python3 ./tests/security-components.py
-          PYTHONDONTWRITEBYTECODE=1 python3 ./tests/file-restore.py
-          bash ./tests/policy-drift.sh
-          bash ./tests/security-contracts.sh
-          bash ./tests/evidence-download.sh
-          bash ./tests/provenance-requests.sh
-          bash ./tests/security-scan.sh
-          bash ./tests/codeql-rust-toolchain.sh ${lib.getExe packages.maestro-ci-codeql-rust-toolchain}
-          PYTHONDONTWRITEBYTECODE=1 python3 tests/decision-observations.py
-          PYTHONDONTWRITEBYTECODE=1 python3 tests/test_secret_inventory.py
-          PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests/decisions -p '*.py'
+          PYTHONDONTWRITEBYTECODE=1 python3 ./modules/ci/security/_tests/security-inventory.py
+          PYTHONDONTWRITEBYTECODE=1 python3 ./modules/ci/security/_tests/security-components.py
+          PYTHONDONTWRITEBYTECODE=1 python3 ./modules/features/xo/file-restore/_tests/file-restore.py
+          bash ./modules/ci/security/_tests/policy-drift.sh
+          bash ./modules/ci/security/_tests/security-contracts.sh
+          bash ./modules/ci/security/_tests/evidence-download.sh
+          bash ./modules/ci/security/_tests/provenance-requests.sh
+          bash ./modules/ci/security/_tests/security-scan.sh
+          bash ./modules/ci/checks/_tests/codeql-rust-toolchain.sh ${lib.getExe packages.maestro-ci-codeql-rust-toolchain}
+          PYTHONDONTWRITEBYTECODE=1 python3 modules/ci/authority/_tests/decision-observations.py
+          PYTHONDONTWRITEBYTECODE=1 python3 modules/ci/authority/_tests/test_secret_inventory.py
+          PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s modules/ci/authority/_tests/decisions -p '*.py'
           MAESTRO_TEST_PUBLISH_COMMAND=${lib.getExe packages.maestro-ci-publish} \
             MAESTRO_TEST_INSPECT_COMMAND=${lib.getExe packages.maestro-ci-publication-inspect} \
-            PYTHONDONTWRITEBYTECODE=1 python3 tests/test_publish_readback.py
+            PYTHONDONTWRITEBYTECODE=1 python3 modules/ci/authority/_tests/test_publish_readback.py
           MAESTRO_TEST_PUBLISH_COMMAND=${lib.getExe packages.maestro-ci-publish} \
             MAESTRO_TEST_INSPECT_COMMAND=${lib.getExe packages.maestro-ci-publication-inspect} \
-            PYTHONDONTWRITEBYTECODE=1 python3 tests/test_readonly_preflight.py
-          PYTHONDONTWRITEBYTECODE=1 python3 tests/test_cache_cancellation.py
-          PYTHONDONTWRITEBYTECODE=1 python3 tests/test_cache_recovery.py
-          PYTHONDONTWRITEBYTECODE=1 python3 tests/test_scheduling.py
-          PYTHONDONTWRITEBYTECODE=1 python3 tests/test_operations.py
-          PYTHONDONTWRITEBYTECODE=1 python3 tests/test_consumer_probe.py
-          PYTHONDONTWRITEBYTECODE=1 python3 tests/test_consumer_result.py
-          PYTHONDONTWRITEBYTECODE=1 python3 tests/publication-journal.py
-          PYTHONDONTWRITEBYTECODE=1 python3 tests/test_release_transaction.py
-          PYTHONDONTWRITEBYTECODE=1 python3 tests/test_ci_admission.py
-          PYTHONDONTWRITEBYTECODE=1 python3 tests/publication-diagnostics.py
-          PYTHONDONTWRITEBYTECODE=1 python3 tests/test_request_attribution.py
+            PYTHONDONTWRITEBYTECODE=1 python3 modules/ci/authority/_tests/test_readonly_preflight.py
+          PYTHONDONTWRITEBYTECODE=1 python3 modules/ci/authority/_tests/test_cache_cancellation.py
+          PYTHONDONTWRITEBYTECODE=1 python3 modules/ci/authority/_tests/test_cache_recovery.py
+          PYTHONDONTWRITEBYTECODE=1 python3 modules/ci/authority/_tests/test_scheduling.py
+          PYTHONDONTWRITEBYTECODE=1 python3 modules/ci/authority/_tests/test_operations.py
+          PYTHONDONTWRITEBYTECODE=1 python3 modules/ci/authority/_tests/test_consumer_probe.py
+          PYTHONDONTWRITEBYTECODE=1 python3 modules/ci/authority/_tests/test_consumer_result.py
+          PYTHONDONTWRITEBYTECODE=1 python3 modules/release/publication/_tests/publication-journal.py
+          PYTHONDONTWRITEBYTECODE=1 python3 modules/ci/authority/_tests/test_release_transaction.py
+          PYTHONDONTWRITEBYTECODE=1 python3 modules/ci/authority/_tests/test_ci_admission.py
+          PYTHONDONTWRITEBYTECODE=1 python3 modules/ci/authority/_tests/publication-diagnostics.py
+          PYTHONDONTWRITEBYTECODE=1 python3 modules/ci/authority/_tests/test_request_attribution.py
           MAESTRO_TEST_LIBCURL=${pkgs.curl.out}/lib/libcurl.so.4 \
             MAESTRO_TEST_CURL=${pkgs.curl.bin}/bin/curl \
             MAESTRO_TEST_OPENSSL=${pkgs.openssl.bin}/bin/openssl \
-            PYTHONDONTWRITEBYTECODE=1 python3 tests/test_public_cache_transport.py
-          PYTHONDONTWRITEBYTECODE=1 python3 tests/distribution-cache.py
-          PYTHONDONTWRITEBYTECODE=1 python3 tests/qualification-restore.py
-          PYTHONDONTWRITEBYTECODE=1 python3 tests/installer-coverage.py
-          PYTHONDONTWRITEBYTECODE=1 python3 tests/decision-operations.py
-          PYTHONDONTWRITEBYTECODE=1 python3 tests/decision-only.py
-          PYTHONDONTWRITEBYTECODE=1 python3 tests/audit-diagnostics.py
-          PYTHONDONTWRITEBYTECODE=1 python3 tests/qualification-diagnostics.py
+            PYTHONDONTWRITEBYTECODE=1 python3 modules/ci/authority/_tests/test_public_cache_transport.py
+          PYTHONDONTWRITEBYTECODE=1 python3 modules/ci/checks/_tests/distribution-cache.py
+          PYTHONDONTWRITEBYTECODE=1 python3 modules/ci/graph/_tests/qualification-restore.py
+          PYTHONDONTWRITEBYTECODE=1 python3 modules/features/installer/_tests/installer-coverage.py
+          PYTHONDONTWRITEBYTECODE=1 python3 modules/ci/authority/_tests/decision-operations.py
+          PYTHONDONTWRITEBYTECODE=1 python3 modules/ci/authority/_tests/decision-only.py
+          PYTHONDONTWRITEBYTECODE=1 python3 modules/ci/checks/_tests/audit-diagnostics.py
+          PYTHONDONTWRITEBYTECODE=1 python3 modules/ci/graph/_tests/qualification-diagnostics.py
         '';
         nativeBuildInputs = fixtureInputs ++ [pkgs.openssh pkgs.python3 pkgs.gitleaks pkgs.yq-go];
       };
@@ -85,7 +85,7 @@
           export HOME="$TMPDIR/home"
           mkdir -p "$HOME"
           SECRETSPEC_BIN=${inputs.devenv.packages.${system}.devenv}/bin/secretspec \
-            PYTHONDONTWRITEBYTECODE=1 python3 ${inputs.self}/tests/test_cache_doctor.py
+            PYTHONDONTWRITEBYTECODE=1 python3 ${inputs.self}/modules/ci/authority/_tests/test_cache_doctor.py
           secretspec schema --file ${inputs.self}/secretspec.toml \
             --profile development --output development-schema.json
           jq -e '[.properties | keys[] | select(test("TOKEN|PASSWORD|PEM|DECIDER_KEY"))] == []' \

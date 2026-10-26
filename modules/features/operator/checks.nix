@@ -28,7 +28,7 @@
     checks = {
       operator-fixtures = mkSourceCheck {
         name = "operator-fixtures";
-        command = "MAESTRO_SKIP_EVAL=1 bash ./tests/run.sh";
+        command = "MAESTRO_SKIP_EVAL=1 bash ./modules/features/operator/_tests/run.sh";
         nativeBuildInputs = fixtureInputs ++ [pkgs.yq-go pkgs.openssh pkgs.gh (import ../../ci/graph/_lib/nix.nix {inherit pkgs;})];
       };
     };

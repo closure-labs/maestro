@@ -50,7 +50,7 @@ in
         virtualisation.memorySize = 1536;
         environment.systemPackages = [pkgs.procps pkgs.iproute2 pkgs.curl];
         environment.etc."maestro-mount-guard.py".source = ../../../features/xo/_source/mount-guard.py;
-        environment.etc."maestro-mount-race.py".source = ../../../../tests/xo-mount-race.py;
+        environment.etc."maestro-mount-race.py".source = ../../checks/_tests/xo-mount-race.py;
         environment.etc."maestro-sudo-path".text = "${config.maestro.xo.internal.sudoWrapper}/bin/sudo";
       };
       storage = {...}: {

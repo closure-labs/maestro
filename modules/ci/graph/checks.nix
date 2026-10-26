@@ -82,7 +82,7 @@
 
       qualification-input-fixtures = mkSourceCheck {
         name = "qualification-input-fixtures";
-        command = "bash ./tests/qualification-inputs.sh";
+        command = "bash ./modules/ci/graph/_tests/qualification-inputs.sh";
       };
     };
   };
