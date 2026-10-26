@@ -11,6 +11,9 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Limit CI closure transport to selected, inventory-covered outputs so signed
+  cross-run restores do not depend on undistributed secondary build outputs.
+
 - Generate the flake with pinned flake-file and flake-parts while retaining
   Den v0.16.0 and the single `maestro` appliance. Colocate policy, packages,
   operator/installer/Packer sources and validation with feature owners.
@@ -55,6 +58,9 @@ correspond to published GitHub tags.
   hosted-byte readbacks and scoped token renewal.
 
 ### Fixed
+
+- Capture the expected unknown-event rejection in CI routing fixtures so passing
+  negative tests do not emit misleading live schema-error annotations.
 
 - Group small release assets into bounded uploads with fresh authority checks
   per batch and before publication. Renew scoped tokens before asset and
