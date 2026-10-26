@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Add explicit verified-only off/on trials for release write grouping. Trials
+  require a selected producer, use read-only authority tokens and reject changes
+  to published destinations or journals while retaining fresh authorization.
+
 - Add disabled-by-default gate-local release verification reuse. Immutable
   decision graphs and proposal documents can be shared within one gate while
   final reviews, membership, permissions, policy and evidence expiry remain live.

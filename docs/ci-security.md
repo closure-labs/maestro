@@ -433,3 +433,21 @@ hosted time savings. Promotion still requires a safe matched verified-only case,
 then controlled publication and clean-store verification. Leave the flag disabled
 when no such matched case is available; never use a published-byte mutation as a
 performance experiment.
+
+### Verified-only release transaction trials
+
+The versioned publisher accepts `transaction_trial=disabled` or `enabled` only
+with an explicit `candidate_run`. Both modes require already-verified cache and
+FlakeHub destinations, an existing published GitHub release with all approved
+assets, and unchanged journal proofs. A missing or changed destination fails;
+the trial cannot repair it. Trial authority tokens have read-only contents,
+pull-request and Actions permissions. Native journal and asset helpers also
+reject writes, including asset uploads and draft publication. Development
+advancement and the external FlakeHub action are skipped.
+
+Compare both modes on the same protected controller, approved product, producer
+and evidence with all other flags fixed. Both hosted-byte readbacks, live gates,
+upstream handoff checks and fresh receipts still execute. Successful receipt
+files do not grant authority. The `default` mode retains the repository's
+`MAESTRO_RELEASE_TRANSACTION_ENABLED` setting and normal publication behavior;
+trials never change that setting or affect scheduled publishers.

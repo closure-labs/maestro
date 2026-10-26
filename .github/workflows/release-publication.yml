@@ -7,6 +7,11 @@ on:
         description: Completed prepared release or refreshed release evidence producer
         type: string
         default: ''
+      transaction_trial:
+        description: Verified-only transaction comparison; requires an explicit candidate_run
+        type: choice
+        default: default
+        options: [default, disabled, enabled]
   push:
     branches: [main]
     paths: ['automation/decisions/**']
@@ -20,7 +25,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   publish:
-    if: github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main'
+    if: github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && (github.event_name != 'workflow_dispatch' || inputs.transaction_trial == 'default' || inputs.transaction_trial == '' || inputs.candidate_run != '')
     runs-on: ubuntu-24.04
     timeout-minutes: 240
     environment: release
@@ -28,7 +33,8 @@ jobs:
       MAESTRO_CI_DIAGNOSTICS: 'true'
       MAESTRO_RELEASE_VERIFICATION_REUSE_ENABLED: ${{ vars.MAESTRO_RELEASE_VERIFICATION_REUSE_ENABLED || 'false' }}
       MAESTRO_PACKET_METADATA_REUSE_ENABLED: ${{ vars.MAESTRO_PACKET_METADATA_REUSE_ENABLED || 'false' }}
-      MAESTRO_RELEASE_TRANSACTION_ENABLED: ${{ vars.MAESTRO_RELEASE_TRANSACTION_ENABLED || 'false' }}
+      MAESTRO_RELEASE_TRANSACTION_ENABLED: ${{ (github.event_name == 'workflow_dispatch' && inputs.transaction_trial == 'enabled') && 'true' || (github.event_name == 'workflow_dispatch' && inputs.transaction_trial == 'disabled') && 'false' || vars.MAESTRO_RELEASE_TRANSACTION_ENABLED || 'false' }}
+      PUBLICATION_REQUIRE_VERIFIED: ${{ (github.event_name == 'workflow_dispatch' && (inputs.transaction_trial == 'enabled' || inputs.transaction_trial == 'disabled')) && 'true' || 'false' }}
       MAESTRO_PACKET_METADATA_BATCH_ENABLED: ${{ vars.MAESTRO_PACKET_METADATA_BATCH_ENABLED || 'false' }}
     permissions:
       actions: read
@@ -63,11 +69,11 @@ jobs:
           private-key: ${{ secrets.DECIDER_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
-          permission-contents: write
-          permission-pull-requests: write
+          permission-contents: ${{ env.PUBLICATION_REQUIRE_VERIFIED == 'true' && 'read' || 'write' }}
+          permission-pull-requests: ${{ env.PUBLICATION_REQUIRE_VERIFIED == 'true' && 'read' || 'write' }}
           permission-members: read
           permission-administration: read
-          permission-actions: write
+          permission-actions: ${{ env.PUBLICATION_REQUIRE_VERIFIED == 'true' && 'read' || 'write' }}
       - name: Mint independently scoped upstream authority reader
         id: upstream
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
@@ -87,7 +93,7 @@ jobs:
           PUBLICATION_DESTINATION: cache
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:inspect
       - name: Restore authenticated qualified Nix closures without builders
-        if: steps.cache.outputs.status != 'verified'
+        if: env.PUBLICATION_REQUIRE_VERIFIED != 'true' && steps.cache.outputs.status != 'verified'
         env:
           GH_TOKEN: ${{ steps.authority.outputs.token }}
           PUBLICATION_PURPOSE: release
@@ -124,11 +130,11 @@ jobs:
           private-key: ${{ secrets.DECIDER_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
-          permission-contents: write
-          permission-pull-requests: write
+          permission-contents: ${{ env.PUBLICATION_REQUIRE_VERIFIED == 'true' && 'read' || 'write' }}
+          permission-pull-requests: ${{ env.PUBLICATION_REQUIRE_VERIFIED == 'true' && 'read' || 'write' }}
           permission-members: read
           permission-administration: read
-          permission-actions: write
+          permission-actions: ${{ env.PUBLICATION_REQUIRE_VERIFIED == 'true' && 'read' || 'write' }}
       - name: Mint fresh asset upstream reader
         id: assets-upstream
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
@@ -159,11 +165,11 @@ jobs:
           private-key: ${{ secrets.DECIDER_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
-          permission-contents: write
-          permission-pull-requests: write
+          permission-contents: ${{ env.PUBLICATION_REQUIRE_VERIFIED == 'true' && 'read' || 'write' }}
+          permission-pull-requests: ${{ env.PUBLICATION_REQUIRE_VERIFIED == 'true' && 'read' || 'write' }}
           permission-members: read
           permission-administration: read
-          permission-actions: write
+          permission-actions: ${{ env.PUBLICATION_REQUIRE_VERIFIED == 'true' && 'read' || 'write' }}
       - name: Mint fresh completion upstream reader
         id: completion-upstream
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
@@ -210,7 +216,7 @@ jobs:
           PUBLICATION_PURPOSE: release
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' ci:decision:publication
       - name: Publish the approved versioned flake
-        if: steps.flakehub.outputs.status != 'verified' 
+        if: env.PUBLICATION_REQUIRE_VERIFIED != 'true' && steps.flakehub.outputs.status != 'verified'
         uses: DeterminateSystems/flakehub-push@dceefcb33cba27bde28f8540d8b4537cb925c46b # main, Node.js 24
         with:
           visibility: public
@@ -236,6 +242,7 @@ jobs:
           PUBLICATION_STATE: complete
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:journal
       - name: Advance development through protected main
+        if: env.PUBLICATION_REQUIRE_VERIFIED != 'true'
         env:
           GH_TOKEN: ${{ steps.completion-authority.outputs.token }}
           MERGE_QUEUE_TOKEN: ${{ steps.completion-authority.outputs.token }}

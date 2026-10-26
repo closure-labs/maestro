@@ -264,6 +264,72 @@ class Transaction(unittest.TestCase):
                 self.assertEqual(result['producerRun'], 7)
                 self.assertLessEqual(len(raw.encode()), 4096)
 
+    def test_verified_trial_preserves_both_readbacks_and_fresh_authority(self):
+        self.reserve(); self.stage(); self.complete()
+        before = deepcopy((self.api.document, self.api.release, self.api.remote))
+        self.api.events.clear()
+        with patch.dict(os.environ, {'PUBLICATION_REQUIRE_VERIFIED': 'true'}):
+            self.reserve(); self.stage()
+            result, receipt = self.complete()
+        self.assertEqual(result['status'], 'published')
+        self.assertEqual(receipt['expected'], self.api.document['receipts']['github']['expected'])
+        self.assertEqual((self.api.document, self.api.release, self.api.remote), before)
+        self.assertEqual(self.api.events.count('authorize'), 2)
+        for name in self.product['assets']:
+            self.assertEqual(self.api.events.count('download:' + name), 2)
+        self.assertNotIn('upload', self.api.events)
+        self.assertFalse(any(isinstance(e, tuple) and e[0] != 'GET' for e in self.api.events))
+
+    def test_verified_trial_rejects_missing_destinations_without_mutation(self):
+        for missing in ('tag', 'release', 'draft', 'asset', 'journal'):
+            self.setUp()
+            self.reserve(); self.stage(); self.complete()
+            if missing == 'tag': self.api.tag = None
+            elif missing == 'release': self.api.release = None
+            elif missing == 'draft': self.api.release['draft'] = True
+            elif missing == 'asset': self.api.remote.pop('asset.iso')
+            else: self.api.document = None
+            before = deepcopy((self.api.document, self.api.release, self.api.remote))
+            self.api.events.clear()
+            with self.subTest(missing=missing), patch.dict(os.environ, {'PUBLICATION_REQUIRE_VERIFIED': 'true'}):
+                with self.assertRaisesRegex(ValueError, 'Verified-only|incomplete'):
+                    self.reserve(); self.stage(); self.complete()
+            self.assertEqual((self.api.document, self.api.release, self.api.remote), before)
+            self.assertNotIn('upload', self.api.events)
+            self.assertFalse(any(isinstance(e, tuple) and e[0] != 'GET' for e in self.api.events))
+
+    def test_verified_trial_blocks_leaf_upload_and_api_mutations(self):
+        with patch.dict(os.environ, {'PUBLICATION_REQUIRE_VERIFIED': 'true'}), \
+                patch.object(mod.assets.subprocess, 'run') as command:
+            for method in ('POST', 'PUT', 'PATCH', 'DELETE'):
+                with self.subTest(method=method), self.assertRaisesRegex(ValueError, 'forbids GitHub mutations'):
+                    mod.journal.api('repos/owner/repo/releases', method, {})
+            with self.assertRaisesRegex(ValueError, 'forbids asset uploads'):
+                mod.assets.upload(REPO, TAG, [self.directory / 'asset.iso'])
+            command.assert_not_called()
+
+    def test_verified_trial_legacy_path_retains_authority_and_readbacks(self):
+        self.reserve(); self.stage(); self.complete()
+        self.api.events.clear()
+        with patch.dict(os.environ, {'PUBLICATION_REQUIRE_VERIFIED': 'true'}):
+            result = mod.assets.reconcile(REPO, self.product, self.directory, TAG, SHA, True,
+                                         self.api.authorize, self.api, self.api.download, self.api.upload)
+        self.assertEqual(result['status'], 'published')
+        self.assertEqual(self.api.events.count('authorize'), 1)
+        for name in self.product['assets']:
+            self.assertEqual(self.api.events.count('download:' + name), 2)
+        self.assertFalse(any(isinstance(e, tuple) and e[0] != 'GET' for e in self.api.events))
+
+    def test_verified_trial_rejects_receipt_update_and_draft_completion(self):
+        self.reserve(); self.stage()
+        with patch.dict(os.environ, {'PUBLICATION_REQUIRE_VERIFIED': 'true'}):
+            with self.assertRaisesRegex(ValueError, 'published release'): self.complete()
+        self.assertTrue(self.api.release['draft'])
+        self.api.release['draft'] = False
+        with patch.dict(os.environ, {'PUBLICATION_REQUIRE_VERIFIED': 'true'}):
+            with self.assertRaisesRegex(ValueError, 'unchanged journal'): self.complete()
+        self.assertEqual(self.api.document['steps']['github'], 'pending')
+
     def test_asset_stage_requires_prior_reservation(self):
         with self.assertRaisesRegex(ValueError, 'reserved tag'): self.stage()
         self.assertNotIn('authorize', self.api.events)

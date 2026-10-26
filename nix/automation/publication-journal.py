@@ -27,6 +27,8 @@ class GitHubError(ValueError):
 
 @common.diagnostics.requests.github
 def api(endpoint, method='GET', payload=None):
+    common.require(os.environ.get('PUBLICATION_REQUIRE_VERIFIED') != 'true' or method == 'GET',
+                   'Verified-only publication forbids GitHub mutations')
     common.diagnostics.count('apiWrapperInvocations')
     common.diagnostics.count('apiTransportInvocations')
     args = ['gh', 'api', '--method', method, endpoint]
@@ -174,6 +176,9 @@ def write_prepared(plan, github=api, authorize=None):
     Conflicts/uncertain acknowledgements propagate. Callers must read back and
     obtain fresh authority before any further mutation; a plan is not authority.
     """
+    common.require(os.environ.get('PUBLICATION_REQUIRE_VERIFIED') != 'true'
+                   or (plan['branch'] is None and plan['payload'] is None),
+                   'Verified-only publication requires an unchanged journal')
     repository = plan['repository']
     if authorize is not None and plan['branch'] is None and plan['payload'] is None:
         authorize()

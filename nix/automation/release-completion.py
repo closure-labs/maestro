@@ -50,6 +50,9 @@ def reserve(repository, product, directory, tag, revision, authorize, github=jou
     if release is not None:
         common.require(release.get('target_commitish') == revision and type(release.get('draft')) is bool
                        and (notes is None or release.get('body') == notes), 'Existing draft differs from approved product')
+    common.require(os.environ.get('PUBLICATION_REQUIRE_VERIFIED') != 'true'
+                   or (actual == revision and release is not None and release.get('draft') is False),
+                   'Verified-only publication requires an existing published release')
     plan = journal.prepare_transition(repository, common.canonical_hash(product), tag, 'github', 'pending', github)
     authorize()
     common.require(assets.tag_revision(repository, tag, github) == actual, 'Release tag changed during reservation authority')

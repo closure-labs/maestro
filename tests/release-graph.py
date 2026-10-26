@@ -81,6 +81,38 @@ class ReleaseGraph(unittest.TestCase):
         self.assertEqual(publisher['environment'], 'release')
         self.assertTrue(any('release:journal' in step.get('run', '') for step in publisher['steps']))
 
+    def test_transaction_trials_are_readonly_and_explicitly_selected(self):
+        publisher = jobs('release-publication.yml')['publish']
+        def expression(source, values):
+            source = source.removeprefix('${{ ').removesuffix(' }}')
+            for key in sorted(values, key=len, reverse=True):
+                source = source.replace(key, repr(values[key]))
+            return eval(source.replace('&&', 'and').replace('||', 'or'), {'__builtins__': {}}, {})
+        for event in ('workflow_dispatch', 'schedule', 'push'):
+            for mode in ('default', '', 'disabled', 'enabled'):
+                for configured in ('false', 'true'):
+                    values = {'github.repository': 'closure-labs/maestro', 'github.ref': 'refs/heads/main',
+                              'github.event_name': event, 'inputs.transaction_trial': mode,
+                              'inputs.candidate_run': '123', 'vars.MAESTRO_RELEASE_TRANSACTION_ENABLED': configured}
+                    trial = event == 'workflow_dispatch' and mode in ('disabled', 'enabled')
+                    verified = expression(publisher['env']['PUBLICATION_REQUIRE_VERIFIED'], values)
+                    self.assertEqual(verified, 'true' if trial else 'false')
+                    enabled = expression(publisher['env']['MAESTRO_RELEASE_TRANSACTION_ENABLED'], values)
+                    self.assertEqual(enabled, ('true' if mode == 'enabled' else 'false') if trial else configured)
+                    self.assertTrue(expression(publisher['if'], values))
+                    values['inputs.candidate_run'] = ''
+                    self.assertEqual(bool(expression(publisher['if'], values)), not trial)
+                    values.update({'env.PUBLICATION_REQUIRE_VERIFIED': verified,
+                                   'steps.cache.outputs.status': 'missing', 'steps.flakehub.outputs.status': 'missing'})
+                    for step in publisher['steps']:
+                        command = step.get('run', '')
+                        if command.endswith((' ci:distribution:restore', ' release:advance')) or 'flakehub-push@' in step.get('uses', ''):
+                            self.assertEqual(bool(expression(step['if'], values)), not trial)
+                        if 'create-github-app-token@' in step.get('uses', '') and step['with']['repositories'] != 'xo-nixpkg':
+                            for permission in ('contents', 'pull-requests', 'actions'):
+                                self.assertEqual(expression(step['with']['permission-' + permission], values),
+                                                 'read' if trial else 'write')
+
     def test_serial_candidate_signal_survives_skipped_overlap_ancestor(self):
         states = dict.fromkeys(CI, 'success') | {'audit': 'skipped'}
         self.assertIn('audit', ancestors(CI, 'release_signal'))
