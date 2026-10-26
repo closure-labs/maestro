@@ -57,7 +57,7 @@ jobs:
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' ci:decision:download
       - name: Mint repository-scoped live authority and journal token
         id: authority
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ vars.DECIDER_CLIENT }}
           private-key: ${{ secrets.DECIDER_KEY }}
@@ -70,7 +70,7 @@ jobs:
           permission-actions: write
       - name: Mint independently scoped upstream authority reader
         id: upstream
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ vars.DECIDER_CLIENT }}
           private-key: ${{ secrets.DECIDER_KEY }}
@@ -118,7 +118,7 @@ jobs:
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:reserve
       - name: Mint fresh asset authority token
         id: assets-authority
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ vars.DECIDER_CLIENT }}
           private-key: ${{ secrets.DECIDER_KEY }}
@@ -131,7 +131,7 @@ jobs:
           permission-actions: write
       - name: Mint fresh asset upstream reader
         id: assets-upstream
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ vars.DECIDER_CLIENT }}
           private-key: ${{ secrets.DECIDER_KEY }}
@@ -153,7 +153,7 @@ jobs:
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:assets
       - name: Mint fresh completion authority token
         id: completion-authority
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ vars.DECIDER_CLIENT }}
           private-key: ${{ secrets.DECIDER_KEY }}
@@ -166,7 +166,7 @@ jobs:
           permission-actions: write
       - name: Mint fresh completion upstream reader
         id: completion-upstream
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ vars.DECIDER_CLIENT }}
           private-key: ${{ secrets.DECIDER_KEY }}
@@ -211,7 +211,7 @@ jobs:
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' ci:decision:publication
       - name: Publish the approved versioned flake
         if: steps.flakehub.outputs.status != 'verified' 
-        uses: DeterminateSystems/flakehub-push@99ef15d19ce5deb24d62f5d1d6f5a81d9bf03567 # main, Node.js 24
+        uses: DeterminateSystems/flakehub-push@dceefcb33cba27bde28f8540d8b4537cb925c46b # main, Node.js 24
         with:
           visibility: public
           name: closure-labs/maestro
