@@ -113,17 +113,18 @@ helpers and transport validation. Scheduler changes leave retained-boot policy
 unchanged; binding-verifier changes invalidate it. Hosted mutation checks verify
 both sides of this dependency boundary.
 
-Graph scheduling is **disabled**. Hosted complete validation, mutation/equivalence
-checks and same-candidate comparisons must pass before any future enablement.
-The complete-audit comparison proves exact validation routing; it does not
-prove selective media/evidence reuse or authorize omitting a job.
-See [migration evidence](maestroden-evidence.md) for raw run links and remaining
-comparison status. No speedup is assumed from the new job boundaries.
-
+Graph scheduling is **active** after hosted complete qualification, all eight
+mutation/equivalence cases and a same-candidate comparison matched all twenty
+audit outputs. Exact protected-main forced and authenticated-reuse controls also
+passed. The graph translates authenticated native routing into bound per-job
+decisions; derivation equality supplies no evidence authority. All twenty audit
+obligations remain required. See [migration evidence](maestroden-evidence.md)
+for raw runs, durations and verification limits. No speedup is assumed.
 
 The native graph handoff exposes a bound final route, per-job decisions and a
-scheduling mode to CI. Its typed `maestro.ci.gatingEnabled` option remains false
-until hosted acceptance permits activation. In active mode, unknown comparison
+scheduling mode to CI. `activation.nix` explicitly enables the typed
+`maestro.ci.gatingEnabled` option, whose default remains false. Set that declaration
+to false to restore shadow scheduling. In active mode, unknown comparison
 inputs, legacy routes or retained controller evidence without graph bindings
 require complete qualification through the native router. That router regenerates
 both the route and current producer state; the planner never rewrites a mode

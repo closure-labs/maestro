@@ -72,6 +72,42 @@ Local isolated imports, modified Nix syntax and all twenty-four graph fixtures
 pass within the focused-fixture resource limit. Hosted evaluation remains
 required before accepting this new dependency boundary.
 
+The native graph handoff passed complete shadow acceptance in
+[40433862245](https://github.com/closure-labs/maestro/actions/runs/40433862245)
+at `ecd607f2163a`: all twenty audits, eight equivalence/mutation cases, appliance
+and ISO realization with installer-owned content transport, inventory, executed
+QEMU boot, fresh scanning, bound release evidence and Required CI verdict.
+The independent comparison matched all twenty exact outputs; its receipt hash
+matches the bound release result. Its separate runner observed 152 build
+activities, 1,103 substitution paths and zero incomplete/failed traces in
+509.365 seconds of comparison work.
+
+| Shadow job | Seconds |
+| --- | ---: |
+| Plan CI | 326 |
+| Repository checks | 584 |
+| Equivalence and mutation checks | 429 |
+| Build appliance | 433 |
+| Build installer ISO | 497 |
+| Independent comparison job | 647 |
+| Generate release inventory | 804 |
+| Test installer boot | 182 |
+| Scan release outputs | 459 |
+| Verify release evidence | 137 |
+
+Concurrent durations are not additive. The appliance transport was
+1,807,188,474 bytes; installer transport was 4,103,177,211 bytes. Phase ownership
+correctness does not imply reduced total transport cost. The ISO SHA-256 remains
+`b5e08f663b16880b858b3ea03abbeb30266d6ecdc9645c16d54cf11fd4e399d7`.
+
+This acceptance plus the exact-main forced/reuse controls permits explicit graph
+activation. All twenty audits remain required; the graph never supplies retained
+producer authority. The activation candidate also strengthens recipe identity
+bindings and requires its own hosted qualification. That final run is pending;
+this record does not claim protected-main signing for an unmerged candidate.
+The default typed gate remains false, with repository activation isolated in
+`modules/ci/graph/activation.nix` for a direct return to shadow mode if needed.
+
 The notes below are chronological implementation observations; pending statuses
 in earlier checkpoints describe the state of those checkpoints.
 

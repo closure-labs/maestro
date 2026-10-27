@@ -18,7 +18,7 @@ correspond to published GitHub tags.
   preserve complete Nix source contexts for copied origins and verify that
   inventory receives every attributed root.
 
-- Add a disabled-by-default graph-to-native routing handoff with bound per-job
+- Enable the graph-to-native routing handoff after hosted acceptance, with bound per-job
   decisions, conservative state regeneration, immutable dispatch comparison
   bases and exact scheduling-mode checks at signing and the required verdict.
 
@@ -37,13 +37,13 @@ correspond to published GitHub tags.
 - Split repository audit, appliance, ISO, boot, inventory, scanning and evidence
   verification into explicit jobs with digest-bound exact-output transport.
   Keep all twenty validation obligations, live release authority and historical
-  evidence readers. Graph scheduling remains in shadow mode pending hosted
+  evidence readers. Bound graph decisions drive scheduling after hosted
   comparison; equal derivations alone never authorize skipping a test.
 
 - Compare the complete audit against independent, exact graph-derived
   realizations on the same candidate and workflow attempt. Bind comparison
-  receipts into release evidence and the required verdict while selective
-  scheduling remains disabled. Narrow qualification and boot-verifier sources
+  receipts into release evidence and the required verdict. Native authenticated
+  routing controls evidence reuse. Narrow qualification and boot-verifier sources
   to their actual dependencies.
 
 - Remove obsolete CLI staging pathspecs after source relocation, and consolidate
