@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import shutil
 import sys
 import tempfile
 import unittest
@@ -28,7 +29,7 @@ class SigningMode(unittest.TestCase):
             binary = root / 'bin'
             binary.mkdir()
             validate = binary / 'maestro-ci-validate-state'
-            validate.write_text('#!/usr/bin/env bash\nexit 0\n')
+            validate.write_text('#!' + shutil.which('bash') + '\nexit 0\n')
             validate.chmod(0o755)
             gh = binary / 'gh'
             gh.write_text('#!' + sys.executable + '\n' + '''

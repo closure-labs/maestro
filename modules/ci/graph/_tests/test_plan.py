@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import shlex
 import subprocess
+import shutil
 import sys
 import tempfile
 import unittest
@@ -73,7 +74,7 @@ elif sys.argv[1:3] == ['derivation','show']:
 else:
     raise RuntimeError('Unexpected Nix work: '+repr(sys.argv))
 ''')
-            executable('maestro-ci-graph', '#!/usr/bin/env bash\nexec ' + shlex.quote(sys.executable)
+            executable('maestro-ci-graph', '#!' + shutil.which('bash') + '\nexec ' + shlex.quote(sys.executable)
                        + ' ' + shlex.quote(str((SOURCE / 'graph.py').resolve())) + ' "$@"\n')
             executable('maestro-ci-route', '#!' + sys.executable + '\n' + '''
 import json,os
