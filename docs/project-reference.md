@@ -88,25 +88,27 @@ Reassemble a directly downloaded installer with `cat maestro-v*.iso.part-* >
 maestro-v*.iso`, then verify the matching `.iso.sha256` file. The default
 `deploy-template` path performs artifact retrieval and verification itself.
 
-Before allocating the installer runner, the route job classifies the event and
-hashes two canonical graphs exported by Nix: the ISO plus its boot policy, and
-the system/XO evidence plus its assembly policy. It emits one versioned JSON
-plan containing the `skip`, `reuse`, `refresh-evidence`,
-`qualify-media-reuse-evidence`, or `qualify-media`
-decision and protected-main publication state. Every downstream job and the
-required verdict consume that exact plan. An exact unexpired match reuses the
-artifact. A media-only match downloads the already-booted ISO and regenerates
-its evidence. An evidence-only match realizes and boots new media, then
-downloads verified evidence from a successful protected-main run with an
-unexpired artifact and matching state. With neither identity available, the
-same job generates new evidence after the boot test. Pull
-requests, merge groups, and pushes fetch full history for path classification,
-while schedules and manual runs keep the shallow checkout. The repository merge
-queue runs the same required verdict against the synthetic merge-group commit;
-missing, unavailable, or non-ancestral SHAs require qualification. The router
-and required verdict share the current versioned route contract, including
-graph-bound scheduling. Historical route readers remain available; see
-[feature navigation](features.md) for current graph and transport bindings.
+Before allocating product runners, planning resolves the exact appliance,
+installer, evidence, and verifier identities. The native router selects `skip`,
+`reuse`, `refresh-evidence`, `qualify-media-reuse-evidence`, or `qualify-media`
+and binds the route to protected-main producer state. Active graph scheduling
+translates that authenticated route into per-job decisions. Every downstream
+job and the required verdict consume the bound plan.
+
+An exact unexpired match can reuse authenticated artifacts. A media match
+retains the already-booted ISO while regenerating evidence; an evidence match
+retains verified supply evidence while qualifying new media. A complete miss
+requires fresh qualification. Appliance, installer, inventory, boot, scans, and
+verification have explicit job dependencies and exact-output transfer manifests;
+new inventory precedes the boot and scan consumers. Retained boot verification
+is recorded separately from a newly executed boot test. Missing or incompatible
+bindings require complete qualification rather than an optimistic skip.
+
+Pull requests, merge groups, and pushes use immutable candidate/base sources.
+The merge queue runs the same required verdict against its synthetic commit;
+missing, unavailable, or non-ancestral comparison sources require qualification.
+Historical route readers remain available. See [feature navigation](features.md)
+for current graph, comparison, and transport contracts.
 
 At deployment time, `deploy-template` downloads the newest successful `main`
 artifact to a temporary directory, verifies state v5, all inventory checksums, protected-main producers, provenance,
@@ -118,7 +120,8 @@ running. Use `INSTALLER_SOURCE=build` for the current checkout or
 `INSTALLER_ISO=/path/to/image.iso` for an exact image.
 
 The Determinate, Maestro, and Xen Orchestra binary caches and their public keys
-are owned by `modules/flake/` and exported through the generated flake; libvhdi is supplied by the Xen Orchestra closure.
+are owned by `modules/flake/` and exported through the generated flake.
+libvhdi is supplied by the Xen Orchestra closure.
 Credential-bearing configuration is kept in the runtime Secretspec contract.
 Qualification requires the exact locked XO output to be published in either the
 upstream XO cache or the Maestro mirror. Both missing publications fail the
@@ -156,7 +159,8 @@ normal Nix realisation still checks the reviewed trusted signatures.
   Release and development-version preparation retain exact-head CI, independent
   human review, and protected queue admission. Their automated version PRs carry
   exactly the `VERSION` change. Never fall back to the maintainer's personal
-  session to create an agent PR; that prevents independent self-approval.
+  session to create an agent PR; the maintainer must remain able to approve
+  independently.
 - `VERSION` records the current development release. The release workflow
   changes it to the selected stable version and advances it to the next patch
   development version after publication.
