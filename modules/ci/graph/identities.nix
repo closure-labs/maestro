@@ -40,7 +40,7 @@ in {
         derivation = derivation.drvPath;
         outputs = lib.genAttrs derivation.outputs (name: derivation.${name}.outPath);
         cachePolicy = let
-          attrs = derivation.drvAttrs or derivation;
+          attrs = derivation.drvAttrs or (derivation.config.rawTestDerivation.drvAttrs or derivation);
         in {
           allowSubstitutes = attrs.allowSubstitutes or true;
           preferLocalBuild = attrs.preferLocalBuild or false;

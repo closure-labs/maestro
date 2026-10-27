@@ -70,7 +70,7 @@
         nativeBuildInputs = fixtureInputs ++ [pkgs.openssh pkgs.python3 pkgs.gitleaks pkgs.yq-go];
       };
 
-      runtime-security = (import ./_tests/runtime-security.nix {inherit pkgs inputs appliance;}).overrideAttrs (_: {allowSubstitutes = true;});
+      runtime-security = (import ./_tests/runtime-security.nix {inherit pkgs inputs appliance;}).overrideTestDerivation (_: {allowSubstitutes = true;});
       secretspec-contract =
         pkgs.runCommandLocal "maestro-secretspec-contract" {
           allowSubstitutes = true;
