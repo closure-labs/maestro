@@ -2,8 +2,28 @@
 
 The migration starts from protected main `d07995fec748a4e1cea456e3e8b4f2558e937573`.
 The original workspace remains untouched; implementation lives in the isolated
-`maestroden` jj workspace and draft PR [#171](https://github.com/closure-labs/maestro/pull/171), authored by
+`maestroden` jj workspace and PR [#171](https://github.com/closure-labs/maestro/pull/171), authored by
 `cl-decider[bot]`. It supersedes the Dale-authored #170 so Dale can review.
+
+The final approved head is `c9e9f7b87e143942b8dd780bd6b52d9c9d28644c`.
+[Run 40392147081](https://github.com/closure-labs/maestro/actions/runs/40392147081)
+passed complete validation on immutable merge candidate
+`09617b6a8610442f42a5db328359c26b2e3090c2`, including all 20 audit
+obligations, equivalence/mutation checks, builds, inventory, QEMU boot,
+current-database scans and bound release evidence. Independent graph execution
+matched all 20 audit outputs on the same candidate. Its receipt records
+544 seconds for full audit targets, 413.729 seconds for graph targets and
+480.934 seconds including graph verification. The graph execution observed
+152 build derivations, 1,103 substitution paths and zero failed/incomplete
+activities; these observations do not count substituted checks as executed tests
+or establish a general speedup. The comparison receipt SHA-256 is
+`0aa31a56b3e1dc839e8b9c5d2d108a7eb44163edf196b4eb2f15dfb4d0572ac8`.
+
+The user authorized merging #171 through the normal protected merge queue to
+establish the missing authenticated main producer. Protected-main signing and
+the same-candidate forced-versus-reuse trial remain pending. The following
+checkpoint notes preserve observations made during implementation; their
+pending statuses describe those earlier checkpoints.
 
 Graph gating is disabled in the exported graph and the pure planner. Complete
 validation remains authoritative. The existing route-plan v3/v4 and historical
@@ -151,3 +171,13 @@ excludes documentation, unrelated release logic and authority fixtures. Its
 real Git-staging regression exposed obsolete root pathspecs left after source
 relocation; the CLI now stages the current `host/` and `modules/` layout without
 requiring removed implementation directories.
+
+The protected-main trial preparation found a transport/inventory mismatch:
+transport enumerated every declared package output, including the secondary
+`sbomnix.dist` output, while published products and authenticated inventory
+select package default outputs. A source build can leave secondary outputs
+available even though a cold signed restore does not promise them. The follow-up
+selects only the distributed default outputs and adds an evaluated contract
+requiring transport inventory roots to equal authenticated distribution roots.
+This change has local formatting and Nix syntax checks; hosted evaluation and
+cold-restore acceptance remain pending.

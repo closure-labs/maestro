@@ -6,6 +6,7 @@
   perSystem = {
     pkgs,
     system,
+    maestroCi,
     ...
   }: let
     packages = inputs.self.packages.${system};
@@ -15,6 +16,10 @@
       ci-plan-contract = let
         plans = inputs.self.lib.ciPlans.${system};
         qualificationInputs = inputs.self.lib.ciQualificationInputs.${system};
+        inventoryRoots = lib.sort builtins.lessThan (lib.unique (lib.concatMap
+          (target: builtins.attrValues target.outputs)
+          inputs.self.lib.ciGraph.${system}.transport.inventory));
+        authenticatedRoots = lib.sort builtins.lessThan (lib.unique maestroCi.distributionRoots);
         unsupportedInstaller = initrd:
           builtins.tryEval (import ../../features/installer/_lib/qualification.nix {
             inherit lib;
@@ -40,6 +45,8 @@
         ((lib.mapAttrs (_: plan: {inherit (plan) name targets;}) plans)
           == builtins.fromJSON (builtins.readFile ./_lib/plans.json))
         "Generated native plan data is stale; run ci:graph:write-plans";
+        assert lib.assertMsg (inventoryRoots == authenticatedRoots)
+        "Transport roots must match the default outputs covered by authenticated native inventory";
         assert builtins.length plans.publish.targets == 7;
         assert builtins.attrNames inputs.self.nixosConfigurations == ["maestro"];
         assert packages.distribution-inventory.qualification.system != appliance.system.build.toplevel.outPath;
