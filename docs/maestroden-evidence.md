@@ -32,8 +32,36 @@ Completed acceptance:
 At protected revision `11a64975bbc2ec785a68669472a717f01440d5de`,
 [ordinary main qualification 40425354742](https://github.com/closure-labs/maestro/actions/runs/40425354742)
 and [forced qualification 40425454306](https://github.com/closure-labs/maestro/actions/runs/40425454306)
-form the next exact-revision comparison. Their final results and raw timings
-remain pending at this checkpoint. No execution speedup is claimed.
+both passed complete applicable validation, protected signing and the required
+verdict. Their candidate graphs, verifier/media identities, ISO bytes and all
+sixty distributed-root NAR hashes match. Ordinary boot is `verified-retained`;
+forced boot is `executed`. Both state/result attestations verify against exact
+source and signer `11a64975bbc2ec785a68669472a717f01440d5de`. Comparison receipt
+hashes match their bound results. No general execution speedup is claimed.
+
+Exact-main job durations, seconds (concurrent durations are not additive):
+
+| Job | Authenticated reuse | Forced qualification |
+| --- | ---: | ---: |
+| Plan CI | 262 | 178 |
+| Repository checks | 712 | 697 |
+| Check appliance equivalence and derivation propagation | 478 | 371 |
+| Build appliance | skipped | 511 |
+| Build installer ISO | skipped | 550 |
+| Compare complete and graph-driven validation | 593 | 547 |
+| Generate release inventory | 448 | 1040 |
+| Test installer boot | 179 | 642 |
+| Scan release outputs | 744 | 886 |
+| Verify release evidence | 251 | 333 |
+| Sign protected-main qualification | 108 | 365 |
+| Required CI verdict | 137 | 159 |
+
+The ordinary run observed 149 build derivation activities and 1,049 substitution
+paths; the forced run observed 248 and 1,805 respectively. Both report zero
+incomplete/failed native traces. Independent graph-comparison activities are
+separately scoped. Substituted checks are not newly executed tests. These runs
+use the phase layout at `11a64975`; later ownership refinements require their
+own hosted acceptance and cannot inherit these timing measurements.
 
 The binding-helper follow-up removes scheduler implementation from the boot
 verifier's Python inputs and explicit policy hash. Canonical digest/assertion
@@ -203,3 +231,15 @@ selects only the distributed default outputs and adds an evaluated contract
 requiring transport inventory roots to equal authenticated distribution roots.
 This change has local formatting and Nix syntax checks; hosted evaluation and
 cold-restore acceptance remain pending.
+
+The native graph handoff is being verified in shadow mode. Its first hosted
+checkpoint found stale repository/operator contracts for checkout depth and the
+final route output. Those consumers were updated; invalid candidate graphs now
+fail planning before product work. Focused native fixtures cover fresh state
+regeneration on conservative fallback, interrupted/corrupt fallbacks, explicit
+validation-only/force controls and exact-mode/producer binding at signing and
+verdict. Exact product recipe identities are now explicit qualification inputs;
+older fingerprints cannot satisfy that stronger contract. Installer content
+roots travel with the installer phase, with complete Nix source contexts and an
+evaluated completeness contract. Gating remains disabled until this handoff's
+full hosted acceptance passes.

@@ -66,6 +66,9 @@ def main():
     native = activities('ci-observed')
     graph_path = Path('ci-graph/plan.json')
     graph = json.loads(graph_path.read_text()) if graph_path.is_file() else None
+    route_path = Path('ci-graph/route.json')
+    route = json.loads(route_path.read_text()) if route_path.is_file() else None
+    qualification = route.get('qualification') if isinstance(route, dict) else None
     evidence = 'unavailable'
     if os.environ.get('RETAINED_REUSE') == 'true':
         evidence = 'verified-retained-complete'
@@ -74,7 +77,8 @@ def main():
     comparison_path = Path('ci-comparison/comparison.json')
     comparison = json.loads(comparison_path.read_text()) if comparison_path.is_file() else None
     result = dict(schemaVersion=1, candidateRevision=os.environ['GITHUB_SHA'], runId=run, runAttempt=attempt,
-                  jobs=jobs, nixActivities=native, graph=graph, validationComparison=comparison, authorityClaim=False,
+                  jobs=jobs, nixActivities=native, graph=graph, validationComparison=comparison,
+                  plannedQualification=qualification, authorityClaim=False,
                   timingDiagnosticError=error, bootEvidenceDisposition=evidence)
     Path('ci-summary.json').write_text(json.dumps(result, sort_keys=True, indent=2)+'\n')
     if os.environ.get('GITHUB_STEP_SUMMARY'):
@@ -85,6 +89,11 @@ def main():
                 out.write(f"| {row['name']} | {row['conclusion'] or row['status']} | {row['elapsedSeconds']}{suffix} |\n")
             out.write(f"\nBoot evidence disposition: **{evidence}**. Timing API diagnostic: {error or 'available'}.\n")
             out.write(f"\nObserved source-build derivations: {len(native['buildDerivationsObserved'])}; substitution paths: {len(native['substitutionPathsObserved'])}. Failed or incomplete traces: {native['incompleteOrFailedTraceCount']}. Raw events and native realization manifests are retained. Skipped execution is never counted as a new test.\n")
+            if qualification:
+                out.write(f"\nNative plan selected **{qualification['mode']}**; media producer run "
+                          f"`{qualification.get('media_run_id')}`; inventory producer run "
+                          f"`{qualification.get('evidence_run_id')}`. These are planned selections, "
+                          "not claims of newly executed tests; verification outcomes are recorded above.\n")
             if comparison:
                 observations = comparison['nixActivities']
                 out.write(f"\nSame-candidate audit comparison: **{comparison['status']}**, "
@@ -93,6 +102,8 @@ def main():
                           f"{len(observations['substitutionPathsObserved'])}. Comparison observations never grant retained-evidence authority.\n")
             if graph:
                 out.write(f"\nGraph mode: **{graph['mode']}**. Changed derivations: {len(graph['changedDerivations'])}; equal derivations: {len(graph['equalDerivations'])}. Fallback: {', '.join(graph['fallbackReasons']) or 'none'}.\n")
+                out.write(f"\nChanged policies/identity contracts: {', '.join(graph.get('changedPolicies', [])) or 'none'}. "
+                          f"Native qualification state regenerated: {graph.get('routeRegenerated', False)}.\n")
 
 
 if __name__ == '__main__':
