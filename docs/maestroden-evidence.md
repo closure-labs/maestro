@@ -1,5 +1,81 @@
 # Maestroden migration evidence
 
+## Current acceptance
+
+The feature-oriented flake and active derivation-aware CI are implemented on
+protected main at `8bf1f0e7606de80c7d68a23e8d36eaf3884c1a6f`.
+Bot-authored [#174](https://github.com/closure-labs/maestro/pull/174) activated the
+accepted graph handoff; [#176](https://github.com/closure-labs/maestro/pull/176)
+handled authenticated retired queue events without granting approval; and
+[#177](https://github.com/closure-labs/maestro/pull/177) enabled approved-cache
+substitution for deterministic checks. All merged through the normal protected
+process after independent review. The single appliance, public output interfaces,
+all twenty audit obligations and historical readers remain intact.
+
+- [Protected active baseline 40448938549](https://github.com/closure-labs/maestro/actions/runs/40448938549)
+  and [authenticated consumer 40455647120](https://github.com/closure-labs/maestro/actions/runs/40455647120)
+  passed on the same immutable source `8e2ef407fd556c96e08a225e7a58f705534f27a5`.
+  Their graphs, ISO bytes and all sixty root NAR hashes match. Baseline boot was
+  `executed`; consumer boot was `verified-retained` from that exact producer.
+  Both ran fresh scans and matched all twenty comparison obligations. Baseline
+  state/result attestations verify against the exact protected source and signer;
+  consumer branch signing was correctly inapplicable.
+- [Final PR qualification 40459950809](https://github.com/closure-labs/maestro/actions/runs/40459950809)
+  and [protected queue 40464872886](https://github.com/closure-labs/maestro/actions/runs/40464872886)
+  passed complete applicable validation. The queue's bound producer revision is
+  the exact merged revision above.
+- [Merged-main qualification 40468847199](https://github.com/closure-labs/maestro/actions/runs/40468847199)
+  passed all twenty audits, eight equivalence/mutation cases, independent
+  comparison, inventory, retained-boot verification, fresh scans, evidence
+  verification, protected signing and **Required CI verdict**. Main and queue
+  candidate graphs match exactly. Native routing selected authenticated media
+  producer `40448992369` and evidence producer `40459654339`; appliance and ISO
+  jobs were legitimately omitted. This is verified reuse, not new test execution.
+
+The merged-main graph/result manifest independently matches graph, plan, route,
+current producer, boot, inventory and comparison bindings. Both qualification-state
+and graph/result attestations independently verified with source and signer digest
+`8bf1f0e7606de80c7d68a23e8d36eaf3884c1a6f`, source ref `refs/heads/main`, signer
+workflow `closure-labs/maestro/.github/workflows/ci.yml` and
+`--deny-self-hosted-runners`. Signing success alone was not treated as verification.
+Separate CodeQL and exact-head maintainer authority also passed before merge.
+
+All deterministic audit targets permit approved-cache substitution in hosted
+Nix metadata. Appliance, ISO, standalone package, boot-verifier and qualification
+identities remain unchanged by that cache-policy adjustment. Main's independent
+comparison matched all twenty outputs in 412.76 seconds: nineteen root check
+derivations built, and the metadata output was substituted. Metadata already
+allowed substitution; this is not evidence of a hit on a newly enabled target.
+Cache misses still build. Comparison traces observed 154 build activities and
+1,101 substitution paths, including dependencies, with zero incomplete traces.
+
+Merged-main raw job durations, seconds (concurrent durations are not additive):
+
+| Job | Seconds |
+| --- | ---: |
+| Plan CI | 258 |
+| Check appliance equivalence and derivation propagation | 464 |
+| Repository checks | 718 |
+| Generate release inventory | 676 |
+| Test installer boot | 360 |
+| Scan release outputs | 561 |
+| Compare complete and graph-driven validation | 523 |
+| Verify release evidence | 173 |
+| Sign protected-main qualification | 133 |
+| Required CI verdict | 136 |
+
+Normal native traces observed 151 build activities and
+1047 substitution paths, with zero incomplete/failed traces. The comparison
+observations above have separate scope. These measurements make no general
+speedup claim and never count substituted or retained tests as newly executed.
+Fresh database scans, live human authority, signing and publication authorization
+remain separate from deterministic derivation equality.
+
+## Migration chronology
+
+The following observations preserve earlier checkpoints. Their pending or disabled
+statuses describe those checkpoints and are superseded by current acceptance above.
+
 The migration started from protected main
 `d07995fec748a4e1cea456e3e8b4f2558e937573` in an isolated `jj` workspace;
 the original source workspace remains untouched. Bot-authored
