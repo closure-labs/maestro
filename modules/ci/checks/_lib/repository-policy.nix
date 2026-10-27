@@ -119,6 +119,7 @@ in
   assert lib.assertMsg (failures == [])
   ("Repository policy violations:\n- " + lib.concatStringsSep "\n- " failures);
     pkgs.runCommandLocal "maestro-repository-policy" {
+      allowSubstitutes = true;
       nativeBuildInputs = [pkgs.bash pkgs.findutils pkgs.gnugrep];
     } ''
       cd ${source}

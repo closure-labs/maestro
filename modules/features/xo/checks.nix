@@ -6,6 +6,7 @@
   }: {
     checks.xo-storage-fixtures =
       pkgs.runCommandLocal "maestro-xo-storage-fixtures" {
+        allowSubstitutes = true;
         nativeBuildInputs = [pkgs.bash pkgs.coreutils pkgs.findutils pkgs.gawk pkgs.gnugrep pkgs.gnused pkgs.util-linux];
         source = lib.fileset.toSource {
           root = ../../..;

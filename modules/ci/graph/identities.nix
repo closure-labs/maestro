@@ -39,6 +39,12 @@ in {
         inherit (target) owner attribute name phases dependencies requirements;
         derivation = derivation.drvPath;
         outputs = lib.genAttrs derivation.outputs (name: derivation.${name}.outPath);
+        cachePolicy = let
+          attrs = derivation.drvAttrs or (derivation.config.rawTestDerivation.drvAttrs or derivation);
+        in {
+          allowSubstitutes = attrs.allowSubstitutes or true;
+          preferLocalBuild = attrs.preferLocalBuild or false;
+        };
       })
       targets;
     transport = let

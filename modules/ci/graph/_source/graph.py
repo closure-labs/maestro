@@ -37,6 +37,15 @@ def validate(graph):
                 and set(target['phases']) <= PHASES and len(set(target['phases'])) == len(target['phases']), 'Unknown obligation')
         require(isinstance(target.get('requirements'), list) and target['requirements']
                 and set(target['requirements']) <= {'deterministic', 'verified-boot', 'producer-binding'}, 'Unknown validation requirements')
+        # Schema-one historical graphs omit this additive inspection field.
+        # Current exports read the effective derivation flags, not directory hints.
+        if 'cachePolicy' in target:
+            cache = target['cachePolicy']
+            require(isinstance(cache, dict)
+                    and all(type(cache.get(key)) is bool for key in ('allowSubstitutes', 'preferLocalBuild')),
+                    'Invalid derivation cache policy')
+            require(not ('validation' in target['phases'] and 'deterministic' in target['requirements'])
+                    or cache['allowSubstitutes'], 'Deterministic validation must allow approved cache substitution')
         require(isinstance(target.get('dependencies'), list) and len(set(target['dependencies'])) == len(target['dependencies'])
                 and all(v in targets for v in target['dependencies']), 'Unmapped dependency')
     visiting, visited = set(), set()

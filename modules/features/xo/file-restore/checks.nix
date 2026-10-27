@@ -6,6 +6,7 @@
   }: {
     checks.xo-file-restore-fixtures =
       pkgs.runCommandLocal "maestro-file-restore-fixtures" {
+        allowSubstitutes = true;
         nativeBuildInputs = [pkgs.python3];
         source = lib.fileset.toSource {
           root = ../../../..;

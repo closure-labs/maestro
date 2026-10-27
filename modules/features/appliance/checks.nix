@@ -90,7 +90,9 @@
       assert appliance.home-manager.users.maestro.programs.git.enable;
       assert appliance.nix.gc.automatic;
       assert appliance.boot.loader.systemd-boot.configurationLimit == 10;
-        pkgs.runCommandLocal "maestro-configuration-assertions" {} ''
+        pkgs.runCommandLocal "maestro-configuration-assertions" {
+          allowSubstitutes = true;
+        } ''
           touch "$out"
         '';
     };
