@@ -2,25 +2,17 @@
 # SPDX-License-Identifier: Apache-2.0
 """Validate evaluated CI graphs and compare derivations. Scheduling remains shadow-only."""
 import argparse
-import hashlib
 import json
 from pathlib import Path
 import re
+
+from bindings import digest, require
 
 SCHEMA = 1
 SHA = re.compile(r'[a-f0-9]{40}')
 DRV = re.compile(r'/nix/store/[a-z0-9]{32}-[^/\s]+\.drv')
 OUT = re.compile(r'/nix/store/[a-z0-9]{32}-[^/\s]+')
 PHASES = {'validation', 'media', 'evidence', 'publish'}
-
-
-def digest(value):
-    return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
-
-
-def require(value, message):
-    if not value:
-        raise ValueError(message)
 
 
 def validate(graph):

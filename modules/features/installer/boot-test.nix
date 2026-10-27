@@ -7,7 +7,7 @@
   }: let
     pythonSource = lib.fileset.toSource {
       root = ../../ci/graph/_source;
-      fileset = lib.fileset.unions [../../ci/graph/_source/graph.py ../../ci/graph/_source/transfer.py];
+      fileset = lib.fileset.unions [../../ci/graph/_source/bindings.py ../../ci/graph/_source/transfer.py];
     };
   in {
     packages.maestro-ci-boot-evidence = pkgs.writeShellApplication {

@@ -108,8 +108,10 @@ The qualification-input fixture uses only its own test source and packaged
 resolver. Operator fixtures copy their declared feature and workflow inputs;
 repository-wide identity checks belong to `repository-policy`. Hash-update and
 CI-runtime fixtures run once under `automation-fixtures`, and shell parsing
-belongs to `shell-lint`. The boot verifier's Python path contains only the graph and transfer
-helpers it imports; unrelated graph diagnostics do not invalidate boot evidence.
+belongs to `shell-lint`. The boot verifier imports only canonical binding
+helpers and transport validation. Scheduler changes leave retained-boot policy
+unchanged; binding-verifier changes invalidate it. Hosted mutation checks verify
+both sides of this dependency boundary.
 
 Graph scheduling is **disabled**. Hosted complete validation, mutation/equivalence
 checks and same-candidate comparisons must pass before any future enablement.
@@ -117,3 +119,4 @@ The complete-audit comparison proves exact validation routing; it does not
 prove selective media/evidence reuse or authorize omitting a job.
 See [migration evidence](maestroden-evidence.md) for raw run links and remaining
 comparison status. No speedup is assumed from the new job boundaries.
+

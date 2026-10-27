@@ -8,7 +8,7 @@ from pathlib import Path
 import re
 import subprocess
 
-from graph import digest, require
+from bindings import digest, require
 from transfer import bindings, producer, validate, file_digest
 
 

@@ -5,14 +5,19 @@
     ciNix,
     config,
     ...
-  }: {
+  }: let
+    graphSource = lib.fileset.toSource {
+      root = ./_source;
+      fileset = lib.fileset.unions [./_source/graph.py ./_source/bindings.py];
+    };
+  in {
     packages = {
       maestro-ci-graph = pkgs.writeShellApplication {
         name = "maestro-ci-graph";
         runtimeInputs = [pkgs.python3];
         text = ''
           export PYTHONDONTWRITEBYTECODE=1
-          exec python3 ${./_source/graph.py} "$@"
+          exec python3 ${graphSource}/graph.py "$@"
         '';
       };
       maestro-ci-graph-plan = pkgs.writeShellApplication {
@@ -20,7 +25,7 @@
         runtimeInputs = [pkgs.coreutils pkgs.diffutils pkgs.git pkgs.gnutar pkgs.jq ciNix];
         text = ''
           export PATH=${lib.makeBinPath [pkgs.python3]}:"$PATH"
-          maestro-ci-graph() { python3 ${./_source/graph.py} "$@"; }
+          maestro-ci-graph() { python3 ${graphSource}/graph.py "$@"; }
           ${builtins.readFile ./_source/plan.sh}
         '';
       };
@@ -31,6 +36,7 @@
         source = lib.fileset.toSource {
           root = ./.;
           fileset = lib.fileset.unions [
+            ./_source/bindings.py
             ./_source/graph.py
             ./_source/result.py
             ./_source/transfer.py

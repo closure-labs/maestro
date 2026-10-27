@@ -4,6 +4,9 @@ import copy
 import importlib.util
 from pathlib import Path
 import unittest
+import sys
+
+sys.path.insert(0, str(Path(__file__).parents[1] / '_source'))
 
 spec = importlib.util.spec_from_file_location('graph', Path(__file__).parents[1] / '_source/graph.py')
 graph = importlib.util.module_from_spec(spec)

@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Separate canonical evidence bindings from scheduler implementation so planning
+  changes do not invalidate retained boot verification. Verify scheduler and
+  binding-policy dependency propagation in hosted mutation checks.
+
 - Limit CI closure transport to selected, inventory-covered outputs so signed
   cross-run restores do not depend on undistributed secondary build outputs.
 

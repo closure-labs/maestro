@@ -7,7 +7,7 @@
   }: let
     pythonSource = lib.fileset.toSource {
       root = ./_source;
-      fileset = lib.fileset.unions [./_source/graph.py ./_source/transfer.py];
+      fileset = lib.fileset.unions [./_source/bindings.py ./_source/transfer.py];
     };
   in {
     packages.maestro-ci-job-transfer = pkgs.writeShellApplication {
