@@ -1,9 +1,11 @@
 # Maestro
 
-**Xen Orchestra, packaged as a focused NixOS VM appliance for XCP-ng.**
+**Run Xen Orchestra on XCP-ng with reproducible builds and reversible upgrades.**
 
-Maestro builds a reproducible Xen Orchestra appliance, seals it as an XCP-ng
-template, and gives each clone its own machine identity.
+Maestro packages Xen Orchestra Community Edition as one NixOS appliance.
+Build a sealed template, clone it for your pool, and manage the appliance through
+a guided console or `maestroctl`. Each clone starts with its own machine and
+SSH host identities.
 
 ```text
 XCP-ng pool  →  Maestro virtual machine  →  Xen Orchestra web interface
@@ -11,10 +13,12 @@ XCP-ng pool  →  Maestro virtual machine  →  Xen Orchestra web interface
 
 ## What you get
 
-- Xen Orchestra Community Edition with reviewable NixOS configuration
-- verified installer, SPDX and CycloneDX SBOMs, and build attestations
-- atomic upgrades, boot generations, and rollbacks
-- a guided console plus the `maestroctl` operator command
+- **Repeatable deployment:** a verified installer and a sealed XCP-ng template.
+- **Reviewable configuration:** typed operator and XO settings for one `.#maestro` appliance.
+- **Reversible changes:** preview activation, keep boot generations, and roll back.
+- **Traceable delivery:** SPDX and CycloneDX inventories, checksums, and build attestations.
+- **Daily operation:** inspect health, configure the appliance, and follow XO logs
+  from the console or CLI.
 
 ## Launch Maestro
 
@@ -41,7 +45,8 @@ answers while accepting the XCP-ng password at execution time.
 
 Clone the template, attach a NoCloud config drive with the operator SSH key,
 and boot the appliance. Continue with the
-[first-login guide](docs/getting-started.md).
+[first-login guide](docs/getting-started.md), then
+[restrict management access](docs/hardening.md) for your network.
 
 ## Build from this checkout
 
@@ -81,6 +86,17 @@ maestro-menu
 
 Use `maestroctl apply --dry-run` to preview a configuration generation and
 `maestroctl apply` to activate it.
+
+## Release highlights
+
+The next release, **3.2.0**, brings feature-owned configuration and an active CI
+graph that binds each job to the exact products and evidence it verifies.
+Complete validation, fresh security scans, and human publication approvals remain
+required. Delivery targets are Cachix and GitHub releases; Maestro no longer
+publishes new versions to FlakeHub.
+
+See the [changelog](CHANGELOG.md) for the release notes and the
+[release guide](docs/releases.md) for preparation, staging, and approval.
 
 ## Documentation
 

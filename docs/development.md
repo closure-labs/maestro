@@ -41,6 +41,11 @@ The default shell provides the repository's pinned Rust compiler and tooling,
 Nix language tools, Packer, GitHub CLI, Secretspec, and workflow and shell
 linters.
 
+Release preparation and staged artifact handoff are described in the
+[release guide](releases.md). Use `jj` for local changes, history, and bookmarks;
+agent-created pull requests must be authored by `cl-decider[bot]` so the
+maintainer can review them independently.
+
 ## Feature ownership
 
 Start with [where to change a feature](features.md). The committed `flake.nix`

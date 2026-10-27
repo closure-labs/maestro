@@ -29,7 +29,8 @@ Start by [launching Maestro](installation.md) or
 | Review scanner findings and remediation order | [Security review](security-review-2026-10-12.md) |
 | Find a feature, its tests and CI outputs | [Feature navigation](features.md) |
 | Understand appliance composition | [Architecture](architecture.md) |
-| Inspect outputs, caches, artifacts, and releases | [Project reference](project-reference.md) |
+| Inspect outputs, caches, and artifacts | [Project reference](project-reference.md) |
+| Prepare, stage, and approve a release | [Release guide](releases.md) |
 | Build and seal XCP-ng templates | [Packer reference](../modules/features/xcp-ng/template/_source/README.md) |
 
 ## The three ideas that matter

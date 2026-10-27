@@ -9,89 +9,58 @@ correspond to published GitHub tags.
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-10-27
+
+### Added
+
+- Add a feature navigation map and evaluated CI graph so contributors can find
+  each feature's policy, implementation, tests, and delivery outputs together.
+- Add independent comparisons of all twenty audit outputs against the evaluated
+  graph, with producer-bound receipts required by the CI verdict and release
+  evidence.
+- Add explicit verified-only trials for release write grouping, plus optional
+  reuse of immutable verification and packet metadata within a gate or job.
+  These experiments default to disabled and retain fresh authorization.
+
 ### Changed
 
-- Ignore authenticated retired merge-queue collector events without posting an
-  authority check; missing or ambiguous metadata and API failures still block.
-
-- Bind exact product derivation recipes into qualification fingerprints while
-  retaining existing output-path fields and historical state/receipt readers.
-
-- Permit approved-cache substitution for deterministic audit derivations while
-  retaining their local-build preference. Export effective cache flags in the
-  graph and keep fresh release authority, scans and boot-evidence obligations.
-
-- Keep installer content realization and transport in the installer phase;
-  preserve complete Nix source contexts for copied origins and verify that
-  inventory receives every attributed root.
-
-- Enable the graph-to-native routing handoff after hosted acceptance, with bound per-job
-  decisions, conservative state regeneration, immutable dispatch comparison
-  bases and exact scheduling-mode checks at signing and the required verdict.
-
-- Separate canonical evidence bindings from scheduler implementation so planning
-  changes do not invalidate retained boot verification. Verify scheduler and
-  binding-policy dependency propagation in hosted mutation checks.
-
-- Limit CI closure transport to selected, inventory-covered outputs so signed
-  cross-run restores do not depend on undistributed secondary build outputs.
-
-- Generate the flake with pinned flake-file and flake-parts while retaining
-  Den v0.16.0 and the single `maestro` appliance. Colocate policy, packages,
-  operator/installer/Packer sources and validation with feature owners.
-- Export `lib.ciGraph.x86_64-linux` with evaluated derivation/output identities
-  and add graph inspection alongside the existing CI plan interfaces.
-- Split repository audit, appliance, ISO, boot, inventory, scanning and evidence
-  verification into explicit jobs with digest-bound exact-output transport.
-  Keep all twenty validation obligations, live release authority and historical
-  evidence readers. Bound graph decisions drive scheduling after hosted
-  comparison; equal derivations alone never authorize skipping a test.
-
-- Compare the complete audit against independent, exact graph-derived
-  realizations on the same candidate and workflow attempt. Bind comparison
-  receipts into release evidence and the required verdict. Native authenticated
-  routing controls evidence reuse. Narrow qualification and boot-verifier sources
-  to their actual dependencies.
-
-- Remove obsolete CLI staging pathspecs after source relocation, and consolidate
-  repeated operator fixtures under their canonical repository audit owners.
-
-- Automatically admit pending CI for draft and ready PRs from the pinned Decider
-  bot or live Super Admins, without granting review, merge or publication authority.
-
-- Remove rolling and versioned FlakeHub publication, its workflow OIDC
-  permissions and action allowance. Publication now targets Cachix and GitHub;
-  historical receipts and published versions remain readable.
-
-- Add explicit verified-only off/on trials for release write grouping. Trials
-  require a selected producer, use read-only authority tokens and reject changes
-  to published destinations or journals while retaining fresh authorization.
-
-- Add disabled-by-default gate-local release verification reuse. Immutable
-  decision graphs and proposal documents can be shared within one gate while
-  final reviews, membership, permissions, policy and evidence expiry remain live.
-
-- Add disabled-by-default job-local reuse of authenticated packet metadata bytes.
-  Revalidate cached hashes and producer bindings while retaining live authority,
-  attestation and freshness checks at every existing publication boundary.
-
-- Add disabled-by-default native release reservation and completion tasks that
-  group adjacent writes under fresh authority. Keep upload-batch checks, both
-  hosted-byte readbacks and scoped token renewal.
+- Organize the single appliance around feature-owned modules, packages, and
+  fixtures. Generate the flake entry point with pinned flake-file and flake-parts
+  while retaining Den v0.16.0 and existing public appliance outputs.
+- Activate derivation-aware CI scheduling after hosted qualification and reuse
+  acceptance. Bind each job to an authenticated route and exact product recipes;
+  unknown or incompatible evidence requires complete qualification. All twenty
+  audit obligations, fresh scans, and human approval requirements remain.
+- Split appliance, installer, inventory, boot, scanning, and evidence verification
+  into explicit jobs. Verify exact output identities, inventory documents, and
+  booted ISO bytes when transferring products between jobs.
+- Allow deterministic audit outputs to use approved binary caches. Cache misses
+  still build; retained boot evidence remains distinct from a newly executed test.
+- Publish new Maestro products through Cachix and GitHub releases. Retire rolling
+  and versioned FlakeHub publication while preserving existing versions and
+  historical receipt readers. Upstream FlakeHub input URLs remain supported.
+- Automatically admit pending CI execution for draft and ready pull requests
+  from the pinned Decider bot or live Super Admins. CI admission grants no review,
+  merge, or publication authority.
 
 ### Fixed
 
-- Capture the expected unknown-event rejection in CI routing fixtures so passing
-  negative tests do not emit misleading live schema-error annotations.
-
+- Keep installer content realization and transport in the installer phase,
+  preserve complete source contexts, and transfer only inventory-covered outputs.
+- Bind qualification reuse to exact derivation recipes and verifier identities,
+  including when a changed recipe retains the same output path. Separate boot
+  bindings from scheduler code so unrelated planning changes preserve valid
+  retained boot evidence.
+- Restore CLI source staging after feature relocation and consolidate repeated
+  operator fixtures under their canonical audit owners.
 - Group small release assets into bounded uploads with fresh authority checks
-  per batch and before publication. Renew scoped tokens before asset and
-  completion work, and retain safe HTTP status diagnostics for authority failures.
-
-- Target the newest official version during automatic release discovery when an
-  older approved release remains unfinished. Preserve explicit historical
-  recovery, reject conflicting products for the same version, and avoid falling
-  back to older releases when the newest is suppressed.
+  and scoped token renewal before asset and completion work.
+- Select the newest official release during automatic recovery, preserve explicit
+  historical recovery, and reject conflicting products or suppressed releases.
+- Ignore authenticated retired merge-queue collector events without posting an
+  authority check; missing or ambiguous metadata and API failures still block.
+- Capture expected routing rejections in fixtures so passing negative tests do
+  not emit misleading live error annotations.
 
 ## [3.1.0] - 2026-10-25
 
