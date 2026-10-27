@@ -200,14 +200,14 @@
   {
     "kind": "contains",
     "path": ".github/workflows/ci.yml",
-    "needle": "fetch-depth: ${{ contains(fromJSON('[\"pull_request\",\"push\",\"merge_group\"]'), github.event_name) && '0' || '1' }}",
-    "message": "CI must fetch full history only for path-classifying events"
+    "needle": "fetch-depth: ${{ contains(fromJSON('[\"pull_request\",\"push\",\"merge_group\"]'), github.event_name) && '0' || '2' }}",
+    "message": "CI must fetch full event history or one immutable dispatch parent"
   },
   {
     "kind": "contains",
     "path": ".github/workflows/ci.yml",
-    "needle": "if: fromJSON(steps.plan.outputs.plan).qualification.required",
-    "message": "Qualification state upload must consume the route plan directly"
+    "needle": "if: fromJSON(steps.graph.outputs.route_plan).qualification.required",
+    "message": "Qualification state upload must consume the final bound native route"
   },
   {
     "kind": "contains",

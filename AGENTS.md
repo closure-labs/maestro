@@ -28,8 +28,8 @@ Use `.#maestro` in commands and documentation. Edit input declarations in
 
 Full Nix evaluation, audits, builds and VM/ISO tests run in hosted CI. Local
 focused fixtures must fit within 512 MiB; never use local full Nix work to bypass
-that resource boundary. Graph gating stays disabled until hosted comparison
-against complete validation passes.
+that resource boundary. Graph gating requires recorded hosted comparison acceptance against complete
+validation. Preserve all twenty audit obligations and native evidence authority.
 
 ```bash
 nix flake check --no-write-lock-file

@@ -1,4 +1,9 @@
 {lib, ...}: {
+  options.maestro.ci.gatingEnabled = lib.mkOption {
+    type = lib.types.bool;
+    default = false;
+    description = "Use graph job decisions after hosted full-versus-reuse qualification.";
+  };
   options.maestro.ci.targets = lib.mkOption {
     default = {};
     description = "Feature-owned CI targets; evaluated derivations define product identity.";

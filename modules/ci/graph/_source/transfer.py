@@ -11,7 +11,7 @@ import re
 import subprocess
 import sys
 
-from graph import digest, require
+from bindings import digest, require
 
 
 def command(*args):

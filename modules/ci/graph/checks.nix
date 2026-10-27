@@ -20,6 +20,12 @@
           (target: builtins.attrValues target.outputs)
           inputs.self.lib.ciGraph.${system}.transport.inventory));
         authenticatedRoots = lib.sort builtins.lessThan (lib.unique maestroCi.distributionRoots);
+        installerRoots = lib.sort builtins.lessThan (lib.unique (lib.concatMap
+          (target: builtins.attrValues target.outputs)
+          inputs.self.lib.ciGraph.${system}.transport.installer));
+        attributedInstallerRoots =
+          lib.sort builtins.lessThan (lib.unique
+            ([packages.installer-iso.outPath] ++ builtins.attrValues packages.distribution-inventory.qualification.roots));
         unsupportedInstaller = initrd:
           builtins.tryEval (import ../../features/installer/_lib/qualification.nix {
             inherit lib;
@@ -47,12 +53,22 @@
         "Generated native plan data is stale; run ci:graph:write-plans";
         assert lib.assertMsg (inventoryRoots == authenticatedRoots)
         "Transport roots must match the default outputs covered by authenticated native inventory";
+        assert lib.assertMsg (installerRoots == attributedInstallerRoots)
+        "Installer transport must carry the exact image and every attributed content origin";
+        assert lib.assertMsg
+        (!(builtins.any (target: target.attribute == "packages.x86_64-linux.distribution-inventory")
+          inputs.self.lib.ciGraph.${system}.transport.appliance))
+        "Installer inventory must not be realized by the appliance transport";
         assert builtins.length plans.publish.targets == 7;
         assert builtins.attrNames inputs.self.nixosConfigurations == ["maestro"];
         assert packages.distribution-inventory.qualification.system != appliance.system.build.toplevel.outPath;
         assert builtins.all (binding: builtins.elem binding.root (builtins.attrValues packages.distribution-inventory.qualification.roots)) packages.distribution-inventory.qualification.bindings;
         assert qualificationInputs.evidence.toplevel == inputs.self.nixosConfigurations.maestro.config.system.build.toplevel.outPath;
         assert qualificationInputs.media.dependencies.installerIso == packages.installer-iso.outPath;
+        assert qualificationInputs.media.derivations.installerIso == packages.installer-iso.drvPath;
+        assert qualificationInputs.media.derivations.applianceToplevel == appliance.system.build.toplevel.drvPath;
+        assert qualificationInputs.evidence.derivations.distribution == packages.distribution-inventory.drvPath;
+        assert qualificationInputs.evidence.derivations.toplevel == appliance.system.build.toplevel.drvPath;
         assert !(qualificationInputs.media ? source);
           pkgs.runCommandLocal "maestro-ci-plan-contract" {
             nativeBuildInputs = [pkgs.jq];

@@ -1,29 +1,115 @@
 # Maestroden migration evidence
 
-The migration starts from protected main `d07995fec748a4e1cea456e3e8b4f2558e937573`.
-The original workspace remains untouched; implementation lives in the isolated
-`maestroden` jj workspace and PR [#171](https://github.com/closure-labs/maestro/pull/171), authored by
-`cl-decider[bot]`. It supersedes the Dale-authored #170 so Dale can review.
+The migration started from protected main
+`d07995fec748a4e1cea456e3e8b4f2558e937573` in an isolated `jj` workspace;
+the original source workspace remains untouched. Bot-authored
+[#171](https://github.com/closure-labs/maestro/pull/171) merged through the
+protected queue at `e29f214d914695e277832bba929f518949b7573d`.
+Bot-authored [#172](https://github.com/closure-labs/maestro/pull/172) then merged
+at `11a64975bbc2ec785a68669472a717f01440d5de` after exact-head review and
+successful [queue validation](https://github.com/closure-labs/maestro/actions/runs/40421941384).
 
-The final approved head is `c9e9f7b87e143942b8dd780bd6b52d9c9d28644c`.
-[Run 40392147081](https://github.com/closure-labs/maestro/actions/runs/40392147081)
-passed complete validation on immutable merge candidate
-`09617b6a8610442f42a5db328359c26b2e3090c2`, including all 20 audit
-obligations, equivalence/mutation checks, builds, inventory, QEMU boot,
-current-database scans and bound release evidence. Independent graph execution
-matched all 20 audit outputs on the same candidate. Its receipt records
-544 seconds for full audit targets, 413.729 seconds for graph targets and
-480.934 seconds including graph verification. The graph execution observed
-152 build derivations, 1,103 substitution paths and zero failed/incomplete
-activities; these observations do not count substituted checks as executed tests
-or establish a general speedup. The comparison receipt SHA-256 is
-`0aa31a56b3e1dc839e8b9c5d2d108a7eb44163edf196b4eb2f15dfb4d0572ac8`.
+Completed acceptance:
 
-The user authorized merging #171 through the normal protected merge queue to
-establish the missing authenticated main producer. Protected-main signing and
-the same-candidate forced-versus-reuse trial remain pending. The following
-checkpoint notes preserve observations made during implementation; their
-pending statuses describe those earlier checkpoints.
+- [Protected-main baseline 40410950816](https://github.com/closure-labs/maestro/actions/runs/40410950816)
+  passed complete qualification, signing and the required verdict. State and
+  result attestations verify against the exact protected source and signer.
+- [Original same-candidate reuse 40418357700](https://github.com/closure-labs/maestro/actions/runs/40418357700)
+  authenticated and restored the signed baseline, then failed transport export
+  on an undistributed secondary `sbomnix.dist` output. The required verdict
+  rejected incomplete evidence and downstream boot/scan jobs were blocked.
+- [Complete fix qualification 40414151289](https://github.com/closure-labs/maestro/actions/runs/40414151289)
+  passed all twenty audits, independent graph comparison, equivalence/mutations,
+  appliance/ISO builds, inventory, executed boot, fresh scanning and verdict.
+- [Corrected cold reuse 40420060541](https://github.com/closure-labs/maestro/actions/runs/40420060541)
+  passed all applicable obligations. All sixty distributed-root NAR hashes
+  matched the signed baseline. Boot explicitly reported `verified-retained`,
+  matching the original ISO bytes and verifier policy; fresh scans ran again.
+  The independent comparison matched all twenty audit outputs, and its receipt
+  hash matched the bound result. Full PR and branch reuse graphs were equal;
+  their producer revisions remained separately bound.
+
+At protected revision `11a64975bbc2ec785a68669472a717f01440d5de`,
+[ordinary main qualification 40425354742](https://github.com/closure-labs/maestro/actions/runs/40425354742)
+and [forced qualification 40425454306](https://github.com/closure-labs/maestro/actions/runs/40425454306)
+both passed complete applicable validation, protected signing and the required
+verdict. Their candidate graphs, verifier/media identities, ISO bytes and all
+sixty distributed-root NAR hashes match. Ordinary boot is `verified-retained`;
+forced boot is `executed`. Both state/result attestations verify against exact
+source and signer `11a64975bbc2ec785a68669472a717f01440d5de`. Comparison receipt
+hashes match their bound results. No general execution speedup is claimed.
+
+Exact-main job durations, seconds (concurrent durations are not additive):
+
+| Job | Authenticated reuse | Forced qualification |
+| --- | ---: | ---: |
+| Plan CI | 262 | 178 |
+| Repository checks | 712 | 697 |
+| Check appliance equivalence and derivation propagation | 478 | 371 |
+| Build appliance | skipped | 511 |
+| Build installer ISO | skipped | 550 |
+| Compare complete and graph-driven validation | 593 | 547 |
+| Generate release inventory | 448 | 1040 |
+| Test installer boot | 179 | 642 |
+| Scan release outputs | 744 | 886 |
+| Verify release evidence | 251 | 333 |
+| Sign protected-main qualification | 108 | 365 |
+| Required CI verdict | 137 | 159 |
+
+The ordinary run observed 149 build derivation activities and 1,049 substitution
+paths; the forced run observed 248 and 1,805 respectively. Both report zero
+incomplete/failed native traces. Independent graph-comparison activities are
+separately scoped. Substituted checks are not newly executed tests. These runs
+use the phase layout at `11a64975`; later ownership refinements require their
+own hosted acceptance and cannot inherit these timing measurements.
+
+The binding-helper follow-up removes scheduler implementation from the boot
+verifier's Python inputs and explicit policy hash. Canonical digest/assertion
+semantics are preserved. Moving the packaged verifier deliberately changes its
+identity once; future scheduler-only changes must leave it unchanged. Hosted
+mutations test scheduler isolation and binding-policy invalidation separately.
+Local isolated imports, modified Nix syntax and all twenty-four graph fixtures
+pass within the focused-fixture resource limit. Hosted evaluation remains
+required before accepting this new dependency boundary.
+
+The native graph handoff passed complete shadow acceptance in
+[40433862245](https://github.com/closure-labs/maestro/actions/runs/40433862245)
+at `ecd607f2163a`: all twenty audits, eight equivalence/mutation cases, appliance
+and ISO realization with installer-owned content transport, inventory, executed
+QEMU boot, fresh scanning, bound release evidence and Required CI verdict.
+The independent comparison matched all twenty exact outputs; its receipt hash
+matches the bound release result. Its separate runner observed 152 build
+activities, 1,103 substitution paths and zero incomplete/failed traces in
+509.365 seconds of comparison work.
+
+| Shadow job | Seconds |
+| --- | ---: |
+| Plan CI | 326 |
+| Repository checks | 584 |
+| Equivalence and mutation checks | 429 |
+| Build appliance | 433 |
+| Build installer ISO | 497 |
+| Independent comparison job | 647 |
+| Generate release inventory | 804 |
+| Test installer boot | 182 |
+| Scan release outputs | 459 |
+| Verify release evidence | 137 |
+
+Concurrent durations are not additive. The appliance transport was
+1,807,188,474 bytes; installer transport was 4,103,177,211 bytes. Phase ownership
+correctness does not imply reduced total transport cost. The ISO SHA-256 remains
+`b5e08f663b16880b858b3ea03abbeb30266d6ecdc9645c16d54cf11fd4e399d7`.
+
+This acceptance plus the exact-main forced/reuse controls permits explicit graph
+activation. All twenty audits remain required; the graph never supplies retained
+producer authority. The activation candidate also strengthens recipe identity
+bindings and requires its own hosted qualification. That final run is pending;
+this record does not claim protected-main signing for an unmerged candidate.
+The default typed gate remains false, with repository activation isolated in
+`modules/ci/graph/activation.nix` for a direct return to shadow mode if needed.
+
+The notes below are chronological implementation observations; pending statuses
+in earlier checkpoints describe the state of those checkpoints.
 
 Graph gating is disabled in the exported graph and the pure planner. Complete
 validation remains authoritative. The existing route-plan v3/v4 and historical
@@ -181,3 +267,15 @@ selects only the distributed default outputs and adds an evaluated contract
 requiring transport inventory roots to equal authenticated distribution roots.
 This change has local formatting and Nix syntax checks; hosted evaluation and
 cold-restore acceptance remain pending.
+
+The native graph handoff is being verified in shadow mode. Its first hosted
+checkpoint found stale repository/operator contracts for checkout depth and the
+final route output. Those consumers were updated; invalid candidate graphs now
+fail planning before product work. Focused native fixtures cover fresh state
+regeneration on conservative fallback, interrupted/corrupt fallbacks, explicit
+validation-only/force controls and exact-mode/producer binding at signing and
+verdict. Exact product recipe identities are now explicit qualification inputs;
+older fingerprints cannot satisfy that stronger contract. Installer content
+roots travel with the installer phase, with complete Nix source contexts and an
+evaluated completeness contract. Gating remains disabled until this handoff's
+full hosted acceptance passes.
