@@ -17,6 +17,10 @@ correspond to published GitHub tags.
 - Bind exact product derivation recipes into qualification fingerprints while
   retaining existing output-path fields and historical state/receipt readers.
 
+- Permit approved-cache substitution for deterministic audit derivations while
+  retaining their local-build preference. Export effective cache flags in the
+  graph and keep fresh release authority, scans and boot-evidence obligations.
+
 - Keep installer content realization and transport in the installer phase;
   preserve complete Nix source contexts for copied origins and verify that
   inventory receives every attributed root.

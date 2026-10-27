@@ -144,3 +144,19 @@ derivations as well as their existing output paths and verifier identities.
 Changing a recipe with equal output paths cannot reuse an older qualification.
 The additive identity fields preserve historical state/receipt formats; older
 fingerprints remain readable but do not satisfy the new identity contract.
+
+Deterministic audit derivations explicitly permit substitution from the configured
+trusted Nix caches. `runCommandLocal` otherwise disables substitution by default;
+its local-build preference is retained for cache misses. Every audit obligation
+still requires its exact evaluated derivation. Graph targets expose effective
+`cachePolicy.allowSubstitutes` and `cachePolicy.preferLocalBuild` flags, and current
+exports reject disabled substitution on deterministic validation targets. Older
+schema-one graphs without those inspection fields remain readable.
+
+The deterministic runtime-security VM check can reuse a matching approved Nix
+result. The installer media boot obligation still requires executed or
+authenticated retained boot evidence bound to exact ISO and verifier identities.
+Current security databases, effective policy and live human authority remain
+per-run checks. Diagnostics identify substituted outputs without counting them as
+newly executed tests. Cache availability is observed in hosted runs; no timing
+improvement is assumed.

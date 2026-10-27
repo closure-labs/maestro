@@ -71,6 +71,7 @@
         assert qualificationInputs.evidence.derivations.toplevel == appliance.system.build.toplevel.drvPath;
         assert !(qualificationInputs.media ? source);
           pkgs.runCommandLocal "maestro-ci-plan-contract" {
+            allowSubstitutes = true;
             nativeBuildInputs = [pkgs.jq];
           } ''
             printf '%s\n' ${lib.escapeShellArg (builtins.toJSON plans)} > plans.json
@@ -95,6 +96,7 @@
 
       qualification-input-fixtures =
         pkgs.runCommandLocal "maestro-qualification-input-fixtures" {
+          allowSubstitutes = true;
           nativeBuildInputs = [pkgs.bash pkgs.coreutils pkgs.gnused pkgs.jq];
           source = lib.fileset.toSource {
             root = ./.;

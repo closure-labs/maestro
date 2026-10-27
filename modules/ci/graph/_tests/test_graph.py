@@ -70,6 +70,28 @@ class GraphTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             graph.plan(self.candidate, self.base, 'main', 'b' * 40)
 
+    def test_effective_cache_policy_and_historical_graph_compatibility(self):
+        graph.validate(self.candidate)  # Historical schema-one metadata stays readable.
+        for target in self.candidate['targets'].values():
+            target['cachePolicy'] = dict(allowSubstitutes=True, preferLocalBuild=True)
+        graph.validate(self.candidate)
+        for policy in [None, {}, dict(allowSubstitutes=False, preferLocalBuild=True),
+                       dict(allowSubstitutes='true', preferLocalBuild=True),
+                       dict(allowSubstitutes=True, preferLocalBuild='true')]:
+            with self.subTest(policy=policy):
+                candidate = copy.deepcopy(self.candidate)
+                candidate['targets']['0']['cachePolicy'] = policy
+                with self.assertRaises(ValueError):
+                    graph.validate(candidate)
+        self.candidate['targets']['media'] = dict(
+            id='media', name='image', owner='features/installer',
+            attribute='packages.x86_64-linux.image', phases=['media'], requirements=['verified-boot'],
+            dependencies=[], derivation='/nix/store/'+'f'*32+'-image.drv',
+            outputs={'out':'/nix/store/'+'f'*32+'-image'},
+            cachePolicy=dict(allowSubstitutes=False, preferLocalBuild=True))
+        graph.validate(self.candidate)
+        self.assertFalse(self.plan()['evidenceReuseAuthorized'])
+
     def test_ownership_is_deterministic(self):
         self.assertEqual(graph.ownership(self.candidate), graph.ownership(copy.deepcopy(self.candidate)))
 

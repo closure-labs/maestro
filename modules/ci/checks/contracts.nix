@@ -22,13 +22,17 @@
     mkSourceCheck = import _lib/source-check.nix {inherit pkgs lib inputs packages fixtureInputs;};
   in {
     checks = {
-      eval-smoke = pkgs.runCommandLocal "maestro-eval-smoke" {} ''
-        mkdir -p "$out"
-        printf '%s\n' "Maestro appliance flake evaluation smoke check" > "$out/README"
-      '';
+      eval-smoke =
+        pkgs.runCommandLocal "maestro-eval-smoke" {
+          allowSubstitutes = true;
+        } ''
+          mkdir -p "$out"
+          printf '%s\n' "Maestro appliance flake evaluation smoke check" > "$out/README"
+        '';
 
       workflow-policy =
         pkgs.runCommandLocal "maestro-workflow-policy" {
+          allowSubstitutes = true;
           nativeBuildInputs = [
             pkgs.python3
             pkgs.actionlint
@@ -105,6 +109,7 @@
 
       devenv-contract =
         pkgs.runCommandLocal "maestro-devenv-contract" {
+          allowSubstitutes = true;
           nativeBuildInputs = [
             pkgs.coreutils
             pkgs.gnugrep
@@ -165,6 +170,7 @@
 
       shell-lint =
         pkgs.runCommandLocal "maestro-shell-lint" {
+          allowSubstitutes = true;
           nativeBuildInputs = [
             pkgs.bash
             pkgs.shellcheck

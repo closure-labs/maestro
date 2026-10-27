@@ -11,7 +11,10 @@
   source ? inputs.self,
   exportCommands ? true,
 }:
-pkgs.runCommandLocal "maestro-${name}" {inherit nativeBuildInputs;} ''
+pkgs.runCommandLocal "maestro-${name}" {
+  allowSubstitutes = true;
+  inherit nativeBuildInputs;
+} ''
   cp -R ${source} source
   chmod -R u+w source
   cd source
