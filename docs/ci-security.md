@@ -493,3 +493,12 @@ identity checks. Human exact-head merge and publication authority are unchanged.
 GitHub's [run approval API](https://docs.github.com/en/rest/actions/workflow-runs#approve-a-workflow-run-for-a-fork-pull-request)
 approves CI execution only. The App token has Actions write, contents and PR
 read, and organization members read; it has no PR-review or contents write grant.
+
+Retired merge-queue event handling is separate from authority approval. When the
+collector's exact queue ref returns HTTP 404, the native checker may report
+`obsolete` only after authenticating that its main-targeting PR is closed or has
+one different live queue ref and candidate. It emits an empty check list and
+posts no authority result. A bare 404, conflicting replacement metadata, API
+permission/transport errors and invalid collector provenance still block. Live
+queue candidates continue to require exact-head review and matching governed
+tree contents. Historical failed runs remain intact.
