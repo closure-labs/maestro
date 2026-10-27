@@ -11,6 +11,9 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Ignore authenticated retired merge-queue collector events without posting an
+  authority check; missing or ambiguous metadata and API failures still block.
+
 - Bind exact product derivation recipes into qualification fingerprints while
   retaining existing output-path fields and historical state/receipt readers.
 
