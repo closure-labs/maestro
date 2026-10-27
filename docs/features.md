@@ -130,3 +130,10 @@ both the route and current producer state; the planner never rewrites a mode
 string over an older producer pointer. Explicit validation-only dispatch remains
 available, while force-build controls override it. Signing and the required
 verdict check the exact planned mode as well as the producer and result digest.
+
+The appliance phase realizes appliance and standalone outputs. Installer image
+and copied/generated content origins belong to the installer phase; its bound
+transport carries all attributed content roots to inventory. Inventory can then
+construct its link farm from verified existing roots without rebuilding product
+content. Copied-origin metadata preserves every Nix source context rather than
+claiming an arbitrary first context is the sole producing derivation.

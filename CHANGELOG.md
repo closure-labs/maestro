@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Keep installer content realization and transport in the installer phase;
+  preserve complete Nix source contexts for copied origins and verify that
+  inventory receives every attributed root.
+
 - Add a disabled-by-default graph-to-native routing handoff with bound per-job
   decisions, conservative state regeneration, immutable dispatch comparison
   bases and exact scheduling-mode checks at signing and the required verdict.
