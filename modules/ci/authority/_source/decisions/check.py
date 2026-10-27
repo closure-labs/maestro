@@ -116,6 +116,44 @@ def check_pr(repository, number, expected_bot, target_sha=None, github=None):
             'governedPaths': sensitive, 'status': 'authorized' if sensitive else 'not-required'}
 
 
+
+class ObsoleteQueueCollector(authority.AuthorityError):
+    """Authenticated retired queue event; no authority check may be posted."""
+
+
+def retired_queue_ref(run, repository, number, api):
+    # A bare 404 is not proof: permission failures and incomplete metadata must
+    # still block. Only a closed PR or one authenticated replacement establishes
+    # retirement. This path never evaluates approval or publishes a check.
+    pull = api(f'repos/{repository}/pulls/{number}')
+    base = pull.get('base') if isinstance(pull, dict) else None
+    if (not isinstance(pull, dict) or pull.get('number') != number
+            or not isinstance(base, dict) or base.get('ref') != 'main'
+            or not isinstance(base.get('repo'), dict) or base['repo'].get('full_name') != repository):
+        raise authority.AuthorityError('Cannot authenticate retired queue PR')
+    if pull.get('state') == 'closed':
+        return 'queue-pr-closed'
+    if pull.get('state') != 'open':
+        raise authority.AuthorityError('Unknown retired queue PR state')
+    refs = api(f'repos/{repository}/git/matching-refs/heads/gh-readonly-queue/main/pr-{number}-')
+    if not isinstance(refs, list) or len(refs) > 1:
+        raise authority.AuthorityError('Ambiguous replacement queue refs')
+    if not refs:
+        return None
+    replacement = refs[0]
+    if not isinstance(replacement, dict):
+        raise authority.AuthorityError('Invalid replacement queue ref')
+    ref, obj = replacement.get('ref'), replacement.get('object')
+    match = QUEUE.fullmatch(ref.removeprefix('refs/heads/')) if isinstance(ref, str) and ref.startswith('refs/heads/') else None
+    if (not match or int(match[1]) != number or not isinstance(obj, dict)
+            or obj.get('type') != 'commit' or not isinstance(obj.get('sha'), str)
+            or not authority.SHA.fullmatch(obj['sha'])):
+        raise authority.AuthorityError('Invalid replacement queue identity')
+    if ref == 'refs/heads/' + run['head_branch'] or obj['sha'] == run['head_sha']:
+        raise authority.AuthorityError('Replacement queue conflicts with missing collector ref')
+    return 'queue-ref-replaced'
+
+
 def collector_targets(run, repository, github=None):
     api = github or authority.github_api
     if (not isinstance(run, dict) or run.get('path') != COLLECTOR
@@ -128,7 +166,15 @@ def collector_targets(run, repository, github=None):
         match = QUEUE.fullmatch(run.get('head_branch', ''))
         if not match:
             raise authority.AuthorityError('Merge queue requires strict single-PR main queue identity')
-        branch = api(f'repos/{repository}/git/ref/heads/{run["head_branch"]}')
+        try:
+            branch = api(f'repos/{repository}/git/ref/heads/{run["head_branch"]}')
+        except authority.AuthorityAPIError as error:
+            if error.http_status != 404:
+                raise
+            reason = retired_queue_ref(run, repository, int(match[1]), api)
+            if reason:
+                raise ObsoleteQueueCollector(reason) from error
+            raise
         if branch.get('object', {}).get('sha') != run['head_sha']:
             raise authority.AuthorityError('Collector merge-group SHA is no longer the exact queue ref')
         return [(int(match[1]), run['head_sha'])]
@@ -154,8 +200,13 @@ def run_checks(repository, run_id, expected_bot, app_id, github=None, api_post=N
         raise authority.AuthorityError('Invalid collector run or review App ID')
     api = github or authority.github_api
     run = api(f'repos/{repository}/actions/runs/{run_id}')
+    try:
+        targets = collector_targets(run, repository, api)
+    except ObsoleteQueueCollector as error:
+        return {'schema': 1, 'collectorRun': run_id, 'status': 'obsolete',
+                'reason': str(error), 'checks': []}
     outcomes = []
-    for number, target in collector_targets(run, repository, api):
+    for number, target in targets:
         pull = api(f'repos/{repository}/pulls/{number}')
         sha = target or pull.get('head', {}).get('sha', '')
         try:

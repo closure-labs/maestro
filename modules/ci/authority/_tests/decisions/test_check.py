@@ -27,13 +27,19 @@ class GitHub(fixtures.GitHub):
                           'type': 'blob', 'mode': '100644', 'sha': 'd' * 40}]}
         self.queue_tree = self.head_tree
         self.queue_sha = MERGE
+        self.queue_error = None
+        self.queue_refs = []
 
     def __call__(self, endpoint):
         if '/actions/runs/' in endpoint:
             return self.collector
         if endpoint.endswith('?state=open&base=main&per_page=100&page=1'):
             return [{'number': 7}]
+        if '/git/matching-refs/heads/gh-readonly-queue/' in endpoint:
+            return self.queue_refs
         if '/git/ref/heads/gh-readonly-queue/' in endpoint:
+            if self.queue_error:
+                raise self.queue_error
             return {'object': {'sha': self.queue_sha}}
         if endpoint == f'repos/{REPO}/git/trees/{HEAD}?recursive=1':
             return self.head_tree
@@ -118,6 +124,72 @@ class Checks(unittest.TestCase):
         api.collector['head_branch'] = 'attacker/pr-7-abcdef0'
         with self.assertRaises(mod.authority.AuthorityError):
             mod.collector_targets(api.collector, REPO, api)
+
+    def retired_collector(self):
+        api = GitHub()
+        api.collector.update(event='merge_group', head_branch='gh-readonly-queue/main/pr-7-abcdef0', head_sha=MERGE)
+        api.queue_error = mod.authority.AuthorityAPIError('Missing collector queue ref', 404)
+        return api
+
+    def test_authenticated_retired_queue_events_post_no_authority(self):
+        for closed in (False, True):
+            with self.subTest(closed=closed):
+                api = self.retired_collector()
+                if closed:
+                    api.pr['state'] = 'closed'
+                else:
+                    api.queue_refs = [{'ref': 'refs/heads/gh-readonly-queue/main/pr-7-1234567',
+                                       'object': {'type': 'commit', 'sha': HEAD}}]
+                with mock.patch.object(mod, 'post_check') as post, mock.patch.object(mod, 'check_pr') as approval:
+                    result = mod.run_checks(REPO, 1, BOT, 123, api)
+                self.assertEqual(result['status'], 'obsolete')
+                self.assertEqual(result['checks'], [])
+                self.assertEqual(result['reason'], 'queue-pr-closed' if closed else 'queue-ref-replaced')
+                post.assert_not_called()
+                approval.assert_not_called()
+                self.packet_validator.assert_not_called()
+
+    def test_missing_queue_ref_without_unambiguous_proof_still_blocks(self):
+        valid = {'ref': 'refs/heads/gh-readonly-queue/main/pr-7-1234567',
+                 'object': {'type': 'commit', 'sha': HEAD}}
+        cases = [[], None, [valid, valid], [None],
+                 [dict(valid, ref='refs/heads/gh-readonly-queue/main/pr-8-1234567')],
+                 [dict(valid, ref='refs/heads/feature')],
+                 [dict(valid, ref='refs/heads/gh-readonly-queue/main/pr-7-abcdef0')],
+                 [dict(valid, object={'type': 'tag', 'sha': HEAD})],
+                 [dict(valid, object={'type': 'commit', 'sha': 'invalid'})],
+                 [dict(valid, object={'type': 'commit', 'sha': MERGE})]]
+        for refs in cases:
+            with self.subTest(refs=refs):
+                api = self.retired_collector()
+                api.queue_refs = refs
+                with mock.patch.object(mod, 'post_check') as post, self.assertRaises(mod.authority.AuthorityError):
+                    mod.run_checks(REPO, 1, BOT, 123, api)
+                post.assert_not_called()
+
+    def test_api_failures_and_untrusted_collectors_cannot_be_ignored(self):
+        for status in (None, 401, 403, 429, 500):
+            with self.subTest(status=status):
+                api = self.retired_collector()
+                api.pr['state'] = 'closed'
+                api.queue_error = mod.authority.AuthorityAPIError('Unavailable queue API', status)
+                with mock.patch.object(mod, 'post_check') as post, self.assertRaises(mod.authority.AuthorityAPIError):
+                    mod.run_checks(REPO, 1, BOT, 123, api)
+                post.assert_not_called()
+        for field, value in [('path', '.github/workflows/attacker.yml'), ('conclusion', 'failure'),
+                             ('head_branch', 'attacker/pr-7-abcdef0'), ('head_sha', 'invalid')]:
+            with self.subTest(field=field):
+                api = self.retired_collector()
+                api.pr['state'] = 'closed'
+                api.collector[field] = value
+                with mock.patch.object(mod, 'post_check') as post, self.assertRaises(mod.authority.AuthorityError):
+                    mod.run_checks(REPO, 1, BOT, 123, api)
+                post.assert_not_called()
+        api = self.retired_collector()
+        api.pr['base']['repo']['full_name'] = 'attacker/repo'
+        with mock.patch.object(mod, 'post_check') as post, self.assertRaises(mod.authority.AuthorityError):
+            mod.run_checks(REPO, 1, BOT, 123, api)
+        post.assert_not_called()
 
     def test_app_origin_checked_and_missing_approval_posts_failure(self):
         api = GitHub()
