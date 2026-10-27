@@ -60,6 +60,16 @@ for media in \
   [[ $(jq -r .media_input <<<"$changed") != $(jq -r .media_input <<<"$exact_baseline") ]]
 done
 
+# Equal output paths do not erase a changed producing recipe (including fixed
+# output inputs). Exact recipe identities are part of each owner's fingerprint.
+recipe_baseline=$(resolve '{"media":{"installer":"/nix/store/iso-a","derivations":{"installerIso":"/nix/store/iso-a.drv"}},"evidence":{"distribution":"/nix/store/tools-a","derivations":{"distribution":"/nix/store/tools-a.drv"}}}')
+media_recipe=$(resolve '{"media":{"installer":"/nix/store/iso-a","derivations":{"installerIso":"/nix/store/iso-b.drv"}},"evidence":{"distribution":"/nix/store/tools-a","derivations":{"distribution":"/nix/store/tools-a.drv"}}}')
+evidence_recipe=$(resolve '{"media":{"installer":"/nix/store/iso-a","derivations":{"installerIso":"/nix/store/iso-a.drv"}},"evidence":{"distribution":"/nix/store/tools-a","derivations":{"distribution":"/nix/store/tools-b.drv"}}}')
+[[ $(jq -r .media_input <<<"$media_recipe") != $(jq -r .media_input <<<"$recipe_baseline") ]]
+[[ $(jq -r .evidence_input <<<"$media_recipe") == $(jq -r .evidence_input <<<"$recipe_baseline") ]]
+[[ $(jq -r .media_input <<<"$evidence_recipe") == $(jq -r .media_input <<<"$recipe_baseline") ]]
+[[ $(jq -r .evidence_input <<<"$evidence_recipe") != $(jq -r .evidence_input <<<"$recipe_baseline") ]]
+
 if resolve '{"media":null,"evidence":{}}' >/dev/null 2>&1; then
   printf 'Qualification input resolver accepted an invalid Nix graph.\n' >&2
   exit 1

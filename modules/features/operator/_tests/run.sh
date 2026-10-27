@@ -218,12 +218,12 @@ yq -e '.jobs.verdict.steps[] | select(.uses == "$/.github/actions/setup-nix")' \
 yq -e '.jobs.verdict.timeout-minutes <= 20' "$TEST_ROOT/.github/workflows/ci.yml" >/dev/null \
   || fail "required verdict timeout is not bounded"
 
-grep -Fq "fetch-depth: \${{ contains(fromJSON('[\"pull_request\",\"push\",\"merge_group\"]'), github.event_name) && '0' || '1' }}" \
+grep -Fq "fetch-depth: \${{ contains(fromJSON('[\"pull_request\",\"push\",\"merge_group\"]'), github.event_name) && '0' || '2' }}" \
   "$TEST_ROOT/.github/workflows/ci.yml" \
-  || fail "route checkout does not limit full history to path-classifying events"
+  || fail "route checkout lacks full event history or an immutable dispatch parent"
 route_outputs=$(yq -r '.jobs.route.outputs | keys | join(",")' \
   "$TEST_ROOT/.github/workflows/ci.yml")
-assert_eq "$route_outputs" plan,graph_sha256
+assert_eq "$route_outputs" plan,graph_jobs,graph_gating,graph_mode,graph_sha256
 yq -e \
   '.concurrency.group == "maestro-publication" and
    .concurrency.queue == "max" and
@@ -286,7 +286,7 @@ grep -Fq 'inputs=$(maestro-ci-qualification-inputs)' \
 grep -Fq 'contains(fromJSON' \
   "$TEST_ROOT/.github/workflows/ci.yml" \
   || fail "focused qualification does not consume the authoritative route plan"
-grep -Fq 'if: fromJSON(steps.plan.outputs.plan).qualification.required' \
+grep -Fq 'if: fromJSON(steps.graph.outputs.route_plan).qualification.required' \
   "$TEST_ROOT/.github/workflows/ci.yml" \
   || fail "installer state upload does not consume the authoritative route plan"
 grep -Fq "'' ci:decision:publication" \

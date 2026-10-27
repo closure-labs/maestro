@@ -108,12 +108,39 @@ The qualification-input fixture uses only its own test source and packaged
 resolver. Operator fixtures copy their declared feature and workflow inputs;
 repository-wide identity checks belong to `repository-policy`. Hash-update and
 CI-runtime fixtures run once under `automation-fixtures`, and shell parsing
-belongs to `shell-lint`. The boot verifier's Python path contains only the graph and transfer
-helpers it imports; unrelated graph diagnostics do not invalidate boot evidence.
+belongs to `shell-lint`. The boot verifier imports only canonical binding
+helpers and transport validation. Scheduler changes leave retained-boot policy
+unchanged; binding-verifier changes invalidate it. Hosted mutation checks verify
+both sides of this dependency boundary.
 
-Graph scheduling is **disabled**. Hosted complete validation, mutation/equivalence
-checks and same-candidate comparisons must pass before any future enablement.
-The complete-audit comparison proves exact validation routing; it does not
-prove selective media/evidence reuse or authorize omitting a job.
-See [migration evidence](maestroden-evidence.md) for raw run links and remaining
-comparison status. No speedup is assumed from the new job boundaries.
+Graph scheduling is **active** after hosted complete qualification, all eight
+mutation/equivalence cases and a same-candidate comparison matched all twenty
+audit outputs. Exact protected-main forced and authenticated-reuse controls also
+passed. The graph translates authenticated native routing into bound per-job
+decisions; derivation equality supplies no evidence authority. All twenty audit
+obligations remain required. See [migration evidence](maestroden-evidence.md)
+for raw runs, durations and verification limits. No speedup is assumed.
+
+The native graph handoff exposes a bound final route, per-job decisions and a
+scheduling mode to CI. `activation.nix` explicitly enables the typed
+`maestro.ci.gatingEnabled` option, whose default remains false. Set that declaration
+to false to restore shadow scheduling. In active mode, unknown comparison
+inputs, legacy routes or retained controller evidence without graph bindings
+require complete qualification through the native router. That router regenerates
+both the route and current producer state; the planner never rewrites a mode
+string over an older producer pointer. Explicit validation-only dispatch remains
+available, while force-build controls override it. Signing and the required
+verdict check the exact planned mode as well as the producer and result digest.
+
+The appliance phase realizes appliance and standalone outputs. Installer image
+and copied/generated content origins belong to the installer phase; its bound
+transport carries all attributed content roots to inventory. Inventory can then
+construct its link farm from verified existing roots without rebuilding product
+content. Copied-origin metadata preserves every Nix source context rather than
+claiming an arbitrary first context is the sole producing derivation.
+
+Qualification fingerprints bind exact appliance/ISO and inventory-root producing
+derivations as well as their existing output paths and verifier identities.
+Changing a recipe with equal output paths cannot reuse an older qualification.
+The additive identity fields preserve historical state/receipt formats; older
+fingerprints remain readable but do not satisfy the new identity contract.

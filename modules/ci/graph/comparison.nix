@@ -7,7 +7,7 @@
   }: let
     source = lib.fileset.toSource {
       root = ./_source;
-      fileset = lib.fileset.unions [./_source/comparison.py ./_source/graph.py ./_source/transfer.py ./_source/summary.py];
+      fileset = lib.fileset.unions [./_source/bindings.py ./_source/comparison.py ./_source/graph.py ./_source/transfer.py ./_source/summary.py];
     };
     command = operation:
       pkgs.writeShellApplication {

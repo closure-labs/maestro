@@ -25,8 +25,11 @@
 in {
   flake.lib.ciGraph.${system} = {
     schemaVersion = 1;
-    mode = "shadow";
-    gatingEnabled = false;
+    mode =
+      if config.maestro.ci.gatingEnabled
+      then "active"
+      else "shadow";
+    gatingEnabled = config.maestro.ci.gatingEnabled;
     inherit system;
     targets =
       lib.mapAttrs (id: target: let
@@ -48,23 +51,27 @@ in {
         # may exist after a source build but are absent from signed restores.
         outputs.out = derivation.outPath;
       };
+      installerContents =
+        lib.mapAttrsToList (name: path: {
+          attribute = "lib.ciInstallerQualification.${system}.roots.${name}";
+          # Copied origins can carry several recipe contexts. Preserve all
+          # contexts instead of inventing one producer from the first key.
+          sourceContexts = builtins.getContext path;
+          outputs.out = path;
+        })
+        inputs.self.lib.ciInstallerQualification.${system}.roots;
       appliance =
         map (target: root target.attribute)
-        (definitions.evidence.targets ++ definitions.publish.targets)
-        ++ [(root "packages.x86_64-linux.distribution-inventory")];
-      installer = [(root "packages.x86_64-linux.installer-iso")];
+        (definitions.evidence.targets ++ definitions.publish.targets);
+      installer = [(root "packages.x86_64-linux.installer-iso")] ++ installerContents;
     in {
       inherit appliance installer;
       inventory =
         map (target: root target.attribute) definitions.publish.targets
-        ++ lib.mapAttrsToList (name: path: {
-          attribute = "lib.ciInstallerQualification.${system}.roots.${name}";
-          derivation = builtins.head (builtins.attrNames (builtins.getContext path));
-          outputs.out = path;
-        })
-        inputs.self.lib.ciInstallerQualification.${system}.roots;
+        ++ installerContents;
     };
     policy = {
+      qualificationInputs = builtins.hashString "sha256" (builtins.toJSON inputs.self.lib.ciQualificationInputs.${system});
       boot = import ../../features/installer/_lib/boot-policy.nix;
       bootVerifier = inputs.self.packages.${system}.maestro-ci-boot-evidence.drvPath;
       bootCommand = builtins.hashFile "sha256" ../../features/installer/_source/boot-media.sh;
@@ -100,6 +107,10 @@ in {
         nixpkgs = inputs.nixpkgs.outPath;
         xenOrchestra = inputs.xen-orchestra-ce.packages.${system}.latest.outPath;
       };
+      derivations = {
+        installerIso = inputs.self.packages.${system}.installer-iso.drvPath;
+        applianceToplevel = inputs.self.nixosConfigurations.maestro.config.system.build.toplevel.drvPath;
+      };
       bootPolicy = import ../../features/installer/_lib/boot-policy.nix;
     };
     evidence = {
@@ -110,6 +121,13 @@ in {
       sbomnix = inputs.self.packages.${system}.sbomnix.outPath;
       xenOrchestra = inputs.self.packages.${system}.xen-orchestra-ce.outPath;
       xenOrchestraSupply = inputs.self.packages.${system}.xen-orchestra-supply-protector.outPath;
+      derivations = {
+        distribution = inputs.self.packages.${system}.distribution-inventory.drvPath;
+        toplevel = inputs.self.nixosConfigurations.maestro.config.system.build.toplevel.drvPath;
+        sbomnix = inputs.self.packages.${system}.sbomnix.drvPath;
+        xenOrchestra = inputs.self.packages.${system}.xen-orchestra-ce.drvPath;
+        xenOrchestraSupply = inputs.self.packages.${system}.xen-orchestra-supply-protector.drvPath;
+      };
       assetPolicy = builtins.hashString "sha256" (builtins.concatStringsSep "\n" [
         (builtins.hashFile "sha256" ../../features/installer/_source/qualification-assets.sh)
         (builtins.hashFile "sha256" ../authority/_lib/common.nix)

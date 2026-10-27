@@ -19,5 +19,4 @@ flake-plan-runner --flake "$flake_ref" --plan lib.ciPlans.x86_64-linux.evidence 
   --manifest appliance-transfer/evidence.json --timings appliance-transfer/evidence.timings.json
 flake-plan-runner --flake "$flake_ref" --plan lib.ciPlans.x86_64-linux.publish \
   --manifest appliance-transfer/publish.json --timings appliance-transfer/publish.timings.json
-nix build --accept-flake-config --no-link "$flake_ref#distribution-inventory"
 maestro-ci-job-transfer export appliance appliance-transfer

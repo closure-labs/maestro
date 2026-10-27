@@ -57,13 +57,16 @@ jobs:
       attestations: read
       contents: read
     outputs:
-      plan: ${{ steps.plan.outputs.plan }}
+      plan: ${{ steps.graph.outputs.route_plan }}
+      graph_jobs: ${{ steps.graph.outputs.job_plan }}
+      graph_gating: ${{ steps.graph.outputs.gating_enabled }}
+      graph_mode: ${{ steps.graph.outputs.scheduling_mode }}
       graph_sha256: ${{ steps.graph.outputs.manifest_sha256 }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: ${{ contains(fromJSON('["pull_request","push","merge_group"]'), github.event_name) && '0' || '1' }}
+          fetch-depth: ${{ contains(fromJSON('["pull_request","push","merge_group"]'), github.event_name) && '0' || '2' }}
           persist-credentials: false
 
       - name: Set up Nix
@@ -86,10 +89,13 @@ jobs:
           VALIDATE_ONLY: ${{ inputs.validate_only || false }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:route
 
-      - name: Compare immutable derivation graphs in shadow mode
+      - name: Bind immutable graph and authoritative native route
         id: graph
         env:
           CI_PLAN: ${{ steps.plan.outputs.plan }}
+          GH_TOKEN: ${{ github.token }}
+          VALIDATE_ONLY: ${{ inputs.validate_only || false }}
+          FORCE_ARTIFACT: ${{ inputs.force_artifact || false }}
           MERGE_BASE_SHA: ${{ github.event.merge_group.base_sha }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PUSH_BASE_SHA: ${{ github.event.before }}
@@ -97,7 +103,7 @@ jobs:
           GRAPH_FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'true' || 'false' }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:graph:plan
 
-      - name: Retain bound derivation graph and shadow routing plan
+      - name: Retain bound derivation graph and final routing plan
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: maestro-ci-graph
@@ -115,7 +121,7 @@ jobs:
           retention-days: 30
 
       - name: Upload qualification state pointer
-        if: fromJSON(steps.plan.outputs.plan).qualification.required
+        if: fromJSON(steps.graph.outputs.route_plan).qualification.required
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: maestro-qualification-state
@@ -322,7 +328,7 @@ jobs:
     name: Build appliance
     needs: [route, retained]
     if: >-
-      !cancelled() && needs.route.result == 'success' && fromJSON(needs.route.outputs.plan).qualification.required && needs.retained.outputs.reused != 'true' && (vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED != 'true' || contains(fromJSON('["success","skipped"]'), needs.retained.result)) && fromJSON(needs.route.outputs.plan).qualification.mode != 'reuse'
+      !cancelled() && needs.route.result == 'success' && fromJSON(needs.route.outputs.plan).qualification.required && needs.retained.outputs.reused != 'true' && (vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED != 'true' || contains(fromJSON('["success","skipped"]'), needs.retained.result)) && ((needs.route.outputs.graph_gating == 'true' && fromJSON(needs.route.outputs.graph_jobs).appliance.required) || (needs.route.outputs.graph_gating != 'true' && fromJSON(needs.route.outputs.plan).qualification.mode != 'reuse'))
     runs-on: ubuntu-24.04
     timeout-minutes: 240
     permissions:
@@ -376,7 +382,7 @@ jobs:
     name: Build installer ISO
     needs: [route, retained, appliance]
     if: >-
-      !cancelled() && needs.route.result == 'success' && fromJSON(needs.route.outputs.plan).qualification.required && needs.retained.outputs.reused != 'true' && (vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED != 'true' || contains(fromJSON('["success","skipped"]'), needs.retained.result)) && needs.appliance.result == 'success' && contains(fromJSON('["qualify-media","qualify-media-reuse-evidence"]'), fromJSON(needs.route.outputs.plan).qualification.mode)
+      !cancelled() && needs.route.result == 'success' && fromJSON(needs.route.outputs.plan).qualification.required && needs.retained.outputs.reused != 'true' && (vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED != 'true' || contains(fromJSON('["success","skipped"]'), needs.retained.result)) && needs.appliance.result == 'success' && ((needs.route.outputs.graph_gating == 'true' && fromJSON(needs.route.outputs.graph_jobs).installer.required) || (needs.route.outputs.graph_gating != 'true' && contains(fromJSON('["qualify-media","qualify-media-reuse-evidence"]'), fromJSON(needs.route.outputs.plan).qualification.mode)))
     runs-on: ubuntu-24.04
     timeout-minutes: 240
     permissions:
@@ -438,7 +444,7 @@ jobs:
     needs: [route, retained, appliance, installer]
     if: >-
       !cancelled() && needs.route.result == 'success' &&
-      fromJSON(needs.route.outputs.plan).qualification.required && needs.retained.outputs.reused != 'true' &&
+      ((needs.route.outputs.graph_gating == 'true' && fromJSON(needs.route.outputs.graph_jobs).inventory.required) || (needs.route.outputs.graph_gating != 'true' && fromJSON(needs.route.outputs.plan).qualification.required)) && needs.retained.outputs.reused != 'true' &&
       (vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED != 'true' || contains(fromJSON('["success","skipped"]'), needs.retained.result)) &&
       (fromJSON(needs.route.outputs.plan).qualification.mode == 'reuse' ||
        (needs.appliance.result == 'success' &&
@@ -628,7 +634,7 @@ jobs:
     name: Test installer boot
     needs: [route, retained, qualification]
     if: >-
-      !cancelled() && needs.route.result == 'success' && fromJSON(needs.route.outputs.plan).qualification.required && needs.retained.outputs.reused != 'true' && (vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED != 'true' || contains(fromJSON('["success","skipped"]'), needs.retained.result)) && needs.qualification.result == 'success'
+      !cancelled() && needs.route.result == 'success' && ((needs.route.outputs.graph_gating == 'true' && fromJSON(needs.route.outputs.graph_jobs).boot.required) || (needs.route.outputs.graph_gating != 'true' && fromJSON(needs.route.outputs.plan).qualification.required)) && needs.retained.outputs.reused != 'true' && (vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED != 'true' || contains(fromJSON('["success","skipped"]'), needs.retained.result)) && needs.qualification.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 240
     permissions:
@@ -714,7 +720,7 @@ jobs:
     name: Scan release outputs
     needs: [route, retained, qualification]
     if: >-
-      !cancelled() && needs.route.result == 'success' && fromJSON(needs.route.outputs.plan).qualification.required && needs.retained.outputs.reused != 'true' && (vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED != 'true' || contains(fromJSON('["success","skipped"]'), needs.retained.result)) && needs.qualification.result == 'success'
+      !cancelled() && needs.route.result == 'success' && ((needs.route.outputs.graph_gating == 'true' && fromJSON(needs.route.outputs.graph_jobs).scan.required) || (needs.route.outputs.graph_gating != 'true' && fromJSON(needs.route.outputs.plan).qualification.required)) && needs.retained.outputs.reused != 'true' && (vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED != 'true' || contains(fromJSON('["success","skipped"]'), needs.retained.result)) && needs.qualification.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 240
     permissions:
@@ -797,7 +803,7 @@ jobs:
     needs: [route, audit, comparison, equivalence, retained, qualification, boot, scan]
     if: >-
       !cancelled() && needs.route.result == 'success' &&
-      fromJSON(needs.route.outputs.plan).qualification.required && needs.retained.outputs.reused != 'true' &&
+      ((needs.route.outputs.graph_gating == 'true' && fromJSON(needs.route.outputs.graph_jobs).verify.required) || (needs.route.outputs.graph_gating != 'true' && fromJSON(needs.route.outputs.plan).qualification.required)) && needs.retained.outputs.reused != 'true' &&
       (vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED != 'true' || contains(fromJSON('["success","skipped"]'), needs.retained.result)) &&
       needs.equivalence.result == 'success' && needs.audit.result == 'success' && needs.comparison.result == 'success' && needs.qualification.result == 'success' && needs.boot.result == 'success' && needs.scan.result == 'success'
     runs-on: ubuntu-24.04
@@ -881,7 +887,7 @@ jobs:
       needs.audit.result == 'success' && needs.boot.result == 'success' && needs.scan.result == 'success' &&
       github.ref == 'refs/heads/main' &&
       contains(fromJSON('["push","schedule","workflow_dispatch"]'), github.event_name) &&
-      fromJSON(needs.route.outputs.plan).qualification.required &&
+      ((needs.route.outputs.graph_gating == 'true' && fromJSON(needs.route.outputs.graph_jobs).signing.required) || (needs.route.outputs.graph_gating != 'true' && fromJSON(needs.route.outputs.plan).qualification.required)) &&
       (needs.qualification.result == 'success' || needs.qualification.result == 'skipped')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -923,6 +929,7 @@ jobs:
         env:
           GRAPH_RESULT_REQUIRED: true
           CI_RESULT_SHA256: ${{ needs.security.outputs.result_sha256 }}
+          GRAPH_SCHEDULING_MODE: ${{ needs.route.outputs.graph_mode }}
           CI_GRAPH_PLAN_SHA256: ${{ needs.route.outputs.graph_sha256 }}
           GH_TOKEN: ${{ github.token }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:qualification:sign-check
@@ -1033,6 +1040,7 @@ jobs:
           SPLIT_QUALIFICATION: true
           GRAPH_RESULT_REQUIRED: ${{ needs.security.result == 'success' && 'true' || 'false' }}
           CI_RESULT_SHA256: ${{ needs.security.outputs.result_sha256 }}
+          GRAPH_SCHEDULING_MODE: ${{ needs.route.outputs.graph_mode }}
           CI_GRAPH_PLAN_SHA256: ${{ needs.route.outputs.graph_sha256 }}
           APPLIANCE_RESULT: ${{ needs.appliance.result }}
           INSTALLER_RESULT: ${{ needs.installer.result }}
