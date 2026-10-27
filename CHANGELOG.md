@@ -11,6 +11,9 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Bind exact product derivation recipes into qualification fingerprints while
+  retaining existing output-path fields and historical state/receipt readers.
+
 - Keep installer content realization and transport in the installer phase;
   preserve complete Nix source contexts for copied origins and verify that
   inventory receives every attributed root.

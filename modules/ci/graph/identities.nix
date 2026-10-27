@@ -71,6 +71,7 @@ in {
         ++ installerContents;
     };
     policy = {
+      qualificationInputs = builtins.hashString "sha256" (builtins.toJSON inputs.self.lib.ciQualificationInputs.${system});
       boot = import ../../features/installer/_lib/boot-policy.nix;
       bootVerifier = inputs.self.packages.${system}.maestro-ci-boot-evidence.drvPath;
       bootCommand = builtins.hashFile "sha256" ../../features/installer/_source/boot-media.sh;
@@ -106,6 +107,10 @@ in {
         nixpkgs = inputs.nixpkgs.outPath;
         xenOrchestra = inputs.xen-orchestra-ce.packages.${system}.latest.outPath;
       };
+      derivations = {
+        installerIso = inputs.self.packages.${system}.installer-iso.drvPath;
+        applianceToplevel = inputs.self.nixosConfigurations.maestro.config.system.build.toplevel.drvPath;
+      };
       bootPolicy = import ../../features/installer/_lib/boot-policy.nix;
     };
     evidence = {
@@ -116,6 +121,13 @@ in {
       sbomnix = inputs.self.packages.${system}.sbomnix.outPath;
       xenOrchestra = inputs.self.packages.${system}.xen-orchestra-ce.outPath;
       xenOrchestraSupply = inputs.self.packages.${system}.xen-orchestra-supply-protector.outPath;
+      derivations = {
+        distribution = inputs.self.packages.${system}.distribution-inventory.drvPath;
+        toplevel = inputs.self.nixosConfigurations.maestro.config.system.build.toplevel.drvPath;
+        sbomnix = inputs.self.packages.${system}.sbomnix.drvPath;
+        xenOrchestra = inputs.self.packages.${system}.xen-orchestra-ce.drvPath;
+        xenOrchestraSupply = inputs.self.packages.${system}.xen-orchestra-supply-protector.drvPath;
+      };
       assetPolicy = builtins.hashString "sha256" (builtins.concatStringsSep "\n" [
         (builtins.hashFile "sha256" ../../features/installer/_source/qualification-assets.sh)
         (builtins.hashFile "sha256" ../authority/_lib/common.nix)

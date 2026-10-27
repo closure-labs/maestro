@@ -65,6 +65,10 @@
         assert builtins.all (binding: builtins.elem binding.root (builtins.attrValues packages.distribution-inventory.qualification.roots)) packages.distribution-inventory.qualification.bindings;
         assert qualificationInputs.evidence.toplevel == inputs.self.nixosConfigurations.maestro.config.system.build.toplevel.outPath;
         assert qualificationInputs.media.dependencies.installerIso == packages.installer-iso.outPath;
+        assert qualificationInputs.media.derivations.installerIso == packages.installer-iso.drvPath;
+        assert qualificationInputs.media.derivations.applianceToplevel == appliance.system.build.toplevel.drvPath;
+        assert qualificationInputs.evidence.derivations.distribution == packages.distribution-inventory.drvPath;
+        assert qualificationInputs.evidence.derivations.toplevel == appliance.system.build.toplevel.drvPath;
         assert !(qualificationInputs.media ? source);
           pkgs.runCommandLocal "maestro-ci-plan-contract" {
             nativeBuildInputs = [pkgs.jq];

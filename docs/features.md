@@ -137,3 +137,9 @@ transport carries all attributed content roots to inventory. Inventory can then
 construct its link farm from verified existing roots without rebuilding product
 content. Copied-origin metadata preserves every Nix source context rather than
 claiming an arbitrary first context is the sole producing derivation.
+
+Qualification fingerprints bind exact appliance/ISO and inventory-root producing
+derivations as well as their existing output paths and verifier identities.
+Changing a recipe with equal output paths cannot reuse an older qualification.
+The additive identity fields preserve historical state/receipt formats; older
+fingerprints remain readable but do not satisfy the new identity contract.
