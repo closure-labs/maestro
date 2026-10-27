@@ -104,7 +104,9 @@ requests, merge groups, and pushes fetch full history for path classification,
 while schedules and manual runs keep the shallow checkout. The repository merge
 queue runs the same required verdict against the synthetic merge-group commit;
 missing, unavailable, or non-ancestral SHAs require qualification. The router
-and required verdict share a strict schema-v3 JSON route contract.
+and required verdict share the current versioned route contract, including
+graph-bound scheduling. Historical route readers remain available; see
+[feature navigation](features.md) for current graph and transport bindings.
 
 At deployment time, `deploy-template` downloads the newest successful `main`
 artifact to a temporary directory, verifies state v5, all inventory checksums, protected-main producers, provenance,
@@ -116,7 +118,7 @@ running. Use `INSTALLER_SOURCE=build` for the current checkout or
 `INSTALLER_ISO=/path/to/image.iso` for an exact image.
 
 The Determinate, Maestro, and Xen Orchestra binary caches and their public keys
-are declared in `flake.nix`; libvhdi is supplied by the Xen Orchestra closure.
+are owned by `modules/flake/` and exported through the generated flake; libvhdi is supplied by the Xen Orchestra closure.
 Credential-bearing configuration is kept in the runtime Secretspec contract.
 Qualification requires the exact locked XO output to be published in either the
 upstream XO cache or the Maestro mirror. Both missing publications fail the
@@ -149,19 +151,12 @@ normal Nix realisation still checks the reviewed trusted signatures.
   immutable. Rolling and versioned publication wait in the same non-canceling
   queue so they do not build identical outputs concurrently. The next
   development version passes through the same protection.
-- Release, development-version, and flake-input pull requests use the
-  repository-scoped `GITHUB_TOKEN`. Trusted automation dispatches CI for the
-  exact head SHA and validates the bot identity, branch, title, repository, and
-  allowlisted files before any merge request. Release version preparation and
-  next-development advancement wait for that exact CI run to succeed, then
-  revalidate and request queue entry with an atomic head check. Their existing
-  bounded merge wait retries when GitHub is still calculating readiness.
-  Queue admission uses the existing fine-grained `finite-merge-queue` personal
-  token, exposed as Actions secret `MERGE_QUEUE_PAT`, for auto-merge and
-  explicit enqueue operations only. GitHub suppresses native merge-group events
-  for queue entries created with `GITHUB_TOKEN`; manual CI dispatch is not a
-  substitute for native queue checks. Version pull requests carry exactly the
-  `VERSION` change.
+- Agent-created and automation pull requests are authored by the configured
+  `cl-decider[bot]` App using a short-lived token scoped to this repository.
+  Release and development-version preparation retain exact-head CI, independent
+  human review, and protected queue admission. Their automated version PRs carry
+  exactly the `VERSION` change. Never fall back to the maintainer's personal
+  session to create an agent PR; that prevents independent self-approval.
 - `VERSION` records the current development release. The release workflow
   changes it to the selected stable version and advances it to the next patch
   development version after publication.
@@ -178,22 +173,13 @@ later audits the actual source; older versions use the same copy. Reference
 pinning and external-action boundaries always validate the actual source.
 See [GitHub's self-repository reference documentation](https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/).
 
-The queue credential is declared in SecretSpec as optional in the default profile and a
-required `github-queue` profile. It is required at runtime before requesting
-auto-merge; ordinary builds and public cache pulls do not need it. Configure the
-fine-grained token for `closure-labs/maestro` with Merge queues, Contents and Pull
-requests write access, an expiry and organization approval where required.
-It needs no Actions, Workflows, Administration or protection-bypass permission.
-Expose it as repository secret `MERGE_QUEUE_PAT` or allow this repository to
-receive the organization secret of the same name. Reusable release callers pass
-only this named secret explicitly. Never place its value in Nix configuration,
-derivations, documentation or command arguments.
-
-If GitHub has only the personal token's label, its value cannot be recovered
-through `gh`. Supply an existing local `pass` reference or add the Actions secret
-from the original token value. A token-created queue entry already stalled on
-missing native checks requires a normal operator dequeue/re-enqueue; successful
-manual checks on its synthetic SHA do not repair that event association.
+The current release workflow mints a short-lived repository-scoped Decider App
+installation token for version preparation and protected queue transport. Its
+client ID, private key, and public App ID are declared by the `decision-app`
+SecretSpec profile and resolved only at runtime. Native release preparation
+receives its queue credential as `MERGE_QUEUE_TOKEN`; the secret never enters
+Nix evaluation or derivations. See the [release guide](releases.md) for the
+handoff and [CI and security](ci-security.md) for live authority requirements.
 
 [Back to documentation](index.md)
 

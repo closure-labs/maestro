@@ -62,7 +62,9 @@ Changed-path classification is diagnostic. Every ordinary CI candidate resolves
 exact evaluated qualification identities and authenticated prior evidence;
 paths alone never drop media, scan or boot obligations. The explicit
 validation-only dispatch remains available. Immutable candidate/base graph
-comparison runs in shadow mode, with complete repository validation retained.
+comparison actively drives bound native scheduling after hosted acceptance,
+with all twenty repository audit obligations retained. Unknown graph inputs or
+incompatible retained bindings require complete qualification.
 Independent repository checks and build work follow planning; ISO, inventory,
 boot, native scans, verification and protected signing have explicit dependencies.
 The [feature guide](features.md) documents the job graph and exact-output transport.
