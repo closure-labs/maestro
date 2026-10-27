@@ -22,6 +22,7 @@
     checks = {
       sbomnix-runtime =
         pkgs.runCommandLocal "maestro-sbomnix-runtime" {
+          allowSubstitutes = true;
           nativeBuildInputs = fixtureInputs;
         } ''
           export MAESTRO_SBOMNIX=${lib.getExe packages.sbomnix}
