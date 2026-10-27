@@ -41,7 +41,7 @@ class VerdictTests(unittest.TestCase):
             if 'CI_RESULT_SHA256' in changes and changes['CI_RESULT_SHA256'] != 'missing':
                 result = dict(schemaVersion=1, planSha256='d' * 64, producer={
                     'GITHUB_REPOSITORY': env['GITHUB_REPOSITORY'], 'GITHUB_SHA': env['GITHUB_SHA'], 'GITHUB_RUN_ID': '1', 'GITHUB_RUN_ATTEMPT': '1'},
-                    completeValidationRequired=True, schedulingMode='shadow')
+                    completeValidationRequired=True, schedulingMode=changes.get('RESULT_SCHEDULING_MODE', 'shadow'))
                 data = json.dumps(result).encode()
                 (Path(work) / 'ci-result.json').write_bytes(data)
                 if changes['CI_RESULT_SHA256'] == 'valid':
@@ -78,6 +78,13 @@ class VerdictTests(unittest.TestCase):
         for digest in ('missing', 'f' * 64):
             self.assertNotEqual(self.execute(GRAPH_RESULT_REQUIRED='true', CI_RESULT_SHA256=digest, CI_GRAPH_PLAN_SHA256='d' * 64), 0)
         self.assertNotEqual(self.execute(GRAPH_RESULT_REQUIRED='true', CI_RESULT_SHA256='valid', CI_GRAPH_PLAN_SHA256='f' * 64), 0)
+
+    def test_scheduling_mode_must_match_planned_protected_result(self):
+        bound = dict(GRAPH_RESULT_REQUIRED='true', CI_RESULT_SHA256='valid', CI_GRAPH_PLAN_SHA256='d' * 64)
+        self.assertNotEqual(self.execute(**bound, RESULT_SCHEDULING_MODE='active'), 0)
+        self.assertNotEqual(self.execute(**bound, GRAPH_SCHEDULING_MODE='active'), 0)
+        self.assertEqual(self.execute(**bound, GRAPH_SCHEDULING_MODE='active', RESULT_SCHEDULING_MODE='active'), 0)
+        self.assertNotEqual(self.execute(**bound, GRAPH_SCHEDULING_MODE='unknown'), 0)
 
     def test_legacy_plan_still_requires_full_audit(self):
         value = route('qualify-media')

@@ -39,7 +39,8 @@ class GraphTests(unittest.TestCase):
 
     def test_unknown_versions_missing_and_unmapped_targets_fall_back(self):
         for mutation in [lambda g: g.update(schemaVersion=2), lambda g: g.update(targets={}),
-                         lambda g: g['targets']['0'].update(dependencies=['absent'])]:
+                         lambda g: g['targets']['0'].update(dependencies=['absent']),
+                         lambda g: g.update(mode='active'), lambda g: g.update(gatingEnabled=True)]:
             self.candidate = fixture()
             mutation(self.candidate)
             result = self.plan()

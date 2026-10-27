@@ -120,3 +120,13 @@ prove selective media/evidence reuse or authorize omitting a job.
 See [migration evidence](maestroden-evidence.md) for raw run links and remaining
 comparison status. No speedup is assumed from the new job boundaries.
 
+
+The native graph handoff exposes a bound final route, per-job decisions and a
+scheduling mode to CI. Its typed `maestro.ci.gatingEnabled` option remains false
+until hosted acceptance permits activation. In active mode, unknown comparison
+inputs, legacy routes or retained controller evidence without graph bindings
+require complete qualification through the native router. That router regenerates
+both the route and current producer state; the planner never rewrites a mode
+string over an older producer pointer. Explicit validation-only dispatch remains
+available, while force-build controls override it. Signing and the required
+verdict check the exact planned mode as well as the producer and result digest.

@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Add a disabled-by-default graph-to-native routing handoff with bound per-job
+  decisions, conservative state regeneration, immutable dispatch comparison
+  bases and exact scheduling-mode checks at signing and the required verdict.
+
 - Separate canonical evidence bindings from scheduler implementation so planning
   changes do not invalidate retained boot verification. Verify scheduler and
   binding-policy dependency propagation in hosted mutation checks.

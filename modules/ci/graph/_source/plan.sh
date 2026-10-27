@@ -9,6 +9,11 @@ started=$(date +%s)
 candidate=${GITHUB_SHA:-$(git rev-parse HEAD)}
 [[ $candidate =~ ^[0-9a-f]{40}$ && $(git rev-parse HEAD) == "$candidate" ]]
 base=${MERGE_BASE_SHA:-${PR_BASE_SHA:-${PUSH_BASE_SHA:-}}}
+# Dispatch/schedule comparisons use the candidate's immutable first parent.
+# Never resolve a moving branch name to manufacture a comparison base.
+if [[ -z "$base" && ${GITHUB_EVENT_NAME:-} =~ ^(workflow_dispatch|schedule)$ ]]; then
+  base=$(git rev-parse --verify "$candidate^" 2>/dev/null) || base=
+fi
 work=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/maestro-graph.XXXXXX")
 trap 'rm -rf -- "$work"' EXIT
 # Evaluate immutable source archives. A moving bookmark can never be a candidate.
@@ -22,6 +27,8 @@ args=()
 if [[ -n ${CI_PLAN:-} ]]; then
   printf '%s\n' "$CI_PLAN" >"$output/route.json"
   args+=(--route-plan "$output/route.json")
+else
+  printf 'null\n' >"$output/route.json"
 fi
 if [[ $base =~ ^[0-9a-f]{40}$ ]] && git cat-file -e "$base^{commit}"; then
   mkdir -p "$work/base"
@@ -37,6 +44,10 @@ if [[ $base =~ ^[0-9a-f]{40}$ ]] && git cat-file -e "$base^{commit}"; then
 fi
 [[ ${FORCE_BUILD:-false} != true ]] || args+=(--force)
 [[ ${GRAPH_FORK:-false} != true ]] || args+=(--fork)
+if [[ ${GITHUB_EVENT_NAME:-} == workflow_dispatch && ${VALIDATE_ONLY:-false} == true &&
+      ${FORCE_BUILD:-false} != true && ${FORCE_ARTIFACT:-false} != true ]]; then
+  args+=(--validate-only)
+fi
 if [[ $(jq -r '.schemaVersion // 0' "$output/candidate.json") == 1 ]]; then
   mapfile -t derivations < <(jq -r '.targets[].derivation' "$output/candidate.json" | sort -u)
   nix derivation show "${derivations[@]}" | jq '
@@ -46,6 +57,22 @@ if [[ $(jq -r '.schemaVersion // 0' "$output/candidate.json") == 1 ]]; then
   args+=(--derivations "$output/derivations.json")
 fi
 maestro-ci-graph "$output/candidate.json" --revision "$candidate" "${args[@]}" >"$output/plan.json"
+if [[ $(jq -r '.completeQualificationRequired' "$output/plan.json") == true ]] &&
+   ! jq -e '.schema_version == 4 and .qualification.required == true and
+     .qualification.mode == "qualify-media" and .retained_evidence == null' "$output/route.json" >/dev/null; then
+  # Re-run native routing so its plan AND qualification pointer agree.
+  # Editing a mode string would retain another producer's bindings.
+  FORCE_BUILD=true FORCE_ARTIFACT=true ALLOW_REUSE=false \
+    GITHUB_OUTPUT="$work/fallback-outputs" MAESTRO_CI_ROUTE_OUTPUT="$output/route.json" \
+    maestro-ci-route >"$output/fallback-routing.log"
+  jq -e '.schema_version == 4 and .qualification.required == true and
+    .qualification.mode == "qualify-media" and .retained_evidence == null' "$output/route.json" >/dev/null
+  while IFS= read -r reason; do
+    args+=(--routing-fallback-reason "$reason")
+  done < <(jq -r '.fallbackReasons[]' "$output/plan.json")
+  args+=(--route-regenerated)
+  maestro-ci-graph "$output/candidate.json" --revision "$candidate" "${args[@]}" >"$output/plan.json"
+fi
 maestro-ci-graph "$output/candidate.json" --ownership >"$output/ownership.md" || printf 'Graph unavailable; complete validation required.\n' >"$output/ownership.md"
 # This output authenticates the graph artifact within this workflow attempt.
 if [[ $(jq -r '.schemaVersion // 0' "$output/candidate.json") == 1 ]]; then
@@ -53,13 +80,19 @@ if [[ $(jq -r '.schemaVersion // 0' "$output/candidate.json") == 1 ]]; then
 fi
 manifest_sha=$(sha256sum "$output/plan.json" | cut -d' ' -f1)
 if [[ -n ${GITHUB_OUTPUT:-} ]]; then
-  printf 'manifest_sha256=%s\n' "$manifest_sha" >>"$GITHUB_OUTPUT"
+  {
+    printf 'manifest_sha256=%s\n' "$manifest_sha"
+    printf 'route_plan=%s\n' "$(jq -c . "$output/route.json")"
+    printf 'job_plan=%s\n' "$(jq -c .decisions.jobs "$output/plan.json")"
+    printf 'gating_enabled=%s\n' "$(jq -r .gatingEnabled "$output/plan.json")"
+    printf 'scheduling_mode=%s\n' "$(jq -r .mode "$output/plan.json")"
+  } >>"$GITHUB_OUTPUT"
 fi
 jq -n --argjson elapsedSeconds "$(( $(date +%s) - started ))" \
   '{schemaVersion:1,stage:"graph-planning",elapsedSeconds:$elapsedSeconds}' >"$output/timings.json"
 if [[ -n ${GITHUB_STEP_SUMMARY:-} ]]; then
   {
-    printf '### CI derivation comparison (shadow mode)\n\n'
+    printf '### CI derivation comparison (%s)\n\n' "$(jq -r .mode "$output/plan.json")"
     jq -r '"Candidate: `\(.candidateRevision)`\n\nBase: `\(.baseRevision)`\n\nChanged derivations: \(.changedDerivations|length); equal derivations: \(.equalDerivations|length). All twenty audit obligations remain required. Equality alone grants no evidence reuse.\n\nFallback reasons: \(.fallbackReasons|join(", "))\n"' "$output/plan.json"
     printf '\nChanged inputs:\n\n'
     jq -r '.changedInputs[]? | "- `\(.)`"' "$output/plan.json"

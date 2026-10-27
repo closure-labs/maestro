@@ -90,7 +90,7 @@ def main():
                 out.write(f"\nSame-candidate audit comparison: **{comparison['status']}**, "
                           f"{comparison['targetCount']} exact obligations; graph-run native builds: "
                           f"{len(observations['buildDerivationsObserved'])}; substitution paths: "
-                          f"{len(observations['substitutionPathsObserved'])}. Selective media scheduling remains disabled.\n")
+                          f"{len(observations['substitutionPathsObserved'])}. Comparison observations never grant retained-evidence authority.\n")
             if graph:
                 out.write(f"\nGraph mode: **{graph['mode']}**. Changed derivations: {len(graph['changedDerivations'])}; equal derivations: {len(graph['equalDerivations'])}. Fallback: {', '.join(graph['fallbackReasons']) or 'none'}.\n")
 

@@ -25,8 +25,11 @@
 in {
   flake.lib.ciGraph.${system} = {
     schemaVersion = 1;
-    mode = "shadow";
-    gatingEnabled = false;
+    mode =
+      if config.maestro.ci.gatingEnabled
+      then "active"
+      else "shadow";
+    gatingEnabled = config.maestro.ci.gatingEnabled;
     inherit system;
     targets =
       lib.mapAttrs (id: target: let
