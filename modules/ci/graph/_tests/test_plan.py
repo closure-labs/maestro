@@ -19,7 +19,7 @@ SOURCE = Path(__file__).parents[1] / '_source'
 
 class NativePlan(unittest.TestCase):
     def execute(self, *, active=True, unknown_base=False, legacy=False, unmapped=False,
-                force=False, fork=False, validate_only=False, retained=False, bad_native=False, interrupted=False):
+                force=False, fork=False, validate_only=False, retained=False, bad_native=False, interrupted=False, bad_candidate=""):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             env = dict(os.environ, GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL='/dev/null',
@@ -47,7 +47,7 @@ class NativePlan(unittest.TestCase):
             git('add', '.')
             git('-c', 'commit.gpgsign=false', '-c', 'core.hooksPath=/dev/null', 'commit', '-qm', 'candidate')
             revision = git('rev-parse', 'HEAD')
-            (root / 'candidate-graph.json').write_text(json.dumps(candidate))
+            (root / 'candidate-graph.json').write_text(json.dumps(None if bad_candidate == 'malformed' else candidate))
             (root / 'base-graph.json').write_text(json.dumps(base))
             initial = route('skip' if validate_only else 'reuse')
             if retained:
@@ -68,6 +68,8 @@ import os,sys
 from pathlib import Path
 if sys.argv[1] == 'eval':
     kind = 'base' if '/base#' in sys.argv[-1] else 'candidate'
+    if kind == 'candidate' and os.environ['FIXTURE_BAD_CANDIDATE'] == 'evaluation':
+        raise SystemExit('Candidate evaluation failed')
     print(Path(os.environ['FIXTURE_ROOT'],kind+'-graph.json').read_text())
 elif sys.argv[1:3] == ['derivation','show']:
     print('{}')
@@ -98,6 +100,7 @@ Path('maestro-qualification-state.json').write_text(json.dumps(
             output.touch()
             env.update(PATH=str(binary) + os.pathsep + os.environ['PATH'], FIXTURE_ROOT=str(root),
                        FIXTURE_BAD_NATIVE=str(bad_native).lower(), FIXTURE_INTERRUPT=str(interrupted).lower(),
+                       FIXTURE_BAD_CANDIDATE=bad_candidate,
                        GITHUB_SHA=revision, GITHUB_RUN_ID='99', GITHUB_EVENT_NAME='workflow_dispatch',
                        GITHUB_OUTPUT=str(output), GITHUB_STEP_SUMMARY='', RUNNER_TEMP=str(root),
                        MAESTRO_SYSTEM_ROOT=str(root), MAESTRO_GRAPH_OUTPUT='ci-graph',
@@ -107,8 +110,9 @@ Path('maestro-qualification-state.json').write_text(json.dumps(
                        CI_PLAN=json.dumps(initial))
             result = subprocess.run(['bash', str((SOURCE / 'plan.sh').resolve())], cwd=root, env=env,
                                     capture_output=True, text=True)
-            plan = json.loads((root / 'ci-graph/plan.json').read_text())
-            final = json.loads((root / 'ci-graph/route.json').read_text())
+            plan_file, route_file = root / 'ci-graph/plan.json', root / 'ci-graph/route.json'
+            plan = json.loads(plan_file.read_text()) if plan_file.exists() else None
+            final = json.loads(route_file.read_text()) if route_file.exists() else None
             state = json.loads((root / 'maestro-qualification-state.json').read_text())
             outputs = dict(line.split('=', 1) for line in output.read_text().splitlines())
             return result, plan, final, state, outputs, revision, base_revision
@@ -160,6 +164,17 @@ Path('maestro-qualification-state.json').write_text(json.dumps(
         self.assertFalse(plan['routeRegenerated'])
         self.assertEqual(final['schema_version'], 3)
         self.assertEqual(state['artifact_run_id'], 1)
+
+    def test_invalid_candidate_stops_before_routes_or_product_gate_outputs(self):
+        for kind in ('evaluation', 'malformed'):
+            with self.subTest(kind=kind):
+                result, plan, final, state, outputs, _, _ = self.execute(bad_candidate=kind)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIsNone(plan)
+                self.assertIsNone(final)
+                self.assertEqual(state['artifact_run_id'], 1)
+                self.assertNotIn('route_plan', outputs)
+                self.assertNotIn('manifest_sha256', outputs)
 
     def test_bad_or_interrupted_native_fallback_cannot_emit_gate_outputs(self):
         for case in ({'bad_native': True}, {'interrupted': True}):

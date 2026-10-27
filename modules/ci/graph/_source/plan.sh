@@ -21,8 +21,13 @@ mkdir -p "$work/candidate"
 git archive "$candidate" | tar -x -C "$work/candidate"
 if ! nix eval --accept-flake-config --no-write-lock-file --json \
   "path:$work/candidate#lib.ciGraph.x86_64-linux" >"$output/candidate.json" 2>"$output/candidate-evaluation.log"; then
-  printf 'null\n' >"$output/candidate.json"
+  cat "$output/candidate-evaluation.log" >&2
+  printf 'Candidate graph evaluation failed; no product jobs may consume it.\n' >&2
+  exit 1
 fi
+# A missing/unsupported base selects complete qualification. An invalid candidate
+# cannot describe exact transports and must fail planning before any product work.
+maestro-ci-graph "$output/candidate.json" >"$output/validation.json"
 args=()
 if [[ -n ${CI_PLAN:-} ]]; then
   printf '%s\n' "$CI_PLAN" >"$output/route.json"
