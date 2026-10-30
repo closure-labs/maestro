@@ -27,7 +27,7 @@ in {
   };
   source-security = mkCommand {
     name = "source-security";
-    runtimeInputs = commonInputs ++ [pkgs.gitleaks pkgs.python3];
+    runtimeInputs = commonInputs ++ [pkgs.gitleaks pkgs.python3 pkgs.yq-go];
     source = ../_source/source-security.sh;
   };
   security-verdict = mkCommand {

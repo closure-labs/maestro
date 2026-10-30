@@ -159,6 +159,59 @@ class WorkflowBoundaryTests(unittest.TestCase):
     def test_cli_exception_is_bound_to_reviewed_workflow_bytes(self):
         import hashlib
         policy = (ROOT / 'modules/ci/checks/_lib/repository-policy.nix').read_text()
-        self.assertIn(hashlib.sha256(WORKFLOW.read_bytes()).hexdigest(), policy)
+        digest = hashlib.sha256(WORKFLOW.read_bytes()).hexdigest()
+        self.assertIn(digest, policy)
+        contract = (ROOT / 'modules/ci/checks/contracts.nix').read_text()
+        self.assertIn(digest, contract)
+
+class HostedWorkflowContractTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        shutil.copytree(ROOT / '.github/workflows', self.root / '.github/workflows')
+        contract = (ROOT / 'modules/ci/checks/contracts.nix').read_text()
+        # Execute the exact hosted command guard, including its real yq parser,
+        # rather than duplicating an approximation of the validation logic.
+        start = contract.index('          command_workflows=()')
+        end = contract.index('          touch "$out"', start)
+        self.guard = 'set -euo pipefail\n' + '\n'.join(
+            line[10:] for line in contract[start:end].splitlines())
+        self.guard = self.guard.replace("''${", "${")
+
+    def run_guard(self):
+        return subprocess.run(['bash', '-c', self.guard], cwd=self.root,
+                              capture_output=True, text=True)
+
+    def test_actual_hosted_guard_accepts_current_reviewed_workflows(self):
+        result = self.run_guard()
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_scanner_privilege_or_command_changes_fail_the_byte_binding(self):
+        target = self.root / '.github/workflows/repository-secret-scan.yml'
+        original = target.read_text()
+        for changed in [original.replace('contents: read', 'contents: write', 1),
+                        original.replace('set -euo pipefail', 'echo unreviewed-scanner-command', 1)]:
+            target.write_text(changed)
+            result = self.run_guard()
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('differs from the approved boundary', result.stderr)
+
+    def test_other_workflows_cannot_run_raw_commands(self):
+        target = self.root / '.github/workflows/ci.yml'
+        original = target.read_text()
+        target.write_text(original.replace(
+            "run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:route",
+            'run: echo unauthorized-bypass', 1))
+        result = self.run_guard()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Workflow command bypasses', result.stderr)
+
+    def test_copying_scanner_to_another_filename_does_not_grant_exception(self):
+        shutil.copyfile(self.root / '.github/workflows/repository-secret-scan.yml',
+                        self.root / '.github/workflows/unapproved-scanner.yml')
+        result = self.run_guard()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Workflow command bypasses', result.stderr)
 
 if __name__ == '__main__': unittest.main()

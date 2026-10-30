@@ -36,6 +36,7 @@
           nativeBuildInputs = [
             pkgs.python3
             pkgs.actionlint
+            pkgs.coreutils
             pkgs.bash
             pkgs.gnused
             pkgs.yq-go
@@ -94,7 +95,14 @@
           python3 modules/ci/authority/_source/decisions/signal_relay.py .github/workflows/decision-events.yml
           command_workflows=()
           for workflow in .github/workflows/*.yml; do
-            if [[ $workflow != .github/workflows/decision-events.yml ]]; then
+            if [[ $workflow == .github/workflows/repository-secret-scan.yml ]]; then
+              # Only the exact reviewed read-only upstream CLI workflow may
+              # bypass devenv; edits must explicitly renew this byte binding.
+              if [[ $(sha256sum "$workflow" | cut -d' ' -f1) != 0946f9882ae8242581c482895f9ff7b0b6c04f7a342ef9ed1a913231d0544b1f ]]; then
+                printf 'Direct Gitleaks workflow differs from the approved boundary.\n' >&2
+                exit 1
+              fi
+            elif [[ $workflow != .github/workflows/decision-events.yml ]]; then
               command_workflows+=("$workflow")
             fi
           done
