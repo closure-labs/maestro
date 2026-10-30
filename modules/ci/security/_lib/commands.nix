@@ -27,9 +27,6 @@ in {
   };
   source-security = mkCommand {
     name = "source-security";
-    prefix = ''
-      export MAESTRO_SOURCE_SECURITY_SOURCE=${../_source/source-security.py}
-    '';
     runtimeInputs = commonInputs ++ [pkgs.gitleaks pkgs.python3];
     source = ../_source/source-security.sh;
   };

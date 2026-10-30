@@ -22,7 +22,7 @@ def route(mode):
 
 class VerdictTests(unittest.TestCase):
     def execute(self, mode='qualify-media', **changes):
-        env = dict(os.environ, ROUTE_RESULT='success', AUDIT_REQUIRED='true', AUDIT_RESULT='success',
+        env = dict(os.environ, INCOMING_SECRET_RESULT='success', ROUTE_RESULT='success', AUDIT_REQUIRED='true', AUDIT_RESULT='success',
                    EQUIVALENCE_RESULT='success', COMPARISON_REQUIRED='true', COMPARISON_RESULT='success', SPLIT_QUALIFICATION='true', CI_PLAN=json.dumps(route(mode)),
                    GITHUB_EVENT_NAME='pull_request', GITHUB_REF='refs/pull/1/merge', GITHUB_SHA='c' * 40,
                    GITHUB_REPOSITORY='closure-labs/maestro', GITHUB_RUN_ID='1', GITHUB_RUN_ATTEMPT='1', MAESTRO_DECISION_ONLY_REUSE_ENABLED='false',
@@ -54,11 +54,18 @@ class VerdictTests(unittest.TestCase):
                 self.assertEqual(self.execute(mode), 0)
 
     def test_missing_interrupted_or_unjustified_skips_rejected(self):
-        for key in ('ROUTE_RESULT', 'AUDIT_RESULT', 'EQUIVALENCE_RESULT', 'COMPARISON_RESULT', 'APPLIANCE_RESULT', 'INSTALLER_RESULT',
+        for key in ('INCOMING_SECRET_RESULT', 'ROUTE_RESULT', 'AUDIT_RESULT', 'EQUIVALENCE_RESULT', 'COMPARISON_RESULT', 'APPLIANCE_RESULT', 'INSTALLER_RESULT',
                     'QUALIFICATION_RESULT', 'BOOT_RESULT', 'SCAN_RESULT', 'SECURITY_RESULT'):
             for status in ('', 'failure', 'cancelled', 'skipped'):
                 with self.subTest(key=key, status=status):
                     self.assertNotEqual(self.execute(**{key: status}), 0)
+
+    def test_incoming_secrets_required_for_every_incoming_event_and_route(self):
+        for event in ('pull_request', 'merge_group'):
+            for mode in ('qualify-media', 'reuse', 'refresh-evidence'):
+                for status in ('', 'failure', 'cancelled', 'skipped'):
+                    with self.subTest(event=event, mode=mode, status=status):
+                        self.assertNotEqual(self.execute(mode, GITHUB_EVENT_NAME=event, INCOMING_SECRET_RESULT=status), 0)
 
     def test_paths_and_force_controls_cannot_justify_skipped_qualification(self):
         self.assertNotEqual(self.execute('skip', GITHUB_EVENT_NAME='pull_request'), 0)

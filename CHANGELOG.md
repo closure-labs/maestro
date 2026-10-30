@@ -9,6 +9,13 @@ correspond to published GitHub tags.
 
 ## [Unreleased]
 
+### Changed
+
+- Scan exact PR and merge-queue commit ranges with pinned upstream Gitleaks,
+  enforced by the required CI verdict independently of qualification reuse.
+  Keep historical scans visible as nonblocking debt; remove custom finding
+  post-filtering while preserving the narrow public-ledger identity policy.
+
 ### Fixed
 
 - Wake decision reconciliation after review authority checks, and recheck on PR

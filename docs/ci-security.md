@@ -1,11 +1,11 @@
 # CI, security decisions, and publication
 
-The source-security command runs the pinned Gitleaks rules with redacted output.
-Large files can be split inside a canonical finding-key line. For residual
-`generic-api-key` reports only, the command checks the complete original line
-against the existing exact security-ledger path and 64-hex-digit key shape.
-It does not exempt neighboring fields, other paths or other scanner rules.
-Missing, malformed, oversized or inconsistent scanner reports fail closed.
+The read-only upstream Gitleaks workflow scans exact incoming PR and merge-queue
+ranges. The existing required CI verdict rejects absent, skipped, failed or
+cancelled incoming scans, independently of graph routing or evidence reuse.
+The `source-security` audit obligation now runs policy and workflow fixtures;
+it no longer scans the entire checkout or post-filters findings in Python.
+See [the scanner contract](gitleaks-workflow.md) for scope and historical debt.
 
 Maestro and xo-nixpkg release independently. CI produces qualified candidates;
 separate protected-main controllers distribute only admitted outputs. This

@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 set -euo pipefail
+export INCOMING_SECRET_RESULT=success
 : "${MAESTRO_CI_CLASSIFY:?MAESTRO_CI_CLASSIFY must point to the packaged classifier}"
 : "${MAESTRO_CI_CLASSIFY_PATHS:?MAESTRO_CI_CLASSIFY_PATHS must point to the packaged path classifier}"
 : "${MAESTRO_CI_BOOT_MEDIA:?MAESTRO_CI_BOOT_MEDIA must point to the packaged media boot test}"
