@@ -39,6 +39,8 @@ class API:
         self.changed = []
         self.candidates = {}
         self.compare_change = {}
+        self.base_candidates = {}
+        self.branch = {'protected': True, 'commit': {'sha': self.pull['base']['sha']}}
 
     def __call__(self, endpoint):
         self.calls.append(endpoint)
@@ -49,14 +51,20 @@ class API:
             return deepcopy(self.pull)
         if '/commits/' in endpoint:
             return [{'number': 7}]
+        if endpoint.endswith('/branches/main'):
+            return deepcopy(self.branch)
         if '/compare/' in endpoint:
             return dict({'base_commit': {'sha': self.pull['base']['sha']},
+                         'merge_base_commit': {'sha': self.pull['base']['sha']},
+                         'status': 'ahead', 'behind_by': 0,
                          'files': deepcopy(self.changed)}, **self.compare_change)
         if '/contents/' in endpoint:
             path = endpoint.split('/contents/', 1)[1].split('?ref=', 1)[0]
             candidate = self.candidates.get(path, TEMPLATES.get(path, 'unexpected'))
             if path == self.run['path'] and self.candidate is not None:
                 candidate = self.candidate
+            if endpoint.endswith('?ref=' + self.pull['base'].get('sha', 'missing')):
+                candidate = self.base_candidates.get(path, candidate)
             raw = candidate.encode()
             return {'type': 'file', 'path': path, 'size': len(raw), 'encoding': 'base64',
                     'content': base64.b64encode(raw).decode()}
@@ -197,6 +205,62 @@ class Admission(unittest.TestCase):
             self.assertEqual(api.approve(), 'unsafe-dependency-workflow'); self.assertFalse(api.posts)
         api = API(); api.dependency(); del api.pull['base']['sha']
         self.assertEqual(api.approve(), 'unsafe-dependency-workflow'); self.assertFalse(api.posts)
+
+    def test_base_only_privileged_jobs_and_local_actions_require_head_update(self):
+        mutations = {
+            '.github/workflows/ci.yml': TEMPLATES['.github/workflows/ci.yml'] +
+                '\n  base_only_privileged:\n    permissions:\n      contents: write\n'
+                '    runs-on: ubuntu-24.04\n    steps:\n      - run: echo base-only-job\n',
+            '.github/actions/setup-nix/action.yml': TEMPLATES['.github/actions/setup-nix/action.yml'] +
+                '\n    - run: echo base-only-action\n      shell: bash\n',
+            '.github/actions/setup-nix/resources.sh': 'echo base-only-script\n',
+        }
+        for path, malicious_base in mutations.items():
+            with self.subTest(path=path):
+                api = API(); api.dependency()
+                # Only Cargo differs from the merge base on the PR side. Main
+                # alone changed executable material; synthetic merge execution
+                # includes it even though the PR head and diff do not.
+                api.changed = [{'filename': POLICY['dependencyFiles'][0], 'status': 'modified'}]
+                api.base_candidates[path] = malicious_base
+                api.compare_change = {'merge_base_commit': {'sha': 'c'*40},
+                                      'status': 'diverged', 'behind_by': 1}
+                self.assertEqual(api.approve(), 'unsafe-dependency-workflow')
+                self.assertFalse(api.posts)
+
+    def test_base_ancestry_and_protection_metadata_fail_closed(self):
+        for change in ({'merge_base_commit': None}, {'merge_base_commit': {'sha': 'c'*40}},
+                       {'status': 'diverged'}, {'status': 'behind'}, {'status': None},
+                       {'behind_by': 1}, {'behind_by': None}):
+            api = API(); api.dependency(); api.compare_change = change
+            self.assertEqual(api.approve(), 'unsafe-dependency-workflow')
+            self.assertFalse(api.posts)
+        for branch in ({'protected': False, 'commit': {'sha': 'b'*40}},
+                       {'protected': True, 'commit': {'sha': 'c'*40}}, {}):
+            api = API(); api.dependency(); api.branch = branch
+            self.assertEqual(api.approve(), 'unsafe-dependency-workflow')
+            self.assertFalse(api.posts)
+
+    def test_current_base_changes_or_loses_protection_before_approval(self):
+        for change in ({'commit': {'sha': 'c'*40}}, {'protected': False}):
+            api = API(); api.dependency()
+            def mutate(endpoint):
+                if endpoint.endswith('/branches/main') and api.calls.count(endpoint) == 2:
+                    api.branch.update(change)
+            api.mutate = mutate
+            self.assertEqual(api.approve(), 'base-changed')
+            self.assertFalse(api.posts)
+
+    def test_current_protected_base_ancestor_still_allows_both_ecosystems(self):
+        for path in (POLICY['dependencyFiles'][1], '.github/actions/setup-nix/action.yml'):
+            api = API(); api.dependency()
+            api.changed = [{'filename': path, 'status': 'modified'}]
+            if path in TEMPLATES:
+                api.candidates[path] = re.sub(r'@[0-9a-f]{40}', '@' + 'd'*40, TEMPLATES[path])
+            self.assertEqual(api.approve(), 'approved')
+            self.assertEqual(sum(call.endswith('/branches/main') for call in api.calls), 2)
+        api = API(); api.dependency(); api.compare_change = {'status': 'identical'}
+        self.assertEqual(api.approve(), 'approved')
 
     def test_dependency_head_and_run_races(self):
         for target in ('pull', 'run'):

@@ -49,13 +49,20 @@ def safe_dependabot_workflow(api, policy, pull, run, templates):
     if not same_workflow(api, policy, run['path'], run['head_sha'], templates):
         return False
     base = pull.get('base', {}).get('sha')
-    if not isinstance(base, str) or not re.fullmatch(r'[0-9a-f]{40}', base):
+    if not current_protected_base(api, policy, pull):
         return False
     # The comparison is immutable, unlike the moving PR-files endpoint. GitHub
     # caps comparison file inventories at 300; reaching that cap fails closed.
     comparison = api(f'repos/{policy["repository"]}/compare/{base}...{run["head_sha"]}?per_page=1')
     files = comparison.get('files')
+    # pull_request executes a synthetic merge tree. When current protected main
+    # is an ancestor of the head, that merge has exactly the audited head tree.
+    # A diverged base can contribute executable files absent from the PR diff;
+    # reject it rather than treating the head-only inventory as merge evidence.
     if (comparison.get('base_commit', {}).get('sha') != base
+            or (comparison.get('merge_base_commit') or {}).get('sha') != base
+            or comparison.get('status') not in ('ahead', 'identical')
+            or type(comparison.get('behind_by')) is not int or comparison['behind_by'] != 0
             or not isinstance(files, list) or len(files) >= 300):
         return False
     names = set()
@@ -71,6 +78,15 @@ def safe_dependabot_workflow(api, policy, pull, run, templates):
         if path not in templates or not same_workflow(api, policy, path, run['head_sha'], templates):
             return False
     return True
+
+
+def current_protected_base(api, policy, pull):
+    base = pull.get('base', {}).get('sha')
+    if not isinstance(base, str) or not re.fullmatch(r'[0-9a-f]{40}', base):
+        return False
+    branch = api(f'repos/{policy["repository"]}/branches/main')
+    return (branch.get('protected') is True
+            and (branch.get('commit') or {}).get('sha') == base)
 
 
 def same_workflow(api, policy, path, head, templates):
@@ -176,6 +192,8 @@ def approve_run(api, post, policy, run_id, templates=None):
                 or run_binding(current_run) != run_binding(run)
                 or not valid_run(current_run, policy, run_id)):
             return 'binding-changed'
+        if dependency_pr and not current_protected_base(api, policy, current_pull):
+            return 'base-changed'
         # Approval endpoint only. No reviews, dispatch, branch writes or queue.
         # Never retry an ambiguous mutation: the next invocation reads anew.
         post(endpoint + '/approve')

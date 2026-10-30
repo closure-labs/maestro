@@ -508,6 +508,15 @@ older workflow structure must incorporate the protected workflow changes before
 this narrow automatic admission applies. Candidate files are never executed by
 the admission controller.
 
+Automatic Dependabot admission also requires the PR's authenticated base SHA to
+be the current protected main commit and an ancestor of the PR head. The
+immutable comparison must report that base as its merge base with no commits
+behind it. This makes the synthetic PR merge tree identical to the inspected
+head tree; base-only workflow or local-action changes cannot enter execution
+unexamined. The controller rereads main's commit and protection immediately
+before approving execution. Diverged PRs fail closed until Dependabot updates
+the branch, preserving automatic admission for fresh Cargo and Actions updates.
+
 PR validation jobs have read-only token permissions. Retained-evidence App-token
 minting excludes PR events, native verification has no OIDC or write grant,
 and attestation runs in the existing protected-main signing job. CodeQL analysis
