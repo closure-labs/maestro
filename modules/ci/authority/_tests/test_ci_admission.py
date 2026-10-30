@@ -17,7 +17,7 @@ import ci_admission as admission
 POLICY = json.loads((SOURCE / 'ci-admission-policy.json').read_text())
 BOT = dict(POLICY['bot'], type='Bot')
 DEPENDABOT = dict(POLICY['dependabot'], type='Bot')
-TEMPLATES = {path: (ROOT / path).read_text() for path in POLICY['workflows']}
+TEMPLATES = admission.load_templates(ROOT)
 HUMAN = {'login': 'maintainer', 'id': 10, 'type': 'User'}
 REPO = {'id': POLICY['repositoryId'], 'full_name': POLICY['repository']}
 SHA = 'a' * 40
@@ -29,13 +29,16 @@ class API:
                         repository=REPO, head_repository={'id': 91}, head_branch='change', head_sha=SHA,
                         path='.github/workflows/ci.yml', workflow_id=5, actor=BOT, triggering_actor=BOT)
         self.pull = dict(number=7, state='open', draft=True, user=BOT,
-                         base={'ref': 'main', 'repo': REPO},
+                         base={'ref': 'main', 'repo': REPO, 'sha': 'b' * 40},
                          head={'sha': SHA, 'ref': 'change', 'repo': {'id': 91}})
         self.calls, self.posts = [], []
         self.mutate = lambda endpoint: None
         self.member, self.permission = True, 'admin'
         self.workflow = {'path': self.run['path'], 'state': 'active'}
         self.candidate = None
+        self.changed = []
+        self.candidates = {}
+        self.compare_change = {}
 
     def __call__(self, endpoint):
         self.calls.append(endpoint)
@@ -46,9 +49,15 @@ class API:
             return deepcopy(self.pull)
         if '/commits/' in endpoint:
             return [{'number': 7}]
+        if '/compare/' in endpoint:
+            return dict({'base_commit': {'sha': self.pull['base']['sha']},
+                         'files': deepcopy(self.changed)}, **self.compare_change)
         if '/contents/' in endpoint:
-            path = self.run['path']
-            raw = (self.candidate if self.candidate is not None else TEMPLATES[path]).encode()
+            path = endpoint.split('/contents/', 1)[1].split('?ref=', 1)[0]
+            candidate = self.candidates.get(path, TEMPLATES.get(path, 'unexpected'))
+            if path == self.run['path'] and self.candidate is not None:
+                candidate = self.candidate
+            raw = candidate.encode()
             return {'type': 'file', 'path': path, 'size': len(raw), 'encoding': 'base64',
                     'content': base64.b64encode(raw).decode()}
         if '/actions/workflows/' in endpoint:
@@ -140,6 +149,54 @@ class Admission(unittest.TestCase):
         api = API(); api.dependency()
         self.assertEqual(admission.approve_run(api, api.posts.append, POLICY, 42), 'unsafe-dependency-workflow')
         self.assertFalse(api.posts)
+
+    def test_transitive_reusable_scanner_changes_cannot_hide_behind_equal_caller(self):
+        path = '.github/workflows/repository-secret-scan.yml'
+        original = TEMPLATES.get(path, 'permissions:\n  contents: read\njobs:\n  scan:\n    steps:\n      - run: gitleaks git . --config controller/.gitleaks.toml\n')
+        templates = dict(TEMPLATES, **{path: original})
+        for candidate in (original.replace('contents: read', 'contents: write'),
+                          original + '\n# changed executable body\n',
+                          original.replace('controller/.gitleaks.toml', 'candidate/.gitleaks.toml'),
+                          original + '\nsecrets: inherit\n'):
+            with self.subTest(candidate=candidate[:40]):
+                api = API(); api.dependency()
+                api.changed = [{'filename': path, 'status': 'modified'}]
+                api.candidates[path] = candidate
+                self.assertEqual(admission.approve_run(api, api.posts.append, POLICY, 42, templates),
+                                 'unsafe-dependency-workflow')
+                self.assertFalse(api.posts)
+
+    def test_changed_scripts_config_and_new_workflows_are_not_dependency_updates(self):
+        paths = ['.gitleaks.toml', '.gitleaksignore', '.github/actions/setup-nix/evil.sh',
+                 'modules/ci/checks/_source/verdict.sh',
+                 'modules/ci/authority/_source/decisions/ci_admission.py',
+                 'modules/ci/authority/_source/ci-admission-policy.json',
+                 '.github/workflows/new-privileged.yml', '.github/dependabot.yml']
+        for path in paths:
+            api = API(); api.dependency(); api.changed = [{'filename': path, 'status': 'modified'}]
+            self.assertEqual(api.approve(), 'unsafe-dependency-workflow', path)
+            self.assertFalse(api.posts)
+
+    def test_existing_transitive_action_pin_updates_and_cargo_updates_still_admitted(self):
+        for path in [*TEMPLATES, *POLICY['dependencyFiles']]:
+            api = API(); api.dependency(); api.changed = [{'filename': path, 'status': 'modified'}]
+            if path in TEMPLATES:
+                api.candidates[path] = re.sub(r'@[0-9a-f]{40} # [^\n]+', '@' + 'c'*40 + ' # updated', TEMPLATES[path])
+            self.assertEqual(api.approve(), 'approved', path)
+        path = '.github/actions/setup-nix/action.yml'
+        api = API(); api.dependency(); api.changed = [{'filename': path, 'status': 'modified'}]
+        api.candidates[path] = TEMPLATES[path] + '\n# extra command boundary\n'
+        self.assertEqual(api.approve(), 'unsafe-dependency-workflow'); self.assertFalse(api.posts)
+
+    def test_comparison_caps_missing_base_renames_and_duplicates_fail_closed(self):
+        path = POLICY['dependencyFiles'][0]
+        for change in ({'files': None}, {'files': [{}] * 300}, {'base_commit': {'sha': 'c'*40}},
+                       {'files': [{'filename': path, 'status': 'renamed'}]},
+                       {'files': [{'filename': path, 'status': 'modified'}] * 2}):
+            api = API(); api.dependency(); api.compare_change = change
+            self.assertEqual(api.approve(), 'unsafe-dependency-workflow'); self.assertFalse(api.posts)
+        api = API(); api.dependency(); del api.pull['base']['sha']
+        self.assertEqual(api.approve(), 'unsafe-dependency-workflow'); self.assertFalse(api.posts)
 
     def test_dependency_head_and_run_races(self):
         for target in ('pull', 'run'):

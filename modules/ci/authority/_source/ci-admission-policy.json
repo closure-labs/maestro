@@ -14,5 +14,9 @@
   "dependabot": {
     "login": "dependabot[bot]",
     "id": 49699333
-  }
+  },
+  "dependencyFiles": [
+    "modules/features/operator/menu/_source/frontend/Cargo.toml",
+    "modules/features/operator/menu/_source/frontend/Cargo.lock"
+  ]
 }

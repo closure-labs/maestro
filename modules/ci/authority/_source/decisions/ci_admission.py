@@ -46,9 +46,37 @@ def safe_dependabot_workflow(api, policy, pull, run, templates):
                    or (source or {}).get('full_name') != repository['full_name']
                    for source in sources)):
         return False
-    response = api(f'repos/{policy["repository"]}/contents/{run["path"]}?ref={run["head_sha"]}')
+    if not same_workflow(api, policy, run['path'], run['head_sha'], templates):
+        return False
+    base = pull.get('base', {}).get('sha')
+    if not isinstance(base, str) or not re.fullmatch(r'[0-9a-f]{40}', base):
+        return False
+    # The comparison is immutable, unlike the moving PR-files endpoint. GitHub
+    # caps comparison file inventories at 300; reaching that cap fails closed.
+    comparison = api(f'repos/{policy["repository"]}/compare/{base}...{run["head_sha"]}?per_page=1')
+    files = comparison.get('files')
+    if (comparison.get('base_commit', {}).get('sha') != base
+            or not isinstance(files, list) or len(files) >= 300):
+        return False
+    names = set()
+    for item in files:
+        if not isinstance(item, dict) or item.get('status') != 'modified':
+            return False
+        path = item.get('filename')
+        if not isinstance(path, str) or path in names:
+            return False
+        names.add(path)
+        if path in policy['dependencyFiles']:
+            continue
+        if path not in templates or not same_workflow(api, policy, path, run['head_sha'], templates):
+            return False
+    return True
+
+
+def same_workflow(api, policy, path, head, templates):
+    response = api(f'repos/{policy["repository"]}/contents/{path}?ref={head}')
     if (response.get('type') != 'file' or response.get('encoding') != 'base64'
-            or response.get('path') != run['path'] or not isinstance(response.get('content'), str)
+            or response.get('path') != path or not isinstance(response.get('content'), str)
             or type(response.get('size')) is not int
             or not 0 < response['size'] <= 128 * 1024):
         return False
@@ -58,7 +86,18 @@ def safe_dependabot_workflow(api, policy, pull, run, templates):
     except (KeyError, ValueError, UnicodeError):
         return False
     return (len(raw) == response['size']
-            and workflow_shape(candidate) == workflow_shape(templates[run['path']]))
+            and workflow_shape(candidate) == workflow_shape(templates[path]))
+
+
+def load_templates(root):
+    root = Path(root)
+    paths = list((root / '.github/workflows').glob('*.yml'))
+    paths += list((root / '.github/workflows').glob('*.yaml'))
+    for pattern in ('action.yml', 'action.yaml'):
+        paths += list((root / '.github/actions').rglob(pattern))
+    if any(path.is_symlink() or not path.is_file() for path in paths):
+        raise AuthorityError('Invalid protected workflow template')
+    return {str(path.relative_to(root)): path.read_text() for path in paths}
 
 
 def run_binding(run):
@@ -166,14 +205,13 @@ def post_approval(endpoint):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--policy', required=True)
-    parser.add_argument('--workflow-root', required=True)
+    parser.add_argument('--source-root', required=True)
     args = parser.parse_args()
     policy = json.loads(Path(args.policy).read_text())
     if (policy.get('schema') != 1 or policy['repository'] != os.environ.get('GITHUB_REPOSITORY')
             or not re.fullmatch(r'closure-labs/(maestro|xo-nixpkg)', policy['repository'])):
         raise AuthorityError('CI admission policy repository mismatch')
-    templates = {path: (Path(args.workflow_root) / Path(path).name).read_text()
-                 for path in policy['workflows']}
+    templates = load_templates(args.source_root)
     event_run = os.environ.get('CI_ADMISSION_RUN_ID', '')
     run_ids = [int(event_run)] if event_run else pending_runs(github_api, policy)
     for run_id in run_ids:
