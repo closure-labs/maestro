@@ -108,19 +108,20 @@ class RangeTests(unittest.TestCase):
         binary.unlink()
         binary.symlink_to(scanner)
         # Pre-existing debt is outside the range even when still in the tree.
-        secret = 'gh' + 'p_' + ''.join(('7ByR9KxW3cTa', '8HsM2nVp6QdE', '4LfZ0uJ5iGoS'))
-        self.commit('old.txt', 'token = "' + secret + '"\n')
+        # Public synthetic scanner marker; never substitute a live credential.
+        synthetic_pat = 'gh' + 'p_' + ''.join(('7ByR9KxW3cTa', '8HsM2nVp6QdE', '4LfZ0uJ5iGoS'))
+        self.commit('old.txt', 'token = "' + synthetic_pat + '"\n')
         self.base = self.git('rev-parse', 'HEAD')
         self.commit('new.txt', 'ordinary content\n')
         self.head = self.git('rev-parse', 'HEAD')
         self.assertEqual(self.run_scan().returncode, 0)
-        self.commit('incoming.txt', 'token = "' + secret + '" # gitleaks:allow\n')
+        self.commit('incoming.txt', 'token = "' + synthetic_pat + '" # gitleaks:allow\n')
         self.git('rm', '-q', 'incoming.txt')
         self.git('commit', '-qm', 'remove incoming fixture')
         self.head = self.git('rev-parse', 'HEAD')
         result = self.run_scan()
         self.assertEqual(result.returncode, 2)
-        self.assertNotIn(secret, result.stdout + result.stderr)
+        self.assertNotIn(synthetic_pat, result.stdout + result.stderr)
 
     def test_shallow_checkout_fails(self):
         (self.repo / '.git/shallow').write_text(self.base + '\n')
