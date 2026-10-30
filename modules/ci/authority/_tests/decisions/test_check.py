@@ -29,8 +29,11 @@ class GitHub(fixtures.GitHub):
         self.queue_sha = MERGE
         self.queue_error = None
         self.queue_refs = []
+        self.jobs = {'total_count': 1, 'jobs': [{'name': 'collect', 'status': 'completed', 'conclusion': 'success'}]}
 
     def __call__(self, endpoint):
+        if '/jobs?' in endpoint:
+            return self.jobs
         if '/actions/runs/' in endpoint:
             return self.collector
         if endpoint.endswith('?state=open&base=main&per_page=100&page=1'):
@@ -70,7 +73,7 @@ class Checks(unittest.TestCase):
 
     def test_human_governance_author_allowed_but_human_proposal_author_rejected(self):
         api = GitHub()
-        api.pr['user'] = {'type': 'User', 'login': 'maintainer'}
+        api.pr['user'] = {'id': 2, 'type': 'User', 'login': 'other'}
         with self.assertRaises(mod.authority.AuthorityError):
             mod.check_pr(REPO, 7, BOT, github=api)
         api.files = [{'filename': 'modules/ci/security/policy.nix', 'status': 'modified'}]
@@ -203,6 +206,123 @@ class Checks(unittest.TestCase):
         self.assertEqual(calls[0][1]['conclusion'], 'failure')
         with self.assertRaises(mod.authority.AuthorityError):
             mod.run_checks(REPO, 1, BOT, 999, api, post)
+
+    def test_late_review_replaces_failure_with_fresh_success(self):
+        api = GitHub()
+        review = api.reviews[0]
+        api.reviews = []
+        calls = []
+        def post(endpoint, body):
+            calls.append(body)
+            return {'app': {'id': 123}}
+        mod.run_checks(REPO, 1, BOT, 123, api, post)
+        api.collector.update(event='pull_request_review', pull_requests=[])
+        api.reviews = [review]
+        mod.run_checks(REPO, 2, BOT, 123, api, post)
+        self.assertEqual([body['conclusion'] for body in calls], ['failure', 'success'])
+        self.assertEqual([body['head_sha'] for body in calls], [HEAD, HEAD])
+        self.assertEqual(self.packet_validator.call_count, 1)
+
+    def test_review_completion_reconciles_previously_unapproved_proposal(self):
+        import reconciliation
+        api = GitHub()
+        api.pr['node_id'] = 'PR_7'
+        review = api.reviews.pop()
+        cfg = {'repository': REPO, 'botLogin': BOT}
+        value = {'mergeStateStatus': 'CLEAN', 'autoMergeRequest': {'enabledAt': 'now'}}
+        workflow = (ROOT / '.github/workflows/decisions.yml').read_text()
+        self.assertIn('Continue Maestro release, Verify maintainer decision authority]', workflow)
+        with mock.patch.object(reconciliation.authority, 'github_api', api), \
+                mock.patch.object(reconciliation, 'required_check'), \
+                mock.patch.object(reconciliation, 'queue_state', return_value=('waiting', value)) as state, \
+                mock.patch.object(reconciliation, 'command') as command, \
+                mock.patch.object(mod, 'post_check') as post:
+            mod.run_checks(REPO, 1, BOT, 123, api)
+            self.assertEqual(post.call_args.args[2], 'failure')
+            self.assertEqual(reconciliation.queue_proposal(cfg, 7), 'awaiting-review')
+            command.assert_not_called()
+            api.collector.update(event='pull_request_review', pull_requests=[])
+            api.reviews.append(review)
+            mod.run_checks(REPO, 2, BOT, 123, api)
+            self.assertEqual(post.call_args.args[2], 'success')
+            state.side_effect = [('waiting', value), ('waiting', value), ('queued', value)]
+            command.return_value = '{"data":{"enqueuePullRequest":{"mergeQueueEntry":{"id":"Q7"}}}}'
+            self.assertEqual(reconciliation.queue_proposal(cfg, 7), 'queued')
+            self.assertIn('head=' + HEAD, command.call_args.args[0])
+
+    def test_comment_wakeup_rechecks_live_reviews_without_granting_authority(self):
+        for event in ('issue_comment', 'pull_request_review_comment'):
+            api = GitHub()
+            api.collector.update(event=event, pull_requests=[])
+            api.reviews = []
+            with self.subTest(event=event), mock.patch.object(mod, 'post_check') as post:
+                result = mod.run_checks(REPO, 1, BOT, 123, api)
+                self.assertEqual(result['checks'][0]['status'], 'review-required')
+                self.assertEqual(post.call_args.args[2], 'failure')
+
+    def test_ordinary_issue_comment_does_not_post_authority(self):
+        api = GitHub()
+        api.collector['event'] = 'issue_comment'
+        api.jobs['jobs'][0]['conclusion'] = 'skipped'
+        with mock.patch.object(mod, 'post_check') as post:
+            result = mod.run_checks(REPO, 1, BOT, 123, api)
+        self.assertEqual(result['checks'], [])
+        self.assertFalse(any('/pulls/' in endpoint for endpoint in api.calls))
+        post.assert_not_called()
+
+    def test_late_wakeup_rejects_stale_dismissed_ineligible_and_self_reviews(self):
+        for case in ('stale', 'dismissed', 'changes-requested', 'role', 'team', 'self'):
+            api = GitHub()
+            api.collector.update(event='pull_request_review', pull_requests=[])
+            if case == 'stale':
+                api.reviews[0]['commit_id'] = 'd' * 40
+            elif case == 'dismissed':
+                api.reviews[0]['state'] = 'DISMISSED'
+            elif case == 'changes-requested':
+                api.reviews.append({**api.reviews[0], 'id': 11, 'state': 'CHANGES_REQUESTED'})
+            elif case == 'role':
+                api.roles['maintainer'] = 'write'
+            elif case == 'team':
+                api.members = []
+            else:
+                api.pr['user'] = dict(api.reviews[0]['user'])
+            with self.subTest(case=case), mock.patch.object(mod, 'post_check') as post:
+                result = mod.run_checks(REPO, 1, BOT, 123, api)
+                self.assertEqual(result['checks'][0]['status'], 'review-required')
+                self.assertEqual(post.call_args.args[2], 'failure')
+
+    def test_head_races_never_publish_success_on_previously_selected_sha(self):
+        # collector lookup, publisher selection, verifier entry, two author
+        # reads, verifier final read, publisher final read.
+        for change_at in (3, 6, 7):
+            api = GitHub()
+            api.files = [{'filename': 'modules/ci/security/policy.nix', 'status': 'modified'}]
+            reads = 0
+            def changing(endpoint):
+                nonlocal reads
+                if endpoint == f'repos/{REPO}/pulls/7':
+                    reads += 1
+                    if reads == change_at:
+                        api.pr['head']['sha'] = 'd' * 40
+                        api.reviews[0]['commit_id'] = 'd' * 40
+                return api(endpoint)
+            with self.subTest(change_at=change_at), mock.patch.object(mod, 'post_check') as post:
+                result = mod.run_checks(REPO, 1, BOT, 123, changing)
+                self.assertEqual(result['checks'][0]['status'], 'review-required')
+                self.assertEqual(post.call_args.args[1:3], (HEAD, 'failure'))
+
+    def test_review_or_role_withdrawn_during_packet_validation_blocks_success(self):
+        for case in ('dismissed', 'role'):
+            api = GitHub()
+            def withdraw(proposal):
+                if case == 'dismissed':
+                    api.reviews[0]['state'] = 'DISMISSED'
+                else:
+                    api.roles['maintainer'] = 'write'
+            self.packet_validator.side_effect = withdraw
+            with self.subTest(case=case), mock.patch.object(mod, 'post_check') as post:
+                mod.run_checks(REPO, 1, BOT, 123, api)
+                self.assertEqual(post.call_args.args[2], 'failure')
 
     def test_security_authority_boundary_paths(self):
         for path in ('modules/ci/inventory/future-helper.py', 'modules/features/xo/storage.nix',

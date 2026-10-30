@@ -65,7 +65,7 @@ def validate_proposal_packet(proposal):
     return validate(proposal)
 
 
-def check_pr(repository, number, expected_bot, target_sha=None, github=None):
+def check_pr(repository, number, expected_bot, target_sha=None, github=None, *, expected_head=None):
     api = github or authority.github_api
     endpoint = f'repos/{repository}/pulls/{number}'
     pull = api(endpoint)
@@ -75,6 +75,8 @@ def check_pr(repository, number, expected_bot, target_sha=None, github=None):
             or not authority.SHA.fullmatch(pull.get('head', {}).get('sha', ''))):
         raise authority.AuthorityError('PR is not an open main-targeting repository PR')
     head = pull['head']['sha']
+    if expected_head is not None and head != expected_head:
+        raise authority.AuthorityError('PR head changed before authority evaluation')
     target_sha = target_sha or head
     files = authority.collection(api, endpoint + '/files')
     if len(files) != pull.get('changed_files') or not files:
@@ -109,6 +111,10 @@ def check_pr(repository, number, expected_bot, target_sha=None, github=None):
         for path in proposals:
             if canonical_hash(authority.document_at(api, repository, path, target_sha)) != canonical_hash(authority.document_at(api, repository, path, head)):
                 raise authority.AuthorityError('Merge-group proposal differs from exact approved PR head')
+    if sensitive:
+        # Packet/tree verification can take time. Never retain an earlier live
+        # review or role decision across that work.
+        authority.approval(api, repository, number, head)
     latest = api(endpoint)
     if latest.get('head', {}).get('sha') != head or latest.get('state') != 'open':
         raise authority.AuthorityError('PR changed while authority was being evaluated')
@@ -154,12 +160,12 @@ def retired_queue_ref(run, repository, number, api):
     return 'queue-ref-replaced'
 
 
-def collector_targets(run, repository, github=None):
+def collector_targets(run, repository, github=None, *, collector_run_id=None):
     api = github or authority.github_api
     if (not isinstance(run, dict) or run.get('path') != COLLECTOR
             or run.get('repository', {}).get('full_name') != repository
             or run.get('status') != 'completed' or run.get('conclusion') != 'success'
-            or run.get('event') not in ('pull_request', 'pull_request_review', 'merge_group')
+            or run.get('event') not in ('pull_request', 'pull_request_review', 'pull_request_review_comment', 'issue_comment', 'merge_group')
             or not authority.SHA.fullmatch(run.get('head_sha', ''))):
         raise authority.AuthorityError('Untrusted or incomplete decision-event collector run')
     if run['event'] == 'merge_group':
@@ -178,11 +184,27 @@ def collector_targets(run, repository, github=None):
         if branch.get('object', {}).get('sha') != run['head_sha']:
             raise authority.AuthorityError('Collector merge-group SHA is no longer the exact queue ref')
         return [(int(match[1]), run['head_sha'])]
+    if run['event'] == 'issue_comment':
+        # An all-skipped workflow can finish successfully. Ordinary issue
+        # comments must not fan out into health reporting and retrigger it.
+        if type(collector_run_id) is not int or collector_run_id < 1:
+            raise authority.AuthorityError('Comment collector run identity required')
+        jobs = api(f'repos/{repository}/actions/runs/{collector_run_id}/jobs?per_page=100')
+        if (not isinstance(jobs, dict) or jobs.get('total_count') != 1
+                or not isinstance(jobs.get('jobs'), list) or len(jobs['jobs']) != 1
+                or jobs['jobs'][0].get('name') != 'collect'
+                or jobs['jobs'][0].get('status') != 'completed'):
+            raise authority.AuthorityError('Invalid comment collector job identity')
+        if jobs['jobs'][0].get('conclusion') == 'skipped':
+            return []
+        if jobs['jobs'][0].get('conclusion') != 'success':
+            raise authority.AuthorityError('Comment collector did not succeed')
     pulls = run.get('pull_requests', [])
     if not isinstance(pulls, list):
         raise authority.AuthorityError('Invalid collector PR metadata')
     if not pulls:
-        # GitHub omits PR associations for some review-triggered workflow runs.
+        # GitHub omits PR associations for review/comment workflow runs.
+        # A comment is only a wakeup: resolve bounded live PRs, never its text.
         pulls = authority.collection(api, f'repos/{repository}/pulls?state=open&base=main')
     targets = []
     for pull in pulls:
@@ -201,7 +223,7 @@ def run_checks(repository, run_id, expected_bot, app_id, github=None, api_post=N
     api = github or authority.github_api
     run = api(f'repos/{repository}/actions/runs/{run_id}')
     try:
-        targets = collector_targets(run, repository, api)
+        targets = collector_targets(run, repository, api, collector_run_id=run_id)
     except ObsoleteQueueCollector as error:
         return {'schema': 1, 'collectorRun': run_id, 'status': 'obsolete',
                 'reason': str(error), 'checks': []}
@@ -210,7 +232,12 @@ def run_checks(repository, run_id, expected_bot, app_id, github=None, api_post=N
         pull = api(f'repos/{repository}/pulls/{number}')
         sha = target or pull.get('head', {}).get('sha', '')
         try:
-            result = check_pr(repository, number, expected_bot, target, api)
+            result = check_pr(repository, number, expected_bot, target, api,
+                              expected_head=pull.get('head', {}).get('sha', ''))
+            sha = result['target']
+            latest = api(f'repos/{repository}/pulls/{number}')
+            if latest.get('head', {}).get('sha') != result['head'] or latest.get('state') != 'open':
+                raise authority.AuthorityError('PR changed before authority check publication')
             summary = ('Eligible human approval verified for governed changes.' if result['status'] == 'authorized'
                        else 'This PR does not change governed security or delivery controls.')
             conclusion = 'success'

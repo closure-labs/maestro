@@ -454,6 +454,9 @@ def eligible(api, repository, user, members=None):
 
 
 def approval(api, repository, number, head, members=None):
+    author = api(f'repos/{repository}/pulls/{number}').get('user')
+    if not isinstance(author, dict) or not isinstance(author.get('login'), str):
+        raise AuthorityError('Cannot authenticate PR author for independent human approval')
     shared_members = members is not None
     members = approver_members(api) if members is None else members
     reviews = collection(api, f'repos/{repository}/pulls/{number}/reviews')
@@ -476,6 +479,9 @@ def approval(api, repository, number, head, members=None):
             latest[user_id] = review
     accepted = []
     for review in latest.values():
+        if (review['user']['login'].lower() == author['login'].lower()
+                or (type(author.get('id')) is int and review['user']['id'] == author['id'])):
+            continue
         if not eligible(api, repository, review['user'], members):
             continue
         if review['state'] == 'CHANGES_REQUESTED':

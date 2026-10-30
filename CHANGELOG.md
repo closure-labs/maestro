@@ -9,6 +9,13 @@ correspond to published GitHub tags.
 
 ## [Unreleased]
 
+### Fixed
+
+- Wake decision reconciliation after review authority checks, and recheck on PR
+  comments. Bind check results to the verified current head and require an
+  independent human Super Admin approval. Evidence freshness remains mandatory
+  for admission and publication.
+
 ## [3.2.0] - 2026-10-27
 
 ### Added
