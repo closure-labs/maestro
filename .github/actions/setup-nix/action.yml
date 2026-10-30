@@ -5,6 +5,10 @@ description: Install Determinate Nix with a CI-only public substituter baseline
 runs:
   using: composite
   steps:
+    - name: Reserve disk for complete Nix validation
+      shell: bash
+      run: python3 "$GITHUB_ACTION_PATH/disk.py"
+
     - name: Install Determinate Nix
       uses: DeterminateSystems/determinate-nix-action@61cbfe2efc2d4e7a8a6d56967c3c1058e846c858 # v3.21.9
       with:

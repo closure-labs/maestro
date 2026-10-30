@@ -5,6 +5,14 @@ ranges. The existing required CI verdict rejects absent, skipped, failed or
 cancelled incoming scans, independently of graph routing or evidence reuse.
 The `source-security` audit obligation now runs policy and workflow fixtures;
 it no longer scans the entire checkout or post-filters findings in Python.
+Hosted Nix setup requires 20 GiB of free workspace disk before starting. On a
+GitHub-hosted Linux runner only, it may reclaim the fixed unused Android and
+.NET SDK directories on that same filesystem, stopping once the reserve is met.
+It never deletes workspace data, Nix store paths, caches, artifacts or evidence;
+insufficient space still fails closed. This handles runner-image disk variance
+without reducing any audit obligation or trusting a retry to land on another
+image. Initial and resulting available bytes are logged.
+
 See [the scanner contract](gitleaks-workflow.md) for scope and historical debt.
 
 Maestro and xo-nixpkg release independently. CI produces qualified candidates;

@@ -59,6 +59,7 @@
             ${lib.optionalString (lib.versionOlder pkgs.zizmor.version "1.29.0") "zizmor .github"}
           )
           cd source
+          python3 modules/ci/checks/_tests/runner-disk.py
           ${lib.optionalString (lib.versionAtLeast pkgs.zizmor.version "1.29.0") "zizmor .github"}
           while IFS= read -r action; do
             case "$action" in
