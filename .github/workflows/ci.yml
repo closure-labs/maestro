@@ -48,6 +48,12 @@ permissions:
   contents: read
 
 jobs:
+  incoming_secret_scan:
+    if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+    permissions:
+      contents: read
+    uses: $/.github/workflows/repository-secret-scan.yml
+
   route:
     name: Plan CI
     runs-on: ubuntu-24.04
@@ -994,6 +1000,7 @@ jobs:
     name: Required CI verdict
     if: ${{ !cancelled() }}
     needs:
+      - incoming_secret_scan
       - route
       - audit
       - equivalence
@@ -1030,6 +1037,7 @@ jobs:
 
       - name: Enforce the conditional CI graph
         env:
+          INCOMING_SECRET_RESULT: ${{ needs.incoming_secret_scan.result }}
           AUDIT_REQUIRED: true
           COMPARISON_REQUIRED: true
           COMPARISON_RESULT: ${{ needs.comparison.result }}
