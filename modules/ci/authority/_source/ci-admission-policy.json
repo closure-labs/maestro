@@ -10,5 +10,9 @@
     ".github/workflows/ci.yml",
     ".github/workflows/codeql.yml",
     ".github/workflows/decision-events.yml"
-  ]
+  ],
+  "dependabot": {
+    "login": "dependabot[bot]",
+    "id": 49699333
+  }
 }

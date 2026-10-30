@@ -491,6 +491,33 @@ requests a merge. Draft-to-ready transitions do not require a review to run CI.
 Workflow events handle pending runs; a fifteen-minute scheduled reconciliation
 also covers missed events and runs whose approval state appeared later.
 
+Dependabot PRs for both configured ecosystems (Cargo and GitHub Actions) also
+receive automatic execution admission. The protected controller pins the GitHub
+`dependabot[bot]` account ID `49699333` and requires the live PR head repository
+ID and name to match Maestro. Initiating and rerun actors must be that bot or
+already eligible under the existing identity policy. Branch names and draft
+state confer no authority; new PRs retain their normal ready state.
+
+Before approving a Dependabot run, the controller fetches its allowlisted
+workflow at the immutable current PR head through the contents API. Its bytes
+must match the workflow packaged from protected main, allowing only full SHA
+pin and trailing version-comment changes on existing external action `uses`
+lines. Changes to action coordinates, commands, triggers, guards, permissions,
+local action references or secret expressions fail closed. Existing PRs with
+older workflow structure must incorporate the protected workflow changes before
+this narrow automatic admission applies. Candidate files are never executed by
+the admission controller.
+
+PR validation jobs have read-only token permissions. Retained-evidence App-token
+minting excludes PR events, native verification has no OIDC or write grant,
+and attestation runs in the existing protected-main signing job. CodeQL analysis
+retains SARIF as an artifact with uploading disabled; a separate job publishes
+results only for protected-main push, schedule or dispatch events. Merge-group
+validation also cannot upload CodeQL results or obtain verification OIDC. The
+existing protected queue reader remains separate from PR execution admission.
+These checks provide execution evidence only; exact-head human review and the
+existing merge authority remain required.
+
 Other contributors retain GitHub's existing external-contributor workflow
 approval requirement. Missing identity visibility, revoked membership or
 permissions, moved heads, changed run attempts and transport failures fail

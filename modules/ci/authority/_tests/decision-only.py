@@ -318,7 +318,8 @@ class Evaluation(unittest.TestCase):
         mint = next(step for step in job['steps'] if step.get('id') == 'authority')
         condition = mint['if']
         self.assertIn("hashFiles('controller/.github/workflows/ci.yml') == hashFiles('candidate/.github/workflows/ci.yml')", condition)
-        self.assertIn('github.event.pull_request.head.repo.full_name == github.repository', condition)
+        self.assertNotIn('pull_request', condition)
+        self.assertIn("github.event_name == 'push'", condition)
         self.assertIn("github.event_name == 'merge_group'", condition)
         self.assertTrue(all(value == 'read' for key, value in mint['with'].items() if key.startswith('permission-')))
         self.assertTrue(all(value == 'read' for value in job['permissions'].values()))

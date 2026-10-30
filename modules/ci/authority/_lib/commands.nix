@@ -20,7 +20,7 @@ in {
     runtimeInputs = [pkgs.python3 boundedGh];
     text = ''
       export PYTHONPATH=${../_source/decisions}
-      exec python3 ${../_source/decisions/ci_admission.py} --policy ${../_source/ci-admission-policy.json}
+      exec python3 ${../_source/decisions/ci_admission.py} --policy ${../_source/ci-admission-policy.json} --workflow-root ${../../../../.github/workflows}
     '';
   };
   decision-only = mkCommand {

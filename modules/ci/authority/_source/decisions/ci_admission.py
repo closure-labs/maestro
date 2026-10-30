@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Approve CI execution for live trusted identities; never approve PR reviews."""
 import argparse
+import base64
 import json
 import os
 from pathlib import Path
@@ -19,6 +20,45 @@ def trusted(api, policy, user):
         return (user.get('login') == bot['login'] and type(user.get('id')) is int
                 and user['id'] == bot['id'])
     return eligible(api, policy['repository'], user)
+
+
+def dependabot(policy, user):
+    bot = policy['dependabot']
+    return (isinstance(user, dict) and user.get('type') == 'Bot'
+            and user.get('login') == bot['login'] and type(user.get('id')) is int
+            and user['id'] == bot['id'])
+
+
+def workflow_shape(text):
+    # Permit only SHA updates on existing external action coordinates. Everything
+    # else (triggers, guards, permissions, secrets, commands, local actions) must
+    # match the protected controller's workflow byte for byte. Never parse or
+    # execute candidate YAML. Anchor each replacement to a complete uses line.
+    return re.sub(r'(?m)^( +(?:- )?uses: [A-Za-z0-9_.-]+/[A-Za-z0-9_./-]+@)'
+                  r'[0-9a-f]{40}(?: +#[^\r\n]*)?$', r'\1<PIN>', text)
+
+
+def safe_dependabot_workflow(api, policy, pull, run, templates):
+    repository = {'id': policy['repositoryId'], 'full_name': policy['repository']}
+    sources = (pull['head'].get('repo'), run.get('head_repository'))
+    if (templates is None or run['path'] not in templates
+            or any((source or {}).get('id') != repository['id']
+                   or (source or {}).get('full_name') != repository['full_name']
+                   for source in sources)):
+        return False
+    response = api(f'repos/{policy["repository"]}/contents/{run["path"]}?ref={run["head_sha"]}')
+    if (response.get('type') != 'file' or response.get('encoding') != 'base64'
+            or response.get('path') != run['path'] or not isinstance(response.get('content'), str)
+            or type(response.get('size')) is not int
+            or not 0 < response['size'] <= 128 * 1024):
+        return False
+    try:
+        raw = base64.b64decode(''.join(response['content'].split()), validate=True)
+        candidate = raw.decode('utf-8')
+    except (KeyError, ValueError, UnicodeError):
+        return False
+    return (len(raw) == response['size']
+            and workflow_shape(candidate) == workflow_shape(templates[run['path']]))
 
 
 def run_binding(run):
@@ -53,7 +93,7 @@ def matches(pull, run, policy):
             and (head.get('repo') or {}).get('id') == (run.get('head_repository') or {}).get('id'))
 
 
-def approve_run(api, post, policy, run_id):
+def approve_run(api, post, policy, run_id, templates=None):
     """Read twice around identity checks; no stale successful authorization reuse."""
     if type(run_id) is not int or run_id < 1:
         raise AuthorityError('Invalid CI run ID')
@@ -79,9 +119,16 @@ def approve_run(api, post, policy, run_id):
         # A trusted PR author is not a blanket grant to an unrelated pusher or
         # rerun actor. Draft state is deliberately irrelevant to CI admission.
         users = [pull.get('user'), run.get('actor'), run.get('triggering_actor')]
-        if not all(trusted(api, policy, user) for user in users):
+        dependency_pr = dependabot(policy, pull.get('user'))
+
+        def allowed(user):
+            return trusted(api, policy, user) or (dependency_pr and dependabot(policy, user))
+
+        if not all(allowed(user) for user in users):
             continue
-        if not all(trusted(api, policy, user) for user in users):
+        if dependency_pr and not safe_dependabot_workflow(api, policy, pull, run, templates):
+            return 'unsafe-dependency-workflow'
+        if not all(allowed(user) for user in users):
             return 'identity-revoked'
         current_pull = api(pull_endpoint)
         current_run = api(endpoint)
@@ -119,16 +166,19 @@ def post_approval(endpoint):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--policy', required=True)
+    parser.add_argument('--workflow-root', required=True)
     args = parser.parse_args()
     policy = json.loads(Path(args.policy).read_text())
     if (policy.get('schema') != 1 or policy['repository'] != os.environ.get('GITHUB_REPOSITORY')
             or not re.fullmatch(r'closure-labs/(maestro|xo-nixpkg)', policy['repository'])):
         raise AuthorityError('CI admission policy repository mismatch')
+    templates = {path: (Path(args.workflow_root) / Path(path).name).read_text()
+                 for path in policy['workflows']}
     event_run = os.environ.get('CI_ADMISSION_RUN_ID', '')
     run_ids = [int(event_run)] if event_run else pending_runs(github_api, policy)
     for run_id in run_ids:
         print(json.dumps({'runId': run_id, 'result': approve_run(
-            github_api, post_approval, policy, run_id)}, sort_keys=True))
+            github_api, post_approval, policy, run_id, templates)}, sort_keys=True))
 
 
 if __name__ == '__main__':

@@ -9,6 +9,13 @@ correspond to published GitHub tags.
 
 ## [Unreleased]
 
+### Changed
+
+- Automatically admit unprivileged Cargo and GitHub Actions Dependabot CI after
+  verifying bot identity, current repository/head and protected workflow shape.
+  Preserve normal PR readiness and exact-head human merge approval. Keep PR
+  validation separate from App-token minting, OIDC, signing and CodeQL publication.
+
 ### Fixed
 
 - Wake decision reconciliation after review authority checks, and recheck on PR
