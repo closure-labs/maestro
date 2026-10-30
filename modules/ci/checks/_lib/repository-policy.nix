@@ -89,7 +89,8 @@
           == "decision-events.yml"
           && read ".github/workflows/${workflow}" == read "modules/ci/checks/_lib/signal-relay.yml")
         # Explicit conventional upstream CLI exception: no candidate code runs.
-        || (workflow == "repository-secret-scan.yml"
+        || (workflow
+          == "repository-secret-scan.yml"
           && builtins.hashString "sha256" (read ".github/workflows/${workflow}")
           == "0946f9882ae8242581c482895f9ff7b0b6c04f7a342ef9ed1a913231d0544b1f")
         || builtins.all
