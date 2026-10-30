@@ -2,7 +2,7 @@
 name: Reconcile maintainer decisions
 on:
   workflow_run: # zizmor: ignore[dangerous-triggers] Trusted main validates completed native producers independently.
-    workflows: [CI, Security maintenance, Release Maestro, Continue Maestro release]
+    workflows: [CI, Security maintenance, Release Maestro, Continue Maestro release, Verify maintainer decision authority]
     types: [completed]
   push:
     branches: [main]
@@ -31,7 +31,8 @@ concurrency:
   cancel-in-progress: false
 jobs:
   health:
-    if: github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.repository.full_name == github.repository && contains(fromJSON('["push","schedule","workflow_dispatch","workflow_run"]'), github.event.workflow_run.event)))
+    # Review wakeups need proposal reconciliation; health issue writes would emit comment events.
+    if: (github.event_name != 'workflow_run' || github.event.workflow_run.name != 'Verify maintainer decision authority') && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.repository.full_name == github.repository && contains(fromJSON('["push","schedule","workflow_dispatch","workflow_run"]'), github.event.workflow_run.event)))
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:

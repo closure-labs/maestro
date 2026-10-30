@@ -10,11 +10,16 @@ on:
     types: [opened, synchronize, reopened, ready_for_review, edited]
   pull_request_review:
     types: [submitted, edited, dismissed]
+  pull_request_review_comment:
+    types: [created, edited, deleted]
+  issue_comment: # zizmor: ignore[dangerous-triggers] Metadata-only PR wakeup; no checkout, credentials, or comment text execution.
+    types: [created, edited, deleted]
   merge_group:
     types: [checks_requested]
 permissions: {}
 jobs:
   collect:
+    if: github.event_name != 'issue_comment' || github.event.issue.pull_request != null
     runs-on: ubuntu-slim
     timeout-minutes: 5
     steps:

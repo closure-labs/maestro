@@ -8,6 +8,25 @@ sys.path.insert(0,str(CORE))
 import signal_relay as relay
 
 class Relay(unittest.TestCase):
+    def test_workflow_and_audit_templates_match_notification_only_relay(self):
+        root = CORE.parents[4]
+        for path in ('.github/workflows/decision-events.yml', 'modules/ci/checks/_lib/signal-relay.yml'):
+            relay.validate((root / path).read_text())
+        for event in ('pull_request_review:', 'pull_request_review_comment:', 'issue_comment:'):
+            self.assertIn(event, relay.RELAY)
+        workflow = (root / '.github/workflows/decisions.yml').read_text()
+        self.assertIn('Continue Maestro release, Verify maintainer decision authority]', workflow)
+        self.assertIn('ref: main', workflow)
+        self.assertIn("github.event.workflow_run.name != 'Verify maintainer decision authority'", workflow)
+        self.assertIn("github.event.issue.pull_request != null", relay.RELAY)
+        self.assertIn("github.event.workflow_run.head_branch == 'main'", workflow)
+
+    def test_comment_trigger_exception_is_specific_and_documents_the_boundary(self):
+        annotations = [line for line in relay.RELAY.splitlines() if 'zizmor:' in line]
+        self.assertEqual(annotations, ["  issue_comment: # zizmor: ignore[dangerous-triggers] Metadata-only PR wakeup; no checkout, credentials, or comment text execution."])
+        with self.assertRaises(ValueError):
+            relay.validate(relay.RELAY.replace('ignore[dangerous-triggers]', 'ignore'))
+
     def test_exception_rejects_checkout_secrets_data_writes_and_nix(self):
         for unsafe in ('uses: actions/checkout@evil','env: { TOKEN: "${{ secrets.TOKEN }}" }',
                        'run: nix run .#controller','uses: actions/download-artifact@evil',

@@ -69,7 +69,14 @@ current human member of `closure-labs/super-admins` with maintain/admin access c
 approve the exact proposal head. The App-bound `Maintainer decision authority`
 check verifies reviews, current membership/permission, changed paths, immutable
 packets, and queued content. Governed implementation and policy changes require
-the same review boundary. The read-only security-audit App stays separate.
+the same review boundary. Review submissions, edits, dismissals and PR comments wake
+fresh authority checks; comments grant no approval. Successful authority workflow
+completion also wakes decision reconciliation, so a late approval can progress
+without manually rerunning the earlier collection. Missing PR associations use
+bounded live PR discovery. Historical scan packets remain reviewable after expiry;
+admission and publication still require fresh evidence. Checks bind the verified
+PR head and fail if it moves during evaluation.
+The read-only security-audit App stays separate.
 
 Initial approval is required even for an empty finding set. New findings at every
 severity, increased severity/CVSS, known exploitation, expanded exposure, or
