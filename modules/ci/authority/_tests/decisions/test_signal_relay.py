@@ -21,6 +21,12 @@ class Relay(unittest.TestCase):
         self.assertIn("github.event.issue.pull_request != null", relay.RELAY)
         self.assertIn("github.event.workflow_run.head_branch == 'main'", workflow)
 
+    def test_comment_trigger_exception_is_specific_and_documents_the_boundary(self):
+        annotations = [line for line in relay.RELAY.splitlines() if 'zizmor:' in line]
+        self.assertEqual(annotations, ["  issue_comment: # zizmor: ignore[dangerous-triggers] Metadata-only PR wakeup; no checkout, credentials, or comment text execution."])
+        with self.assertRaises(ValueError):
+            relay.validate(relay.RELAY.replace('ignore[dangerous-triggers]', 'ignore'))
+
     def test_exception_rejects_checkout_secrets_data_writes_and_nix(self):
         for unsafe in ('uses: actions/checkout@evil','env: { TOKEN: "${{ secrets.TOKEN }}" }',
                        'run: nix run .#controller','uses: actions/download-artifact@evil',

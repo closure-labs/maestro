@@ -12,7 +12,7 @@ on:
     types: [submitted, edited, dismissed]
   pull_request_review_comment:
     types: [created, edited, deleted]
-  issue_comment:
+  issue_comment: # zizmor: ignore[dangerous-triggers] Metadata-only PR wakeup; no checkout, credentials, or comment text execution.
     types: [created, edited, deleted]
   merge_group:
     types: [checks_requested]
