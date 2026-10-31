@@ -39,6 +39,9 @@ if [[ $preflight_enabled == true ]]; then
   preflight_digest=$(python3 "$preflight_source" freeze --directory "$preflight_directory" \
     --product "$DECISION_PRODUCT" --scans "$DECISION_SCANS" \
     --policy "${MAESTRO_SYSTEM_ROOT:-$PWD}/modules/ci/authority/_source/decision-policy.json")
+  # Freeze binds bytes; this cheap negative check rejects known expiry before
+  # public probes. The full live publication gate still runs afterward.
+  python3 "$preflight_source" fresh --directory "$preflight_directory" --snapshot-digest "$preflight_digest"
   inspection_product=$preflight_directory/product.json
   # Every subsequent native boundary authenticates these same frozen bytes;
   # concurrent edits to the caller's original files cannot change the product

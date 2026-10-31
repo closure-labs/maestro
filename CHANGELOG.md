@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Reject locally expired, future or malformed native health before public cache
+  inspection. Keep final signed provenance and live publication authority fresh;
+  passing the early negative filter grants no authorization.
+
 - Automatically admit unprivileged Cargo and GitHub Actions Dependabot CI after
   verifying bot identity, current repository/head and protected workflow shape.
   Preserve normal PR readiness and exact-head human merge approval. Keep PR
