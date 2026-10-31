@@ -89,6 +89,7 @@ in {
   decision-download = mkCommand {
     name = "decision-download";
     prefix = ''
+      export MAESTRO_DISTRIBUTION_CACHE_SOURCE=${../../graph/_source/distribution-cache.py}
       export MAESTRO_OPERATIONS_SOURCE=${../_source/decisions/operations.py}
       MAESTRO_DECISION_CORE=${../_source/decisions}
       MAESTRO_DECISION_RETAINED_SOURCE=${../_source/decision-retained.py}
