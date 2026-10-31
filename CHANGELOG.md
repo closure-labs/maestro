@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Suppress redundant decision reconciliation after an authenticated exact release
+  continuation attempt skips finalization; preserve real product wakeups and all
+  independent evidence and human authority checks.
+
 - Declare signed, bounded Cachix scope for the compiled TUI, app/operator
   wrappers and patched inventory tool. Preserve complete distribution evidence
   and retained transport; verify only scoped closures as public-cache delivery.
