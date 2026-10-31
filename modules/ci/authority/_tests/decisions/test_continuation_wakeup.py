@@ -175,6 +175,14 @@ class Workflow(unittest.TestCase):
             self.assertFalse(self.condition(job, 'workflow_run', 'success', ''))
             self.assertTrue(self.condition(job, 'workflow_run', 'success', 'true'))
 
+    def test_explicit_recovery_dispatch_still_reaches_guarded_reconciliation(self):
+        text = (Path(__file__).resolve().parents[5] / '.github/workflows/decisions.yml').read_text()
+        self.assertTrue(self.condition('reconcile', 'workflow_dispatch'))
+        self.assertIn('      security_recovery:', text)
+        self.assertIn("CANDIDATE_REQUIRED: ${{ inputs.security_recovery != '' && 'true' || 'false' }}", text)
+        self.assertIn("SECURITY_RECOVERY_REQUEST: ${{ inputs.security_recovery || '' }}", text)
+        self.assertIn("if: inputs.security_recovery == '' && (steps.candidate.outputs.release == 'true' || inputs.kind == 'release-product')", text)
+
     def test_only_continuations_are_gated_and_both_consumers_wait(self):
         root = Path(__file__).resolve().parents[5]
         text = (root / '.github/workflows/decisions.yml').read_text()

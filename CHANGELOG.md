@@ -15,6 +15,11 @@ correspond to published GitHub tags.
   continuation attempt skips finalization; preserve real product wakeups and all
   independent evidence and human authority checks.
 
+- Add opt-in guarded recovery drafts for equal concurrent security decisions,
+  binding the complete active parent set and exact protected graph/policy
+  snapshot to fresh complete evidence and rationale. Preserve history, current
+  human authority, ordinary ambiguity rejection and explicit queue transport.
+
 - Declare signed, bounded Cachix scope for the compiled TUI, app/operator
   wrappers and patched inventory tool. Preserve complete distribution evidence
   and retained transport; verify only scoped closures as public-cache delivery.
@@ -45,6 +50,10 @@ correspond to published GitHub tags.
   and the current inventory binding; signing still downloads its byte subjects.
 
 ### Fixed
+
+- Reject ambiguous security decision graphs before authenticating superseded
+  history. Keep historical provenance, current approval and final ledger refresh
+  mandatory for otherwise valid graphs; conflicting decisions need reconciliation.
 
 - Bound GitHub authority GET retries by a shared monotonic deadline and validated
   server retry delays. Reuse a validated immutable workflow within one admission
