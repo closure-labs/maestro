@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Reject locally expired, future or malformed native health before public cache
+  inspection. Keep final signed provenance and live publication authority fresh;
+  passing the early negative filter grants no authorization.
+
 - Separate protected-main qualification evidence from its distribution closure
   artifact, reducing metadata-only downloads while retaining exact producer,
   archive, part, product and NAR validation for consumers that restore bytes.

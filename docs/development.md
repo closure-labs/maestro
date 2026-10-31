@@ -266,6 +266,16 @@ fail closed. Historical reports containing their own parts remain readable.
 Release qualification uses the exact requested CI run, never discovery fallback.
 Weekly and release-product reports retain their existing bundled format.
 
+Publication controllers run `ci:decision:health-preflight` before public cache
+inspection. It reads bounded regular local product, scans and policy documents,
+rejecting malformed identity/profile coverage and invalid or expired native
+observation/database clocks without network requests. A passing result means
+only that local health metadata did not reject the candidate; it authenticates
+neither signatures nor current human authority and is never an admission token.
+Fresh-looking tampering, revoked approval and changes after this preflight must
+still pass the existing final provenance, health and live authority gates.
+The read-only publisher also checks frozen observation freshness before probing.
+
 Release inventories use `maestro-evidence` from the assembled inventory's
 `artifact_run_id`. Weekly scanning uses
 `maestro-ci-download-installer DIRECTORY evidence`. This preserves the same
