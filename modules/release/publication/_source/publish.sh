@@ -11,15 +11,21 @@ case $PUBLICATION_PURPOSE in rolling|release) ;; *)
   echo 'Unsupported publication purpose.' >&2; exit 2 ;;
 esac
 export PUBLICATION_PURPOSE
+# A scoped cache claim is mandatory for new uploads. Historical complete
+# products remain restorable, but need a new signed qualification for this policy.
+cache_policy_source=${PUBLICATION_CACHE_POLICY_SOURCE:-$(dirname -- "${BASH_SOURCE[0]}")/../../../ci/authority/_source/decisions/cache_publication.py}
+python3 "$cache_policy_source" check --product "$DECISION_PRODUCT" \
+  --policy "${MAESTRO_SYSTEM_ROOT:-$PWD}/modules/ci/authority/_source/decision-policy.json"
 preflight_enabled=${MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED:-false}
 case $preflight_enabled in true|false) ;; *) exit 2 ;; esac
 preflight_source=${PUBLICATION_PREFLIGHT_SOURCE:-$(dirname -- "${BASH_SOURCE[0]}")/../../../ci/authority/_source/decisions/publication_preflight.py}
 preflight_directory=
 preflight_digest=
 metadata=
+cache_metadata=
 destination_state=$(mktemp "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/publication-cache.XXXXXX")
 cleanup() {
-  rm -f -- "$destination_state" ${metadata:+"$metadata"}
+  rm -f -- "$destination_state" ${metadata:+"$metadata"} ${cache_metadata:+"$cache_metadata"}
   [[ -z $preflight_directory ]] || rm -rf -- "$preflight_directory"
 }
 trap cleanup EXIT
@@ -107,11 +113,13 @@ metadata=$(mktemp "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/maestro-publish-nars.XXXXXX")
 DISTRIBUTION_CLOSURE_METADATA="$metadata" maestro-ci-distribution-restore
 : "${CACHIX_MAESTRO_AUTH_TOKEN:?}" "${CACHIX_MAESTRO_PUBKEY:?}"
 [[ $CACHIX_MAESTRO_PUBKEY == 'maestro.cachix.org-1:fGFZFVwe2ZHEBENWZLHVzERZrz2c50ru+g0UewH68I0=' ]]
-mapfile -t outputs < <(jq -er '[.products[].storePath, .roots[].storePath] | unique[]' "$DECISION_PRODUCT")
-[[ ${#outputs[@]} -gt 0 ]]
-# Inspect every retained path, including children of missing public roots, and
-# compare any existing public dependency hash before selecting missing uploads.
-cache_readback+=(--closure-metadata "$metadata")
+cache_metadata=$(mktemp "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/maestro-publish-selected-nars.XXXXXX")
+python3 "$cache_policy_source" scope --product "$DECISION_PRODUCT" \
+  --policy "${MAESTRO_SYSTEM_ROOT:-$PWD}/modules/ci/authority/_source/decision-policy.json" \
+  --retained "$metadata" --output "$cache_metadata"
+# Inspect every signed selected dependency, including children of missing
+# public roots; unrelated retained paths never become upload candidates.
+cache_readback+=(--closure-metadata "$cache_metadata")
 inspect_cache
 if [[ $(jq -er .status "$destination_state") == verified ]]; then
   publication_admission

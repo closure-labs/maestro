@@ -11,6 +11,7 @@ import sys
 import tempfile
 
 import operations
+import cache_publication
 import diagnostics
 import decision_authority as authority
 import decision_packets as packets
@@ -451,7 +452,7 @@ def scans(path, cfg, api=None, allow_expired=False):
 @diagnostics.measured('gatePhases', 'product')
 def product(path, cfg, scan, api=None):
     value = load_json(path)
-    require(set(value).issubset({'schema', 'repository', 'revision', 'products', 'assets', 'roots'})
+    require(set(value).issubset({'schema', 'repository', 'revision', 'products', 'assets', 'roots', 'cachePublication'})
             and type(value.get('schema')) is int and value['schema'] == 1 and value.get('repository') == cfg['repository']
             and value.get('revision') == scan['revision'], 'Invalid immutable product identity')
     require(isinstance(value.get('products'), dict) and value['products']
@@ -486,6 +487,9 @@ def product(path, cfg, scan, api=None):
     require(isinstance(value.get('assets'), dict)
             and all(re.fullmatch(r'[A-Za-z0-9_.+-]+', name) and isinstance(digest, str) and HASH.fullmatch(digest)
                     for name, digest in value['assets'].items()), 'Invalid product asset hashes')
+    if 'cachePublication' in value:
+        cache_publication.identities(value, cfg, required=True)
+        cache_publication.closure(value)
     if 'productProducer' in scan:
         original = scan['productProducer']
         require(isinstance(original, dict) and isinstance(original.get('revision'), str), 'Original product producer revision required')

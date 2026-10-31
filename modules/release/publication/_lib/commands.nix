@@ -101,6 +101,7 @@ in {
       export PUBLICATION_DESTINATIONS_SOURCE=${../../../ci/authority/_source/decisions}/destinations.py
       export PUBLICATION_CURL_WORKER_SOURCE=${publicCacheWorker}
       export PUBLICATION_PREFLIGHT_SOURCE=${../../../ci/authority/_source/decisions}/publication_preflight.py
+      export PUBLICATION_CACHE_POLICY_SOURCE=${../../../ci/authority/_source/decisions}/cache_publication.py
     '';
     runtimeInputs = commonInputs ++ [pkgs.cachix pkgs.python3 pkgs.curl commands.decision-publication commands.distribution-restore commands.decision-handoff];
     source = ../_source/publish.sh;

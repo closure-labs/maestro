@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Declare signed, bounded Cachix scope for the compiled TUI, app/operator
+  wrappers and patched inventory tool. Preserve complete distribution evidence
+  and retained transport; verify only scoped closures as public-cache delivery.
+
 - Reject locally expired, future or malformed native health before public cache
   inspection. Keep final signed provenance and live publication authority fresh;
   passing the early negative filter grants no authorization.

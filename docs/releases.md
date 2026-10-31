@@ -65,7 +65,9 @@ product require their separate approvals as described in
 supplies no publication authority.
 
 Publication checks existing destinations before writing, verifies hosted bytes,
-and records native receipts. Active destinations are Cachix and GitHub releases;
+and records native receipts. Cachix receipts for new products cover the signed `cachePublication` scope,
+not complete appliance/installer availability. Full release security evidence
+and retained bytes remain mandatory. Active destinations are Cachix and GitHub releases;
 new Maestro versions are no longer published to FlakeHub. Existing FlakeHub
 versions and historical receipts remain readable. Successful publication makes
 the GitHub release immutable and advances VERSION to the next patch development
