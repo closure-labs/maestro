@@ -19,6 +19,10 @@ on:
         description: Exact admitted official product; pair candidate_run with its fresh Security maintenance observations
         type: string
         default: ''
+      security_recovery:
+        description: Explicit recovery JSON with complete parents, mainRevision, graphHash, policyHash, rationale and disposition
+        type: string
+        default: ''
       kind:
         type: choice
         options: [security-findings, release-product]
@@ -85,6 +89,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           CANDIDATE_RUN: ${{ inputs.candidate_run || '' }}
+          CANDIDATE_REQUIRED: ${{ inputs.security_recovery != '' && 'true' || 'false' }}
           CANDIDATE_PROPOSAL_HASH: ${{ inputs.proposal_hash || '' }}
           PUBLICATION_METADATA_ONLY: ${{ inputs.proposal_hash != '' && 'true' || 'false' }}
           CANDIDATE_RELEASE_ONLY: ${{ inputs.proposal_hash != '' && 'true' || 'false' }}
@@ -108,9 +113,10 @@ jobs:
           GH_TOKEN: ${{ steps.proposer.outputs.token }}
           REGISTRY_TOKEN: ${{ github.token }}
           DECISION_KIND: security-findings
+          SECURITY_RECOVERY_REQUEST: ${{ inputs.security_recovery || '' }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:reconcile
       - name: Propose approval of exact official product bytes
-        if: steps.candidate.outputs.release == 'true' || inputs.kind == 'release-product'
+        if: inputs.security_recovery == '' && (steps.candidate.outputs.release == 'true' || inputs.kind == 'release-product')
         env:
           GH_TOKEN: ${{ steps.proposer.outputs.token }}
           REGISTRY_TOKEN: ${{ github.token }}

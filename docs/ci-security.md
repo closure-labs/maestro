@@ -112,6 +112,58 @@ Daily audits rescan retained products and compare live repository policy.
 One health issue reports audits missing for 36 hours or human decisions pending
 for 72 hours. Those thresholds never approve or reject a release.
 
+## Explicit concurrent security decision recovery
+
+Ordinary admission and reconciliation still reject concurrent active security
+leaves. There is no newest-record selection and no implied acceptance. A
+separate opt-in recovery can prepare one new `security-findings` draft that
+supersedes **every** active parent without modifying any historical record.
+It requires at least two accepted leaves with exactly equal normalized findings
+and security contexts. Their authenticated packet producers may differ.
+
+After this implementation has merged and fresh complete protected producer
+evidence is available, use **Reconcile maintainer decisions** on protected main
+with an exact `candidate_run`, `kind=security-findings`, no `proposal_hash`, and
+an explicit `security_recovery` JSON request containing exactly:
+
+```json
+{
+  "schema": 1,
+  "mainRevision": "<exact current protected main commit>",
+  "graphHash": "<canonical_hash of the complete ledger records map>",
+  "policyHash": "<canonical_hash of the checked current decision policy>",
+  "parents": ["<every active security leaf hash, sorted and unique>"],
+  "rationale": "<fresh explicit rationale addressing all parents and evidence>",
+  "disposition": "accepted"
+}
+```
+
+The same request can be supplied to the trusted `reconcile.py` leaf using
+`--security-recovery request.json`. Request hashes are observations, not proof
+or approval: the protected verifier fetches the complete current-main ledger,
+checks paths and canonical contents, validates all edges and cycles, authenticates
+every security record's historical bot merge and original producer packet, and
+rechecks every active parent's current human authority. Missing proofs, unequal
+scopes, revoked authority and policy/rules failures block recovery. `rejected`
+is also an explicit permitted disposition; it grants no publication acceptance.
+
+The new packet must contain fresh complete authenticated scans matching the
+parents' findings and contexts exactly, with a protected-main producer. The
+request, rationale, disposition, all parents and fresh packet are bound into
+the new content-addressed record. Recovery always creates a draft and never
+auto-enqueues it. A human must inspect the evidence, mark the draft ready and
+review its exact head through the ordinary current Super Admin/permission and
+App-bound authority checks. Those checks repeat freshness, policy, membership
+and complete graph validation after packet work and human authorization; a
+queue tree must contain precisely the captured ledger plus this one proposal.
+
+Any main advance, even unrelated source work, invalidates the request; gather a
+new snapshot and prepare a new reviewed proposal. New findings, changed contexts,
+missing historical evidence or withdrawn parent authority need a separately
+reviewed design, not a waiver through this mode. Existing stale proposals cannot
+repair concurrency. This implementation does not perform recovery or change any
+risk decision, ruleset, App capability, approval boundary or queue permission.
+
 ## XO handoff and recovery
 
 The hosted public consumer can verify the same exact approved roots selected
