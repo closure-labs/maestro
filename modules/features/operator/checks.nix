@@ -37,6 +37,10 @@
             ../../../devenv.yaml
             ../../../devenv.local.yaml.example
             ../../ci/authority/_source/decision-check.sh
+            ../../ci/authority/_source/decision-policy.json
+            ../../ci/authority/_source/decision-candidate.py
+            ../../ci/authority/_source/distribution-restore.py
+            ../../ci/authority/_source/decisions/cache_publication.py
             ../../ci/authority/_source/queue.sh
             ../../ci/checks/_source/repository-audit.sh
             ../../ci/graph/_lib/plans.json

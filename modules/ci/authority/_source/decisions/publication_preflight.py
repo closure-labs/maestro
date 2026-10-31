@@ -61,6 +61,28 @@ def validate(product, scans):
         destinations.nar_hash(entry.get('narHash', ''))
 
 
+def readiness(product, scans, policy):
+    """Reject locally unusable health metadata; passing grants no authority.
+
+    Deliberately no network, signature/admission cache, receipt or success token.
+    Signed provenance and current human authority are still checked afterward.
+    """
+    product = document(read(product))
+    scans = document(read(scans))
+    policy = document(read(policy))
+    validate(product, scans)
+    if (not isinstance(policy, dict) or policy.get('enabled') is not True
+            or policy.get('repository') != product['repository']
+            or not isinstance(policy.get('profiles'), list) or not policy['profiles']
+            or any(not isinstance(profile, dict) or not isinstance(profile.get('database'), dict)
+                   for profile in scans['profiles'].values())):
+        raise ValueError('Malformed local native health metadata')
+    deadline = scheduling.observation_expiry(scans, policy)
+    if dt.datetime.now(dt.timezone.utc) >= deadline:
+        raise ValueError('Local native observations expired before public inspection')
+    return {'schema': 1, 'status': 'not-rejected-by-local-health', 'authorityClaim': False}
+
+
 def freeze(product, scans, directory, policy):
     raw = {'product': read(product), 'scans': read(scans), 'policy': read(policy)}
     validate(*(document(raw[name]) for name in ('product', 'scans')))
@@ -125,8 +147,8 @@ def complete(directory, observation, output, digest, observation_digest):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('operation', choices=('freeze', 'unchanged', 'fresh', 'complete'))
-    parser.add_argument('--directory', type=Path, required=True)
+    parser.add_argument('operation', choices=('readiness', 'freeze', 'unchanged', 'fresh', 'complete'))
+    parser.add_argument('--directory', type=Path)
     parser.add_argument('--product', type=Path)
     parser.add_argument('--scans', type=Path)
     parser.add_argument('--policy', type=Path)
@@ -135,7 +157,13 @@ def main():
     parser.add_argument('--observation', type=Path)
     parser.add_argument('--receipt', type=Path)
     args = parser.parse_args()
-    if args.operation == 'freeze':
+    if args.operation != 'readiness' and args.directory is None:
+        parser.error('--directory is required for frozen input checks')
+    if args.operation == 'readiness':
+        if args.product is None or args.scans is None or args.policy is None:
+            parser.error('--product, --scans and --policy are required for readiness')
+        print(json.dumps(readiness(args.product, args.scans, args.policy), sort_keys=True))
+    elif args.operation == 'freeze':
         if args.policy is None:
             parser.error('--policy is required for freeze')
         print(freeze(args.product, args.scans, args.directory, args.policy))
@@ -157,8 +185,9 @@ if __name__ == '__main__':
     except (OSError, ValueError, KeyError, TypeError) as error:
         if os.environ.get('MAESTRO_CI_DIAGNOSTICS') == 'true':
             import diagnostics
-            operation = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] in ('freeze', 'unchanged', 'fresh', 'complete') else 'unknown'
-            reasons = {'Publication snapshot metadata changed': 'snapshot-metadata-changed',
+            operation = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] in ('readiness', 'freeze', 'unchanged', 'fresh', 'complete') else 'unknown'
+            reasons = {'Local native observations expired before public inspection': 'native-health-not-ready',
+                       'Publication snapshot metadata changed': 'snapshot-metadata-changed',
                        'Publication inputs changed during public inspection or admission': 'frozen-inputs-changed',
                        'Frozen native observations expired during admission': 'native-observations-expired',
                        'Buffered public observation changed': 'observation-changed',

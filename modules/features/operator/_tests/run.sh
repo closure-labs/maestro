@@ -268,10 +268,8 @@ grep -Fq -- '--no-build --print-build-logs' \
 grep -Fq 'CACHIX_MAESTRO_AUTH_TOKEN: ${{ secrets.CACHIX_MAESTRO_AUTH_TOKEN }}' \
   "$TEST_ROOT/.github/workflows/publication.yml" \
   || fail "protected publication does not receive the Cachix token"
-# shellcheck disable=SC2016
-grep -Fq '.products[].storePath, .roots[].storePath' \
-  "$TEST_ROOT/modules/release/publication/_source/publish.sh" \
-  || fail "Cachix publication does not use the attested exact distribution roots"
+bash "$TEST_ROOT/modules/features/operator/_tests/cache-publication-contract.sh" "$TEST_ROOT" \
+  || fail "Cachix publication lost its signed scope or complete retained distribution checks"
 # Dependabot owns action revisions. Assert the action and immutable pin at its
 # call site without duplicating a revision that every update would invalidate.
 yq -o=json '.jobs.qualification.steps' "$TEST_ROOT/.github/workflows/ci.yml" | jq -e '

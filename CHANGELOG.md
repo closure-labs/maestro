@@ -15,6 +15,10 @@ correspond to published GitHub tags.
   wrappers and patched inventory tool. Preserve complete distribution evidence
   and retained transport; verify only scoped closures as public-cache delivery.
 
+- Reject locally expired, future or malformed native health before public cache
+  inspection. Keep final signed provenance and live publication authority fresh;
+  passing the early negative filter grants no authorization.
+
 - Separate protected-main qualification evidence from its distribution closure
   artifact, reducing metadata-only downloads while retaining exact producer,
   archive, part, product and NAR validation for consumers that restore bytes.
@@ -31,6 +35,10 @@ correspond to published GitHub tags.
   enforced by the required CI verdict independently of qualification reuse.
   Keep historical scans visible as nonblocking debt; remove custom finding
   post-filtering while preserving the narrow public-ledger identity policy.
+
+- Download installer media once in the boot job when refreshing evidence.
+  Continue verifying retained ISO bytes, original provenance and attestations,
+  and the current inventory binding; signing still downloads its byte subjects.
 
 ### Fixed
 

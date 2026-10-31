@@ -5,6 +5,7 @@ in {
     "cache:doctor".exec = runFlakePackage "maestro-ci-cache-doctor" "";
     "ci:distribution:restore".exec = runFlakePackage "maestro-ci-distribution-restore" "";
     "ci:decision:refresh".exec = runFlakePackage "maestro-ci-decision-refresh" "";
+    "ci:decision:health-preflight".exec = runFlakePackage "maestro-ci-decision-health-preflight" "";
     "ci:decision:health".exec = runFlakePackage "maestro-ci-decision-health" "";
     "ci:consumer-probe".exec = runFlakePackage "maestro-ci-consumer-probe" "";
     "ci:decision:download".exec = runFlakePackage "maestro-ci-decision-download" "";
