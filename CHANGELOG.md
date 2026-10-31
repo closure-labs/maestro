@@ -42,6 +42,10 @@ correspond to published GitHub tags.
 
 ### Fixed
 
+- Reject ambiguous security decision graphs before authenticating superseded
+  history. Keep historical provenance, current approval and final ledger refresh
+  mandatory for otherwise valid graphs; conflicting decisions need reconciliation.
+
 - Bound GitHub authority GET retries by a shared monotonic deadline and validated
   server retry delays. Reuse a validated immutable workflow within one admission
   operation while preserving all fresh authority reads.
