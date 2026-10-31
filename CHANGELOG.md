@@ -28,6 +28,10 @@ correspond to published GitHub tags.
   Keep historical scans visible as nonblocking debt; remove custom finding
   post-filtering while preserving the narrow public-ledger identity policy.
 
+- Download installer media once in the boot job when refreshing evidence.
+  Continue verifying retained ISO bytes, original provenance and attestations,
+  and the current inventory binding; signing still downloads its byte subjects.
+
 ### Fixed
 
 - Bound GitHub authority GET retries by a shared monotonic deadline and validated
