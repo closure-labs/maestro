@@ -294,7 +294,6 @@ jobs:
         if: >-
           hashFiles('controller/.github/workflows/ci.yml') == hashFiles('candidate/.github/workflows/ci.yml') &&
           ((github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-           (github.event_name == 'pull_request' && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.repo.full_name == github.repository) ||
            (github.event_name == 'merge_group' && github.event.merge_group.base_ref == 'refs/heads/main'))
         id: authority
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
@@ -817,9 +816,6 @@ jobs:
     permissions:
       contents: read
       actions: read
-      attestations: write
-      id-token: write
-      artifact-metadata: write
     outputs:
       result_sha256: ${{ steps.bound_result.outputs.manifest_sha256 }}
     steps:
@@ -877,13 +873,6 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-      - name: Attest native evidence and immutable product identity
-        if: github.ref == 'refs/heads/main' && contains(fromJSON('["push","schedule","workflow_dispatch"]'), github.event_name)
-        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
-        with:
-          subject-path: |
-            security-report/scans.json
-            security-report/product.json
 
   signing:
     name: Sign protected-main qualification
@@ -939,6 +928,20 @@ jobs:
           CI_GRAPH_PLAN_SHA256: ${{ needs.route.outputs.graph_sha256 }}
           GH_TOKEN: ${{ github.token }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:qualification:sign-check
+
+      - name: Download protected-main native security report
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: maestro-security-report
+          path: security-report
+
+      - name: Attest native evidence and immutable product identity
+        if: github.ref == 'refs/heads/main' && contains(fromJSON('["push","schedule","workflow_dispatch"]'), github.event_name)
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            security-report/scans.json
+            security-report/product.json
 
       - name: Attest complete graph result
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2

@@ -11,6 +11,11 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Automatically admit unprivileged Cargo and GitHub Actions Dependabot CI after
+  verifying bot identity, current repository/head and protected workflow shape.
+  Preserve normal PR readiness and exact-head human merge approval. Keep PR
+  validation separate from App-token minting, OIDC, signing and CodeQL publication.
+
 - Reserve 20 GiB of free space before hosted Nix jobs, reclaiming only unused
   Android/.NET runner SDKs when needed; keep complete validation and evidence.
 
