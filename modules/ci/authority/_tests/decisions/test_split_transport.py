@@ -92,6 +92,11 @@ class SplitTransport(unittest.TestCase):
         self.assertEqual((self.output / PART).read_bytes(), self.payload)
         self.assertEqual(len(self.calls), 2)
 
+    def test_companion_staging_uses_the_evidence_filesystem(self):
+        with patch.object(download.tempfile, 'TemporaryDirectory', wraps=tempfile.TemporaryDirectory) as stage:
+            self.invoke()
+        stage.assert_called_once_with(dir=self.output)
+
     def test_legacy_bundle_never_fetches_a_companion(self):
         self.invoke(legacy=True, companions=0)
         self.assertEqual(len(self.calls), 1)

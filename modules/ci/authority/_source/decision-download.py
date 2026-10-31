@@ -95,7 +95,9 @@ def distribution_transport(evidence, scans, run, inventory):
                   if a['name'] == 'maestro-distribution-transport' and not a['expired']]
     if len(companions) != 1:
         raise ValueError('Exact producer requires one distribution transport artifact')
-    with tempfile.TemporaryDirectory() as temporary:
+    # Stage on the evidence filesystem so verified part renames cannot fail
+    # when the runner mounts its temporary directory on a different device.
+    with tempfile.TemporaryDirectory(dir=evidence) as temporary:
         directory = Path(temporary)
         download_archive(companions[0], directory)
         # Reject metadata, directories and unexpected parts before merging any
