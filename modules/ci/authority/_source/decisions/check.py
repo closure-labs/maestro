@@ -12,6 +12,7 @@ import sys
 from security_decisions import canonical_hash, load_json
 
 import decision_authority as authority
+import review_routing
 from common import config, parser, emit, run
 CHECK_NAME = 'Maintainer decision authority'
 COLLECTOR = '.github/workflows/decision-events.yml'
@@ -202,6 +203,10 @@ def collector_targets(run, repository, github=None, *, collector_run_id=None):
     pulls = run.get('pull_requests', [])
     if not isinstance(pulls, list):
         raise authority.AuthorityError('Invalid collector PR metadata')
+    if not pulls and run['event'] == 'pull_request_review':
+        target = review_routing.review_target(api, repository, run, collector_run_id)
+        if target is not None:
+            return [(target, None)]
     if not pulls:
         # GitHub omits PR associations for review/comment workflow runs.
         # A comment is only a wakeup: resolve bounded live PRs, never its text.
