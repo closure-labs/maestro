@@ -11,6 +11,7 @@ import sys
 import subprocess
 import time
 import common
+import cache_publication
 import operations
 
 UPSTREAM_CACHES = ('https://cache.nixos.org', 'https://xen-orchestra-ce.cachix.org')
@@ -46,15 +47,9 @@ def stage(name, execute, args, **kwargs):
 
 
 def probe(product, cache, public_key, execute=operations.run):
-    entries = [*product['products'].values(), *product.get('roots', {}).values()]
-    expected = {}
-    for entry in entries:
-        path, digest = entry['storePath'], entry['narHash']
-        common.require(isinstance(path,str) and re.fullmatch(r'/nix/store/[0-9abcdfghijklmnpqrsvwxyz]{32}-[^/\s]+',path)
-                       and not path.endswith('.drv'), 'Consumer roots must be output paths')
-        common.require(path not in expected or expected[path] == digest, 'Conflicting consumer roots')
-        expected[path] = digest
-    common.require(expected, 'Consumer probe needs exact approved roots')
+    expected = cache_publication.identities(product)
+    common.require(all(re.fullmatch(r'/nix/store/[0-9abcdfghijklmnpqrsvwxyz]{32}-[^/\s]+', path)
+                       and not path.endswith('.drv') for path in expected), 'Consumer roots must be output paths')
     paths = sorted(expected)
     with tempfile.TemporaryDirectory(prefix='public-consumer-') as temporary:
         store = 'local?root=' + temporary
@@ -71,17 +66,25 @@ def probe(product, cache, public_key, execute=operations.run):
                 check=True, capture_output=True, timeout=900)
         stage('verify', execute, ['nix', 'store', 'verify', '--store', store, '--recursive', '--sigs-needed', '1',
                  *options, *paths], check=True, capture_output=True, timeout=600)
-        result = stage('identities', execute, ['nix', 'path-info', '--store', store, '--json', *paths],
+        selected = cache_publication.closure(product)
+        check_identities = {path: row['narHash'] for path, row in selected.items()} if selected is not None else expected
+        recursive = ['--recursive'] if selected is not None else []
+        result = stage('identities', execute, ['nix', 'path-info', '--store', store, '--json', *recursive, *paths],
                          check=True, capture_output=True, text=True, timeout=120)
         records = json.loads(result.stdout)
         if isinstance(records, list):
             common.require(len({r['path'] for r in records}) == len(records), 'Duplicate consumer roots')
             records = {r['path']: r for r in records}
-        common.require(isinstance(records, dict) and set(records) == set(expected)
-                       and all(records[path].get('narHash') == digest for path, digest in expected.items()),
+        common.require(isinstance(records, dict) and set(records) == set(check_identities)
+                       and all(records[path].get('narHash') == digest for path, digest in check_identities.items()),
                        'Downloaded public NARs differ from approved product')
-    return {'schema': 1, 'status': 'verified', 'productHash': common.canonical_hash(product),
-            'roots': len(paths), 'downloadedBytesVerified': True, 'signaturesVerified': True}
+    proof = {'schema': 1, 'status': 'verified', 'productHash': common.canonical_hash(product),
+             'roots': len(paths), 'downloadedBytesVerified': True, 'signaturesVerified': True}
+    if selected is not None:
+        common.require(cache_publication.records(records, expected) == selected,
+                       'Downloaded dependency graph differs from signed cache scope')
+        proof['cacheScope'] = cache_publication.SCOPE
+    return proof
 
 
 def main():

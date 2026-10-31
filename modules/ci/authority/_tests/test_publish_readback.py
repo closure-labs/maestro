@@ -61,7 +61,14 @@ elif name == 'maestro-ci-decision-publication':
 elif name == 'maestro-ci-distribution-restore':
     pathlib.Path(os.environ['DISTRIBUTION_CLOSURE_METADATA']).write_text(json.dumps({path:{'narHash':digest} for path,digest in fixture['local'].items()}))
 elif name == 'nix':
-    print(json.dumps({path:{'narHash':digest} for path,digest in fixture['local'].items()}))
+    wanted={value for value in args if value.startswith('/nix/store/')}
+    if not wanted:wanted=set(fixture['local'])
+    if '--recursive' in args:
+        pending=list(wanted)
+        while pending:
+            for child in fixture.get('references',{}).get(pending.pop(),[]):
+                if child not in wanted:wanted.add(child);pending.append(child)
+    print(json.dumps({path:{'narHash':fixture['local'][path],'references':fixture.get('references',{}).get(path,[])} for path in wanted if path in fixture['local']}))
 elif name == 'cachix':
     record_call(['uploaded',*sys.stdin.read().splitlines()])
 '''
@@ -80,9 +87,20 @@ class PublishReadback(unittest.TestCase):
         self.product={'products':dict(zip(('latest','stable','rolling'),entries[:3])),
                       'roots':{str(i):entry for i,entry in enumerate(entries[3:])},
                       'repository':'closure-labs/maestro','revision':'a'*40,'assets':{}}
+        # This fixture historically published every fake root. Declare that
+        # scope explicitly; separate policy fixtures exercise the narrowed set.
+        for name,entry in self.product['products'].items():self.product['roots']['fixture-'+name]=entry
+        self.product['cachePublication']={'schema':1,'scope':'selected-project-closures',
+            'roots':sorted(self.product['roots']),
+            'closure':{path:{'narHash':digest,'references':[]} for path,digest in self.local.items()}}
+        policy_path=self.work/'controller/modules/ci/authority/_source/decision-policy.json'
+        policy_path.parent.mkdir(parents=True)
+        policy=json.loads((ROOT/'modules/ci/authority/_source/decision-policy.json').read_text())
+        policy['cachePublication']={key:value for key,value in self.product['cachePublication'].items() if key!='closure'}
+        policy_path.write_text(json.dumps(policy))
         (self.work/'product.json').write_text(json.dumps(self.product));(self.work/'scans.json').write_text('{}')
         self.calls=self.work/'calls.jsonl';self.fixture=self.work/'fixture.json';self.receipt=self.work/'receipt.json'
-        self.env=dict(os.environ,PATH=str(self.native)+os.pathsep+os.environ['PATH'],
+        self.env=dict(os.environ,MAESTRO_SYSTEM_ROOT=str(self.work/'controller'),PATH=str(self.native)+os.pathsep+os.environ['PATH'],
                       MAESTRO_CI_PATH_PREFIX=str(self.native),
                       PUBLISH_FIXTURE=str(self.fixture),PUBLISH_CALLS=str(self.calls),
                       DECISION_PRODUCT=str(self.work/'product.json'),DECISION_SCANS=str(self.work/'scans.json'),
@@ -92,6 +110,13 @@ class PublishReadback(unittest.TestCase):
                       PUBLICATION_CACHE_RECEIPT=str(self.receipt))
 
     def run_leaf(self,remote=None,**fixture):
+        selected={self.product['roots'][name]['storePath'] for name in self.product['cachePublication']['roots']}
+        pending=list(selected)
+        while pending:
+            for child in fixture.get('references',{}).get(pending.pop(),[]):
+                if child not in selected:selected.add(child);pending.append(child)
+        self.product['cachePublication']['closure']={path:{'narHash':self.local[path],'references':fixture.get('references',{}).get(path,[])} for path in selected}
+        (self.work/'product.json').write_text(json.dumps(self.product))
         if remote is None:remote={path:{'narHash':digest} for path,digest in self.local.items()}
         self.fixture.write_text(json.dumps(dict(fixture,remote=remote,local=self.local)))
         self.env.pop('PYTHONPATH',None)

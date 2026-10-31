@@ -13,7 +13,7 @@ def verifier_version():
     root = Path(__file__).parent
     return canonical_hash({name: hashlib.sha256((root / name).read_bytes()).hexdigest()
                            for name in ('common.py', 'decision_authority.py',
-                                        'security_decisions.py', 'decision_packets.py', 'verification_context.py')})
+                                        'security_decisions.py', 'decision_packets.py', 'verification_context.py', 'cache_publication.py')})
 
 
 class VerificationContext:

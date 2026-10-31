@@ -239,12 +239,43 @@ incompatibilities before an expensive media build. The pinned devenv launcher
 also includes literal coreutils patches in its closure, so substitution does
 not leave the native evaluator's build-time source paths unmaterialized.
 
-Protected-main publication now includes `maestro-ci-toolchain` (the pinned
-devenv launcher and plan runner) and `sbomnix`, in addition to the five appliance
-and operator targets. Their exact signed closures can be substituted on later
-runners. Publication still runs only after qualification, scanning and signing;
-PR jobs receive no cache write credentials. A cold runner may still build when
-the exact output has not yet been published.
+Protected-main Cachix publication selects `maestro-menu` (the compiled Rust
+TUI), `maestroctl` and `deploy-template` (small runtime/app wrappers), and the
+project-patched `sbomnix` inventory tool. `apps.menu` is an alias for the TUI,
+not another compiled output. `sbomnix` is deliberately retained: its Nix runtime
+and metadata patches give it a project-specific store identity, so a stock
+upstream package is not an interchangeable substitute.
+
+The checked `decision-policy.json` declares this cache scope. New signed
+`product.json` documents include `cachePublication` with the selected named
+roots and every recursive dependency's exact NAR hash and references. Cache
+receipts and disposable-store consumer probes cover this selected scope, not
+an assertion that the complete appliance or installer is publicly cached.
+Consumers use the same declared Maestro, NixOS and XO public caches/keys, with
+signatures required, builders disabled, fallback disabled and fresh narinfo
+reads. Missing upstream dependencies can be supplied from the authenticated
+retained closure; conflicting or unavailable upstream metadata blocks
+publication rather than silently substituting a different identity.
+
+The full qualification graph, security inventory, signed distribution roots
+and retained transport still include the appliance, installer and CI toolchain.
+The graph's historical `publish` plan remains the complete retention contract;
+it is not the Cachix upload list. Unrelated system/installer closures and the
+CI-only toolchain are excluded from new cache claims unless needed by a selected
+runtime closure. Small wrappers are kept for usable app entry points; the
+CI-only toolchain can still require local realization on cold hosted runners.
+No cache entries are deleted. Historical full product contracts remain
+readable, but new cache publication requires a freshly qualified, signed and
+human-admitted scoped product; old approvals cannot silently change scope.
+
+The publisher authenticates and recursively verifies the complete retained
+transport before selecting any missing upload paths. It then queries the
+selected native closure and checks its exact graph/NAR identities against both
+the signed scope and retained metadata. Existing verified public upstream
+paths are deduplicated; only missing selected dependency paths can be uploaded.
+Final live authority, source/run/attempt and signature gates remain mandatory.
+Fixture request counts describe synthetic topology only; actual bytes, runtime
+and hosted consumer realizability must be measured in hosted qualification.
 
 CI scans products in the qualification builder, where their Nix closures are
 already available. Its security job validates and attests that run's native
@@ -265,6 +296,16 @@ recursive NAR checks permit import. Missing, corrupt or ambiguous companions
 fail closed. Historical reports containing their own parts remain readable.
 Release qualification uses the exact requested CI run, never discovery fallback.
 Weekly and release-product reports retain their existing bundled format.
+
+Publication controllers run `ci:decision:health-preflight` before public cache
+inspection. It reads bounded regular local product, scans and policy documents,
+rejecting malformed identity/profile coverage and invalid or expired native
+observation/database clocks without network requests. A passing result means
+only that local health metadata did not reject the candidate; it authenticates
+neither signatures nor current human authority and is never an admission token.
+Fresh-looking tampering, revoked approval and changes after this preflight must
+still pass the existing final provenance, health and live authority gates.
+The read-only publisher also checks frozen observation freshness before probing.
 
 Release inventories use `maestro-evidence` from the assembled inventory's
 `artifact_run_id`. Weekly scanning uses

@@ -118,6 +118,8 @@ def main():
     if args.state == 'complete':
         receipt = common.load_json(Path(os.environ['PUBLICATION_RECEIPT']))
         publication_receipts.validate(receipt, product_hash, args.step)
+        if args.step == 'cache':
+            publication_receipts.cache_scope(receipt, common.load_json(args.product))
     result = transition(cfg['repository'], product_hash, args.key, args.step, args.state, authorize, receipt=receipt)
     common.emit(result, args.output)
 

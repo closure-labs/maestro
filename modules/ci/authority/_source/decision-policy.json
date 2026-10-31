@@ -11,5 +11,15 @@
   "requiredAuthorityCheck": "Maintainer decision authority",
   "producerWorkflows": [".github/workflows/ci.yml", ".github/workflows/security.yml", ".github/workflows/release.yml", ".github/workflows/release-continuation.yml"],
   "maxDatabaseAgeHours": 48,
-  "maxEvidenceAgeHours": 24
+  "maxEvidenceAgeHours": 24,
+  "cachePublication": {
+    "schema": 1,
+    "scope": "selected-project-closures",
+    "roots": [
+      "maestro-menu",
+      "maestroctl",
+      "deploy-template",
+      "sbomnix"
+    ]
+  }
 }

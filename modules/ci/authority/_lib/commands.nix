@@ -57,6 +57,14 @@ in {
     runtimeInputs = commonInputs ++ [pkgs.python3 pkgs.oras commands.security-scan];
     source = ../_source/decision-refresh.sh;
   };
+  decision-health-preflight = mkCommand {
+    name = "decision-health-preflight";
+    prefix = ''
+      export MAESTRO_DECISIONS_SOURCE=${../_source/decisions}
+    '';
+    runtimeInputs = [pkgs.python3];
+    source = ../_source/decision-health-preflight.sh;
+  };
   decision-health = mkCommand {
     name = "decision-health";
     prefix = ''

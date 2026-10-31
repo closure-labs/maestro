@@ -33,7 +33,7 @@
     checks.ci-graph-fixtures =
       pkgs.runCommandLocal "maestro-ci-graph-fixtures" {
         allowSubstitutes = true;
-        nativeBuildInputs = [pkgs.python3 pkgs.bash pkgs.coreutils pkgs.jq pkgs.git pkgs.gnutar pkgs.diffutils];
+        nativeBuildInputs = [pkgs.python3 pkgs.bash pkgs.coreutils pkgs.jq pkgs.git pkgs.gnutar pkgs.diffutils pkgs.yq-go];
         source = lib.fileset.toSource {
           root = ./.;
           fileset = lib.fileset.unions [
@@ -47,6 +47,7 @@
             ./_tests/test_graph.py
             ./_tests/test_plan.py
             ./_tests/test_results.py
+            ./_tests/test_boot_downloads.py
             ./_tests/test_verdict.py
             ./_tests/test_signing.py
             ./_tests/test_summary.py
@@ -57,6 +58,10 @@
         export PYTHONDONTWRITEBYTECODE=1
         export MAESTRO_VERDICT_SOURCE=${../checks/_source/verdict.sh}
         export MAESTRO_SIGNER_SOURCE=${../../features/installer/_source/sign-check.sh}
+        export MAESTRO_CI_WORKFLOW=${../../../.github/workflows/ci.yml}
+        export MAESTRO_BOOT_EVIDENCE_SOURCE=${../../features/installer/_source/boot-evidence.py}
+        export MAESTRO_INVENTORY_VERIFIER_SOURCE=${../../features/installer/_source/verify-inventory.sh}
+        export MAESTRO_BOOT_COMMAND_SOURCE=${../../features/installer/_source/boot-media.sh}
         python3 -m unittest discover -s "$source/_tests" -p 'test_*.py'
         ${lib.getExe config.packages.maestro-ci-job-transfer} --help >/dev/null
         touch "$out"
