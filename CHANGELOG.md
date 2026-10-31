@@ -11,6 +11,11 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Add opt-in guarded recovery drafts for equal concurrent security decisions,
+  binding the complete active parent set and exact protected graph/policy
+  snapshot to fresh complete evidence and rationale. Preserve history, current
+  human authority, ordinary ambiguity rejection and explicit queue transport.
+
 - Declare signed, bounded Cachix scope for the compiled TUI, app/operator
   wrappers and patched inventory tool. Preserve complete distribution evidence
   and retained transport; verify only scoped closures as public-cache delivery.

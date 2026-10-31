@@ -7,6 +7,7 @@ import tempfile
 
 import decision_authority as authority
 import decision_packets as packets
+import security_recovery
 from common import (require, command, scans, product, ledger, active_security, active_release,
                     authorize, historical_provenance, config, attest, required_check,
                     security_contexts, accepted_contexts, compare_security_contexts, main_revision)
@@ -17,8 +18,10 @@ CHECK_CONFIG = None
 
 def validate_proposal_parent(proposal, cfg):
     """Inspect immutable current-main parents; this grants no human authority."""
-    revision, records = ledger(cfg)
     payload = proposal['payload']
+    if 'recovery' in payload:
+        return security_recovery.proposal(cfg, proposal)
+    revision, records = ledger(cfg)
     if proposal['kind'] == 'security-findings':
         digest, _ = active_security(cfg, records, authenticate=False)
         require(payload.get('supersedes') == ([digest] if digest else []), 'Security proposal has stale supersession parent')
@@ -40,6 +43,8 @@ def validate_proposal_packet(proposal, cfg=None):
     require(payload.get('disposition') in ('accepted', 'rejected', 'revoked'), 'Invalid disposition')
     packet = payload.get('packet')
     require(isinstance(packet, dict) and set(packet) == {'reference', 'sha256', 'producer'}, 'Invalid packet reference')
+    if 'recovery' in payload:
+        require(proposal['kind'] == 'security-findings', 'Recovery is restricted to security findings')
     if proposal['kind'] == 'security-revocation':
         _, records = ledger(cfg)
         digest, parent = active_security(cfg, records, authenticate=False)
@@ -60,7 +65,9 @@ def validate_proposal_packet(proposal, cfg=None):
         require(manifest['producer'] == packet['producer'], 'Packet producer differs from proposal')
         # Immutable review evidence remains authentic after scan freshness
         # expires. Publication separately requires a fresh scan and admission.
-        native = scans(root / 'scans.json', cfg, allow_expired=True)
+        native = scans(root / 'scans.json', cfg, allow_expired='recovery' not in payload)
+        if 'recovery' in payload:
+            security_recovery.fresh(cfg, native)
         expected_producer = dict(native['producer'], repository=cfg['repository'],
                                  revision=native['producer'].get('revision', native['revision']),
                                  sourceRevision=native['revision'])
@@ -84,7 +91,12 @@ def validate_proposal_packet(proposal, cfg=None):
         # Re-read protected main after verification. Equal commit identity means
         # the parent data is unchanged, not that approval or attestation is
         # reusable. An advancing ledger must pass parent selection again.
-        if main_revision(cfg) != parent_revision:
+        if 'recovery' in payload:
+            # Recovery never tolerates even an unrelated main advance, and live
+            # policy, rules and parent authority are checked again after bytes.
+            security_recovery.proposal(cfg, proposal, verify_packets=False)
+            security_recovery.fresh(cfg, native)
+        elif main_revision(cfg) != parent_revision:
             validate_proposal_parent(proposal, cfg)
 
 
@@ -181,8 +193,12 @@ def propose(cfg, proposal):
         files = authority.collection(authority.github_api, f'repos/{repository}/pulls/{pull["number"]}/files')
         require(len(files) == 1 and files[0].get('filename') == path and files[0].get('status') == 'added',
                 'Existing proposal PR changes unexpected paths')
-        return {'schema': 1, 'status': queue_proposal(cfg, pull['number']), 'proposalHash': digest, 'pullRequest': pull['number']}
+        return {'schema': 1, 'status': ('awaiting-review' if 'recovery' in proposal['payload'] else queue_proposal(cfg, pull['number'])), 'proposalHash': digest, 'pullRequest': pull['number']}
+    if 'recovery' in proposal['payload']:
+        security_recovery.proposal(cfg, proposal, verify_packets=False)
     base = authority.github_api(f'repos/{repository}/git/ref/heads/main')['object']['sha']
+    if 'recovery' in proposal['payload']:
+        require(base == proposal['payload']['recovery']['mainRevision'], 'Security recovery graph snapshot changed')
     commit = authority.github_api(f'repos/{repository}/git/commits/{base}')
     tree = api_write(f'repos/{repository}/git/trees', {'base_tree': commit['tree']['sha'],
                     'tree': [{'path': path, 'mode': '100644', 'type': 'blob',
@@ -193,15 +209,26 @@ def propose(cfg, proposal):
     api_write(f'repos/{repository}/git/refs', {'ref': 'refs/heads/' + branch, 'sha': commit['sha']})
     pull = api_write(f'repos/{repository}/pulls', {'head': branch, 'base': 'main',
                      'title': 'Review ' + proposal['kind'] + ' ' + digest[:12],
+                     'draft': 'recovery' in proposal['payload'],
                      'body': 'Approve this exact content-addressed proposal head. Publication rechecks current Super Admin membership and maintain/admin access.'})
     require(pull.get('user', {}).get('login') == cfg['botLogin'] and pull.get('user', {}).get('type') == 'Bot',
             'Proposal author must be the configured App bot')
-    return {'schema': 1, 'status': queue_proposal(cfg, pull['number']), 'proposalHash': digest, 'pullRequest': pull['number']}
+    return {'schema': 1, 'status': ('awaiting-review' if 'recovery' in proposal['payload'] else queue_proposal(cfg, pull['number'])), 'proposalHash': digest, 'pullRequest': pull['number']}
 
 
-def reconcile(cfg, scan_path, product_path, kind, directory, rationale, disposition='accepted', decision_hash=None):
-    _, records = ledger(cfg)
-    digest, current = active_security(cfg, records, authenticate=False)
+def reconcile(cfg, scan_path, product_path, kind, directory, rationale, disposition='accepted', decision_hash=None,
+              recovery=None):
+    if recovery is not None:
+        security_recovery.shape(recovery)
+        require(kind == 'security-findings' and decision_hash is None,
+                'Recovery is restricted to explicit security findings decisions')
+        require(rationale == recovery.get('rationale') and disposition == recovery.get('disposition'),
+                'Recovery rationale and disposition must match explicit request')
+        leaves = security_recovery.validate(cfg, recovery)
+        digest, current = None, None
+    else:
+        _, records = ledger(cfg)
+        digest, current = active_security(cfg, records, authenticate=False)
     if kind == 'security-revocation':
         require(current is not None and current['payload']['disposition'] == 'accepted' and digest == decision_hash,
                 'Revocation requires exact current accepted decision hash')
@@ -211,10 +238,14 @@ def reconcile(cfg, scan_path, product_path, kind, directory, rationale, disposit
         return propose(cfg, proposal)
     require(scan_path is not None, 'Authenticated complete producer scans required')
     native = scans(scan_path, cfg)
-    identity = product(product_path, cfg, native) if product_path else None
+    if recovery is not None:
+        security_recovery.fresh(cfg, native)
+    identity = product(product_path, cfg, native) if product_path and recovery is None else None
     if kind == 'security-findings':
         require(set(native['profiles']) == set(cfg['profiles']), 'Baseline proposals require every configured profile')
         findings = {p: normalize_findings(s, p) for p, s in native['profiles'].items()}
+        if recovery is not None:
+            security_recovery.scope({'profiles': findings, 'securityContexts': security_contexts(native)}, leaves)
         if current and current['payload']['disposition'] == 'accepted' and disposition == 'accepted':
             comparisons = [compare_findings(findings[p], current['payload']['profiles'][p]) for p in findings]
             if (all(not c['new'] and not c['worsened'] for c in comparisons)
@@ -243,10 +274,15 @@ def reconcile(cfg, scan_path, product_path, kind, directory, rationale, disposit
                     'Complete immutable release bytes must be present before requesting approval')
     producer = dict(native['producer'], repository=cfg['repository'],
                     revision=native['producer'].get('revision', native['revision']), sourceRevision=native['revision'])
+    if recovery is not None:
+        security_recovery.validate(cfg, recovery, verify_packets=False)
     packet = packets.push(directory, producer)
     payload = {'disposition': disposition, 'rationale': rationale, 'packet': packet}
     if kind == 'security-findings':
-        payload.update(profiles=findings, securityContexts=security_contexts(native), supersedes=[digest] if digest else [])
+        payload.update(profiles=findings, securityContexts=security_contexts(native),
+                       supersedes=recovery['parents'] if recovery is not None else ([digest] if digest else []))
+        if recovery is not None:
+            payload['recovery'] = recovery
     else:
         payload['product'] = identity
         payload['supersedes'] = [release_digest] if release_digest else []
