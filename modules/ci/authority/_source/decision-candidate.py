@@ -89,6 +89,10 @@ def main():
     scans, product = prepare(native, root, revision, int(os.environ["GITHUB_RUN_ID"]),
                              int(os.environ["GITHUB_RUN_ATTEMPT"]),
                              os.environ.get("DECISION_PRODUCER_WORKFLOW", ".github/workflows/ci.yml"))
+    import cache_publication
+    cache_publication.attach(product, json.loads(
+        (root / 'modules/ci/authority/_source/decision-policy.json').read_text()),
+        lambda paths: json.loads(command('nix', 'path-info', '--json', '--recursive', *paths)))
     scans["producer"] = producer_identity()
     scans["productProducer"] = dict(scans["producer"])
     # Retain exact inventories and lockfile as data for future native rescans.

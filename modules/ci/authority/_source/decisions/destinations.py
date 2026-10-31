@@ -14,6 +14,7 @@ import subprocess
 import tempfile
 from urllib.parse import urlparse, parse_qs, quote
 import operations
+import cache_publication
 import diagnostics
 
 ALPHABET='0123456789abcdfghijklmnpqrsvwxyz'
@@ -101,18 +102,12 @@ def _cache(product, url, read=http, upstreams=(), closure=None):
             ('https://cache.nixos.org','https://xen-orchestra-ce.cachix.org') or source==url
             for source in upstreams) or (upstreams and url!='https://maestro.cachix.org')):
         raise ValueError('Unknown public cache upstream')
-    expected={}
-    for entry in [*product['products'].values(),*product.get('roots',{}).values()]:
-        path=entry['storePath']
-        if not isinstance(path, str) or not STORE.fullmatch(path):
-            raise ValueError('Invalid approved store path')
-        digest=nar_hash(entry['narHash'])
-        if path in expected and expected[path] != digest:
-            raise ValueError('Conflicting approved root identities')
-        expected[path]=digest
-    if not expected:
-        raise ValueError('Empty cache inventory')
-    identities = closure_identities(closure, expected) if closure is not None else expected
+    expected = {path: nar_hash(digest) for path, digest in cache_publication.identities(product).items()}
+    selected = cache_publication.closure(product)
+    signed = {path: nar_hash(row['narHash']) for path, row in selected.items()} if selected is not None else None
+    identities = closure_identities(closure, expected) if closure is not None else (signed or expected)
+    if signed is not None and identities != signed:
+        raise ValueError('Local cache closure differs from signed publication scope')
     if len(identities) > MAX_CACHE_PATHS:
         raise ValueError('Public cache closure exceeds metadata bounds')
     observed = {}; missing = []; unavailable = False; conflict = False
@@ -154,6 +149,8 @@ def _cache(product, url, read=http, upstreams=(), closure=None):
         children = tuple('/nix/store/'+value for value in references)
         if any(not STORE.fullmatch(child) for child in children):
             raise ValueError('Invalid public cache reference path')
+        if selected is not None and (path not in selected or sorted(children) != selected[path]['references']):
+            return path, status, 'invalid-metadata', ()
         return path, status, digest, children
 
     # Copy the absolute deadline to workers. Keep at most eight reads active,

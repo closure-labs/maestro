@@ -34,8 +34,10 @@ class ReadonlyPreflight(readback.PublishReadback):
         (self.work / 'scans.json').write_text(json.dumps(scans))
         policy_root = self.work / 'controller'
         self.policy = policy_root / 'modules/ci/authority/_source/decision-policy.json'
-        self.policy.parent.mkdir(parents=True)
-        self.policy.write_bytes((ROOT / 'modules/ci/authority/_source/decision-policy.json').read_bytes())
+        self.policy.parent.mkdir(parents=True, exist_ok=True)
+        policy = json.loads((ROOT / 'modules/ci/authority/_source/decision-policy.json').read_text())
+        policy['cachePublication'] = {key: value for key, value in self.product['cachePublication'].items() if key != 'closure'}
+        self.policy.write_text(json.dumps(policy))
         self.env.update(MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED='true',
                         MAESTRO_SYSTEM_ROOT=str(policy_root),
                         GH_TOKEN='private-reader', REGISTRY_TOKEN='private-registry',

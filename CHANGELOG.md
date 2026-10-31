@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Declare signed, bounded Cachix scope for the compiled TUI, app/operator
+  wrappers and patched inventory tool. Preserve complete distribution evidence
+  and retained transport; verify only scoped closures as public-cache delivery.
+
 - Separate protected-main qualification evidence from its distribution closure
   artifact, reducing metadata-only downloads while retaining exact producer,
   archive, part, product and NAR validation for consumers that restore bytes.

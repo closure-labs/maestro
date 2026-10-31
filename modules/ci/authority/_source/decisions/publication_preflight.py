@@ -12,6 +12,7 @@ import sys
 import time
 
 import destinations
+import cache_publication
 import publication_receipts
 import scheduling
 
@@ -109,8 +110,7 @@ def complete(directory, observation, output, digest, observation_digest):
         raise ValueError('Buffered public observation is outside this execution')
     product = json.loads(read(directory / 'product.json'))
     value = document(raw)
-    expected = {entry['storePath']: destinations.nar_hash(entry['narHash']) for entry in
-                [*product['products'].values(), *product.get('roots', {}).values()]}
+    expected = {path: destinations.nar_hash(digest) for path, digest in cache_publication.identities(product).items()}
     if (value.get('destination') != 'cache' or value.get('authorityClaim') is not False
             or value.get('expected') != expected or value.get('missing') != []):
         raise ValueError('Buffered public observation differs from frozen product')

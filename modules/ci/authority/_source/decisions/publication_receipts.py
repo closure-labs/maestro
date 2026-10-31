@@ -25,6 +25,16 @@ def validate(receipt, product_hash, destination):
     return receipt
 
 
+def cache_scope(receipt, product):
+    """A new scoped product never journals an implicit full-distribution claim."""
+    if 'cachePublication' in product:
+        import cache_publication
+        expected = cache_publication.identities(product, required=True)
+        if receipt.get('destination') != 'cache' or receipt.get('expected') != expected or receipt.get('observed') != expected:
+            raise ValueError('Cache receipt differs from signed selected-root scope')
+    return receipt
+
+
 def read(document, product_hash):
     """Legacy completion is preserved but grants no proof of current remote state."""
     if not isinstance(document, dict):
