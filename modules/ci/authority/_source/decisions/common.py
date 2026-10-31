@@ -268,10 +268,13 @@ def security_graph(cfg, records, api=None, context=None):
         visited.add(digest)
     for digest in candidates:
         visit(digest)
-    for digest in superseded:
-        historical_provenance(cfg, candidates[digest], api, context=context)
+    # Reject a graph that cannot select one leaf before authenticating history.
+    # Passing this local shape check grants no authority: every superseded
+    # parent's provenance and the selected leaf's live approval remain required.
     leaves = set(candidates) - superseded
     require(len(leaves) <= 1, 'Ambiguous concurrent security decisions require explicit reconciliation')
+    for digest in superseded:
+        historical_provenance(cfg, candidates[digest], api, context=context)
     if not leaves:
         return None, None
     digest = next(iter(leaves))
