@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Separate protected-main qualification evidence from its distribution closure
+  artifact, reducing metadata-only downloads while retaining exact producer,
+  archive, part, product and NAR validation for consumers that restore bytes.
+
 - Automatically admit unprivileged Cargo and GitHub Actions Dependabot CI after
   verifying bot identity, current repository/head and protected workflow shape.
   Preserve normal PR readiness and exact-head human merge approval. Keep PR

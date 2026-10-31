@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Download data from a completed protected producer without executing its tree."""
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -54,12 +55,68 @@ def extract(archive, output):
         source.extractall(output)
 
 
+def download_archive(artifact, output):
+    digest = artifact.get("digest", "")
+    if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
+        raise ValueError("Artifact has no immutable archive digest")
+    with tempfile.TemporaryFile() as archive:
+        operations.run(["gh", "api", f"repos/{REPOSITORY}/actions/artifacts/{artifact['id']}/zip"],
+                       stdout=archive, check=True, timeout=900)
+        archive.seek(0)
+        if hashlib.file_digest(archive, "sha256").hexdigest() != digest.removeprefix("sha256:"):
+            raise ValueError("Downloaded artifact archive differs from authenticated metadata")
+        archive.seek(0)
+        extract(archive, output)
+
+
+def distribution_transport(evidence, scans, run, inventory):
+    """Rejoin separately retained data only after checking the producer documents.
+
+    Old protected producers bundled the parts. New CI producers retain the same
+    attested manifest in scans.json and put only its named parts in a companion.
+    No artifact-name lookup, archive download, or extraction grants NAR authority;
+    the existing attestation/root/recipe checks still precede every store import.
+    """
+    if 'transport' not in scans:
+        return
+    source = Path(os.environ.get('MAESTRO_DISTRIBUTION_CACHE_SOURCE',
+                                str(Path(__file__).parent / '../../graph/_source/distribution-cache.py')))
+    spec = importlib.util.spec_from_file_location('download_distribution_cache', source)
+    transfer = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(transfer)
+    present = {p.name for p in evidence.iterdir() if p.name.startswith('distribution-cache.tar.part-')}
+    if present:
+        # Partial/corrupt legacy data is an integrity failure, never a fallback.
+        transfer.validate_manifest(evidence, scans['transport'])
+        return
+    if run['path'].split('@')[0] != '.github/workflows/ci.yml':
+        raise ValueError('Non-CI producer lacks its bundled distribution transport')
+    companions = [a for a in inventory['artifacts']
+                  if a['name'] == 'maestro-distribution-transport' and not a['expired']]
+    if len(companions) != 1:
+        raise ValueError('Exact producer requires one distribution transport artifact')
+    # Stage on the evidence filesystem so verified part renames cannot fail
+    # when the runner mounts its temporary directory on a different device.
+    with tempfile.TemporaryDirectory(dir=evidence) as temporary:
+        directory = Path(temporary)
+        download_archive(companions[0], directory)
+        # Reject metadata, directories and unexpected parts before merging any
+        # bytes into the authenticated evidence tree.
+        parts = transfer.validate_manifest(directory, scans['transport'])
+        if {p.name for p in directory.iterdir()} != set(parts):
+            raise ValueError('Distribution artifact contains unexpected members')
+        for name in parts:
+            (directory / name).replace(evidence / name)
+
+
 @common.diagnostics.staged
 def main():
     proposal_hash = os.environ.get('CANDIDATE_PROPOSAL_HASH', '')
     identity = os.environ.get('CANDIDATE_RUN', '')
     workflow_filter = os.environ.get('CANDIDATE_WORKFLOW', '')
     admitted = None
+    if os.environ.get('CANDIDATE_REQUIRED') == 'true' and not identity:
+        raise ValueError('Exact candidate run ID required')
     if proposal_hash:
         if (not re.fullmatch(r'[0-9a-f]{64}', proposal_hash)
                 or (identity and not re.fullmatch(r'[1-9][0-9]{0,19}', identity))
@@ -119,28 +176,18 @@ def main():
         artifact_name = "maestro-release-product" if release_only else WORKFLOWS[path]
         artifacts = [a for a in inventory["artifacts"] if a["name"] == artifact_name and not a["expired"]]
         if len(artifacts) == 1:
-            selected = run, artifacts[0]
+            selected = run, artifacts[0], inventory
             break
     if selected is None:
-        if admitted is not None:
-            raise ValueError('Exact fresh official recovery needs one trusted release artifact')
+        if admitted is not None or os.environ.get("CANDIDATE_REQUIRED") == "true":
+            raise ValueError('Exact candidate requires one trusted producer artifact')
         # A distinct discovery result permits only the immutable OCI fallback;
         # API, archive and integrity failures never reach that fallback.
         raise SystemExit(3)
-    run, artifact = selected
-    digest = artifact.get("digest", "")
-    if not re.fullmatch(r"sha256:[0-9a-f]{64}", digest):
-        raise ValueError("Artifact has no immutable archive digest")
+    run, artifact, inventory = selected
     output = Path(os.environ.get("DECISION_DIRECTORY", "candidate-evidence"))
     output.mkdir(parents=True, exist_ok=False)
-    with tempfile.TemporaryFile() as archive:
-        operations.run(["gh", "api", f"repos/{REPOSITORY}/actions/artifacts/{artifact['id']}/zip"],
-                       stdout=archive, check=True, timeout=900)
-        archive.seek(0)
-        if hashlib.file_digest(archive, "sha256").hexdigest() != digest.removeprefix("sha256:"):
-            raise ValueError("Downloaded artifact archive differs from authenticated metadata")
-        archive.seek(0)
-        extract(archive, output)
+    download_archive(artifact, output)
     # Upload-artifact preserves the common directory prefix only for multiple
     # source directories. Resolve the two explicitly supported layouts.
     evidence = output if (output / "scans.json").is_file() else output / "security-report"
@@ -156,6 +203,7 @@ def main():
         raise ValueError("Candidate documents differ from authoritative producer")
     if admitted is not None and common.canonical_hash(product) != common.canonical_hash(admitted['payload']['product']):
         raise ValueError('Fresh recovery changed the exact admitted product')
+    distribution_transport(evidence, scans, run, inventory)
     tags = {match[1] for name in product["assets"] if (match := re.fullmatch(r"maestro-(v[0-9]+\.[0-9]+\.[0-9]+)\.iso\.sha256", name))}
     if product["assets"] and len(tags) != 1:
         raise ValueError("Official product lacks one immutable release tag")
