@@ -34,6 +34,10 @@ correspond to published GitHub tags.
   server retry delays. Reuse a validated immutable workflow within one admission
   operation while preserving all fresh authority reads.
 
+- Route review wakeups through a unique GitHub-authenticated commit/PR association,
+  retaining global checks for missing or ambiguous metadata and fresh authority
+  checks before publishing any result.
+
 - Wake decision reconciliation after review authority checks, and recheck on PR
   comments. Bind check results to the verified current head and require an
   independent human Super Admin approval. Evidence freshness remains mandatory
