@@ -253,6 +253,19 @@ transport before reading installed files. This qualification restore verifies
 producer provenance and output identities; public distribution still requires
 the separate human admission checks.
 
+Protected-main CI retains small native documents and inventories in
+`maestro-security-report`, and closure parts separately in
+`maestro-distribution-transport`, with the same 90-day retention. The attested
+`scans.json` keeps the complete transport manifest, including part sizes and
+SHA-256 hashes. Evidence verification and signing download only the report.
+Consumers that restore products select one successful protected-main producer
+and run attempt, verify both artifact archive digests, and match the companion
+parts to that manifest before the existing attestation, recipe, root and
+recursive NAR checks permit import. Missing, corrupt or ambiguous companions
+fail closed. Historical reports containing their own parts remain readable.
+Release qualification uses the exact requested CI run, never discovery fallback.
+Weekly and release-product reports retain their existing bundled format.
+
 Release inventories use `maestro-evidence` from the assembled inventory's
 `artifact_run_id`. Weekly scanning uses
 `maestro-ci-download-installer DIRECTORY evidence`. This preserves the same

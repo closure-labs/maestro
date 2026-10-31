@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Separate protected-main qualification evidence from its distribution closure
+  artifact, reducing metadata-only downloads while retaining exact producer,
+  archive, part, product and NAR validation for consumers that restore bytes.
+
 - Automatically admit unprivileged Cargo and GitHub Actions Dependabot CI after
   verifying bot identity, current repository/head and protected workflow shape.
   Preserve normal PR readiness and exact-head human merge approval. Keep PR
@@ -33,6 +37,10 @@ correspond to published GitHub tags.
 - Bound GitHub authority GET retries by a shared monotonic deadline and validated
   server retry delays. Reuse a validated immutable workflow within one admission
   operation while preserving all fresh authority reads.
+
+- Route review wakeups through a unique GitHub-authenticated commit/PR association,
+  retaining global checks for missing or ambiguous metadata and fresh authority
+  checks before publishing any result.
 
 - Wake decision reconciliation after review authority checks, and recheck on PR
   comments. Bind check results to the verified current head and require an

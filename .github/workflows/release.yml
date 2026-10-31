@@ -223,13 +223,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:verify
 
-      - name: Download completed qualification distribution transport
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          github-token: ${{ github.token }}
-          name: maestro-security-report
-          path: qualified-distribution
-          run-id: ${{ needs.context.outputs.run_id }}
+      - name: Download exact qualification evidence and distribution transport
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN: ${{ needs.context.outputs.run_id }}
+          CANDIDATE_WORKFLOW: .github/workflows/ci.yml
+          CANDIDATE_REQUIRED: 'true'
+          DECISION_DIRECTORY: qualified-distribution
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:download
 
       - name: Authenticate and restore exact candidate outputs before rescanning
         env:
@@ -299,13 +300,14 @@ jobs:
           EVIDENCE_INPUT: ${{ steps.inventory.outputs.evidence_input }}
           GH_TOKEN: ${{ github.token }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:verify
-      - name: Download completed qualification distribution transport
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          github-token: ${{ github.token }}
-          name: maestro-security-report
-          path: qualified-distribution
-          run-id: ${{ needs.context.outputs.run_id }}
+      - name: Download exact qualification evidence and distribution transport
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN: ${{ needs.context.outputs.run_id }}
+          CANDIDATE_WORKFLOW: .github/workflows/ci.yml
+          CANDIDATE_REQUIRED: 'true'
+          DECISION_DIRECTORY: qualified-distribution
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:download
       - name: Authenticate and restore exact candidate outputs before preparing release bytes
         env:
           GH_TOKEN: ${{ github.token }}

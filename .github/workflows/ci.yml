@@ -535,14 +535,15 @@ jobs:
           QUALIFICATION_MODE: ${{ fromJSON(needs.route.outputs.plan).qualification.mode }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:inventory:assets
 
-      - name: Download previously qualified distribution transport
+      - name: Download exact qualified evidence and distribution transport
         if: fromJSON(needs.route.outputs.plan).qualification.mode == 'reuse'
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          github-token: ${{ github.token }}
-          name: maestro-security-report
-          path: qualified-distribution
-          run-id: ${{ fromJSON(needs.route.outputs.plan).qualification.evidence_run_id }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN: ${{ fromJSON(needs.route.outputs.plan).qualification.evidence_run_id }}
+          CANDIDATE_WORKFLOW: .github/workflows/ci.yml
+          CANDIDATE_REQUIRED: 'true'
+          DECISION_DIRECTORY: qualified-distribution
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:download
 
       - name: Authenticate original producer and restore exact outputs for rescanning
         if: fromJSON(needs.route.outputs.plan).qualification.mode == 'reuse'
@@ -793,12 +794,24 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:candidate
 
-      - name: Upload native scan and exact distribution transport
+      - name: Retain exact distribution transport separately
+        if: github.ref == 'refs/heads/main' && contains(fromJSON('["push","schedule","workflow_dispatch"]'), github.event_name)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-distribution-transport
+          path: security-report/distribution-cache.tar.part-*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90
+
+      - name: Upload native qualification evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: maestro-security-report
-          path: security-report
+          path: |
+            security-report/
+            !security-report/distribution-cache.tar.part-*
           if-no-files-found: error
           compression-level: 0
           retention-days: 90
