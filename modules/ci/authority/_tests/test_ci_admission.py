@@ -262,6 +262,22 @@ class Admission(unittest.TestCase):
         api = API(); api.dependency(); api.compare_change = {'status': 'identical'}
         self.assertEqual(api.approve(), 'approved')
 
+    def test_measured_immutable_read_reduction_preserves_fresh_live_bindings(self):
+        expected = {'cargo': 10, 'github-actions': 10}
+        for ecosystem, path in (('cargo', POLICY['dependencyFiles'][0]),
+                                ('github-actions', '.github/workflows/ci.yml')):
+            api = API(); api.dependency(); api.changed = [{'filename': path, 'status': 'modified'}]
+            for operation in range(2):
+                start = len(api.calls)
+                self.assertEqual(api.approve(), 'approved')
+                calls = api.calls[start:]
+                self.assertEqual(len(calls), expected[ecosystem])
+                self.assertEqual(sum('/contents/' in call for call in calls), 1)
+                for endpoint in ('/actions/runs/42', '/pulls/7', '/branches/main'):
+                    self.assertEqual(sum(call.endswith(endpoint) for call in calls), 2)
+            # The second operation fetched all bytes and authority again.
+            self.assertEqual(len(api.calls), 2 * expected[ecosystem])
+
     def test_dependency_head_and_run_races(self):
         for target in ('pull', 'run'):
             api = API(); api.dependency()

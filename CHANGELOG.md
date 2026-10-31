@@ -26,6 +26,10 @@ correspond to published GitHub tags.
 
 ### Fixed
 
+- Bound GitHub authority GET retries by a shared monotonic deadline and validated
+  server retry delays. Reuse a validated immutable workflow within one admission
+  operation while preserving all fresh authority reads.
+
 - Wake decision reconciliation after review authority checks, and recheck on PR
   comments. Bind check results to the verified current head and require an
   independent human Super Admin approval. Evidence freshness remains mandatory
