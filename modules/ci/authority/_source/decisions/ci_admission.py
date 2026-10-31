@@ -66,6 +66,9 @@ def safe_dependabot_workflow(api, policy, pull, run, templates):
             or not isinstance(files, list) or len(files) >= 300):
         return False
     names = set()
+    # Operation-local validated immutable workflow bytes only. Never reuse live
+    # run, PR, base, identity, rules, review or required-check responses.
+    validated_workflows = {run['path']}
     for item in files:
         if not isinstance(item, dict) or item.get('status') != 'modified':
             return False
@@ -75,8 +78,12 @@ def safe_dependabot_workflow(api, policy, pull, run, templates):
         names.add(path)
         if path in policy['dependencyFiles']:
             continue
-        if path not in templates or not same_workflow(api, policy, path, run['head_sha'], templates):
+        if path not in templates:
             return False
+        if path not in validated_workflows:
+            if not same_workflow(api, policy, path, run['head_sha'], templates):
+                return False
+            validated_workflows.add(path)
     return True
 
 

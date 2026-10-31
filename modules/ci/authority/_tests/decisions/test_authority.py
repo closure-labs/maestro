@@ -94,6 +94,11 @@ class Authority(unittest.TestCase):
         environment = patch.dict(os.environ, {'RUNNER_TEMP': temporary.name})
         environment.start()
         self.addCleanup(environment.stop)
+        self.retry_type = mod.github_retry.RetryBudget
+        budget = patch.object(mod.github_retry, 'RetryBudget',
+                              side_effect=lambda **kwargs: self.retry_type(jitter=lambda: .1, **kwargs))
+        budget.start()
+        self.addCleanup(budget.stop)
 
     def test_exact_human_maintainer_approval(self):
         result = verify(GitHub())
@@ -479,10 +484,10 @@ class Authority(unittest.TestCase):
              self.assertRaises(mod.AuthorityError):
             mod.github_api('repos/example/repository')
         self.assertEqual(run.call_count, 3)
-        self.assertEqual(sleep.call_args_list, [unittest.mock.call(1), unittest.mock.call(2)])
+        self.assertEqual(sleep.call_args_list, [unittest.mock.call(1.1), unittest.mock.call(2.1)])
 
     def test_github_api_retries_temporary_read_failures(self):
-        for transient in (408, 429, 500, 502, 503, 504, 'transport', 'timeout'):
+        for transient in (408, 500, 502, 503, 504, 'transport', 'timeout'):
             responses = iter([transient, 200])
             def request(arguments, **kwargs):
                 self.assertEqual(arguments, ['gh', 'api', '--method', 'GET', '--include', 'repos/example/repository'])
@@ -498,7 +503,69 @@ class Authority(unittest.TestCase):
                  patch.object(mod.time, 'sleep') as sleep:
                 self.assertEqual(mod.github_api('repos/example/repository'), {'fresh': True})
                 self.assertEqual(run.call_count, 2)
-                sleep.assert_called_once_with(1)
+                sleep.assert_called_once_with(1.1)
+
+    def test_adapter_honors_server_delay_and_retries_only_fresh_get(self):
+        for status in (403, 429, 503):
+            calls = []
+            def request(arguments, **kwargs):
+                calls.append(arguments)
+                response = (f'HTTP/2.0 {status}\r\nRetry-After: 3\r\n\r\n{{}}'.encode()
+                            if len(calls) == 1 else b'HTTP/2.0 200\r\n\r\n{"fresh":true}')
+                kwargs['stdout'].write(response)
+                return subprocess.CompletedProcess(arguments, int(len(calls) == 1))
+            with patch.object(mod.operations, 'run', side_effect=request), patch.object(mod.time, 'sleep') as sleep:
+                self.assertEqual(mod.github_api('repos/example/repository'), {'fresh': True})
+                self.assertEqual(len(calls), 2)
+                self.assertTrue(all(call[call.index('--method') + 1] == 'GET' for call in calls))
+                sleep.assert_called_once_with(3.1)
+
+    def test_adapter_malformed_or_long_delay_and_permission_evidence_fail_closed(self):
+        for status, headers, body in (
+                (429, b'', b'{}'),
+                (403, b'', b'{"message":"secondary rate limit"}'),
+                (429, b'Retry-After: 60\r\n', b'{}'),
+                (503, b'Retry-After: bad\r\n', b'{}'),
+                (503, b'Retry-After: 1\r\nRetry-After: 2\r\n', b'{}'),
+                (403, b'X-RateLimit-Remaining: 0\r\nX-RateLimit-Reset: 9999999999\r\nRetry-After: 1\r\n',
+                 b'{"message":"Resource not accessible by integration"}')):
+            def request(arguments, **kwargs):
+                kwargs['stdout'].write(f'HTTP/2.0 {status}\r\n'.encode() + headers + b'\r\n' + body)
+                return subprocess.CompletedProcess(arguments, 1)
+            with patch.object(mod.operations, 'run', side_effect=request) as run, \
+                 patch.object(mod.time, 'sleep') as sleep, self.assertRaises(mod.AuthorityAPIError):
+                mod.github_api('repos/example/repository')
+            self.assertEqual(run.call_count, 1)
+            sleep.assert_not_called()
+
+    def test_adapter_transport_timeouts_share_one_monotonic_deadline(self):
+        now, timeouts = [0.], []
+        def budget(**kwargs):
+            return self.retry_type(**kwargs, clock=lambda: now[0], wall=lambda: 1800000000.,
+                                   sleep=lambda delay: now.__setitem__(0, now[0]+delay), jitter=lambda: .1)
+        def request(arguments, **kwargs):
+            timeouts.append(kwargs['timeout'])
+            now[0] += kwargs['timeout']
+            raise subprocess.TimeoutExpired('gh', kwargs['timeout'])
+        with patch.object(mod.github_retry, 'RetryBudget', side_effect=budget), \
+             patch.object(mod.operations, 'run', side_effect=request), self.assertRaises(mod.AuthorityError):
+            mod.github_api('repos/example/repository')
+        self.assertEqual(len(timeouts), 2)
+        self.assertEqual(timeouts[0], 30)
+        self.assertAlmostEqual(timeouts[1], 13.9)
+        self.assertEqual(now[0], 45)
+
+    def test_adapter_enclosing_deadline_can_only_shorten_retry_budget(self):
+        def request(arguments, **kwargs):
+            self.assertLessEqual(kwargs['timeout'], 2)
+            kwargs['stdout'].write(b'HTTP/2.0 503\r\nRetry-After: 3\r\n\r\n{}')
+            return subprocess.CompletedProcess(arguments, 1)
+        with patch.object(mod.operations, 'remaining', return_value=2), \
+             patch.object(mod.operations, 'run', side_effect=request) as run, \
+             patch.object(mod.time, 'sleep') as sleep, self.assertRaises(mod.AuthorityError):
+            mod.github_api('repos/example/repository')
+        self.assertEqual(run.call_count, 1)
+        sleep.assert_not_called()
 
     def test_github_api_permanent_errors_never_retry_or_expose_response(self):
         for status in (301, 400, 401, 403, 404, 409, 422):
@@ -630,7 +697,7 @@ class Authority(unittest.TestCase):
         self.assertEqual(str(error.exception), 'GitHub authority API failed: repos/example/repository '
                          '(HTTP 503; 3 attempts; retry-after=7)')
         self.assertEqual(run.call_count, 3)
-        self.assertEqual(sleep.call_args_list, [unittest.mock.call(1), unittest.mock.call(2)])
+        self.assertEqual(sleep.call_args_list, [unittest.mock.call(7.1), unittest.mock.call(7.1)])
 
     def test_github_api_invalid_credentials_category_does_not_echo_body(self):
         def request(arguments, **kwargs):
@@ -657,7 +724,7 @@ class Authority(unittest.TestCase):
         self.assertEqual(str(error.exception), 'GitHub authority API failed: repos/example/repository '
                          '(HTTP 403; attempt 2)')
         self.assertEqual(run.call_count, 2)
-        sleep.assert_called_once_with(1)
+        sleep.assert_called_once_with(7.1)
 
     def test_large_blob_metadata_encoding_size_and_object_hash_must_agree(self):
         _, metadata, original = self.large_blob()

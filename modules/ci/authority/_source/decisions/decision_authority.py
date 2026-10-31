@@ -15,6 +15,7 @@ import stat
 import subprocess
 import operations
 import diagnostics
+import github_retry
 import sys
 import tempfile
 import time
@@ -85,14 +86,14 @@ def api_failure_details(status, headers, output):
         except (ValueError, UnicodeError, RecursionError):
             pass
     if status in (403, 429):
-        if fields.get('remaining') == '0':
+        if status == 403 and message == 'resource not accessible by integration':
+            fields['category'] = 'permission-denied'
+        elif fields.get('remaining') == '0':
             fields['category'] = 'primary-rate-limit'
         elif 'secondary rate limit' in message or 'retry-after' in fields:
             fields['category'] = 'secondary-rate-limit'
         elif 'api rate limit exceeded' in message:
             fields['category'] = 'rate-limit'
-        elif message == 'resource not accessible by integration':
-            fields['category'] = 'permission-denied'
     elif status == 401 and message == 'bad credentials':
         fields['category'] = 'bad-credentials'
     return ''.join('; ' + name + '=' + value for name, value in fields.items())
@@ -107,17 +108,20 @@ def github_api(endpoint):
     # the child output before allocating or parsing it, including on API errors.
     def bound_output():
         resource.setrlimit(resource.RLIMIT_FSIZE, (MAX_API_BYTES, MAX_API_BYTES))
-    for attempt in range(1, 4):
+    retry = github_retry.RetryBudget(total=operations.remaining(45))
+    for attempt in range(1, retry.attempts + 1):
         if attempt > 1:
             diagnostics.profile('transport', 'github-api', retries=1)
-        details = ''
+        details, headers, status, category = '', {}, None, None
         result = None
         with tempfile.TemporaryFile() as output:
             try:
                 diagnostics.count('apiTransportInvocations')
                 result = operations.run(['gh', 'api', '--method', 'GET', '--include', endpoint],
                                         stdout=output, stderr=subprocess.DEVNULL,
-                                        timeout=30, check=False, preexec_fn=bound_output)
+                                        timeout=retry.remaining(), check=False, preexec_fn=bound_output)
+            except github_retry.RetryDeadline:
+                raise AuthorityError('GitHub authority GET retry deadline exhausted') from None
             except OSError as error:
                 raise AuthorityError('GitHub authority API unavailable') from error
             except subprocess.TimeoutExpired:
@@ -158,14 +162,18 @@ def github_api(endpoint):
                         except (ValueError, UnicodeError) as error:
                             raise AuthorityError('Invalid GitHub API response') from error
                     details = api_failure_details(status, headers, output)
-                    if status not in (408, 429, 500, 502, 503, 504):
-                        raise AuthorityAPIError('GitHub authority API failed: ' + endpoint.split('?')[0]
-                                                + f' ({failure}; attempt {attempt}{details})', status)
-        # Retry only fresh read requests. No response or authority is cached.
-        if attempt == 3:
+                    category_match = re.search(r'; category=([a-z-]+)', details)
+                    category = category_match[1] if category_match else None
+        # Only fresh GETs use the validated policy; server-directed minimums
+        # never shrink to fit this operation or its enclosing deadline.
+        try:
+            again = retry.wait(attempt, status, headers, category)
+        except github_retry.RetryDeadline:
+            raise AuthorityError('GitHub authority GET retry deadline exhausted') from None
+        if not again:
+            attempts = '3 attempts' if attempt == retry.attempts else f'attempt {attempt}'
             raise AuthorityAPIError('GitHub authority API failed: ' + endpoint.split('?')[0]
-                                    + f' ({failure}; 3 attempts{details})')
-        time.sleep(attempt)
+                                    + f' ({failure}; {attempts}{details})', status)
 
 
 def collection(api, endpoint):
