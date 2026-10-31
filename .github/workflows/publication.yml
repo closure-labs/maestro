@@ -86,6 +86,8 @@ jobs:
           CANDIDATE_RELEASE_ONLY: ${{ inputs.proposal_hash != '' && 'true' || 'false' }}
           CANDIDATE_WORKFLOW: ${{ inputs.proposal_hash != '' && '.github/workflows/security.yml' || '.github/workflows/ci.yml' }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' ci:decision:download
+      - name: Reject locally unusable health before public inspection
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:health-preflight
       - name: Create repository-scoped authority and journal token
         id: authority
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0

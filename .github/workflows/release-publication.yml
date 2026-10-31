@@ -60,6 +60,8 @@ jobs:
           CANDIDATE_RUN: ${{ inputs.candidate_run || '' }}
           CANDIDATE_RELEASE_ONLY: 'true'
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' ci:decision:download
+      - name: Reject locally unusable health before public inspection
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:health-preflight
       - name: Mint repository-scoped live authority and journal token
         id: authority
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
