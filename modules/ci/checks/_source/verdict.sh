@@ -17,6 +17,11 @@ if [[ ${GRAPH_RESULT_REQUIRED:-false} == true || -n ${CI_RESULT_SHA256:-} ]]; th
     ' ci-result.json >/dev/null
 fi
 
+# Incoming secret scans are independent of graph routing and evidence reuse.
+case "${GITHUB_EVENT_NAME:-}" in
+  pull_request|merge_group) test "${INCOMING_SECRET_RESULT:?}" = success ;;
+esac
+
 test "${ROUTE_RESULT:?}" = success
 if [[ ${COMPARISON_REQUIRED:-false} == true ]]; then
   [[ ${COMPARISON_RESULT:?} == success ]]

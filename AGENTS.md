@@ -49,7 +49,9 @@ Enter the native toolchain with `devenv shell`; `nix develop
 repository contract with `devenv tasks run ci:repository-audit`. GitHub
 workflow command bodies must call declared devenv tasks, which delegate
 repository policy to the flake-packaged `maestro-ci-*` leaf commands; do not add
-raw CI or release logic to workflow YAML. Do not add a monolithic automation
+raw CI or release logic to workflow YAML. The byte-bound
+`repository-secret-scan.yml` is the explicit conventional upstream Gitleaks CLI
+exception: it runs read-only with candidate data and protected-base policy. Do not add a monolithic automation
 dispatcher.
 Declare credential and repository-variable contracts in `secretspec.toml`.
 Resolve values only at runtime; never pass credentials through Nix evaluation

@@ -16,6 +16,14 @@ correspond to published GitHub tags.
   Preserve normal PR readiness and exact-head human merge approval. Keep PR
   validation separate from App-token minting, OIDC, signing and CodeQL publication.
 
+- Reserve 20 GiB of free space before hosted Nix jobs, reclaiming only unused
+  Android/.NET runner SDKs when needed; keep complete validation and evidence.
+
+- Scan exact PR and merge-queue commit ranges with pinned upstream Gitleaks,
+  enforced by the required CI verdict independently of qualification reuse.
+  Keep historical scans visible as nonblocking debt; remove custom finding
+  post-filtering while preserving the narrow public-ledger identity policy.
+
 ### Fixed
 
 - Wake decision reconciliation after review authority checks, and recheck on PR

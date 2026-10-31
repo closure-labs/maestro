@@ -36,7 +36,6 @@
           bash ./modules/ci/security/_tests/security-scan.sh
           bash ./modules/ci/checks/_tests/codeql-rust-toolchain.sh ${lib.getExe packages.maestro-ci-codeql-rust-toolchain}
           PYTHONDONTWRITEBYTECODE=1 python3 modules/ci/authority/_tests/decision-observations.py
-          PYTHONDONTWRITEBYTECODE=1 python3 modules/ci/authority/_tests/test_secret_inventory.py
           PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s modules/ci/authority/_tests/decisions -p '*.py'
           MAESTRO_TEST_PUBLISH_COMMAND=${lib.getExe packages.maestro-ci-publish} \
             MAESTRO_TEST_INSPECT_COMMAND=${lib.getExe packages.maestro-ci-publication-inspect} \

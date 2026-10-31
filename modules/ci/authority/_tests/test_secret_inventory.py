@@ -7,13 +7,11 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
-import sys
 import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[4]
 CONFIG = ROOT / '.gitleaks.toml'
-SOURCE_SECURITY = ROOT / 'modules/ci/security/_source/source-security.py'
 KEY = hashlib.sha256(b'public canonical vulnerability identity fixture').hexdigest()
 LEDGER = 'automation/decisions/security/' + 'a' * 64 + '.json'
 LINE = '          "key": "' + KEY + '",\n'
@@ -102,57 +100,13 @@ class SecretInventoryTests(unittest.TestCase):
         self.assertIn('github-pat', {rule for rule, _ in findings})
         self.assertTrue(all(path == 'source.py' for _, path in findings))
 
-    def verify_source(self):
-        shutil.copyfile(CONFIG, self.directory / '.gitleaks.toml')
-        environment = dict(os.environ, PATH=str(Path(self.scanner).parent) + os.pathsep + os.environ['PATH'])
-        return subprocess.run([sys.executable, str(SOURCE_SECURITY)], cwd=self.directory,
-                              env=environment, capture_output=True, text=True, timeout=60).returncode
-
-    def test_fragmented_public_keys_use_complete_original_lines(self):
-        # The pinned scanner splits this file inside some digest lines. Its
-        # partial line contexts cannot match the existing full-line allowlist.
+    def test_fragmented_public_keys_fail_closed_without_post_filtering(self):
+        # Upstream may split large files inside digest lines. Such uncertainty
+        # remains a scan failure; never exempt it using candidate checkout data.
         status, findings = self.scan({LEDGER: LINE * 10_000})
         self.assertEqual(status, 1)
         self.assertTrue(findings)
         self.assertEqual({rule for rule, _ in findings}, {'generic-api-key'})
-        self.assertEqual(self.verify_source(), 0)
-        with (self.directory / LEDGER).open('a') as output:
-            output.write('          "token": "' + FAKE + '",\n')
-        self.assertEqual(self.verify_source(), 1)
-
-    def test_source_verifier_preserves_path_line_and_service_boundaries(self):
-        cases = [
-            ('source.py', LINE),
-            ('automation/decisions/releases/' + 'a' * 64 + '.json', LINE),
-            (LEDGER, LINE.replace('"key"', '"api_key"')),
-            (LEDGER, LINE.replace(KEY, KEY + 'a')),
-            (LEDGER, LINE.replace(KEY, FAKE)),
-            (LEDGER, LINE.rstrip('\n') + ' "token": "' + FAKE + '"\n'),
-        ]
-        for index, (name, content) in enumerate(cases):
-            with self.subTest(case=index):
-                for child in self.directory.iterdir():
-                    shutil.rmtree(child) if child.is_dir() else child.unlink()
-                self.scan({name: content})
-                self.assertEqual(self.verify_source(), 1)
-
-    def test_source_verifier_rejects_missing_invalid_or_inconsistent_reports(self):
-        tools = self.directory / 'fixture-bin'
-        tools.mkdir()
-        scanner = tools / 'gitleaks'
-        for code, report in ((1, None), (1, '[]'), (0, '[{}]'), (1, 'not-json'), (2, '[]')):
-            with self.subTest(code=code, report=report):
-                scanner.write_text(f'#!{sys.executable}\nimport sys\nfrom pathlib import Path\n'
-                                   f'value={report!r}\n'
-                                   'if value is not None: Path(sys.argv[sys.argv.index("--report-path")+1]).write_text(value)\n'
-                                   f'sys.exit({code})\n')
-                scanner.chmod(0o700)
-                actual = self.scanner
-                try:
-                    self.scanner = str(scanner)
-                    self.assertNotEqual(self.verify_source(), 0)
-                finally:
-                    self.scanner = actual
 
 
 if __name__ == '__main__':
