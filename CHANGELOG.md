@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Correct read-only packet-inspector login to pass an anonymous stdin handle
+  through the bounded subprocess runner, with a 30-second login deadline and
+  real subprocess fixtures for credential secrecy, timeout and output limits.
+
 - Add a manual protected-main, package-read-only inspector for the exact reviewed
   interrupted recovery packet. Verify its original run/request, producer,
   artifact and complete descriptor inventory without closure downloads or
