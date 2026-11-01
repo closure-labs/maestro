@@ -122,6 +122,17 @@ def inspect(request, descriptor_bytes):
             'descriptorBytesVerified': len(readback), 'closurePayloadBytesDownloaded': 0}
 
 
+def registry_login(token):
+    # The bounded packet runner accepts Popen arguments, not run(input=...).
+    # An anonymous private file supplies stdin without embedding the token in
+    # argv or a named file, or blocking a pipe writer outside the deadline.
+    with operations.budget(30), tempfile.TemporaryFile() as credentials:
+        credentials.write(token.encode())
+        credentials.seek(0)
+        packets.command(['oras', 'login', 'ghcr.io', '--username', os.environ['GITHUB_ACTOR'], '--password-stdin'],
+                        stdin=credentials)
+
+
 def main():
     # Workflow gating is repeated here; direct invocation cannot select another
     # credential, target or write-capable mode. No fallback token is accepted.
@@ -140,8 +151,7 @@ def main():
     try:
         with operations.budget(240), tempfile.TemporaryDirectory(prefix='packet-inspection-') as directory:
             os.environ['DOCKER_CONFIG'] = directory
-            packets.command(['oras', 'login', 'ghcr.io', '--username', os.environ['GITHUB_ACTOR'], '--password-stdin'],
-                            input=token.encode())
+            registry_login(token)
             result = inspect(request, descriptor)
     except (ValueError, OSError, RuntimeError, subprocess.TimeoutExpired):
         # Never retain raw errors, credentials, logs or response bodies. Missing,

@@ -8,13 +8,18 @@ Gitleaks, App authority and merge queue remain unchanged. No review/settings
 cutover is included; the future accepted one-human-review policy, including
 Dependabot, must be applied only through a separately approved change.
 
-The single `ci:flake:validate` task evaluates the ordinary flake checks, builds
-the appliance, installer ISO, pinned XO, compiled menu, CLI and deployment
-wrapper, then runs existing CLI, runtime-security VM, storage and file-restore
-checks. Those VM tests cover XO/Redis service startup, TLS, management ingress,
+The single `ci:flake:validate` task realizes all ordinary flake checks with
+`nix flake check`, including every current twenty-plan obligation and existing
+CLI, runtime-security VM, storage and file-restore checks. It then builds the
+appliance, installer ISO, pinned XO, compiled menu, CLI and deployment wrapper. Those VM tests cover XO/Redis service startup, TLS, management ingress,
 NFS/CIFS/VHD storage and privilege boundaries. Build and test failures stop the
 job. No substitute success receipt or advisory finding baseline is generated.
-Existing required installer boot qualification remains unchanged; an ISO build
+The task inherits exactly the existing URLs/keys from `modules/flake/caches.nix`
+through its package, preserving setup's baseline configuration. It adds no cache,
+key or credential, and does not accept arbitrary flake settings. Phase labels go
+to stderr and native build logs remain visible. The earlier evaluation-only trial
+and its ignored-cache timings cannot establish parity. Existing required
+installer boot qualification remains unchanged; an ISO build
 in this workflow does not claim to replace its boot evidence.
 
 ## One-cycle exit and deletion
