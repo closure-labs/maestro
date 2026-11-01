@@ -278,7 +278,8 @@ class SecurityRecovery(unittest.TestCase):
                 checked.check_pr(REPO, 7, BOT, MERGE, transport)
 
     def test_recovery_proposals_are_drafts_and_never_call_queue_transport(self):
-        pull = {'number': 321, 'user': {'login': CFG['botLogin'], 'type': 'Bot'}}
+        pull = {'number': 321, 'draft': True, 'head': {'sha': 'd' * 40},
+                'user': {'login': CFG['botLogin'], 'type': 'Bot'}}
         with patch.object(reconciliation.authority, 'collection', return_value=[]), \
                 patch.object(reconciliation.authority, 'github_api', side_effect=[
                     {'object': {'sha': 'a' * 40}}, {'tree': {'sha': 'b' * 40}}]), \

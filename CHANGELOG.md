@@ -11,6 +11,11 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Bound guarded recovery work by reusing only authenticated immutable historical
+  provenance within one exact invocation. Keep every live graph, policy,
+  authority and evidence check, and retain nonsensitive packet/proposal receipts
+  for cancellation and uncertain-write readback without changing job timeouts.
+
 - Suppress redundant decision reconciliation after an authenticated exact release
   continuation attempt skips finalization; preserve real product wakeups and all
   independent evidence and human authority checks.

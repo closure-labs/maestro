@@ -8,6 +8,7 @@ import tempfile
 import decision_authority as authority
 import decision_packets as packets
 import security_recovery
+import recovery_context
 from common import (require, command, scans, product, ledger, active_security, active_release,
                     authorize, historical_provenance, config, attest, required_check,
                     security_contexts, accepted_contexts, compare_security_contexts, main_revision)
@@ -36,6 +37,7 @@ def validate_proposal_parent(proposal, cfg):
     return revision
 
 
+@recovery_context.scoped('packet-validation', when=lambda proposal, *a, **k: 'recovery' in proposal.get('payload', {}))
 def validate_proposal_packet(proposal, cfg=None):
     cfg = cfg or CHECK_CONFIG
     require(cfg is not None, 'Checked policy required for packet validation')
@@ -176,8 +178,10 @@ def queue_proposal(cfg, number):
     require(acknowledged, 'Enqueue acknowledgement unavailable; native state remains waiting')
     return 'enqueue-pending'
 
+@recovery_context.scoped('proposal-write', when=lambda cfg, proposal: 'recovery' in proposal.get('payload', {}))
 def propose(cfg, proposal):
     """Create one immutable bot branch/PR without checking out or executing candidate code."""
+    state = recovery_context.current() if 'recovery' in proposal['payload'] else None
     repository = cfg['repository']
     digest = canonical_hash(proposal)
     path = authority.proposal_path(proposal)
@@ -193,18 +197,25 @@ def propose(cfg, proposal):
         files = authority.collection(authority.github_api, f'repos/{repository}/pulls/{pull["number"]}/files')
         require(len(files) == 1 and files[0].get('filename') == path and files[0].get('status') == 'added',
                 'Existing proposal PR changes unexpected paths')
+        if state is not None:
+            state.phase('proposal-found', proposalHash=digest, head=pull['head']['sha'], pullRequest=pull['number'])
         return {'schema': 1, 'status': ('awaiting-review' if 'recovery' in proposal['payload'] else queue_proposal(cfg, pull['number'])), 'proposalHash': digest, 'pullRequest': pull['number']}
     if 'recovery' in proposal['payload']:
         security_recovery.proposal(cfg, proposal, verify_packets=False)
     base = authority.github_api(f'repos/{repository}/git/ref/heads/main')['object']['sha']
     if 'recovery' in proposal['payload']:
         require(base == proposal['payload']['recovery']['mainRevision'], 'Security recovery graph snapshot changed')
+        state.phase('pre-write-verified', proposalHash=digest, packet=proposal['payload']['packet'])
     commit = authority.github_api(f'repos/{repository}/git/commits/{base}')
+    if state is not None:
+        state.phase('proposal-write-requested', proposalHash=digest)
     tree = api_write(f'repos/{repository}/git/trees', {'base_tree': commit['tree']['sha'],
                     'tree': [{'path': path, 'mode': '100644', 'type': 'blob',
                               'content': json.dumps(proposal, sort_keys=True, indent=2) + '\n'}]})
     commit = api_write(f'repos/{repository}/git/commits', {'message': 'chore: propose ' + proposal['kind'] + ' ' + digest[:12],
                        'tree': tree['sha'], 'parents': [base]})
+    if state is not None:
+        state.phase('proposal-write-requested', proposalHash=digest, head=commit['sha'])
     # Existing divergent refs fail; never force-update an unattended branch.
     api_write(f'repos/{repository}/git/refs', {'ref': 'refs/heads/' + branch, 'sha': commit['sha']})
     pull = api_write(f'repos/{repository}/pulls', {'head': branch, 'base': 'main',
@@ -213,9 +224,13 @@ def propose(cfg, proposal):
                      'body': 'Approve this exact content-addressed proposal head. Publication rechecks current Super Admin membership and maintain/admin access.'})
     require(pull.get('user', {}).get('login') == cfg['botLogin'] and pull.get('user', {}).get('type') == 'Bot',
             'Proposal author must be the configured App bot')
+    if state is not None:
+        require(pull.get('draft') is True and pull.get('head', {}).get('sha') == commit['sha'], 'Recovery draft acknowledgement differs')
+        state.phase('draft-created', proposalHash=digest, head=commit['sha'], pullRequest=pull['number'])
     return {'schema': 1, 'status': ('awaiting-review' if 'recovery' in proposal['payload'] else queue_proposal(cfg, pull['number'])), 'proposalHash': digest, 'pullRequest': pull['number']}
 
 
+@recovery_context.scoped('reconcile', reuse=False, when=lambda *a, **k: k.get('recovery') is not None or len(a) > 8 and a[8] is not None)
 def reconcile(cfg, scan_path, product_path, kind, directory, rationale, disposition='accepted', decision_hash=None,
               recovery=None):
     if recovery is not None:
@@ -276,7 +291,9 @@ def reconcile(cfg, scan_path, product_path, kind, directory, rationale, disposit
                     revision=native['producer'].get('revision', native['revision']), sourceRevision=native['revision'])
     if recovery is not None:
         security_recovery.validate(cfg, recovery, verify_packets=False)
-    packet = packets.push(directory, producer)
+    state = recovery_context.current() if recovery is not None else None
+    packet = (packets.push(directory, producer, receipt=state.phase) if state is not None
+              else packets.push(directory, producer))
     payload = {'disposition': disposition, 'rationale': rationale, 'packet': packet}
     if kind == 'security-findings':
         payload.update(profiles=findings, securityContexts=security_contexts(native),
@@ -287,5 +304,9 @@ def reconcile(cfg, scan_path, product_path, kind, directory, rationale, disposit
         payload['product'] = identity
         payload['supersedes'] = [release_digest] if release_digest else []
     proposal = {'schema': 1, 'kind': kind, 'payload': payload}
+    if state is not None:
+        state.phase('proposal-prepared', proposalHash=canonical_hash(proposal), packet=packet)
     validate_proposal_packet(proposal, cfg)
+    if state is not None:
+        state.phase('proposal-verified', proposalHash=canonical_hash(proposal))
     return propose(cfg, proposal)

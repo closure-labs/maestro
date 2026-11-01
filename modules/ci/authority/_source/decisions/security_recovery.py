@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import common
+import recovery_context
 import decision_packets as packets
 from security_decisions import canonical_hash, normalize_findings
 
@@ -62,7 +63,7 @@ def evidence(cfg, proposal):
                        'Historical proof differs from complete authenticated findings or contexts')
 
 
-def security_leaves(cfg, records):
+def security_leaves(cfg, records, proof_context=None):
     """Enumerate explicitly; reuse the ordinary checker on every leaf ancestry.
 
     No normal selector interface changes or synthetic decision records are
@@ -91,22 +92,34 @@ def security_leaves(cfg, records):
         visit(digest)
     leaves = {}
     for digest in sorted(set(candidates) - superseded):
-        selected, value = common.security_graph(cfg, {h: candidates[h] for h in ancestors[digest]})
+        selected, value = common.security_graph(cfg, {h: candidates[h] for h in ancestors[digest]}, context=proof_context)
         common.require(selected == digest, 'Invalid recovery leaf ancestry')
         leaves[digest] = value
     return leaves
 
 
+@recovery_context.scoped('recovery-validation')
 def validate(cfg, request, *, verify_packets=True):
     shape(request)
+    state = recovery_context.current()
+    state.counts['validations'] += 1
+    common.require(state.counts['validations'] <= recovery_context.MAX_PASSES, 'Recovery validation budget exceeded')
+    state.counts['ledgerReads'] += 1
+    state.phase('ledger-observation')
     revision, records = common.ledger(cfg)
     common.require(revision == request['mainRevision'] and canonical_hash(records) == request['graphHash'],
                    'Security recovery graph snapshot changed')
     common.require(canonical_hash(cfg) == request['policyHash'], 'Security recovery policy snapshot changed')
+    state.counts['policyReads'] += 1
+    state.phase('policy-observation')
     policy = common.authority.document_at(common.authority.github_api, cfg['repository'], cfg['policyPath'], revision)
     common.require(policy == cfg, 'Security recovery current policy changed')
+    state.counts['ruleChecks'] += 1
+    state.phase('rules-observation')
     common.required_check(cfg)
-    leaves = security_leaves(cfg, records)
+    state.bind(cfg, request, revision, records)
+    state.phase('historical-provenance')
+    leaves = security_leaves(cfg, records, state)
     common.require(sorted(leaves) == request['parents'], 'Security recovery requires complete current active parent set')
     scopes = [(p['payload']['profiles'], common.accepted_contexts(p['payload'])) for p in leaves.values()]
     common.require(all(p['payload']['disposition'] == 'accepted' for p in leaves.values())
@@ -114,14 +127,22 @@ def validate(cfg, request, *, verify_packets=True):
                    'Security recovery requires equal accepted findings and contexts')
     # Superseded history needs immutable provenance, while every active parent
     # must retain current human authority. No departure/revocation waiver here.
+    state.phase('live-parents')
     for proposal in leaves.values():
+        state.counts['liveParents'] += 1
         common.authorize(cfg, proposal)
     if verify_packets:
+        state.phase('historical-packets')
         for proposal in records.values():
             if proposal['kind'] in ('security-findings', 'security-revocation'):
-                common.historical_provenance(cfg, proposal)
+                common.historical_provenance(cfg, proposal, context=state)
                 evidence(cfg, proposal)
+                state.counts['packetProofs'] += 1
+                state.phase('historical-packets', proofHash=canonical_hash(proposal))
+    state.counts['mainReads'] += 1
+    state.phase('final-main-observation')
     common.require(common.main_revision(cfg) == revision, 'Security recovery graph snapshot changed')
+    state.phase('snapshot-verified')
     return leaves
 
 
@@ -132,6 +153,7 @@ def scope(payload, leaves):
                    'Fresh recovery evidence differs from parent findings or contexts')
 
 
+@recovery_context.scoped('proposal-validation')
 def proposal(cfg, value, *, verify_packets=True):
     payload = value['payload']
     request = payload['recovery']
@@ -149,3 +171,6 @@ def proposal(cfg, value, *, verify_packets=True):
 def fresh(cfg, native):
     common.fresh_scan(native, cfg)
     common.verify_producer(cfg, native['producer'], native['revision'], require_main=True)
+    state = recovery_context.current()
+    if state is not None:
+        state.phase('evidence-verified')
