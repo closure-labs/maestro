@@ -42,6 +42,8 @@ in {
   security-scan = mkCommand {
     name = "security-scan";
     prefix = ''
+      export MAESTRO_CI_TIME=${pkgs.time}/bin/time
+      ${builtins.readFile ../../checks/_source/measure-phase.sh}
       MAESTRO_SECURITY_POLICY="''${MAESTRO_SYSTEM_ROOT:-$PWD}/modules/ci/security/_source/security-policy.json"
       export MAESTRO_SECURITY_POLICY
       export MAESTRO_FINGERPRINTS_CORE=${../../authority/_source/decisions}

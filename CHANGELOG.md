@@ -11,6 +11,11 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Generate inventory and fresh native scans on one unprivileged hosted runner,
+  preserving exact root/document bindings and final retained evidence while
+  removing intermediate closure export/transfer/restore. Retain phase resource
+  observations without changing comparison, boot, signing or authority gates.
+
 - Correct read-only packet-inspector login to pass an anonymous stdin handle
   through the bounded subprocess runner, with a 30-second login deadline and
   real subprocess fixtures for credential secrecy, timeout and output limits.

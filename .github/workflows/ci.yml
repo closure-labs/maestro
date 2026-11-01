@@ -445,7 +445,7 @@ jobs:
           retention-days: 90
 
   qualification:
-    name: Generate release inventory
+    name: Generate inventory and scan release outputs
     needs: [route, retained, appliance, installer]
     if: >-
       !cancelled() && needs.route.result == 'success' &&
@@ -461,7 +461,8 @@ jobs:
       attestations: read
       contents: read
     outputs:
-      manifest_sha256: ${{ steps.inventory_transfer.outputs.manifest_sha256 }}
+      manifest_sha256: ${{ steps.inventory_binding.outputs.manifest_sha256 }}
+      scan_result: ${{ steps.native_scan.conclusion }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -533,6 +534,7 @@ jobs:
           EXPECTED_EVIDENCE_RUN_ID: ${{ fromJSON(needs.route.outputs.plan).qualification.evidence_run_id }}
           GH_TOKEN: ${{ github.token }}
           QUALIFICATION_MODE: ${{ fromJSON(needs.route.outputs.plan).qualification.mode }}
+          MAESTRO_CI_MEASURE_PHASE: inventory
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:inventory:assets
 
       - name: Download exact qualified evidence and distribution transport
@@ -551,15 +553,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           SECURITY_INVENTORY: reused-evidence
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:qualification:restore
-
-      - name: Retain qualification diagnostics
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: maestro-qualification-diagnostics
-          path: ${{ runner.temp }}/maestro-qualification-diagnostics/
-          if-no-files-found: ignore
-          retention-days: 30
 
       - name: Download immutable qualification state
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -610,31 +603,74 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
-      - name: Retain digest-bound distribution closure for scanning
-        id: inventory_transfer
+      - name: Bind local inventory identities without exporting a closure
+        id: inventory_binding
         env:
           SECURITY_INVENTORY: ${{ fromJSON(needs.route.outputs.plan).qualification.mode == 'reuse' && 'reused-evidence' || '.' }}
           GRAPH_PLAN_SHA256: ${{ needs.route.outputs.graph_sha256 }}
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:transport:export-inventory
-
-      - name: Retain maestro-inventory-transfer
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: maestro-inventory-transfer
-          path: |
-            inventory-transfer/
-            !inventory-transfer/nix-events/**
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 90
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:inventory:bind
 
       - name: Retain small inventory and ISO binding
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: maestro-inventory-binding
-          path: inventory-transfer/manifest.json
+          path: inventory-binding/manifest.json
           if-no-files-found: error
           retention-days: 90
+
+      - name: Verify inventory document bytes against the bound producer
+        env:
+          GRAPH_PLAN_SHA256: ${{ needs.route.outputs.graph_sha256 }}
+          TRANSFER_MANIFEST_SHA256: ${{ steps.inventory_binding.outputs.manifest_sha256 }}
+          SECURITY_INVENTORY: ${{ fromJSON(needs.route.outputs.plan).qualification.mode == 'reuse' && 'reused-evidence' || '.' }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:inventory:verify
+
+      - name: Scan current databases beside the realized qualification outputs
+        id: native_scan
+        env:
+          MAESTRO_CI_MEASURE_PHASE: scan
+          SECURITY_INVENTORY: ${{ fromJSON(needs.route.outputs.plan).qualification.mode == 'reuse' && 'reused-evidence' || '.' }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:security:scan
+
+      - name: Bind exact scanned distribution and retain its closure transport
+        if: github.ref == 'refs/heads/main' && contains(fromJSON('["push","schedule","workflow_dispatch"]'), github.event_name)
+        env:
+          SECURITY_INVENTORY: ${{ fromJSON(needs.route.outputs.plan).qualification.mode == 'reuse' && 'reused-evidence' || '.' }}
+          DECISION_PRODUCER_WORKFLOW: .github/workflows/ci.yml
+          GH_TOKEN: ${{ github.token }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:candidate
+
+      - name: Retain exact distribution transport separately
+        if: github.ref == 'refs/heads/main' && contains(fromJSON('["push","schedule","workflow_dispatch"]'), github.event_name)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-distribution-transport
+          path: security-report/distribution-cache.tar.part-*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90
+
+      - name: Upload native qualification evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-security-report
+          path: |
+            security-report/
+            !security-report/distribution-cache.tar.part-*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90
+
+      - name: Retain qualification diagnostics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-qualification-diagnostics
+          path: ${{ runner.temp }}/maestro-qualification-diagnostics/
+          if-no-files-found: ignore
+          retention-days: 30
+
 
   boot:
     name: Test installer boot
@@ -722,108 +758,14 @@ jobs:
           compression-level: 0
           retention-days: 90
 
-  scan:
-    name: Scan release outputs
-    needs: [route, retained, qualification]
-    if: >-
-      !cancelled() && needs.route.result == 'success' && ((needs.route.outputs.graph_gating == 'true' && fromJSON(needs.route.outputs.graph_jobs).scan.required) || (needs.route.outputs.graph_gating != 'true' && fromJSON(needs.route.outputs.plan).qualification.required)) && needs.retained.outputs.reused != 'true' && (vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED != 'true' || contains(fromJSON('["success","skipped"]'), needs.retained.result)) && needs.qualification.result == 'success'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 240
-    permissions:
-      actions: read
-      attestations: read
-      contents: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Set up Nix
-        uses: $/.github/actions/setup-nix
-      - name: Download maestro-ci-graph
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: maestro-ci-graph
-          path: ci-graph
-
-      - name: Download maestro-inventory-transfer
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: maestro-inventory-transfer
-          path: inventory-transfer
-
-      - name: Authenticate and restore exact distribution for native scanning
-        env:
-          GRAPH_PLAN_SHA256: ${{ needs.route.outputs.graph_sha256 }}
-          TRANSFER_MANIFEST_SHA256: ${{ needs.qualification.outputs.manifest_sha256 }}
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:transport:restore-inventory
-
-      - name: Download maestro-evidence
-        if: fromJSON(needs.route.outputs.plan).qualification.mode != 'reuse'
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: maestro-evidence
-          path: .
-
-      - name: Download maestro-evidence
-        if: fromJSON(needs.route.outputs.plan).qualification.mode == 'reuse'
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: maestro-evidence
-          path: reused-evidence
-          github-token: ${{ github.token }}
-          run-id: ${{ fromJSON(needs.route.outputs.plan).qualification.evidence_run_id }}
-
-      - name: Verify inventory document bytes against the bound producer
-        env:
-          GRAPH_PLAN_SHA256: ${{ needs.route.outputs.graph_sha256 }}
-          TRANSFER_MANIFEST_SHA256: ${{ needs.qualification.outputs.manifest_sha256 }}
-          SECURITY_INVENTORY: ${{ fromJSON(needs.route.outputs.plan).qualification.mode == 'reuse' && 'reused-evidence' || '.' }}
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:transport:verify-inventory
-
-      - name: Scan current databases beside the realized qualification outputs
-        env:
-          SECURITY_INVENTORY: ${{ fromJSON(needs.route.outputs.plan).qualification.mode == 'reuse' && 'reused-evidence' || '.' }}
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:security:scan
-
-      - name: Bind exact scanned distribution and retain its closure transport
-        if: github.ref == 'refs/heads/main' && contains(fromJSON('["push","schedule","workflow_dispatch"]'), github.event_name)
-        env:
-          SECURITY_INVENTORY: ${{ fromJSON(needs.route.outputs.plan).qualification.mode == 'reuse' && 'reused-evidence' || '.' }}
-          DECISION_PRODUCER_WORKFLOW: .github/workflows/ci.yml
-          GH_TOKEN: ${{ github.token }}
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:candidate
-
-      - name: Retain exact distribution transport separately
-        if: github.ref == 'refs/heads/main' && contains(fromJSON('["push","schedule","workflow_dispatch"]'), github.event_name)
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: maestro-distribution-transport
-          path: security-report/distribution-cache.tar.part-*
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 90
-
-      - name: Upload native qualification evidence
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: maestro-security-report
-          path: |
-            security-report/
-            !security-report/distribution-cache.tar.part-*
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 90
-
   security:
     name: Verify release evidence
-    needs: [route, audit, comparison, equivalence, retained, qualification, boot, scan]
+    needs: [route, audit, comparison, equivalence, retained, qualification, boot]
     if: >-
       !cancelled() && needs.route.result == 'success' &&
       ((needs.route.outputs.graph_gating == 'true' && fromJSON(needs.route.outputs.graph_jobs).verify.required) || (needs.route.outputs.graph_gating != 'true' && fromJSON(needs.route.outputs.plan).qualification.required)) && needs.retained.outputs.reused != 'true' &&
       (vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED != 'true' || contains(fromJSON('["success","skipped"]'), needs.retained.result)) &&
-      needs.equivalence.result == 'success' && needs.audit.result == 'success' && needs.comparison.result == 'success' && needs.qualification.result == 'success' && needs.boot.result == 'success' && needs.scan.result == 'success'
+      needs.equivalence.result == 'success' && needs.audit.result == 'success' && needs.comparison.result == 'success' && needs.qualification.result == 'success' && needs.boot.result == 'success' && needs.qualification.outputs.scan_result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -876,7 +818,7 @@ jobs:
           COMPARISON_RESULT: ${{ needs.comparison.result }}
           COMPARISON_SHA256: ${{ needs.comparison.outputs.result_sha256 }}
           QUALIFICATION_RESULT: ${{ needs.qualification.result }}
-          SCAN_RESULT: ${{ needs.scan.result }}
+          SCAN_RESULT: ${{ needs.qualification.result == 'skipped' && 'skipped' || needs.qualification.outputs.scan_result }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:graph:result
       - name: Retain complete bound graph result
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -889,10 +831,10 @@ jobs:
 
   signing:
     name: Sign protected-main qualification
-    needs: [route, audit, qualification, boot, scan, security]
+    needs: [route, audit, qualification, boot, security]
     if: >-
       !cancelled() && needs.route.result == 'success' && needs.security.result == 'success' &&
-      needs.audit.result == 'success' && needs.boot.result == 'success' && needs.scan.result == 'success' &&
+      needs.audit.result == 'success' && needs.boot.result == 'success' && needs.qualification.outputs.scan_result == 'success' &&
       github.ref == 'refs/heads/main' &&
       contains(fromJSON('["push","schedule","workflow_dispatch"]'), github.event_name) &&
       ((needs.route.outputs.graph_gating == 'true' && fromJSON(needs.route.outputs.graph_jobs).signing.required) || (needs.route.outputs.graph_gating != 'true' && fromJSON(needs.route.outputs.plan).qualification.required)) &&
@@ -1026,7 +968,6 @@ jobs:
       - appliance
       - installer
       - boot
-      - scan
       - signing
       - security
     permissions:
@@ -1069,7 +1010,7 @@ jobs:
           APPLIANCE_RESULT: ${{ needs.appliance.result }}
           INSTALLER_RESULT: ${{ needs.installer.result }}
           BOOT_RESULT: ${{ needs.boot.result }}
-          SCAN_RESULT: ${{ needs.scan.result }}
+          SCAN_RESULT: ${{ needs.qualification.result == 'skipped' && 'skipped' || needs.qualification.outputs.scan_result }}
           AUDIT_RESULT: ${{ needs.audit.result }}
           SECURITY_RESULT: ${{ needs.security.result }}
           SIGNING_RESULT: ${{ needs.signing.result }}
