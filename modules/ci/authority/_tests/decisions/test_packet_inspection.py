@@ -10,6 +10,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 from contextlib import redirect_stdout
@@ -219,6 +220,83 @@ class Inspection(unittest.TestCase):
             self.responses[f'repos/{mod.REPOSITORY}/branches/main']['protected'] = False
             with mock.patch.dict(os.environ, original, clear=True), \
                  mock.patch.object(mod, 'github_api', side_effect=self.api), self.assertRaises(ValueError): mod.main()
+
+
+class LoginSubprocess(unittest.TestCase):
+    """Exercise the real bounded runner with a local fake executable, no network."""
+    TOKEN = 'synthetic-inspector-stdin-fixture-only'
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.directory = Path(self.temporary.name)
+        self.receipt = self.directory / 'child.json'
+        fake = self.directory / 'oras'
+        fake.write_text('#!' + sys.executable + '\n' + r"""
+import hashlib, json, os, resource, sys, time
+assert sys.argv[1:] == ['login', 'ghcr.io', '--username', 'fixture-reviewer', '--password-stdin']
+data = sys.stdin.buffer.read()
+assert hashlib.sha256(data).hexdigest() == os.environ['FIXTURE_STDIN_SHA256']
+with open(os.environ['FIXTURE_CHILD_RECEIPT'], 'w') as output:
+    json.dump({'argv': sys.argv[1:], 'stdinSha256': hashlib.sha256(data).hexdigest(),
+               'stdinBytes': len(data), 'fileLimit': list(resource.getrlimit(resource.RLIMIT_FSIZE))}, output)
+mode = os.environ['FIXTURE_MODE']
+if mode == 'failure':
+    sys.stdout.buffer.write(data)
+    sys.stderr.buffer.write(data + b' forbidden HTTP/1.1 403')
+    sys.exit(1)
+if mode == 'oversized':
+    os.write(1, b'x' * (3 * 1024**2))
+    sys.exit(1)
+if mode == 'timeout':
+    time.sleep(5)
+print('Login Succeeded')
+""")
+        fake.chmod(0o700)
+        self.environment = {'PATH': str(self.directory), 'GITHUB_ACTOR': 'fixture-reviewer',
+            'FIXTURE_CHILD_RECEIPT': str(self.receipt), 'FIXTURE_MODE': 'success',
+            'FIXTURE_STDIN_SHA256': hashlib.sha256(self.TOKEN.encode()).hexdigest()}
+
+    def assert_stdin_only(self):
+        receipt = json.loads(self.receipt.read_text())
+        self.assertNotIn(self.TOKEN, self.receipt.read_text())
+        self.assertEqual(receipt['stdinSha256'], self.environment['FIXTURE_STDIN_SHA256'])
+        self.assertEqual(receipt['stdinBytes'], len(self.TOKEN))
+        self.assertEqual(receipt['fileLimit'], [mod.packets.MAX_COMMAND_OUTPUT] * 2)
+        self.assertEqual(receipt['argv'], ['login', 'ghcr.io', '--username', 'fixture-reviewer', '--password-stdin'])
+
+    def test_real_runner_consumes_anonymous_stdin_without_logging_token(self):
+        captured = io.StringIO()
+        with mock.patch.dict(os.environ, self.environment, clear=True), redirect_stdout(captured):
+            mod.registry_login(self.TOKEN)
+        self.assertEqual(captured.getvalue(), '')
+        self.assert_stdin_only()
+
+    def test_real_failure_output_is_bounded_and_never_reflects_stdin(self):
+        self.environment['FIXTURE_MODE'] = 'failure'
+        captured = io.StringIO()
+        with mock.patch.dict(os.environ, self.environment, clear=True), redirect_stdout(captured), \
+             self.assertRaises(ValueError) as raised:
+            mod.registry_login(self.TOKEN)
+        self.assertNotIn(self.TOKEN, str(raised.exception) + captured.getvalue())
+        self.assertIn('authorization-denied', str(raised.exception))
+        self.assert_stdin_only()
+
+    def test_real_runner_retains_output_file_bound(self):
+        self.environment['FIXTURE_MODE'] = 'oversized'
+        with mock.patch.dict(os.environ, self.environment, clear=True), self.assertRaises(ValueError):
+            mod.registry_login(self.TOKEN)
+        self.assert_stdin_only()
+
+    def test_real_runner_honors_shorter_inherited_deadline(self):
+        self.environment['FIXTURE_MODE'] = 'timeout'
+        started = time.monotonic()
+        with mock.patch.dict(os.environ, self.environment, clear=True), mod.operations.budget(.25), \
+             self.assertRaises(ValueError) as raised:
+            mod.registry_login(self.TOKEN)
+        self.assertIn('timeout', str(raised.exception))
+        self.assertLess(time.monotonic() - started, 3)
+        self.assert_stdin_only()
 
 
 if __name__ == '__main__':
