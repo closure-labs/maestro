@@ -169,18 +169,24 @@ class ConsolidatedWorkflow(unittest.TestCase):
         self.assertIn('cargo-audit audit --file', source)
 
     def test_real_resource_prefix_records_failure_without_turning_it_into_success(self):
+        self.resource_failure('exit 17', 17)
+
+    def test_signal_termination_is_not_recorded_as_success_by_gnu_time(self):
+        self.resource_failure('kill -KILL $$', 137)
+
+    def resource_failure(self, command, expected):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory); script = root / 'phase.sh'
-            script.write_text('#!/usr/bin/env bash\nset -euo pipefail\n' + MEASUREMENT.read_text() + '\nexit 17\n')
+            script.write_text('#!/usr/bin/env bash\nset -euo pipefail\n' + MEASUREMENT.read_text() + '\n' + command + '\n')
             script.chmod(0o700)
             env = dict(os.environ, RUNNER_TEMP=directory, MAESTRO_CI_TIME=shutil.which('time'),
                        MAESTRO_CI_MEASURE_PHASE='scan')
             env.pop('MAESTRO_CI_MEASURED', None)
             result = subprocess.run([shutil.which('bash'), str(script)], env=env, capture_output=True, text=True, timeout=10)
-            self.assertEqual(result.returncode, 17)
+            self.assertEqual(result.returncode, expected)
             report = root / 'maestro-qualification-diagnostics'
             value = json.loads((report / 'scan.resources.json').read_text())
-            self.assertEqual(value['exitCode'], 17)
+            self.assertEqual(value['exitCode'], expected)
             self.assertGreater(value['maxChildRssKiB'], 0)
             self.assertTrue((report / 'scan.disk-before.txt').is_file())
             self.assertTrue((report / 'scan.disk-after.txt').is_file())
