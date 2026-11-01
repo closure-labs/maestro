@@ -60,6 +60,7 @@
           )
           cd source
           python3 modules/ci/checks/_tests/runner-disk.py
+          python3 modules/ci/checks/_tests/flake-validation.py
           ${lib.optionalString (lib.versionAtLeast pkgs.zizmor.version "1.29.0") "zizmor .github"}
           while IFS= read -r action; do
             case "$action" in

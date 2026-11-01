@@ -12,9 +12,19 @@
   devenv,
   commands,
   common,
+  cacheConfig,
 }: let
   inherit (common) mkCommand commonInputs spdxSchema boundedGh publicCacheWorker validatePlan classifyPaths;
 in {
+  flake-validation = mkCommand {
+    name = "flake-validation";
+    prefix = ''
+      export MAESTRO_FLAKE_CACHE_URLS=${pkgs.lib.escapeShellArg (pkgs.lib.concatStringsSep " " cacheConfig.extra-substituters)}
+      export MAESTRO_FLAKE_CACHE_KEYS=${pkgs.lib.escapeShellArg (pkgs.lib.concatStringsSep " " cacheConfig.extra-trusted-public-keys)}
+    '';
+    runtimeInputs = [ciNix];
+    source = ../_source/flake-validation.sh;
+  };
   cache-validation = mkCommand {
     name = "cache-validation";
     prefix = ''
