@@ -15,6 +15,11 @@
 }: let
   inherit (common) mkCommand commonInputs spdxSchema boundedGh publicCacheWorker validatePlan classifyPaths;
 in {
+  flake-validation = mkCommand {
+    name = "flake-validation";
+    runtimeInputs = [ciNix];
+    source = ../_source/flake-validation.sh;
+  };
   cache-validation = mkCommand {
     name = "cache-validation";
     prefix = ''

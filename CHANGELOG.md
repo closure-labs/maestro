@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Compare ordinary flake evaluation, essential product builds and existing
+  service/TLS/storage/privilege tests in a temporary non-required read-only CI
+  workflow, without changing current gates, publication or trust policy.
+
 - Add a manual protected-main, package-read-only inspector for the exact reviewed
   interrupted recovery packet. Verify its original run/request, producer,
   artifact and complete descriptor inventory without closure downloads or
