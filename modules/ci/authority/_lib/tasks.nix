@@ -14,6 +14,7 @@ in {
     "ci:decision:admission".exec = runFlakePackage "maestro-ci-decision-admission" "";
     "ci:decision:publication".exec = runFlakePackage "maestro-ci-decision-publication" "";
     "ci:decision:readiness".exec = runFlakePackage "maestro-ci-decision-readiness" "";
+    "ci:decision:packet-inspect".exec = runFlakePackage "maestro-ci-decision-packet-inspect" "";
     "ci:decision:reconcile".exec = runFlakePackage "maestro-ci-decision-reconcile" "";
     "ci:decision:check".exec = runFlakePackage "maestro-ci-decision-check" "";
     "ci:decision:recovery".exec = runFlakePackage "maestro-ci-decision-recovery" "";

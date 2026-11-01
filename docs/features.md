@@ -160,3 +160,28 @@ Current security databases, effective policy and live human authority remain
 per-run checks. Diagnostics identify substituted outputs without counting them as
 newly executed tests. Cache availability is observed in hosted runs; no timing
 improvement is assumed.
+
+### Interrupted decision packet inspection
+
+After separate human review and merge, the manual **Inspect interrupted decision
+packet** workflow may inspect the one request committed in
+`modules/ci/authority/_source/decisions/packet-inspection-request.json`. Confirm
+request hash `f342d0b3f3666219d87a6ad9bc27f529929c322247c4e290b83710065bdfbf51`.
+Its native `ci:decision:packet-inspect` task binds reconciliation run
+41267014336 attempt 1, qualified producer 41262202226 attempt 1, the retained
+report artifact, and every one of the reconstructed 22 packet members.
+
+The workflow uses only its repository GitHub token with contents/actions/package
+read permissions, never a Decider write token or private key. It authenticates
+the original request in retained exact-job logs, resolves the derived packet tag
+to an immutable digest, and reuses the bounded manifest/descriptor verifier.
+It downloads only the descriptor blob, not closure payloads. The seven-day,
+bounded diagnostic receipt records `authorization: false`; it cannot create a
+security decision, branch or PR, upload a packet, approve risks, queue or merge.
+Missing logs, expired/mismatched artifact bindings, denied/404 responses and
+transport failures remain unresolved. A missing response never proves absence.
+This historical inspection grants no current freshness, authority or recovery
+permission; a later recovery still needs fresh qualification, complete graph,
+policy, evidence and live human authority checks. Other targets require a new
+separately reviewed request and implementation change, not arbitrary workflow
+inputs. Do not redispatch ordinary recovery to inspect an uncertain write.

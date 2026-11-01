@@ -152,6 +152,15 @@ in {
     runtimeInputs = commonInputs ++ [pkgs.python3 pkgs.oras];
     source = ../_source/decision-readiness.sh;
   };
+  decision-packet-inspect = pkgs.writeShellApplication {
+    name = "maestro-ci-decision-packet-inspect";
+    runtimeInputs = [pkgs.python3 boundedGh pkgs.oras];
+    text = ''
+      export PYTHONDONTWRITEBYTECODE=1
+      export PYTHONPATH=${../_source/decisions}
+      exec python3 ${../_source/decisions}/packet_inspection.py
+    '';
+  };
   decision-reconcile = mkCommand {
     name = "decision-reconcile";
     prefix = ''

@@ -1,0 +1,131 @@
+{
+  "artifact": {
+    "archiveBytes": 127626052,
+    "archiveSha256": "sha256:78d864d2e929d20f61e17d1be4fc649e4557bb5fdf4f4e47e9acbec8515b71ed",
+    "id": 13066812488
+  },
+  "descriptor": {
+    "files": {
+      "cargo-audit-version.txt": {
+        "sha256": "45faaebbfd7560e28917f0a6ee6048cdce8c311145ec495f1825ea2d29cbac42",
+        "size": 25
+      },
+      "cargo-audit.json": {
+        "sha256": "1b2d036f2e5ff754f10371d7c16a81fde93ccc47dca5d835fc6a5810c06103ad",
+        "size": 670
+      },
+      "critical-applicability.json": {
+        "sha256": "3f9e5fcf783ef681338a25a7be787f39fdbd39cc9a88e0ec28b9f9d63311c824",
+        "size": 1755620
+      },
+      "distribution-cache.tar.part-000": {
+        "sha256": "3539207f80cb8520ca35bf82a0d624ec98ed919bbc3c565e2b6ecab5e3b278ef",
+        "size": 1800000000
+      },
+      "distribution-cache.tar.part-001": {
+        "sha256": "f2d860129c45e2c370fdd72d14f266036c98b67cbec20c6d82dbcb5f6db9689a",
+        "size": 1048727040
+      },
+      "effective-policy.json": {
+        "sha256": "d9f8874774626435e6039a1e623565c0dea34b380d971173ef64629e32414380",
+        "size": 88
+      },
+      "findings.json": {
+        "sha256": "9b1438837f771d0f4f87e192da6c9d1dd17dc1045581cb29ee0b9227da346370",
+        "size": 1474955
+      },
+      "grype-database.json": {
+        "sha256": "ddfd35b8d3b15787b200dc45fc74ac481f33d90660b0ac262c7f675057b8976a",
+        "size": 364
+      },
+      "grype-findings.json": {
+        "sha256": "9b1438837f771d0f4f87e192da6c9d1dd17dc1045581cb29ee0b9227da346370",
+        "size": 1474955
+      },
+      "grype-version.json": {
+        "sha256": "8e6a5d4bf2bbda2fe7a912dc67162f6caf7ddaf8dc293bacea045ed96b10ff22",
+        "size": 303
+      },
+      "inputs.sha256": {
+        "sha256": "47530d9c7d4ea63111b26edea28d79d5a6878162d3281bc4004e0251dd53ccda",
+        "size": 349
+      },
+      "inventory/Cargo.lock": {
+        "sha256": "e76c69ebd0e1cb5d2b3e897cba32715cc8b0f7034b851e85fd46ee2d5a160c5f",
+        "size": 43285
+      },
+      "inventory/maestro-system.cdx.json": {
+        "sha256": "87212263feed1c05ec3a55d03284d637d3bc5c09200c0a01a387eefb3b973150",
+        "size": 7470662
+      },
+      "inventory/xen-orchestra-supply.cdx.json": {
+        "sha256": "d64a8f2367b3fcd2c1122deae05e835ad1c135b276d8a2053137b6b742d934d4",
+        "size": 3816606
+      },
+      "maestro-system.grype.json": {
+        "sha256": "5f7cf7d42e070d854a11a9407698289b1adeeca8a9b2630f60a8c72edf11ed1c",
+        "size": 1925587
+      },
+      "new-high-critical.json": {
+        "sha256": "8a9bacbcabc27cdf0560e6892a3b24bae10cddcf9416cb3d93804fc3b753be12",
+        "size": 729147
+      },
+      "observation-fingerprints.json": {
+        "sha256": "81a8d8f82f0d7dfa606bc26c96b03f2e5529053a2935e1e8fa9eb9560b7a8592",
+        "size": 462
+      },
+      "product.json": {
+        "sha256": "e41f1464b7d7fa39f4eabff0949a50c13eb22e405a084e8849ddcf55e77c959d",
+        "size": 255174
+      },
+      "rustsec-database.json": {
+        "sha256": "116b55df3ca8bdf0495bdf81b69ab33709acb046e84923e87360b6ed2825c100",
+        "size": 158
+      },
+      "scanner-check.grype.json": {
+        "sha256": "4c7a351e46b40ed0ccad22ca3e84a8bfcd32819b7360bac8633296d8fb42b360",
+        "size": 447484
+      },
+      "scans.json": {
+        "sha256": "64bbdcd1be138f79c6748c4f0216229940013a53c07d1203757990d57aeb6a9d",
+        "size": 55706156
+      },
+      "security-result.json": {
+        "sha256": "0f64ddb06dc4ff6222e0f0a10808d1807a000cb65b55fd9fe6615ed43507716b",
+        "size": 52521292
+      }
+    },
+    "producer": {
+      "repository": "closure-labs/maestro",
+      "revision": "9d3d16a1de08813b459fe925540231f22aa8d248",
+      "runAttempt": 1,
+      "runId": 41262202226,
+      "signerWorkflow": ".github/workflows/ci.yml",
+      "sourceRevision": "9d3d16a1de08813b459fe925540231f22aa8d248",
+      "workflow": ".github/workflows/ci.yml"
+    },
+    "schema": 1
+  },
+  "descriptorBlobSha256": "e79157fec4be30060f813cdee37de9bd213e5285d7390776354a0871b2648c7f",
+  "descriptorBytes": 2870,
+  "descriptorSha256": "deae55d4c411e228baa00de5fb5a147656d08df038a436e6b84e2c12cf9c2c90",
+  "originalRun": {
+    "attempt": 1,
+    "id": 41267014336,
+    "job": 124731818265,
+    "recovery": {
+      "disposition": "accepted",
+      "graphHash": "2205e182c56e04ba9d89e0adac442bab21214cc72a8e826f07f5232cf86bbed2",
+      "mainRevision": "9d3d16a1de08813b459fe925540231f22aa8d248",
+      "parents": [
+        "811bec34c3da93b1c8138e6c2db2a12408e12f92364f49beba082f18d51efe1e",
+        "fc5668093bd169194f6ae100e7faea071792393760cfca21ff74bde043509507"
+      ],
+      "policyHash": "1844fe3887d4cb9c0d700626fc7401e00f9c539e3cb74dc31d0aa44b49f9c283",
+      "rationale": "Human-requested draft reconciliation of both concurrent accepted security branches, preserving all historical decisions and both distinct original producer proofs. Proposed reaffirmation is limited to the identical 346 normalized findings (16 Critical, 169 High, 136 Medium, 25 Low) and identical complete security contexts independently matched by fresh exact-main CI producer 41262202226 attempt 1. Verify every historical packet, current authority for both parents and the exact final graph snapshot. This proposal grants no release-product approval, scope expansion, implicit risk acceptance or queue authority; separate human exact-head review remains required.",
+      "schema": 1
+    },
+    "revision": "9d3d16a1de08813b459fe925540231f22aa8d248"
+  },
+  "schema": 1
+}

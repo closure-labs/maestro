@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: Apache-2.0
+name: Inspect interrupted decision packet
+on:
+  workflow_dispatch:
+    inputs:
+      request_hash:
+        description: Confirm the exact separately reviewed interrupted-write inspection request hash
+        type: string
+        required: true
+permissions:
+  contents: read
+  actions: read
+  packages: read
+concurrency:
+  group: maestro-decision-packet-inspection
+  cancel-in-progress: false
+jobs:
+  inspect:
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: $/.github/actions/setup-nix
+      - name: Inspect only the reviewed old packet
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
+          REGISTRY_TOKEN: ${{ github.token }}
+          PACKET_INSPECTION_REQUEST_HASH: ${{ inputs.request_hash }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:packet-inspect
+      - name: Retain bounded diagnostic receipt
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-packet-inspection-receipt
+          path: ${{ runner.temp }}/maestro-packet-inspection-receipt.json
+          if-no-files-found: ignore
+          retention-days: 7

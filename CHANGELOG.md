@@ -11,6 +11,11 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Add a manual protected-main, package-read-only inspector for the exact reviewed
+  interrupted recovery packet. Verify its original run/request, producer,
+  artifact and complete descriptor inventory without closure downloads or
+  decision writes; retain a bounded non-authorizing diagnostic receipt.
+
 - Bound guarded recovery work by reusing only authenticated immutable historical
   provenance within one exact invocation. Keep every live graph, policy,
   authority and evidence check, and retain nonsensitive packet/proposal receipts
