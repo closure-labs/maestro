@@ -177,13 +177,16 @@ class ConsolidatedWorkflow(unittest.TestCase):
     def resource_failure(self, command, expected):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory); script = root / 'phase.sh'
-            script.write_text('#!/usr/bin/env bash\nset -euo pipefail\n' + MEASUREMENT.read_text() + '\n' + command + '\n')
+            # GNU time re-executes this file; the Nix sandbox has no /usr/bin/env.
+            bash = shutil.which('bash')
+            self.assertIsNotNone(bash)
+            script.write_text('#!' + bash + '\nset -euo pipefail\n' + MEASUREMENT.read_text() + '\n' + command + '\n')
             script.chmod(0o700)
             env = dict(os.environ, RUNNER_TEMP=directory, MAESTRO_CI_TIME=shutil.which('time'),
                        MAESTRO_CI_MEASURE_PHASE='scan')
             env.pop('MAESTRO_CI_MEASURED', None)
-            result = subprocess.run([shutil.which('bash'), str(script)], env=env, capture_output=True, text=True, timeout=10)
-            self.assertEqual(result.returncode, expected)
+            result = subprocess.run([bash, str(script)], env=env, capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, expected, result.stderr)
             report = root / 'maestro-qualification-diagnostics'
             value = json.loads((report / 'scan.resources.json').read_text())
             self.assertEqual(value['exitCode'], expected)
