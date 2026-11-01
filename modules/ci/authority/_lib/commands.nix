@@ -15,6 +15,14 @@
 }: let
   inherit (common) mkCommand commonInputs spdxSchema boundedGh publicCacheWorker validatePlan classifyPaths;
 in {
+  decision-continuation-wakeup = pkgs.writeShellApplication {
+    name = "maestro-ci-decision-continuation-wakeup";
+    runtimeInputs = [pkgs.python3 boundedGh];
+    text = ''
+      export PYTHONPATH=${../_source/decisions}
+      exec python3 ${../_source/decisions/continuation_wakeup.py}
+    '';
+  };
   trusted-ci-admission = pkgs.writeShellApplication {
     name = "maestro-ci-trusted-ci-admission";
     runtimeInputs = [pkgs.python3 boundedGh];

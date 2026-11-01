@@ -4,6 +4,7 @@ in {
   tasks = {
     "cache:doctor".exec = runFlakePackage "maestro-ci-cache-doctor" "";
     "ci:distribution:restore".exec = runFlakePackage "maestro-ci-distribution-restore" "";
+    "ci:decision:continuation-wakeup".exec = runFlakePackage "maestro-ci-decision-continuation-wakeup" "";
     "ci:decision:refresh".exec = runFlakePackage "maestro-ci-decision-refresh" "";
     "ci:decision:health-preflight".exec = runFlakePackage "maestro-ci-decision-health-preflight" "";
     "ci:decision:health".exec = runFlakePackage "maestro-ci-decision-health" "";

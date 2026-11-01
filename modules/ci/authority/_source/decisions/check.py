@@ -13,7 +13,7 @@ from security_decisions import canonical_hash, load_json
 
 import decision_authority as authority
 import review_routing
-from common import config, parser, emit, run
+from common import config, parser, emit, run, main_revision
 CHECK_NAME = 'Maintainer decision authority'
 COLLECTOR = '.github/workflows/decision-events.yml'
 QUEUE = re.compile(r'gh-readonly-queue/main/pr-([1-9][0-9]*)-[0-9a-f]{7,40}')
@@ -91,6 +91,7 @@ def check_pr(repository, number, expected_bot, target_sha=None, github=None, *, 
             paths.add(item['previous_filename'])
     sensitive = sorted(path for path in paths if governed(path))
     proposals = sorted(path for path in paths if PROPOSAL.fullmatch(path))
+    recoveries = []
     if sensitive:
         # Governance changes can be authored by humans. Their review is still
         # exact-head/current-maintainer; bot authorship applies only to proposals.
@@ -102,6 +103,8 @@ def check_pr(repository, number, expected_bot, target_sha=None, github=None, *, 
             authority.verify_proposal(proposal, number, repository, expected_bot,
                                       require_merged=False, github=api, allowed_paths=proposals)
             validate_proposal_packet(proposal)
+            if 'recovery' in proposal['payload']:
+                recoveries.append((path, proposal))
         if any(path.startswith('automation/decisions/') and not PROPOSAL.fullmatch(path) for path in paths):
             raise authority.AuthorityError('Decision ledger permits only immutable canonical proposal paths')
     if target_sha != head:
@@ -119,6 +122,25 @@ def check_pr(repository, number, expected_bot, target_sha=None, github=None, *, 
     latest = api(endpoint)
     if latest.get('head', {}).get('sha') != head or latest.get('state') != 'open':
         raise authority.AuthorityError('PR changed while authority was being evaluated')
+    for path, proposal in recoveries:
+        if len(files) != 1 or files[0].get('filename') != path or files[0].get('status') != 'added':
+            raise authority.AuthorityError('Recovery requires exactly one new immutable decision')
+        # Recheck after the final human authorization, not just before packet
+        # I/O. A queue tree may contain a concurrent decision not yet on main.
+        from security_recovery import proposal as validate_recovery
+        import reconciliation
+        cfg = reconciliation.CHECK_CONFIG
+        validate_recovery(cfg, proposal, verify_packets=False)
+        if target_sha != head:
+            snapshot = tree(api, repository, proposal['payload']['recovery']['mainRevision'])
+            expected = {p: entry for p, entry in snapshot.items() if p.startswith('automation/decisions/') and entry[0] != 'tree'}
+            expected[path] = tree(api, repository, head).get(path)
+            queued = {p: entry for p, entry in tree(api, repository, target_sha).items()
+                      if p.startswith('automation/decisions/') and entry[0] != 'tree'}
+            if queued != expected:
+                raise authority.AuthorityError('Recovery queue graph differs from exact reviewed snapshot')
+        if main_revision(cfg) != proposal['payload']['recovery']['mainRevision']:
+            raise authority.AuthorityError('Security recovery graph snapshot changed')
     return {'pullRequest': number, 'head': head, 'target': target_sha,
             'governedPaths': sensitive, 'status': 'authorized' if sensitive else 'not-required'}
 
