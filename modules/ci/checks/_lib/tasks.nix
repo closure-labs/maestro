@@ -2,6 +2,7 @@
   inherit (import ../../../features/development/_lib/task-helpers.nix {}) withFlake runFlakePackage;
 in {
   tasks = {
+    "ci:flake:validate".exec = runFlakePackage "maestro-ci-flake-validation" "";
     "ci:source-security".exec = runFlakePackage "maestro-ci-source-security" "";
     "ci:repository-audit:format" = {
       exec = withFlake ''

@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Compare full ordinary flake checks and essential product builds in a temporary
+  non-required read-only CI workflow, using the existing declared caches/keys
+  without changing current gates, publication or trust policy.
+
 - Correct read-only packet-inspector login to pass an anonymous stdin handle
   through the bounded subprocess runner, with a 30-second login deadline and
   real subprocess fixtures for credential secrecy, timeout and output limits.
