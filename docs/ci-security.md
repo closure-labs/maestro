@@ -164,6 +164,70 @@ reviewed design, not a waiver through this mode. Existing stale proposals cannot
 repair concurrency. This implementation does not perform recovery or change any
 risk decision, ruleset, App capability, approval boundary or queue permission.
 
+### Recovery proof scope and interrupted operations
+
+Recovery creates a fresh, bounded proof scope for each reconciliation or PR
+check invocation. A successful historical **bot merge provenance** result may
+be reused only inside that scope, bound to the repository, exact main commit,
+complete ledger hash, policy hash, complete request hash and source/trust
+fingerprint. The result includes the exact historical reviewed and merge
+commits and content hash. The scope retains at most 256 results of at most
+4 KiB each and no parsed document bodies. It is discarded on exit or any binding
+change and cannot be loaded from a receipt or shared with another thread/run.
+
+This is not an authority or graph cache. Every recovery pass still reads the
+complete current ledger, policy and effective rules, validates the graph and
+complete parent set, reauthorizes both active parents without a cached review
+or membership, and performs the final main check. Historical packet and producer
+proofs are still independently verified on both packet-validation passes.
+Fresh evidence expiry and final authority/queue-race checks remain unchanged.
+A changed proof, trust fingerprint, graph, policy or active authority fails
+closed. The workflow's timeouts and permissions are unchanged.
+
+The observed cancelled run `41267014336` produced 448 verified Git-blob
+observations: 432 byte-cache hits and 5,313,651,989 raw document bytes processed.
+Those figures are **not wire traffic**. A bounded synthetic completed five-pass
+fixture with twelve security records and three release records compares:
+
+| Work | Before | Invocation-local historical reuse |
+| --- | ---: | ---: |
+| Authoritative historical provenance checks | 124 | 12 |
+| Parsed Git-blob reads | 483 | 147 |
+| Live active-parent authority checks | 10 | 10 |
+| Historical packet proofs | 24 | 24 |
+| Graph ancestry validations | 10 | 10 |
+| Complete ledger/policy/rules/final-main passes | 5 each | 5 each |
+
+These deterministic fixture counts are not a hosted wall-time prediction.
+Hosted validation must establish the actual operating margin before another
+recovery request is dispatched.
+
+Recovery writes an atomic receipt of at most 32 KiB under a private temporary
+`security-recovery-*` directory. Both the reconciliation and authority workflows
+retain these receipts even on failure/cancellation and publish bounded phase
+counters in their step summary. No findings, rationale, credentials, raw API
+responses or current approval conclusions are included. `authorization: false`
+is explicit: these files are **locators, never proof of approval**.
+
+Before registry mutation the receipt records the exact deterministic
+`packet-<descriptor-hash>` tag, descriptor hash and public producer identities.
+Immediately after acknowledgement it records the immutable OCI reference.
+Before proposal writes it records the proposal hash, then the exact created
+commit and PR identity as those become available. If interrupted, first
+authenticate the run/attempt/source and receipt artifact digest, inspect that
+exact registry tag/reference and descriptor/producer binding with an authorized
+reader, and read back the exact proposal branch/PR before any duplicate write.
+An intent receipt without acknowledgement means **unknown**, not absent or
+successful. It never permits overwriting a divergent ref, accepting a tag as
+authority, skipping proof checks or retrying an uncertain write blindly.
+
+The earlier timed-out run did not retain its packet reference; its prior OCI
+outcome still needs safe authenticated readback. This implementation change
+does not redispatch recovery. After it is reviewed and merged, require fresh
+exact-main qualification and a newly captured complete request, retain both
+parents, resolve any earlier uncertain write, and obtain the separate human
+review of the eventual proposal head.
+
 ## XO handoff and recovery
 
 The hosted public consumer can verify the same exact approved roots selected

@@ -13,6 +13,7 @@ from security_decisions import canonical_hash, load_json
 
 import decision_authority as authority
 import review_routing
+import recovery_context
 from common import config, parser, emit, run, main_revision
 CHECK_NAME = 'Maintainer decision authority'
 COLLECTOR = '.github/workflows/decision-events.yml'
@@ -66,6 +67,7 @@ def validate_proposal_packet(proposal):
     return validate(proposal)
 
 
+@recovery_context.scoped('authority-check', reuse=False)
 def check_pr(repository, number, expected_bot, target_sha=None, github=None, *, expected_head=None):
     api = github or authority.github_api
     endpoint = f'repos/{repository}/pulls/{number}'

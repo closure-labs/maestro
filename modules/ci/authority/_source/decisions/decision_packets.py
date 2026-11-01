@@ -244,7 +244,7 @@ def private_review_registry(allow_missing=False):
 
 
 @diagnostics.measured('packetOperations', 'push')
-def push(directory, producer):
+def push(directory, producer, *, receipt=None):
     """Caller authenticates producer before persistence; return an immutable ref."""
     directory = Path(directory).resolve()
     packet = {'schema': 1, 'producer': producer, 'files': inventory(directory)}
@@ -255,6 +255,8 @@ def push(directory, producer):
         with tempfile.TemporaryDirectory() as temporary:
             manifest = Path(temporary) / 'manifest.json'
             tag = REGISTRY + ':packet-' + canonical_hash(packet)
+            if receipt is not None:
+                receipt('packet-push-requested', packet={'sha256': canonical_hash(packet), 'producer': producer})
             # ORAS otherwise inserts wall-clock time and changes the immutable
             # reference on every retry. Producer and scan times remain in files.
             command(['oras', 'push', '--artifact-type', TYPE, '--export-manifest', str(manifest),
@@ -263,8 +265,11 @@ def push(directory, producer):
                      *[name + ':application/octet-stream' for name in packet['files']]], cwd=directory)
             private_review_registry()
             digest = file_hash(manifest)
-            return {'reference': REGISTRY + '@sha256:' + digest,
-                    'sha256': canonical_hash(packet), 'producer': producer}
+            result = {'reference': REGISTRY + '@sha256:' + digest,
+                      'sha256': canonical_hash(packet), 'producer': producer}
+            if receipt is not None:
+                receipt('packet-pushed', packet=result)
+            return result
     finally:
         path.unlink(missing_ok=True)
 

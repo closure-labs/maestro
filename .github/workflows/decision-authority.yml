@@ -50,3 +50,12 @@ jobs:
           path: ${{ runner.temp }}/decision-git-blobs/*/observations.jsonl
           if-no-files-found: ignore
           retention-days: 30
+
+      - name: Retain bounded recovery verification receipts
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-security-recovery-receipts
+          path: ${{ runner.temp }}/security-recovery-*/receipt.json
+          if-no-files-found: ignore
+          retention-days: 30
