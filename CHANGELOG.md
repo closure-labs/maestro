@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Suppress redundant decision reconciliation after an authenticated exact release
+  continuation attempt skips finalization; preserve real product wakeups and all
+  independent evidence and human authority checks.
+
 - Add opt-in guarded recovery drafts for equal concurrent security decisions,
   binding the complete active parent set and exact protected graph/policy
   snapshot to fresh complete evidence and rationale. Preserve history, current

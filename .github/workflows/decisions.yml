@@ -34,9 +34,29 @@ concurrency:
   group: maestro-decision-reconciliation
   cancel-in-progress: false
 jobs:
+  continuation:
+    # Event fields route to verification; only exact-attempt API jobs prove work.
+    if: github.event_name == 'workflow_run' && (github.event.workflow_run.path == '.github/workflows/release-continuation.yml' || github.event.workflow_run.name == 'Continue Maestro release') && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      meaningful: ${{ steps.verify.outputs.meaningful }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: $/.github/actions/setup-nix
+      - name: Authenticate exact continuation attempt and finalization
+        id: verify
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:continuation-wakeup
+
   health:
+    needs: continuation
     # Review wakeups need proposal reconciliation; health issue writes would emit comment events.
-    if: (github.event_name != 'workflow_run' || github.event.workflow_run.name != 'Verify maintainer decision authority') && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.repository.full_name == github.repository && contains(fromJSON('["push","schedule","workflow_dispatch","workflow_run"]'), github.event.workflow_run.event)))
+    if: ${{ !cancelled() && (needs.continuation.result == 'skipped' || (needs.continuation.result == 'success' && needs.continuation.outputs.meaningful == 'true')) && ((github.event_name != 'workflow_run' || github.event.workflow_run.name != 'Verify maintainer decision authority') && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.repository.full_name == github.repository && contains(fromJSON('["push","schedule","workflow_dispatch","workflow_run"]'), github.event.workflow_run.event)))) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -71,11 +91,12 @@ jobs:
           retention-days: 30
 
   reconcile:
+    needs: continuation
     permissions:
       contents: read
       actions: read
       packages: write
-    if: github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.repository.full_name == github.repository && contains(fromJSON('["push","schedule","workflow_dispatch","workflow_run"]'), github.event.workflow_run.event)))
+    if: ${{ !cancelled() && (needs.continuation.result == 'skipped' || (needs.continuation.result == 'success' && needs.continuation.outputs.meaningful == 'true')) && (github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.repository.full_name == github.repository && contains(fromJSON('["push","schedule","workflow_dispatch","workflow_run"]'), github.event.workflow_run.event)))) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
