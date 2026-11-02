@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Prepare inactive native evidence compatibility with bounded large-report
+  parsing, one exact original executed-boot proof and an explicit signed
+  ISO/inventory binding; keep publication policy and consumer wiring unchanged.
+
 - Add an inactive, read-only native evidence preparation command and negative
   fixtures for the proposed standard-review cutover; keep all active publication
   gates, thresholds, workflows and historical decisions unchanged.

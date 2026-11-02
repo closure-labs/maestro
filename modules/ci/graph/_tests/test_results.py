@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 import copy
+import hashlib
+import json
+import tempfile
 import os
 from pathlib import Path
 import sys
@@ -39,6 +42,45 @@ class BoundResults(unittest.TestCase):
             result.validate_boot(self.boot, self.graph, self.route, PRODUCER)
         self.boot.update(disposition='verified-retained', bootLogSha256=None)
         result.validate_boot(self.boot, self.graph, self.route, PRODUCER)
+
+    def test_producer_emits_explicit_iso_inventory_binding_after_boot_validation(self):
+        self.route['qualification']['mode']='reuse'
+        self.graph.update(mode='complete',gatingEnabled=False)
+        self.boot.update(disposition='verified-retained',bootLogSha256=None,graphSha256=graph.digest(self.graph))
+        plan=dict(mode='complete',gatingEnabled=False,candidateRevision=PRODUCER['GITHUB_SHA'],
+            candidateGraphSha256=graph.digest(self.graph),decisions={'routePlanSha256':graph.digest(self.route)})
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary)
+            for directory in ('ci-graph','ci-comparison','security-report'):(root/directory).mkdir()
+            for name,value in (('ci-graph/candidate.json',self.graph),('ci-graph/plan.json',plan),
+                ('boot-result.json',self.boot),('ci-comparison/comparison.json',{}),
+                ('security-report/security-result.json',{'status':'complete','scannerHealth':'healthy'})):
+                (root/name).write_text(json.dumps(value))
+            sha=lambda name:hashlib.sha256((root/name).read_bytes()).hexdigest()
+            env=dict(PRODUCER,GRAPH_PLAN_SHA256=sha('ci-graph/plan.json'),CI_PLAN=json.dumps(self.route),
+                BOOT_RESULT_SHA256=sha('boot-result.json'),INVENTORY_TRANSFER_SHA256='f'*64,
+                COMPARISON_SHA256=sha('ci-comparison/comparison.json'),
+                AUDIT_RESULT='success',SCAN_RESULT='success',QUALIFICATION_RESULT='success',COMPARISON_RESULT='success')
+            before=Path.cwd()
+            try:
+                os.chdir(root)
+                with patch.dict(os.environ,env,clear=True),patch.object(result,'validate_comparison'):
+                    result.main()
+                    emitted=json.loads(Path('ci-result.json').read_text())
+                    self.assertEqual(emitted['inventoryIsoBinding'],dict(schemaVersion=1,producer=PRODUCER,
+                        inventorySha256='f'*64,isoSha256='d'*64))
+                    self.assertEqual(emitted['boot']['disposition'],'verified-retained')
+                    self.assertIsNone(emitted['boot']['bootLogSha256'])
+                    Path('boot-result.json').write_text('{}')
+                    with self.assertRaisesRegex(ValueError,'Boot result digest mismatch'):result.main()
+            finally:os.chdir(before)
+
+    def test_explicit_iso_binding_rejects_wrong_producer_and_malformed_digests(self):
+        for boot,inventory in ((dict(self.boot,producer={}), 'f'*64),
+                               (dict(self.boot,isoSha256=None),'f'*64),
+                               (self.boot,''),(self.boot,'g'*64)):
+            with self.subTest(boot=boot,inventory=inventory),self.assertRaises((ValueError,TypeError)):
+                result.inventory_iso_binding(boot,inventory,PRODUCER)
 
     def test_transfer_rejects_changed_producer_derivation_and_missing_roots(self):
         target = dict(attribute='packages.x86_64-linux.fixture', derivation='fixture.drv', outputs={'out': '/nix/store/fixture'})

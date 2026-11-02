@@ -8,6 +8,8 @@ import hashlib
 import importlib.util
 import json
 import os
+import resource
+from unittest.mock import patch
 from pathlib import Path
 import subprocess
 import sys
@@ -27,6 +29,7 @@ class NativePrepare(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name); self.bundle = self.root / 'bundle'; self.bundle.mkdir()
         self.bin = self.root / 'bin'; self.bin.mkdir(); self.calls = self.root / 'calls.jsonl'
+        self.boot_origin = None; self.original = None
         self.cfg = json.loads((ROOT / prepare.POLICY).read_text())
         self.policy = self.root / 'policy.json'; self.policy.write_text(json.dumps(self.cfg))
         now = dt.datetime.now(dt.timezone.utc)
@@ -65,7 +68,7 @@ class NativePrepare(unittest.TestCase):
             self.binding['evidenceFiles'][name]=hashlib.sha256(raw).hexdigest()
         self.result = dict(schemaVersion=1, producer=self.binding['producer'], completeValidationRequired=True,
             graphSha256='b' * 64, jobs={k:'success' for k in ('AUDIT_RESULT','COMPARISON_RESULT','SCAN_RESULT','QUALIFICATION_RESULT')},
-            boot=dict(producer=self.binding['producer'], disposition='executed', graphSha256='b'*64,
+            boot=dict(schemaVersion=1,producer=self.binding['producer'], disposition='executed', graphSha256='b'*64,
                 isoSha256='c'*64, bootLogSha256='d'*64))
         self.state = {'main': SHA, 'policy': self.cfg, 'run': dict(id=7, run_attempt=1, head_sha=SHA,
             head_branch='main', repository={'full_name': prepare.REPO}, head_repository={'full_name': prepare.REPO},
@@ -87,20 +90,38 @@ if args[:3]==['api','--method','GET']:
     elif path==prefix+'contents/modules/ci/authority/_source/decision-policy.json?ref='+'a'*40:
         raw=json.dumps(state['policy']).encode();value={'encoding':'base64','size':len(raw),'content':base64.b64encode(raw).decode()}
     elif path==prefix+'actions/runs/7/attempts/1':value=state['run']
+    elif path==prefix+'actions/runs/8/attempts/2':value=state['originalRun']
     else:raise AssertionError('Unexpected endpoint/history/ledger/mutation: '+path)
     print(json.dumps(value))
 elif args[:2]==['attestation','verify']:
+    revision='b'*40 if Path(args[2]).name=='original-ci-result.json' else 'a'*40
     for flag,value in [('--repo','closure-labs/maestro'),('--signer-workflow','closure-labs/maestro/.github/workflows/ci.yml'),
-                       ('--source-ref','refs/heads/main'),('--source-digest','a'*40),('--signer-digest','a'*40),('--format','json')]:
+                       ('--source-ref','refs/heads/main'),('--source-digest',revision),('--signer-digest',revision),('--format','json')]:
         assert args[args.index(flag)+1]==value
     assert '--deny-self-hosted-runners' in args
     assert Path(args[2]).parent != Path(os.environ['NATIVE_FIXTURE_BUNDLE']), 'Verify frozen bytes, not mutable originals'
     if state.get('proofFailure'):sys.exit(1)
     digest=hashlib.sha256(Path(args[2]).read_bytes()).hexdigest()
-    if state.get('forgedSubject'):digest='f'*64
+    if state.get('forgedSubject') or (state.get('forgedOriginal') and Path(args[2]).name=='original-ci-result.json'):digest='f'*64
     print(json.dumps([{'verificationResult':{'statement':{'subject':[{'digest':{'sha256':digest}}]}}}]))
 else:raise AssertionError('Unexpected write/registry command')
 '''); fake.chmod(0o700)
+
+    def retained(self):
+        self.boot_origin=(8,2,'b'*40)
+        origin=prepare.origin_identity(*self.boot_origin)
+        self.original_log=b'Reached target Multi-User System\n'
+        boot=dict(self.result['boot'], producer=origin, origin=origin, graphSha256='d'*64,
+            mediaInput='e'*64,verifierSha256='f'*64,bootLogSha256=hashlib.sha256(self.original_log).hexdigest())
+        self.original=dict(schemaVersion=1,producer=origin,graphSha256='d'*64,boot=boot,
+            completeValidationRequired=True,jobs=deepcopy(self.result['jobs']))
+        self.result['boot'].update(disposition='verified-retained',origin=dict(runId=8,revision='b'*40),
+            bootLogSha256=None,mediaInput='e'*64,verifierSha256='f'*64)
+        self.binding['isoSha256']=None
+        self.state['originalRun']={**deepcopy(self.state['run']), 'id':8,'run_attempt':2,'head_sha':'b'*40}
+        self.write_bundle()
+        self.result['inventoryIsoBinding']=dict(schemaVersion=1,producer=deepcopy(self.binding['producer']),
+            inventorySha256=self.result['inventoryTransferSha256'],isoSha256=self.result['boot']['isoSha256'])
 
     def write_bundle(self):
         for name,value in (('product.json',self.product),('scans.json',self.scans),('security-result.json',self.native),('inventory-binding.json',self.binding)):
@@ -108,15 +129,21 @@ else:raise AssertionError('Unexpected write/registry command')
         self.result['nativeScanSha256']=prepare.file_hash(self.bundle/'security-result.json')
         self.result['inventoryTransferSha256']=prepare.file_hash(self.bundle/'inventory-binding.json')
         (self.bundle/'ci-result.json').write_text(json.dumps(self.result))
+        if self.original is not None:
+            (self.bundle/'original-ci-result.json').write_text(json.dumps(self.original))
+            (self.bundle/'original-boot.log').write_bytes(self.original_log)
 
-    def invoke(self, write=True):
+    def invoke(self, write=True, memory_limit=512*1024**2):
         if write:self.write_bundle()
         state=self.root/'state.json';state.write_text(json.dumps(self.state))
         env=dict(os.environ,PATH=str(self.bin)+os.pathsep+os.environ['PATH'],PYTHONDONTWRITEBYTECODE='1',
             MAESTRO_NATIVE_PREPARE_POLICY=str(self.policy),NATIVE_FIXTURE_STATE=str(state),
             NATIVE_FIXTURE_CALLS=str(self.calls),NATIVE_FIXTURE_BUNDLE=str(self.bundle))
-        return subprocess.run([sys.executable,str(SOURCE),'--directory',str(self.bundle),'--run','7','--attempt','1','--revision',SHA],
-            env=env,capture_output=True,text=True,timeout=15)
+        extra=[] if self.boot_origin is None else ['--boot-origin-run',str(self.boot_origin[0]),
+            '--boot-origin-attempt',str(self.boot_origin[1]),'--boot-origin-revision',self.boot_origin[2]]
+        def limit():resource.setrlimit(resource.RLIMIT_AS,(memory_limit,memory_limit))
+        return subprocess.run([sys.executable,str(SOURCE),'--directory',str(self.bundle),'--run','7','--attempt','1','--revision',SHA,*extra],
+            env=env,capture_output=True,text=True,timeout=60,preexec_fn=limit)
 
     def blocked(self, write=True):
         result=self.invoke(write);self.assertEqual(result.returncode,2,result.stdout+result.stderr);self.assertEqual(result.stdout,'')
@@ -133,6 +160,84 @@ else:raise AssertionError('Unexpected write/registry command')
         workflows='\n'.join(p.read_text() for p in (ROOT/'.github/workflows').glob('*.yml'))
         self.assertNotIn('ci:native:prepare',workflows)
         self.assertNotIn('maestro-ci-native-prepare',workflows)
+
+    def test_retained_boot_requires_one_exact_signed_executed_origin(self):
+        self.retained();result=self.invoke();self.assertEqual(result.returncode,0,result.stderr)
+        value=json.loads(result.stdout);self.assertEqual(value['bootDisposition'],'verified-retained')
+        self.assertEqual(value['bootOrigin'],dict(runId=8,runAttempt=2,revision='b'*40))
+        self.assertFalse(value['isoBytesVerified']);self.assertFalse(value['publicationReady'])
+        calls=[json.loads(v) for v in self.calls.read_text().splitlines()]
+        self.assertEqual(len(calls),9)
+        self.assertTrue(any(c[:2]==['attestation','verify'] and c[2].endswith('/original-ci-result.json') for c in calls))
+
+    def test_retained_missing_wrong_attempt_signature_and_recursive_origin_fail(self):
+        self.retained();original=deepcopy(self.original)
+        for change in ({'producer':prepare.origin_identity(8,3,'b'*40)},
+                       {'boot':dict(original['boot'],disposition='verified-retained')},
+                       {'boot':dict(original['boot'],isoSha256='a'*64)},
+                       {'boot':dict(original['boot'],mediaInput='a'*64)},
+                       {'boot':dict(original['boot'],verifierSha256='a'*64)},
+                       {'boot':dict(original['boot'],origin=prepare.origin_identity(9,2,'b'*40))},
+                       {'jobs':dict(original['jobs'],AUDIT_RESULT='skipped')}):
+            with self.subTest(change=change):
+                self.original={**deepcopy(original),**change};self.blocked()
+        self.original=original;self.state['forgedOriginal']=True;self.blocked()
+        self.state.pop('forgedOriginal');self.original_log=b'forged log';self.blocked()
+        self.original_log=b'Reached target Multi-User System\n';self.write_bundle()
+        (self.bundle/'original-ci-result.json').unlink();self.blocked(False)
+
+    def test_retained_origin_api_and_current_scope_changes_fail(self):
+        self.retained();run=deepcopy(self.state['originalRun'])
+        for key,value in [('run_attempt',3),('head_sha','c'*40),('event','pull_request'),
+                          ('path','.github/workflows/security.yml'),('conclusion','failure')]:
+            with self.subTest(key=key):self.state['originalRun']={**run,key:value};self.blocked()
+        self.state['originalRun']=run
+        self.result['boot']['origin']['runId']=9;self.blocked()
+        self.result['boot']['origin']['runId']=8;self.state['mainAfter']='e'*40;self.blocked()
+        self.state.pop('mainAfter');self.native['scannerHealth']='failed';self.blocked()
+
+    def test_retained_requires_explicit_new_iso_binding_not_null_acceptance(self):
+        self.retained();binding=deepcopy(self.result['inventoryIsoBinding'])
+        for value in (None,dict(binding,isoSha256='a'*64),dict(binding,inventorySha256='a'*64),
+                      dict(binding,producer=prepare.origin_identity(8,2,'b'*40)),dict(binding,schemaVersion=2),dict(binding,schemaVersion=True)):
+            with self.subTest(value=value):self.result['inventoryIsoBinding']=value;self.blocked()
+        self.result['inventoryIsoBinding']=binding;self.binding['isoSha256']='a'*64;self.blocked()
+
+    def test_measured_size_reports_parse_sequentially_with_strict_resource_limit(self):
+        # Generated data only, larger than both measured production reports.
+        self.native['diagnostics']=['x'*4096]*13600
+        outcome=self.invoke();self.assertEqual(outcome.returncode,0,outcome.stderr)
+        self.assertGreater((self.bundle/'scans.json').stat().st_size,55_706_156)
+        self.assertGreater((self.bundle/'security-result.json').stat().st_size,52_521_292)
+        self.assertFalse(json.loads(outcome.stdout)['authorization'])
+        exhausted=self.invoke(False,memory_limit=96*1024**2)
+        self.assertEqual(exhausted.returncode,2,exhausted.stdout+exhausted.stderr)
+        self.assertEqual(exhausted.stdout,'')
+        self.assertIn('MemoryError',exhausted.stderr)
+        print(json.dumps({'generatedReportFixture':True,'maxChildRssKiB':resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss,
+            'validationAddressSpaceLimitMiB':512,'livePreparation':False}))
+
+    def test_aggregate_bound_and_duplicate_profile_are_still_rejected(self):
+        self.write_bundle()
+        with tempfile.TemporaryDirectory() as target, patch.object(prepare,'MAX_BUNDLE',1024):
+            with self.assertRaises(ValueError):prepare.snapshot(self.bundle,Path(target))
+        raw=(self.bundle/'scans.json').read_text().replace('"profiles": {','"profiles": {"maestro": {},',1)
+        (self.bundle/'scans.json').write_text(raw);self.blocked(False)
+
+    def test_validation_heap_limit_is_restored_even_after_failure(self):
+        before=resource.getrlimit(resource.RLIMIT_AS)
+        with self.assertRaises(ValueError):
+            with prepare.bounded_validation():
+                self.assertLessEqual(resource.getrlimit(resource.RLIMIT_AS)[0],512*1024**2)
+                raise ValueError('fixture failure')
+        self.assertEqual(resource.getrlimit(resource.RLIMIT_AS),before)
+
+    def test_raw_native_and_scan_content_must_remain_equal(self):
+        self.write_bundle()
+        raw=(self.bundle/'scans.json').read_text().replace('"scannerHealth": "healthy"','"scannerHealth": "failed"')
+        (self.bundle/'scans.json').write_text(raw);self.blocked(False)
+        self.write_bundle();raw=(self.bundle/'security-result.json').read_text().replace('"status": "complete"','"status": NaN')
+        (self.bundle/'security-result.json').write_text(raw);self.blocked(False)
 
     def test_high_finding_is_observed_without_accepting_risk(self):
         root=self.subjects[0]['storePath']
@@ -195,7 +300,7 @@ else:raise AssertionError('Unexpected write/registry command')
 
     def test_resource_and_nonregular_input_bounds(self):
         self.write_bundle();p=self.bundle/'scans.json'
-        with p.open('wb') as out:out.truncate(prepare.MAX_JSON+1)
+        with p.open('wb') as out:out.truncate(prepare.MAX_REPORT+1)
         self.blocked(False)
         p.unlink();os.mkfifo(p);self.blocked(False)
 
