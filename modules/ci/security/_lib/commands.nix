@@ -15,6 +15,18 @@
 }: let
   inherit (common) mkCommand commonInputs spdxSchema boundedGh publicCacheWorker validatePlan classifyPaths;
 in {
+  native-prepare = mkCommand {
+    name = "native-prepare";
+    prefix = ''
+      export PYTHONDONTWRITEBYTECODE=1
+      export MAESTRO_DECISION_CORE=${../../authority/_source/decisions}
+      export MAESTRO_SECURITY_NATIVE_CHECK_SOURCE=${../_source/security-native-check.py}
+      export MAESTRO_NATIVE_PREPARE_POLICY=${../../authority/_source/decision-policy.json}
+      export MAESTRO_NATIVE_PREPARE_SOURCE=${../_source/native-prepare.py}
+    '';
+    runtimeInputs = commonInputs ++ [pkgs.python3];
+    source = ../_source/native-prepare.sh;
+  };
   security-native-check = mkCommand {
     name = "security-native-check";
     prefix = ''

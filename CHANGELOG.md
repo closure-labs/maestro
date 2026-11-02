@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Add an inactive, read-only native evidence preparation command and negative
+  fixtures for the proposed standard-review cutover; keep all active publication
+  gates, thresholds, workflows and historical decisions unchanged.
+
 - Stream native closure-copy diagnostics without buffering copy output in memory;
   retain bounded failure stderr and temporary-disk snapshots while preserving
   native failure status, process deadlines and exact transport verification.
