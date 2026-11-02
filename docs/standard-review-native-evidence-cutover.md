@@ -57,11 +57,15 @@ Repository evidence: `modules/ci/authority/_source/decision-retained.py:70`,
    result: unresolved **high, critical or unknown/unscored** findings block.
    CI may retain its current report/observation behavior so remediation PRs can
    be reviewed. `mode: report` must never bypass the publication verdict.
-   Reuse the existing exact identity, owner, rationale, evidence, created/expiry
-   fields and maximum 30-day exception lifetime. Do not invent a second waiver
-   store. Keep `dispositions` and `exceptions` empty initially; retain only
-   technically verified native applicability results. A future exception PR is
-   a separate explicit risk-acceptance decision, requiring human review.
+   The revised user policy permits explicit independent human acceptance of
+   specific high/critical risk. Routine code approval is insufficient. The staged
+   implementation uses one dedicated standard-review artifact, exact finding and
+   product/evidence/policy scope, a clearly labeled dedicated findings-risk PR approval,
+   revocation checks and proposed maximum-30-day expiry. Source-policy exceptions
+   remain empty; this replaces their waiver route rather than adding a second
+   active waiver store. See [the reviewed activation proposal](native-cutover/activation.md)
+   for the complete mechanism and expiry/revalidation choices still to confirm.
+
 5. **No grandfathering of the 346 findings.** Before activation, show a fresh
    severity/applicability report from the exact tested source. If blocking
    findings remain, public writes stay disabled until remediation or separately

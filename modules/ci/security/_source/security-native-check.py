@@ -11,7 +11,7 @@ import common
 from security_decisions import normalize_findings
 
 
-def check(native, cfg):
+def check(native, cfg, capture=None):
     now = dt.datetime.now(dt.timezone.utc)
     common.require(native.get('status') == 'complete' and native.get('scannerHealth') == 'healthy', 'Incomplete native qualification')
     scanned = common.timestamp(native.get('scannedAt'))
@@ -21,7 +21,9 @@ def check(native, cfg):
     built = common.timestamp(database.get('built'))
     common.require(built <= scanned and now - built <= dt.timedelta(hours=cfg.get('maxDatabaseAgeHours', 48)), 'Stale native database')
     common.require('securityContext' in native, 'Native runtime policy coverage required')
-    normalize_findings(native, 'maestro')
+    findings = normalize_findings(native, 'maestro')
+    if capture is not None:
+        capture(findings)
     return {'schema': 1, 'status': 'healthy-native-qualification', 'scannedAt': native['scannedAt']}
 
 

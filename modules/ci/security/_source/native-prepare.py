@@ -30,6 +30,7 @@ JSON_FILES = ('product.json', 'scans.json', 'security-result.json', 'ci-result.j
 DOCUMENTS = tuple(n + suffix for n in ('maestro-system.spdx.json', 'maestro-system.cdx.json',
     'xen-orchestra-supply.assertion.json', 'xen-orchestra-supply.spdx.json', 'xen-orchestra-supply.cdx.json')
     for suffix in ('', '.sha256'))
+PUBLICATION_FILES = ('findings.json', 'effective-policy.json', 'critical-applicability.json', 'source-policy.json')
 MAX_JSON = 16 * 1024**2
 MAX_REPORT = 64 * 1024**2
 MAX_BOOT_LOG = 4 * 1024**2
@@ -78,17 +79,17 @@ def attest(path, revision):
             'Verified attestation lacks exact subject digest')
 
 
-def snapshot(directory, destination, retained=False):
+def snapshot(directory, destination, retained=False, publication=False):
     require(directory.is_dir() and not directory.is_symlink(), 'Regular evidence directory required')
     total = 0
-    extra = ('original-ci-result.json', 'original-boot.log') if retained else ()
+    extra = (('original-ci-result.json', 'original-boot.log') if retained else ()) + (PUBLICATION_FILES if publication else ())
     for name in (*JSON_FILES, *DOCUMENTS, *extra):
         source = directory / name
         with os.fdopen(os.open(source, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), 'rb') as stream:
             info = os.fstat(stream.fileno())
             cap = (MAX_REPORT if name in ('scans.json', 'security-result.json') else
                    MAX_BOOT_LOG if name == 'original-boot.log' else
-                   MAX_JSON if name in (*JSON_FILES, 'original-ci-result.json') else MAX_DOCUMENT)
+                   MAX_JSON if name in (*JSON_FILES, *PUBLICATION_FILES, 'original-ci-result.json') else MAX_DOCUMENT)
             require(stat.S_ISREG(info.st_mode) and 0 < info.st_size <= cap, 'Invalid or oversized evidence file')
             total += info.st_size
             require(total <= MAX_BUNDLE, 'Oversized evidence bundle')
@@ -196,7 +197,8 @@ def retained_boot(root, boot, result, binding, current, selected):
     return dict(runId=run_id, runAttempt=attempt, revision=revision)
 
 
-def prepare(directory, run_id, attempt, revision, policy_path, boot_origin=None):
+@contextmanager
+def verified_bundle(directory, run_id, attempt, revision, policy_path, boot_origin=None, publication=False):
     require(type(run_id) is int and run_id > 0 and type(attempt) is int and attempt > 0
             and re.fullmatch(r'[0-9a-f]{40}', revision), 'Exact native producer inputs required')
     cfg = common.config(policy_path)
@@ -210,7 +212,7 @@ def prepare(directory, run_id, attempt, revision, policy_path, boot_origin=None)
     trusted_run(run_id, attempt, revision)
     with tempfile.TemporaryDirectory(prefix='maestro-native-prepare-') as temporary:
         root = Path(temporary)
-        snapshot(directory, root, boot_origin is not None)
+        snapshot(directory, root, boot_origin is not None, publication)
         for name in ('product.json', 'scans.json', 'ci-result.json'):
             attest(root / name, revision)
         if boot_origin is not None:
@@ -245,7 +247,8 @@ def prepare(directory, run_id, attempt, revision, policy_path, boot_origin=None)
             spec = importlib.util.spec_from_file_location('native_check', os.environ.get('MAESTRO_SECURITY_NATIVE_CHECK_SOURCE', Path(__file__).with_name('security-native-check.py')))
             check = importlib.util.module_from_spec(spec); spec.loader.exec_module(check)
             require(isinstance(native.get('securityContext'), dict) and native['securityContext'].get('schema') == 2, 'Complete installer security context required')
-            check.check(native, cfg)
+            normalized = []
+            check.check(native, cfg, capture=normalized.extend)
             common.coverage_roots(native, cfg['requiredCoverage']['maestro'])
             require(isinstance(product.get('products'), dict) and isinstance(product.get('roots'), dict), 'Invalid native product roots')
             subjects = native['subjects']
@@ -279,9 +282,19 @@ def prepare(directory, run_id, attempt, revision, policy_path, boot_origin=None)
             else:
                 raise ValueError('Unsupported boot disposition')
         require(api('git/ref/heads/main')['object']['sha'] == revision, 'Main changed during preparation')
-        return dict(schemaVersion=1, status='prepared-native-data', authorization=False, publicationReady=False,
+        receipt = dict(schemaVersion=1, status='prepared-native-data', authorization=False, publicationReady=False,
             sourceRevision=revision, runId=run_id, runAttempt=attempt, rootCount=len(expected), boundDocumentCount=len(DOCUMENTS),
             bootDisposition=disposition, bootOrigin=original, narBytesVerified=False, isoBytesVerified=False, riskAcceptanceEvaluated=False)
+
+        # Keep one frozen bundle and one authenticated native object for the
+        # consumer. No authority result persists beyond this context/invocation.
+        yield dict(directory=root, receipt=receipt, native=native, scans=scans,
+                   product=product, result=result, binding=binding, policyHash=common.canonical_hash(cfg), normalizedFindings=normalized)
+
+
+def prepare(directory, run_id, attempt, revision, policy_path, boot_origin=None):
+    with verified_bundle(directory, run_id, attempt, revision, policy_path, boot_origin) as bundle:
+        return bundle['receipt']
 
 
 def main():

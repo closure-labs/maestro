@@ -13,7 +13,7 @@ mkdir -p "$output"
 rm -f -- "$output/grype-database.json" "$output/findings.json" \
   "$output/grype-findings.json" "$output/critical-applicability.json" \
   "$output/effective-policy.json" "$output/new-high-critical.json" "$output/inputs.sha256" \
-  "$output/security-result.json"
+  "$output/security-result.json" "$output/source-policy.json"
 work=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/maestro-scan.XXXXXX")
 printf '{}\n' >"$work/grype.yaml"
 # Local configuration must not disable database updates, hide findings, or
@@ -133,6 +133,7 @@ jq --slurpfile applicability "$output/critical-applicability.json" '
 ' "$MAESTRO_SECURITY_POLICY" >"$output/effective-policy.json"
 sha256sum "$inventory/maestro-system.cdx.json" "$inventory/xen-orchestra-supply.cdx.json" \
   "$cargo_lock" >"$output/inputs.sha256"
+cp -- "$MAESTRO_SECURITY_POLICY" "$output/source-policy.json"
 # This is native technical evidence, independent of the historical report-mode
 # policy. Publication must separately require authenticated human admission.
 python3 "$MAESTRO_SECURITY_NORMALIZE_SOURCE" --result "$output" "$sbom" "$scan_started"

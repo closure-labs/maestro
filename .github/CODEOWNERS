@@ -1,0 +1,3 @@
+# SPDX-License-Identifier: Apache-2.0
+# Enforcement is enabled only during the reviewed ruleset cutover.
+* @declarative-dale

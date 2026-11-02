@@ -19,34 +19,28 @@
       "type": "non_fast_forward"
     },
     {
-      "type": "merge_queue",
-      "parameters": {
-        "check_response_timeout_minutes": 180,
-        "grouping_strategy": "ALLGREEN",
-        "max_entries_to_build": 2,
-        "max_entries_to_merge": 1,
-        "merge_method": "MERGE",
-        "min_entries_to_merge": 1,
-        "min_entries_to_merge_wait_minutes": 0
-      }
-    },
-    {
       "type": "pull_request",
       "parameters": {
+        "required_approving_review_count": 1,
+        "dismiss_stale_reviews_on_push": true,
+        "required_reviewers": [],
+        "require_code_owner_review": true,
+        "dismissal_restriction": {
+          "enabled": false,
+          "allowed_actors": []
+        },
+        "require_last_push_approval": true,
+        "required_review_thread_resolution": true,
+        "require_extra_approval_for_unattributed_changes": true,
         "allowed_merge_methods": [
           "merge"
-        ],
-        "dismiss_stale_reviews_on_push": false,
-        "require_code_owner_review": false,
-        "require_last_push_approval": false,
-        "required_approving_review_count": 0,
-        "required_review_thread_resolution": true,
-        "required_reviewers": []
+        ]
       }
     },
     {
       "type": "required_status_checks",
       "parameters": {
+        "strict_required_status_checks_policy": false,
         "do_not_enforce_on_create": false,
         "required_status_checks": [
           {
@@ -73,8 +67,19 @@
             "context": "Analyze (rust)",
             "integration_id": 15368
           }
-        ],
-        "strict_required_status_checks_policy": false
+        ]
+      }
+    },
+    {
+      "type": "merge_queue",
+      "parameters": {
+        "merge_method": "MERGE",
+        "max_entries_to_build": 2,
+        "min_entries_to_merge": 1,
+        "max_entries_to_merge": 1,
+        "min_entries_to_merge_wait_minutes": 0,
+        "grouping_strategy": "ALLGREEN",
+        "check_response_timeout_minutes": 180
       }
     }
   ]

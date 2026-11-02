@@ -371,7 +371,9 @@ if __name__ == "__main__" and sys.argv[1:2] == ["--result"]:
              "rustsec": output / "cargo-audit.json", "grypeDatabase": output / "grype-database.json",
              "grypeVersion": output / "grype-version.json", "cargoAuditVersion": output / "cargo-audit-version.txt",
              "rustsecDatabase": output / "rustsec-database.json",
-             "inputHashes": output / "inputs.sha256"}
+             "inputHashes": output / "inputs.sha256", "findings": output / "findings.json",
+             "sourcePolicy": output / "source-policy.json", "effectivePolicy": output / "effective-policy.json",
+             "applicability": output / "critical-applicability.json"}
     evidence = {name: {"sha256": hashlib.sha256(path.read_bytes()).hexdigest(), "size": path.stat().st_size} for name, path in paths.items()}
     document = security_result(*(json.loads(paths[k].read_text()) for k in ["grype", "inventory", "rustsec", "grypeDatabase"]), started, evidence)
     # Create only a fresh completed result; a failed attempt leaves no stale pass.
