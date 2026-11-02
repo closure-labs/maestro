@@ -2,6 +2,7 @@
   inherit (import ../../../features/development/_lib/task-helpers.nix {}) withFlake runFlakePackage;
 in {
   tasks = {
+    "ci:native:prepare".exec = runFlakePackage "maestro-ci-native-prepare" "";
     "ci:security:verify-native".exec = runFlakePackage "maestro-ci-security-native-check" "";
     "ci:security:scan".exec = runFlakePackage "maestro-ci-security-scan" "";
     "ci:security:inventory-preflight".exec = runFlakePackage "maestro-ci-security-inventory-preflight" "";

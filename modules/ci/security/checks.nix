@@ -25,6 +25,7 @@
       security-fixtures = mkSourceCheck {
         name = "security-fixtures";
         command = ''
+          PYTHONDONTWRITEBYTECODE=1 python3 ./modules/ci/security/_tests/native-prepare.py
           PYTHONDONTWRITEBYTECODE=1 python3 ./modules/ci/security/_tests/security-inventory.py
           PYTHONDONTWRITEBYTECODE=1 python3 ./modules/ci/security/_tests/security-components.py
           test -e ${inputs.self.checks.${system}.xo-file-restore-fixtures}
