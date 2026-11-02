@@ -183,9 +183,9 @@ class SplitTransport(unittest.TestCase):
             return json.loads(subprocess.check_output(['yq', '-o=json', '.',
                               str(ROOT / '.github/workflows' / name)], text=True))
         ci = workflow('ci.yml')['jobs']
-        report = next(s for s in ci['scan']['steps'] if s.get('with', {}).get('name') == 'maestro-security-report')
+        report = next(s for s in ci['qualification']['steps'] if s.get('with', {}).get('name') == 'maestro-security-report')
         self.assertIn('!security-report/distribution-cache.tar.part-*', report['with']['path'])
-        companion = next(s for s in ci['scan']['steps'] if s.get('with', {}).get('name') == 'maestro-distribution-transport')
+        companion = next(s for s in ci['qualification']['steps'] if s.get('with', {}).get('name') == 'maestro-distribution-transport')
         self.assertEqual(companion['with']['path'], 'security-report/distribution-cache.tar.part-*')
         self.assertIn("github.ref == 'refs/heads/main'", companion['if'])
         self.assertEqual(companion['with']['if-no-files-found'], 'error')

@@ -11,6 +11,9 @@ import os
 from pathlib import Path
 import tarfile
 import tempfile
+import subprocess
+import sys
+import time
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 from urllib.parse import parse_qs, urlparse
@@ -38,7 +41,7 @@ class Nix:
         self.calls = []
         self.nar_hash = NAR
 
-    def __call__(self, args):
+    def __call__(self, args, *, receipt_directory=None):
         self.calls.append(args)
         if args[:3] == ['nix', 'path-info', '--json']:
             return json.dumps({ROOT: {'narHash': self.nar_hash}}).encode()
@@ -68,7 +71,7 @@ class ClosureNix(Nix):
         self.local = deepcopy(self.retained)
         self.metadata_timeouts = []
 
-    def __call__(self, args, timeout=1800):
+    def __call__(self, args, timeout=1800, *, receipt_directory=None):
         if args[:3] == ['nix', 'path-info', '--json'] and '--recursive' in args:
             self.metadata_timeouts.append(timeout)
             self.calls.append(args)
@@ -196,3 +199,88 @@ with tempfile.TemporaryDirectory() as temporary:
     malicious('nar/device', tarfile.CHRTYPE)
     malicious('nar/duplicate', duplicate=True)
 print('Distribution closure transport, deterministic chunks, hostile archives and exact NAR fixtures passed.')
+
+# Exercise the real supervisor and pipe reader, not a subprocess mock. The fake
+# Nix executable uses the declared Python interpreter inside the Nix sandbox.
+with tempfile.TemporaryDirectory() as temporary:
+    directory = Path(temporary)
+    fake = directory / 'nix'
+    fake.write_text('#!' + sys.executable + '\n' + """
+import os, subprocess, sys, time
+if sys.argv[1] == 'path-info':
+    print('{"unchanged":"json"}')
+    sys.exit(0)
+mode = os.environ['COPY_FIXTURE_MODE']
+os.write(2, b'COPY-START\\n')
+if mode == 'timeout':
+    child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])
+    os.write(2, ('GRANDCHILD=' + str(child.pid) + '\\n').encode())
+    time.sleep(60)
+elif mode == 'stream':
+    time.sleep(.3)
+for _ in range(128):
+    os.write(1, b'o' * 8192)
+    os.write(2, b'e' * 8192)
+os.write(2, b'COPY-END\\n')
+if mode == 'signal':
+    import signal
+    os.kill(os.getpid(), signal.SIGTERM)
+sys.exit(134 if mode in ('abort', 'restore') else 0)
+""")
+    fake.chmod(0o700)
+    driver = directory / 'driver.py'
+    driver.write_text("""
+import importlib.util, json, os, subprocess, sys
+from pathlib import Path
+spec=importlib.util.spec_from_file_location('cache', sys.argv[1])
+cache=importlib.util.module_from_spec(spec);spec.loader.exec_module(cache)
+mode=os.environ['COPY_FIXTURE_MODE']
+try:
+    result=cache.command(['nix','copy','--from' if mode=='restore' else '--to','fixture'], timeout=.4 if mode=='timeout' else 5,
+                         receipt_directory=Path(sys.argv[2]))
+    assert result==b''
+except subprocess.CalledProcessError as error:
+    print(json.dumps({'exit':error.returncode}))
+except subprocess.TimeoutExpired:
+    print(json.dumps({'timeout':True}))
+assert cache.command(['nix','path-info','--json'], timeout=5)==b'{"unchanged":"json"}\\n'
+""")
+    for mode in ('stream', 'abort', 'restore', 'signal', 'timeout'):
+        receipts = directory / mode; receipts.mkdir()
+        environment = dict(os.environ, PATH=str(directory) + os.pathsep + os.environ['PATH'], COPY_FIXTURE_MODE=mode)
+        args = [sys.executable, str(driver), str(Path(cache.__file__).resolve()), str(receipts)]
+        started = time.monotonic()
+        if mode == 'stream':
+            with subprocess.Popen(args, env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as child:
+                assert child.stderr.readline() == b'COPY-START\n'
+                assert child.poll() is None, 'stderr was withheld until command completion'
+                stdout, stderr = child.communicate(timeout=10)
+                assert child.returncode == 0 and stdout == b'' and stderr.endswith(b'COPY-END\n')
+                assert len(stderr) > 1024 * 1024
+            assert not list(receipts.iterdir()), 'Successful copies must not create failure evidence'
+            continue
+        result = subprocess.run(args, env=environment, capture_output=True, timeout=15)
+        assert result.returncode == 0, result.stderr[-8192:]
+        receipt_path = receipts / ('copy-restore.failure.json' if mode == 'restore' else 'copy-export.failure.json')
+        assert receipt_path.stat().st_size < 64 * 1024
+        receipt = json.loads(receipt_path.read_text())
+        assert receipt['streamComplete'] and receipt['temporaryDiskBefore']['freeBytes'] > 0
+        assert len(receipt['stderrTail'].encode()) <= 8192
+        if mode == 'timeout':
+            assert json.loads(result.stdout) == {'timeout': True} and receipt['timedOut']
+            assert time.monotonic() - started < 5
+            pid = int(receipt['stderrTail'].split('GRANDCHILD=')[1].splitlines()[0])
+            status = Path(f'/proc/{pid}/stat')
+            assert not status.exists() or status.read_text().rpartition(')')[2].split()[0] == 'Z', 'Timed-out descendant still running'
+        else:
+            expected = 134 if mode in ('abort', 'restore') else -15
+            assert json.loads(result.stdout) == {'exit': expected}
+            assert receipt['exitCode'] == expected and not receipt['timedOut']
+            assert receipt['stderrTail'].endswith('COPY-END\n') and result.stderr.endswith(b'COPY-END\n')
+    blocked_receipt = directory / 'not-a-directory'; blocked_receipt.write_text('fixture')
+    environment['COPY_FIXTURE_MODE'] = 'abort'
+    result = subprocess.run([sys.executable, str(driver), str(Path(cache.__file__).resolve()), str(blocked_receipt)],
+                            env=environment, capture_output=True, timeout=10)
+    assert result.returncode == 0 and json.loads(result.stdout) == {'exit': 134}
+    assert b'original failure preserved' in result.stderr
+    print('Five real copy subprocess cases passed: streaming, export/restore exit 134, signal and timeout cleanup; JSON capture unchanged.')

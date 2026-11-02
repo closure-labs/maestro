@@ -38,6 +38,7 @@ def validate(manifest, phase, expected, graph_hash):
     require(isinstance(manifest, dict) and set(manifest) == {'schemaVersion', 'phase', 'producer', 'graphSha256', 'targets', 'roots', 'transport', 'files', 'evidenceFiles', 'isoSha256'}, 'Incomplete transfer manifest')
     require(type(manifest['schemaVersion']) is int and manifest['schemaVersion'] == 2, 'Unknown transfer schema')
     require(manifest['phase'] == phase and manifest['producer'] == producer(), 'Changed transfer producer or attempt')
+    require(manifest['transport'] is not None or phase == 'inventory', 'Only inventory permits a local binding')
     require(manifest['graphSha256'] == graph_hash and manifest['targets'] == expected, 'Changed derivation binding')
     outputs = {value for target in expected for value in target['outputs'].values()}
     require(len({root['storePath'] for root in manifest['roots']}) == len(manifest['roots'])
@@ -72,9 +73,25 @@ def verify_files(directory, expected):
                 'Missing or corrupt bound metadata: ' + name)
 
 
+def discard_imported_chunks():
+    """Release only job-local downloaded chunks after all local roots verify.
+
+    Index/evidence documents stay available; remote retained artifacts and the
+    final security-report transport are never touched.
+    """
+    for name in ('appliance-transfer', 'installer-transfer', 'qualified-distribution'):
+        directory = Path(name)
+        if not directory.exists() and not directory.is_symlink():
+            continue
+        require(directory.is_dir() and not directory.is_symlink(), 'Unsafe imported transport directory')
+        for path in directory.glob('distribution-cache.tar.part-[0-9][0-9][0-9]'):
+            require(path.is_file() and not path.is_symlink(), 'Unsafe imported transport chunk')
+            path.unlink()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['export', 'restore', 'verify'])
+    parser.add_argument('action', choices=['bind', 'export', 'restore', 'verify'])
     parser.add_argument('phase', choices=['appliance', 'installer', 'inventory'])
     parser.add_argument('directory', type=Path)
     parser.add_argument('--graph', type=Path, default=Path('ci-graph/candidate.json'))
@@ -87,7 +104,8 @@ def main():
     spec = importlib.util.spec_from_file_location('distribution_cache', os.environ['MAESTRO_DISTRIBUTION_CACHE_SOURCE'])
     transfer = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(transfer)
-    if args.action == 'export':
+    if args.action in ('bind', 'export'):
+        require(args.action != 'bind' or args.phase == 'inventory', 'Local binding is restricted to inventory')
         paths = sorted({value for target in expected for value in target['outputs'].values()})
         records = json.loads(command('nix', 'path-info', '--json', *paths))
         if isinstance(records, list):
@@ -105,10 +123,14 @@ def main():
             if iso.is_file():
                 iso_digest = file_digest(iso)
         manifest = dict(schemaVersion=2, phase=args.phase, producer=producer(), graphSha256=digest(graph),
-                        targets=expected, roots=roots, transport=transfer.export(args.directory, roots),
+                        targets=expected, roots=roots, transport=(None if args.action == 'bind' else transfer.export(args.directory, roots)),
                         files=files, evidenceFiles=evidence, isoSha256=iso_digest)
+        if args.action == 'bind':
+            transfer.verify_roots(roots)
         validate(manifest, args.phase, expected, digest(graph))
         path.write_text(json.dumps(manifest, sort_keys=True, indent=2) + '\n')
+        if args.action == 'bind':
+            discard_imported_chunks()
         manifest_sha = transfer.digest(path)
         if os.environ.get('GITHUB_OUTPUT'):
             with open(os.environ['GITHUB_OUTPUT'], 'a') as stream:
@@ -118,7 +140,12 @@ def main():
         require(re.fullmatch('[a-f0-9]{64}', os.environ.get('TRANSFER_MANIFEST_SHA256', '')), 'Missing producer manifest digest')
         require(transfer.digest(path) == os.environ['TRANSFER_MANIFEST_SHA256'], 'Transfer manifest digest mismatch')
         manifest = validate(json.loads(path.read_text()), args.phase, expected, digest(graph))
-        transfer.validate_manifest(args.directory, manifest['transport'])
+        if manifest['transport'] is None:
+            require(args.phase == 'inventory' and args.action == 'verify',
+                    'Local inventory binding cannot restore a closure')
+            transfer.verify_roots(manifest['roots'])
+        else:
+            transfer.validate_manifest(args.directory, manifest['transport'])
         verify_files(args.directory, manifest['files'])
         if args.action == 'verify' and args.phase == 'inventory':
             verify_files(Path(os.environ.get('SECURITY_INVENTORY', '.')), manifest['evidenceFiles'])
