@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 
 from graph import digest, require
 from transfer import bindings, producer
@@ -27,6 +28,17 @@ def validate_boot(boot, graph, route, expected_producer):
     require(isinstance(boot.get('isoSha256'), str) and len(boot['isoSha256']) == 64, 'Missing exact ISO digest')
     if disposition == 'executed':
         require(isinstance(boot.get('bootLogSha256'), str) and len(boot['bootLogSha256']) == 64, 'Missing completed boot log')
+
+
+def inventory_iso_binding(boot, inventory_sha, expected_producer):
+    # The boot job already verifies/hashes the exact executed or retained media.
+    # Explicitly bind that digest to this inventory, without another ISO download
+    # or mutating the earlier inventory artifact (reuse may have no local ISO).
+    require(boot.get('producer') == expected_producer
+            and re.fullmatch(r'[0-9a-f]{64}', boot.get('isoSha256', ''))
+            and re.fullmatch(r'[0-9a-f]{64}', inventory_sha), 'Incomplete inventory ISO binding')
+    return dict(schemaVersion=1, producer=expected_producer,
+                inventorySha256=inventory_sha, isoSha256=boot['isoSha256'])
 
 
 def main():
@@ -52,6 +64,7 @@ def main():
     manifest = dict(schemaVersion=1, producer=producer(), planSha256=os.environ['GRAPH_PLAN_SHA256'],
                     graphSha256=digest(graph), routePlanSha256=digest(route), boot=boot,
                     inventoryTransferSha256=os.environ['INVENTORY_TRANSFER_SHA256'],
+                    inventoryIsoBinding=inventory_iso_binding(boot, os.environ['INVENTORY_TRANSFER_SHA256'], producer()),
                     nativeScanSha256=file_digest('security-report/security-result.json'),
                     comparisonSha256=file_digest(comparison_path),
                     jobs={key: os.environ[key] for key in ['AUDIT_RESULT', 'COMPARISON_RESULT', 'SCAN_RESULT', 'QUALIFICATION_RESULT']},

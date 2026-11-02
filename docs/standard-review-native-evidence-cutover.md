@@ -389,14 +389,61 @@ import, registry access, decision operation, PR action or public-write option.
 It freezes the expected files in a private temporary directory, verifies product,
 scan and result attestations against the exact main source and signer, checks
 current main before/after preparation, and binds the ten document hashes,
-complete native root/NAR metadata and executed boot declaration. Retained-boot
-origins and non-CI producers are intentionally unsupported in this first leaf.
+complete native root/NAR metadata and the actual boot disposition. Non-CI
+producers remain unsupported. For `verified-retained` boot, also supply
+`original-ci-result.json` and `original-boot.log`, plus all three explicit flags:
+`--boot-origin-run RUN --boot-origin-attempt N --boot-origin-revision FULL_SHA`.
+There is no origin discovery, latest-attempt selection or recursive proof replay.
+The original successful main CI run/attempt and its attestation must match those
+inputs, the original result must declare directly executed boot, and its exact
+log, ISO, media-input and verifier digests must match. Different graph digests
+between original and current source are expected; each boot binds its own graph.
+Current source, policy, scanner health/freshness and complete root coverage still
+apply. Retained boot remains labelled `verified-retained`; it is not a new VM run.
 
-Bounds: JSON <=16 MiB/file, inventory documents <=64 MiB/file, total snapshot
-<=256 MiB; command stdout/stderr <=4 MiB each, per-command timeout 90 seconds and
+Bounds: `scans.json` and `security-result.json` <=64 MiB/file; other JSON
+<=16 MiB/file; inventory documents <=64 MiB/file; original boot log <=4 MiB;
+total snapshot <=256 MiB. Strict duplicate-key/nonfinite JSON parsing is retained.
+Parse the two large reports sequentially and compare incremental canonical
+hashes, avoiding two retained native objects or a report-sized serialization.
+Python validation has a 512 MiB address-space limit, restored before external
+GitHub verification (the Go verifier reserves more virtual address space).
+Command stdout/stderr <=4 MiB each, per-command timeout 90 seconds and
 invocation budget 300 seconds with existing process cleanup. Duplicate JSON keys,
 nonregular/symlink inputs, changed files and invalid identities fail closed.
 The receipt describes verified technical metadata, not cold verified NAR/ISO
 bytes or an admission capability. It cannot authorize a later publisher to use
 mutable originals; later consumers must reverify their actual bytes. The old
 full transport/consumer contracts and all twenty obligations remain untouched.
+
+
+## Inactive compatibility preparation (2026-11-02)
+
+Read-only staging of main CI `41416585167/1`, source
+`64922546a9f759702e7be31deff62a883974790b`, established three real gaps:
+55,706,156-byte scans and 52,521,292-byte native reports exceeded the original
+16 MiB limit; boot was retained from `41379990640/1`; reuse inventory had no local
+ISO and recorded `isoSha256: null`. The sequential parsing/normalization probe
+on those reports used 160,300 KiB peak RSS under a 512 MiB limit and produced
+346 normalized findings / 60 roots. This was not a live preparation trial or
+attestation verification. Fixtures use generated data, not production reports.
+
+The result producer now adds an explicit `inventoryIsoBinding` object:
+`{schemaVersion: 1, producer: CURRENT_PRODUCER, inventorySha256: MANIFEST_SHA256,
+isoSha256: BOOT_VERIFIED_ISO_SHA256}`. It is emitted only after the existing boot
+result digest, graph/media/verifier policy and complete validation checks pass.
+The boot job already verifies/hashes the retained ISO, so no extra ISO transfer,
+export or boot is introduced. The earlier inventory artifact remains immutable.
+The consumer requires this exact producer/digest binding when retained inventory
+has a null ISO field, plus the separately authenticated original executed-boot
+proof. It does not silently treat null as sufficient evidence or claim local
+ISO/NAR-byte verification. Non-null inventory ISO must still match exactly.
+
+This is an additive technical result field, not a change to admission, severity
+policy, required checks, signer trust, permissions or publication wiring. Existing
+consumers retain their current fields and gates; the new consumer stays unused.
+Old run `41416585167/1` lacks this explicit new binding and must still reject.
+No artifact may be rewritten/backfilled. After separate publication/review/merge,
+a fresh exact-main qualification would be needed before any separately authorized
+read-only preparation trial. The actual security cutover remains separately
+approved under the guarantee delta above.
