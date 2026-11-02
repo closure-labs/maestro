@@ -97,6 +97,10 @@ def review(api,record,record_hash,revision,eligible):
         if (row.get('state')=='APPROVED' and row.get('commit_id')==head
                 and user.get('type')=='User' and type(user.get('id')) is int and user['id']>0
                 and user.get('login','').lower() in eligible and user['id']!=pr.get('user',{}).get('id')):
+            permission=api('collaborators/'+user['login']+'/permission')
+            require(permission.get('permission') in ('write','maintain','admin')
+                and permission.get('user',{}).get('id')==user['id'],
+                'Findings-risk reviewer no longer has eligible repository write access')
             return dict(pullRequest=number,reviewId=row['id'],reviewedHead=head,reviewer=user['login'])
     raise ValueError('Explicit independent human findings-risk approval missing, stale or revoked')
 
