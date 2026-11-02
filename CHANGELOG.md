@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Stream native closure-copy diagnostics without buffering copy output in memory;
+  retain bounded failure stderr and temporary-disk snapshots while preserving
+  native failure status, process deadlines and exact transport verification.
+
 - Generate inventory and fresh native scans on one unprivileged hosted runner,
   preserving exact root/document bindings and final retained evidence while
   removing intermediate closure export/transfer/restore. Retain phase resource

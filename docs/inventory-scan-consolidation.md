@@ -77,3 +77,13 @@ OOM/disk failures and actual final artifact sizes must determine suitability.
 
 This is independent of #203's ordinary-flake trial. Its branch/auto-merge and
 required review/protection settings are untouched. Inspector/recovery remain paused.
+
+Native closure copy diagnostics stream to the job log; only the last 8 KiB of
+stderr is retained in memory. Failed copies retain `copy-export.failure.json`
+or `copy-restore.failure.json` beside existing transport diagnostics, including
+exit/timeout status, elapsed time and temporary-filesystem free-space snapshots.
+Receipt write failure does not replace the native failure. These snapshots do
+not establish peak disk or memory use. JSON-producing Nix operations retain their
+existing capture path; roots, NAR checks, compression, deadlines and transport
+manifests are unchanged. The change exposes failures and bounds capture memory;
+it does not establish the cause of the previously observed native abort.

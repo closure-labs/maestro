@@ -12,6 +12,9 @@ import re
 import subprocess
 import tarfile
 import tempfile
+import select
+import shutil
+import threading
 
 sys.path.insert(0, os.environ.get('MAESTRO_DECISION_CORE', str((Path(__file__).parent / '../../authority/_source/decisions'))))
 import operations
@@ -47,8 +50,82 @@ def identities(roots):
     return result
 
 
-def command(args, timeout=1800):
+def command(args, timeout=1800, *, receipt_directory=None):
+    if args[:2] == ['nix', 'copy']:
+        return copy_stream(args, timeout, receipt_directory)
     return operations.run(args, capture_output=True, check=True, timeout=timeout).stdout
+
+
+def copy_stream(args, timeout, receipt_directory):
+    """Stream copy stderr; retain only its bounded tail if supervision fails."""
+    tail = bytearray()
+    stopped = threading.Event()
+    read_fd, write_fd = os.pipe()
+    started = time.monotonic()
+
+    def disk():
+        try:
+            usage = shutil.disk_usage(tempfile.gettempdir())
+            return {'totalBytes': usage.total, 'freeBytes': usage.free}
+        except OSError:
+            return None
+
+    before = disk()
+
+    def drain():
+        deadline = None
+        try:
+            while True:
+                if stopped.is_set() and deadline is None:
+                    deadline = time.monotonic() + 1
+                if deadline is not None and time.monotonic() >= deadline:
+                    return
+                if not select.select([read_fd], [], [], .05)[0]:
+                    if stopped.is_set():
+                        return
+                    continue
+                block = os.read(read_fd, 8192)
+                if not block:
+                    return
+                tail.extend(block)
+                del tail[:-8192]
+                try:
+                    view = memoryview(block)
+                    while view:
+                        view = view[os.write(2, view):]
+                except OSError:
+                    pass  # A closed log sink must not stop draining the child.
+        finally:
+            os.close(read_fd)
+
+    reader = threading.Thread(target=drain, daemon=True)
+    reader.start()
+    failure = None
+    try:
+        operations.run(args, stdout=subprocess.DEVNULL, stderr=write_fd,
+                       check=True, timeout=timeout)
+        return b''
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
+        failure = error
+        raise
+    finally:
+        os.close(write_fd)
+        stopped.set()
+        reader.join(1.1)
+        if failure is not None and receipt_directory is not None:
+            receipt = {'schemaVersion': 1, 'operation': 'nix-copy',
+                       'direction': 'export' if '--to' in args else 'restore',
+                       'exitCode': getattr(failure, 'returncode', None),
+                       'timedOut': isinstance(failure, subprocess.TimeoutExpired),
+                       'elapsedSeconds': round(time.monotonic() - started, 3),
+                       'stderrTail': bytes(tail).decode('utf-8', errors='replace'),
+                       'stderrTailLimitBytes': 8192, 'streamComplete': not reader.is_alive(),
+                       'temporaryDiskBefore': before, 'temporaryDiskAfter': disk()}
+            try:
+                path = Path(receipt_directory) / ('copy-' + receipt['direction'] + '.failure.json')
+                path.write_text(json.dumps(receipt, sort_keys=True) + '\n')
+            except OSError:
+                print('Could not retain copy failure receipt; original failure preserved.', file=sys.stderr)
 
 
 def verify_roots(roots):
@@ -102,7 +179,7 @@ def export(directory, roots):
         cache, archive = Path(temporary) / 'cache', Path(temporary) / 'distribution-cache.tar'
         # Explicit fast compression avoids XZ's expensive default for transient
         # multi-GiB CI transports. NAR identity is independent of compression.
-        command(['nix', 'copy', '--to', cache.as_uri() + '?compression=zstd&compression-level=3', *sorted(expected)])
+        command(['nix', 'copy', '--to', cache.as_uri() + '?compression=zstd&compression-level=3', *sorted(expected)], receipt_directory=directory)
         require(cache.is_dir() and (cache / 'nix-cache-info').is_file(), 'Nix did not export a valid binary cache')
         pack(cache, archive)
         manifest = {'schema': 1, 'parts': {}, 'archiveSha256': digest(archive), 'archiveSize': archive.stat().st_size}
@@ -203,7 +280,7 @@ def restore(directory, manifest, roots, recursive_verify=True, closure_metadata=
             if closure_metadata is not None:
                 retained = destinations.closure_identities(json.loads(command([
                     'nix', 'path-info', '--json', '--recursive', '--store', cache.as_uri(), *sorted(expected)], timeout=30)), expected)
-            command(['nix', 'copy', '--from', cache.as_uri(), '--no-check-sigs', *sorted(expected)])
+            command(['nix', 'copy', '--from', cache.as_uri(), '--no-check-sigs', *sorted(expected)], receipt_directory=directory)
             verify_roots(roots)
             if recursive_verify:
                 command(['nix', 'store', 'verify', '--no-trust', '--recursive', *sorted(expected)])
