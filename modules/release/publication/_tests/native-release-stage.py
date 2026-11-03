@@ -60,6 +60,30 @@ class ReleaseStage(unittest.TestCase):
         self.case.findings=[self.case.finding('critical')];self.bundle=self.case.bundle()
         with self.assertRaises(pub.MandatoryVerdictError):self.stage()
         self.assertEqual(self.calls,[]);self.assertFalse(self.output.exists())
+    def reused_inventory(self):
+        self.bundle['binding']['isoSha256']=None
+        self.bundle['result'].update(inventoryTransferSha256='e'*64,
+            inventoryIsoBinding=dict(schemaVersion=1,producer=pub.native.origin_identity(7,1,fixture.fixture.SHA),
+                inventorySha256='e'*64,isoSha256=pub.native.file_hash(self.iso)))
+        self.bundle['result']['boot']['disposition']='verified-retained'
+        self.bundle['receipt']['bootOrigin']=dict(runId=8,runAttempt=2,revision='b'*40)
+        self.media=(8,2,'b'*40)
+    def test_reused_inventory_receipt_keeps_original_proof_and_exact_iso_byte_check(self):
+        self.reused_inventory();result=self.stage()
+        self.assertTrue(result['isoBytesVerified']);self.assertFalse(result['authorization'])
+        self.assertEqual(result['mediaProducer'],dict(runId=8,runAttempt=2,revision='b'*40))
+        self.assertEqual(result['isoSha256'],pub.native.file_hash(self.iso))
+        self.assertEqual(self.calls,['trusted','attest','split'])
+    def test_reused_inventory_cannot_omit_or_substitute_producer_transfer_or_iso_receipt(self):
+        for field,value in [('producer',{}),('inventorySha256','f'*64),('isoSha256','f'*64),('schemaVersion',2),('schemaVersion',True)]:
+            self.reused_inventory();self.bundle['result']['inventoryIsoBinding'][field]=value
+            with self.subTest(field=field),self.assertRaises(ValueError):self.stage()
+            self.assertEqual(self.calls,[]);self.assertFalse(self.output.exists())
+        self.reused_inventory();self.bundle['result'].pop('inventoryIsoBinding')
+        with self.assertRaises(ValueError):self.stage()
+        self.reused_inventory();self.bundle['result']['boot']['disposition']='executed'
+        with self.assertRaises(ValueError):self.stage()
+        self.assertEqual(self.calls,[])
     def test_wrong_version_or_original_media_cannot_stage(self):
         self.media=(8,1,fixture.fixture.SHA)
         with self.assertRaises(ValueError):self.stage()

@@ -30,6 +30,7 @@ JSON_FILES = ('product.json', 'scans.json', 'security-result.json', 'ci-result.j
 DOCUMENTS = tuple(n + suffix for n in ('maestro-system.spdx.json', 'maestro-system.cdx.json',
     'xen-orchestra-supply.assertion.json', 'xen-orchestra-supply.spdx.json', 'xen-orchestra-supply.cdx.json')
     for suffix in ('', '.sha256'))
+REFRESH_FILES = ('inputs.sha256', 'Cargo.lock')
 PUBLICATION_FILES = ('findings.json', 'effective-policy.json', 'critical-applicability.json', 'source-policy.json')
 MAX_JSON = 16 * 1024**2
 MAX_REPORT = 64 * 1024**2
@@ -79,17 +80,17 @@ def attest(path, revision):
             'Verified attestation lacks exact subject digest')
 
 
-def snapshot(directory, destination, retained=False, publication=False):
+def snapshot(directory, destination, retained=False, publication=False, for_refresh=False):
     require(directory.is_dir() and not directory.is_symlink(), 'Regular evidence directory required')
     total = 0
-    extra = (('original-ci-result.json', 'original-boot.log') if retained else ()) + (PUBLICATION_FILES if publication else ())
+    extra = (('original-ci-result.json', 'original-boot.log') if retained else ()) + (PUBLICATION_FILES if publication else ()) + (REFRESH_FILES if for_refresh else ())
     for name in (*JSON_FILES, *DOCUMENTS, *extra):
         source = directory / name
         with os.fdopen(os.open(source, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), 'rb') as stream:
             info = os.fstat(stream.fileno())
             cap = (MAX_REPORT if name in ('scans.json', 'security-result.json') else
                    MAX_BOOT_LOG if name == 'original-boot.log' else
-                   MAX_JSON if name in (*JSON_FILES, *PUBLICATION_FILES, 'original-ci-result.json') else MAX_DOCUMENT)
+                   MAX_JSON if name in (*JSON_FILES, *PUBLICATION_FILES, *REFRESH_FILES, 'original-ci-result.json') else MAX_DOCUMENT)
             require(stat.S_ISREG(info.st_mode) and 0 < info.st_size <= cap, 'Invalid or oversized evidence file')
             total += info.st_size
             require(total <= MAX_BUNDLE, 'Oversized evidence bundle')
@@ -197,8 +198,28 @@ def retained_boot(root, boot, result, binding, current, selected):
     return dict(runId=run_id, runAttempt=attempt, revision=revision)
 
 
+def refresh_inputs(root, native):
+    """Only the three exact original inventory/lockfile bytes can be rescanned."""
+    hashes=root/'inputs.sha256';expected=native.get('evidence',{}).get('inputHashes',{})
+    require(type(expected.get('size')) is int and 0<hashes.stat().st_size<=4096 and hashes.stat().st_size==expected.get('size')
+            and file_hash(hashes)==expected.get('sha256'),'Changed original input checksum binding')
+    names={'maestro-system.cdx.json','xen-orchestra-supply.cdx.json','Cargo.lock'};identities={}
+    for line in hashes.read_text().splitlines():
+        match=re.fullmatch(r'([0-9a-f]{64}) [ *](.+)',line)
+        require(match is not None,'Malformed original scan input checksum')
+        name=Path(match[2]).name
+        require(name in names and name not in identities,'Unexpected or duplicate original scan input')
+        identities[name]=match[1]
+    require(set(identities)==names and all(file_hash(root/name)==digest for name,digest in identities.items()),
+            'Changed original inventory/lockfile bytes')
+    system=root/'maestro-system.cdx.json';inventory=native.get('evidence',{}).get('inventory',{})
+    require(type(inventory.get('size')) is int and system.stat().st_size==inventory.get('size') and file_hash(system)==inventory.get('sha256'),
+            'Original native inventory differs from bound document')
+    return identities
+
+
 @contextmanager
-def verified_bundle(directory, run_id, attempt, revision, policy_path, boot_origin=None, publication=False):
+def _verified_bundle(directory, run_id, attempt, revision, policy_path, boot_origin=None, publication=False, for_refresh=False):
     require(type(run_id) is int and run_id > 0 and type(attempt) is int and attempt > 0
             and re.fullmatch(r'[0-9a-f]{40}', revision), 'Exact native producer inputs required')
     cfg = common.config(policy_path)
@@ -212,7 +233,7 @@ def verified_bundle(directory, run_id, attempt, revision, policy_path, boot_orig
     trusted_run(run_id, attempt, revision)
     with tempfile.TemporaryDirectory(prefix='maestro-native-prepare-') as temporary:
         root = Path(temporary)
-        snapshot(directory, root, boot_origin is not None, publication)
+        snapshot(directory, root, boot_origin is not None, publication, for_refresh)
         for name in ('product.json', 'scans.json', 'ci-result.json'):
             attest(root / name, revision)
         if boot_origin is not None:
@@ -232,6 +253,7 @@ def verified_bundle(directory, run_id, attempt, revision, policy_path, boot_orig
                     and producer.get('revision', revision) == revision
                     and scans.get('productProducer') == producer, 'Changed original producer identity')
             origin = origin_identity(run_id, attempt, revision)
+            inputs=refresh_inputs(root,native) if for_refresh else None
             complete(result)
             require(type(binding.get('schemaVersion')) is int and binding['schemaVersion'] == 2, 'Unsupported inventory schema')
             require(result.get('producer') == binding.get('producer') == origin, 'Changed result producer attempt')
@@ -241,14 +263,15 @@ def verified_bundle(directory, run_id, attempt, revision, policy_path, boot_orig
                     and set(binding.get('evidenceFiles', {})) == set(DOCUMENTS), 'Incomplete local inventory binding')
             require(all(file_hash(root / n) == h for n, h in binding['evidenceFiles'].items()), 'Changed inventory document bytes')
             require(common.timestamp(scans['scannedAt']) <= common.timestamp(native['scannedAt'])
-                    and common.timestamp(scans['expiresAt']) > common.dt.datetime.now(common.dt.timezone.utc)
+                    and common.timestamp(scans['scannedAt']) < common.timestamp(scans['expiresAt'])
+                    and (for_refresh or common.timestamp(scans['expiresAt']) > common.dt.datetime.now(common.dt.timezone.utc))
                     and common.timestamp(scans['expiresAt']) - common.timestamp(scans['scannedAt']) <= common.dt.timedelta(hours=24),
                     'Expired or invalid scan envelope')
             spec = importlib.util.spec_from_file_location('native_check', os.environ.get('MAESTRO_SECURITY_NATIVE_CHECK_SOURCE', Path(__file__).with_name('security-native-check.py')))
             check = importlib.util.module_from_spec(spec); spec.loader.exec_module(check)
             require(isinstance(native.get('securityContext'), dict) and native['securityContext'].get('schema') == 2, 'Complete installer security context required')
             normalized = []
-            check.check(native, cfg, capture=normalized.extend)
+            (check.inventory_identity if for_refresh else check.check)(native, cfg, capture=normalized.extend)
             common.coverage_roots(native, cfg['requiredCoverage']['maestro'])
             require(isinstance(product.get('products'), dict) and isinstance(product.get('roots'), dict), 'Invalid native product roots')
             subjects = native['subjects']
@@ -286,10 +309,25 @@ def verified_bundle(directory, run_id, attempt, revision, policy_path, boot_orig
             sourceRevision=revision, runId=run_id, runAttempt=attempt, rootCount=len(expected), boundDocumentCount=len(DOCUMENTS),
             bootDisposition=disposition, bootOrigin=original, narBytesVerified=False, isoBytesVerified=False, riskAcceptanceEvaluated=False)
 
+        if for_refresh:
+            receipt.update(status='verified-inventory-for-refresh', currentHealthVerified=False)
         # Keep one frozen bundle and one authenticated native object for the
         # consumer. No authority result persists beyond this context/invocation.
         yield dict(directory=root, receipt=receipt, native=native, scans=scans,
-                   product=product, result=result, binding=binding, policyHash=common.canonical_hash(cfg), normalizedFindings=normalized)
+                   product=product, result=result, binding=binding, policyHash=common.canonical_hash(cfg), normalizedFindings=normalized, inventoryOnly=for_refresh, inputIdentities=inputs)
+
+
+@contextmanager
+def verified_bundle(directory, run_id, attempt, revision, policy_path, boot_origin=None, publication=False):
+    with _verified_bundle(directory, run_id, attempt, revision, policy_path, boot_origin, publication) as bundle:
+        yield bundle
+
+
+@contextmanager
+def verified_inventory(directory, run_id, attempt, revision, policy_path, boot_origin=None):
+    """Immutable original inputs only, for a new independently fresh rescan."""
+    with _verified_bundle(directory, run_id, attempt, revision, policy_path, boot_origin, for_refresh=True) as bundle:
+        yield bundle
 
 
 def prepare(directory, run_id, attempt, revision, policy_path, boot_origin=None):

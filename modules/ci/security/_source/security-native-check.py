@@ -11,8 +11,7 @@ import common
 from security_decisions import normalize_findings
 
 
-def check(native, cfg, capture=None):
-    now = dt.datetime.now(dt.timezone.utc)
+def _check(native, cfg, now, capture=None):
     common.require(native.get('status') == 'complete' and native.get('scannerHealth') == 'healthy', 'Incomplete native qualification')
     scanned = common.timestamp(native.get('scannedAt'))
     common.require(scanned <= now and now - scanned <= dt.timedelta(hours=cfg.get('maxEvidenceAgeHours', 24)), 'Stale native qualification')
@@ -25,6 +24,19 @@ def check(native, cfg, capture=None):
     if capture is not None:
         capture(findings)
     return {'schema': 1, 'status': 'healthy-native-qualification', 'scannedAt': native['scannedAt']}
+
+
+def check(native, cfg, capture=None):
+    return _check(native, cfg, dt.datetime.now(dt.timezone.utc), capture)
+
+
+def inventory_identity(native, cfg, capture=None):
+    # Historical health authenticates immutable inventory only. It is never
+    # issued as current health, and publication callers cannot select this mode.
+    scanned = common.timestamp(native.get('scannedAt'))
+    common.require(scanned <= dt.datetime.now(dt.timezone.utc), 'Future historical scan')
+    _check(native, cfg, scanned, capture)
+    return {'schema': 1, 'status': 'verified-inventory-identity', 'currentHealthVerified': False}
 
 
 def main():

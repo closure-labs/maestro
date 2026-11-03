@@ -46,11 +46,21 @@ def stage(bundle,iso,media,output,version,policy_path,execute=native.operations.
     expected=bundle['receipt'].get('bootOrigin') or dict(revision=revision,runId=bundle['receipt']['runId'],runAttempt=bundle['receipt']['runAttempt'])
     native.require(media==(expected['runId'],expected['runAttempt'],expected['revision']),
                    'Exact original executed-boot media producer required')
+    inventory_iso=bundle['binding'].get('isoSha256')
+    if inventory_iso is None:
+        boot=bundle['result']['boot'];transfer=bundle['result'].get('inventoryTransferSha256','')
+        receipt=bundle['result'].get('inventoryIsoBinding')
+        current=native.origin_identity(bundle['receipt']['runId'],bundle['receipt']['runAttempt'],revision)
+        native.require(boot.get('disposition')=='verified-retained' and re.fullmatch(r'[0-9a-f]{64}',transfer)
+            and isinstance(receipt,dict) and type(receipt.get('schemaVersion')) is int
+            and receipt==dict(schemaVersion=1,producer=current,
+                inventorySha256=transfer,isoSha256=boot['isoSha256']), 'Missing exact reused ISO/inventory receipt')
+        inventory_iso=boot['isoSha256']
     trusted(*media)
     output.parent.mkdir(parents=True,exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.maestro-release-',dir=output.parent) as temporary:
         work=Path(temporary);frozen=work/'maestro-installer.iso';digest=freeze_iso(iso,frozen)
-        native.require(digest==bundle['binding']['isoSha256']==bundle['result']['boot']['isoSha256'],
+        native.require(digest==inventory_iso==bundle['result']['boot']['isoSha256'],
                        'Installer bytes differ from authenticated inventory/boot proof')
         attest(frozen,media[2])
         staged=work/'release';staged.mkdir();tag='v'+version

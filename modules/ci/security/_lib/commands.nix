@@ -15,6 +15,12 @@
 }: let
   inherit (common) mkCommand commonInputs spdxSchema boundedGh publicCacheWorker validatePlan classifyPaths;
 in {
+  native-refresh = mkCommand {
+    name = "native-refresh";
+    prefix = import ./native-context.nix {inherit publicCacheWorker;};
+    runtimeInputs = commonInputs ++ [pkgs.python3 commands.security-scan];
+    source = ../_source/native-refresh.sh;
+  };
   native-publication = mkCommand {
     name = "native-publication";
     prefix = import ./native-context.nix {inherit publicCacheWorker;};
