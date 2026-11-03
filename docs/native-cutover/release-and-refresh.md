@@ -19,6 +19,11 @@ The supplied media producer must equal the authenticated original executed-boot
 producer (or this current producer when boot executed here), and must be a
 successful protected-main CI run. It must attest the exact frozen ISO bytes.
 Their SHA-256 must equal both signed inventory and boot identities. A source
+inventory which reused media may carry its ISO identity in the already verified
+producer-signed `inventoryIsoBinding` receipt. That receipt must exactly bind this
+current producer, inventory transfer hash and original boot ISO hash; missing or
+substituted receipts reject. The original executed-boot media producer/signature
+and actual frozen ISO bytes remain independently required. A source
 version read must match protected `VERSION`; arbitrary tag/version substitution
 rejects. Unsupported media/boot producer combinations reject rather than infer a
 producer. In particular, a newly executed boot against media from another run
