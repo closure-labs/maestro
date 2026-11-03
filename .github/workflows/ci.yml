@@ -610,7 +610,8 @@ jobs:
             security-report/
             !security-report/distribution-cache.tar.part-*
           if-no-files-found: error
-          compression-level: 0
+          # JSON/SBOM text compresses; keep the separate zstd transport at level 0.
+          compression-level: 6
           retention-days: 90
 
       - name: Retain qualification diagnostics
