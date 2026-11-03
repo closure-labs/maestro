@@ -41,8 +41,8 @@ on:
 
 concurrency:
   group: >-
-    ci-${{ (github.event_name == 'workflow_dispatch' && inputs.release_candidate && format('release-{0}', github.run_id)) || github.event.pull_request.number || github.event.merge_group.head_ref || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' }}
+    ci-${{ (github.event_name == 'workflow_dispatch' && inputs.release_candidate && format('release-{0}', github.run_id)) || (github.event_name == 'push' && format('branch-{0}', github.ref)) || github.event.pull_request.number || github.event.merge_group.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.event_name == 'merge_group' || github.event_name == 'push' }}
 
 permissions:
   contents: read
