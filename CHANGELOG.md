@@ -132,6 +132,10 @@ correspond to published GitHub tags.
 
 ### Added
 
+- Prepare an inactive native versioned release writer that reuses exact asset
+  reconciliation after mandatory findings review and ISO/SBOM/provenance checks,
+  without historical ledger admission or activating a caller.
+
 - Add a feature navigation map and evaluated CI graph so contributors can find
   each feature's policy, implementation, tests, and delivery outputs together.
 - Add independent comparisons of all twenty audit outputs against the evaluated

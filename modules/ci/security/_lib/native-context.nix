@@ -15,5 +15,9 @@
   export MAESTRO_DISTRIBUTION_CACHE_SOURCE=${../../graph/_source/distribution-cache.py}
   export MAESTRO_NATIVE_PUBLICATION_SOURCE=${../_source/native-publication.py}
   export MAESTRO_NATIVE_REFRESH_SOURCE=${../_source/native-refresh.py}
+  export MAESTRO_NATIVE_RELEASE_WRITER_SOURCE=${../../../release/publication/_source/native-release-publish.py}
+  export MAESTRO_PUBLICATION_ASSETS_SOURCE=${../../../release/publication/_source/publication-assets.py}
+  export MAESTRO_PUBLICATION_JOURNAL_SOURCE=${../../../release/publication/_source/publication-journal.py}
+  export MAESTRO_DECISIONS_SOURCE=${../../authority/_source/decisions}
   export MAESTRO_NATIVE_HEALTH_SOURCE=${../_source/native-health.py}
 ''

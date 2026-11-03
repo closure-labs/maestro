@@ -190,3 +190,68 @@ This is not a compatibility waiver for old official releases lacking complete
 original native proof. The full native versioned-release writer and cold public
 consumer still require reviewed wiring and validation; no settings or writers
 are activated here.
+
+
+### Inactive native versioned writer
+
+`release:native:publish` is a declared task with no workflow caller. It uses the
+native publisher's mandatory findings verdict and requires
+`MAESTRO_NATIVE_RELEASE_ENABLED=true` in a protected-main manual workflow at the
+explicit current policy revision. The flag defaults false; this source addition
+changes no repository variable, environment, credential, permission or writer.
+
+Inputs are the exact verified original/fresh-health evidence selection plus
+`NATIVE_RELEASE_DIRECTORY` and `NATIVE_RELEASE_ISO`. The staging receipt is only
+data: the writer independently checks the product source/run/attempt, VERSION,
+current policy, exact allowed assets, part sequence, joined ISO digest against
+authenticated boot proof, checksums, and expanded SPDX/CycloneDX bytes against
+the signed original inventory. It never regenerates a bill of materials or
+re-exports a closure. A verified inventory without fresh health still rejects.
+
+The existing `release:attestations` verifier must successfully verify both SLSA
+provenance and the entire SPDX predicate for the exact final ISO filename,
+digest and protected-main release-workflow source. Metadata or a staging receipt
+does not substitute for ISO-byte or cryptographic verification. Private asset
+snapshots prevent source-path changes between verification and upload. The
+versioned ISO is linked for verification, never uploaded as an extra full asset;
+existing split parts/SBOM/checksum contracts remain unchanged.
+
+After these checks, the existing `publication-assets.reconcile` operations
+reserve the exact product tag, create/resume a draft, reject conflicting or
+unexpected assets, upload only missing verified bytes, perform complete hosted
+readback and publish. Its authorization callback is native main/policy/evidence
+freshness plus the live dedicated findings-risk review. No historical graph,
+OCI packet, journal branch, reconciliation dispatcher or live custom admin
+approval is invoked. An uncertain upload is resolved by the existing exact
+remote inventory/digest readback before any new upload; no automatic retry is
+added. Nonzero attestation/upload/readback failures propagate.
+
+A private copy adds at most the 32 GiB ISO-part bound plus 256 MiB compressed
+metadata, with an additional 256 MiB free-space reserve checked before copying.
+It adds no ISO/closure network handoff, but it does add local disk I/O. Only tiny
+real-subprocess fixtures have run: production peak disk/RSS, full-size SPDX
+attestation memory, hosted readback and idempotent interrupted upload still need
+an explicit nonpublishing hosted trial. These fixtures do not establish runner
+headroom. The standard verifier retains its current timeout/resource behavior;
+this change does not silently loosen it.
+
+Activation remains blocked on independent exact-head review, reliable
+reviewer-loss/reapproval continuity, sole-maintainer-compatible protections and
+the actual fresh cryptographic trial after the boot-origin correction. Existing
+current-access checks cannot detect an unobserved removal followed by restoration.
+GitHub's documented audit API requires organization Administration read and
+GitHub Enterprise Cloud availability; neither that permission nor capability is
+established by the current repository-scoped token. No grant, new credential or
+audit controller is added here. A history backend must demonstrate complete
+effective-access transitions and reject missing/truncated/denied evidence;
+current permission or a merely empty audit response is not proof of continuity.
+
+The remaining caller migration should preserve the existing release producer's
+read/provenance role and publisher's contents-write role. Do not consolidate
+those credentials into one job merely to avoid a native artifact handoff. A
+reviewed exact producer/artifact handoff, final-name signing, cold public reader
+and disabled legacy writers are still prerequisites; this helper alone does not
+complete or activate the cutover. No vulnerability findings are accepted.
+
+Sources: [GitHub organization audit API](https://docs.github.com/en/enterprise-cloud@latest/rest/orgs/orgs#get-the-audit-log-for-an-organization),
+[audit API availability](https://docs.github.com/en/organizations/keeping-your-organization-secure/managing-security-settings-for-your-organization/reviewing-the-audit-log-for-your-organization#using-the-audit-log-api).
