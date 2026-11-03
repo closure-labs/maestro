@@ -42,6 +42,8 @@ RISK_POLICY_FILES=(
     'modules/ci/security/_source/security-verdict.py',
     'modules/ci/security/_source/security-normalize.py',
     'modules/ci/security/_source/security-scan.sh',
+    'modules/release/publication/_source/native-release-stage.py',
+    'modules/release/publication/_source/release-split.sh',
 )
 
 
