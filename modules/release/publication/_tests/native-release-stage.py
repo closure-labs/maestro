@@ -56,10 +56,93 @@ class ReleaseStage(unittest.TestCase):
             self.assertEqual(gzip.decompress((self.output/('maestro-v3.2.0.'+kind+'.json.gz')).read_bytes()),
                 (self.bundle['directory']/('maestro-system.'+kind+'.json')).read_bytes())
         for name,record in result['assets'].items():self.assertEqual(pub.native.file_hash(self.output/name),record['sha256'])
+    def test_versioned_iso_handoff_is_a_verified_snapshot_not_a_public_asset(self):
+        final=self.root/'maestro-v3.2.0.iso';inodes=[]
+        def execute(args,**kwargs):
+            inodes.append(Path(args[1]).stat().st_ino)
+            return self.execute(args,**kwargs)
+        result=self.stage(final_iso=final,execute=execute)
+        self.assertEqual(final.read_bytes(),self.iso.read_bytes())
+        self.assertEqual(final.stat().st_ino,inodes[0])
+        self.assertNotEqual(final.stat().st_ino,self.iso.stat().st_ino)
+        self.assertEqual(result['versionedIso'],dict(filename=final.name,
+            sha256=pub.native.file_hash(final),size=final.stat().st_size,requiresFinalNameAttestation=True))
+        self.assertNotIn(final.name,result['assets'])
+        self.assertFalse(result['authorization']);self.assertFalse(result['publicationReady'])
+        self.iso.write_bytes(b'caller changes the original download')
+        self.assertEqual(pub.native.file_hash(final),result['isoSha256'])
+
+    def test_versioned_iso_wrong_name_parent_existing_and_symlink_reject(self):
+        final=self.root/'maestro-v3.2.0.iso'
+        for path in (self.root/'wrong.iso',self.root/'other'/'maestro-v3.2.0.iso'):
+            with self.subTest(path=path),self.assertRaises(ValueError):self.stage(final_iso=path)
+        final.write_bytes(b'preexisting')
+        with self.assertRaises(ValueError):self.stage(final_iso=final)
+        self.assertEqual(final.read_bytes(),b'preexisting');final.unlink()
+        final.symlink_to(self.root/'missing')
+        with self.assertRaises(ValueError):self.stage(final_iso=final)
+        self.assertTrue(final.is_symlink());self.assertFalse(self.output.exists())
+        self.assertEqual(self.calls,[])
+
+    def test_versioned_iso_snapshot_substitution_rejects_before_handoff(self):
+        final=self.root/'maestro-v3.2.0.iso'
+        def changed(args,**kwargs):
+            self.execute(args,**kwargs);Path(args[1]).write_bytes(b'changed snapshot')
+        with self.assertRaises(ValueError):self.stage(final_iso=final,execute=changed)
+        self.assertFalse(final.exists());self.assertFalse(self.output.exists())
+
+    def test_versioned_iso_link_or_directory_commit_failure_cleans_only_own_output(self):
+        final=self.root/'maestro-v3.2.0.iso'
+        for operation in ('link','rename'):
+            with self.subTest(operation=operation),patch.object(release.os,operation,side_effect=OSError('fixture failure')):
+                with self.assertRaises(OSError):self.stage(final_iso=final)
+            self.assertFalse(final.exists());self.assertFalse(self.output.exists())
+            self.assertFalse(list(self.root.glob('.maestro-release-*')))
+
+    def test_versioned_iso_cleanup_preserves_a_replaced_subject(self):
+        final=self.root/'maestro-v3.2.0.iso'
+        def failed_commit(*args):
+            final.unlink();final.write_bytes(b'replacement from another operation')
+            raise OSError('fixture commit failure')
+        with patch.object(release.os,'rename',side_effect=failed_commit),self.assertRaises(OSError):
+            self.stage(final_iso=final)
+        self.assertEqual(final.read_bytes(),b'replacement from another operation')
+        self.assertFalse(self.output.exists())
+
+    def test_final_iso_shell_argument_is_opt_in_and_forwarded_without_execution(self):
+        import shutil
+        subject=self.root/'maestro-v3.2.0.iso';captured=self.root/'argv.json'
+        adapter=self.root/'capture.py'
+        adapter.write_text('import json,os,sys\nfrom pathlib import Path\nPath(os.environ["CAPTURE_ARGS"]).write_text(json.dumps(sys.argv[1:]))\n')
+        environment=dict(os.environ,MAESTRO_NATIVE_RELEASE_STAGE_SOURCE=str(adapter),CAPTURE_ARGS=str(captured),
+            NATIVE_DIRECTORY='bundle',NATIVE_ISO='source.iso',NATIVE_RELEASE_OUTPUT='assets',
+            NATIVE_RELEASE_VERSION='3.2.0',NATIVE_RUN='7',NATIVE_ATTEMPT='1',NATIVE_REVISION=fixture.fixture.SHA,
+            NATIVE_MEDIA_RUN='7',NATIVE_MEDIA_ATTEMPT='1',NATIVE_MEDIA_REVISION=fixture.fixture.SHA)
+        for final in ('',str(subject)):
+            environment.update(NATIVE_RELEASE_FINAL_ISO=final)
+            subprocess.run([shutil.which('bash'),str(ROOT/'modules/release/publication/_source/native-release-stage.sh')],
+                env=environment,check=True,capture_output=True,timeout=5)
+            args=json.loads(captured.read_text())
+            self.assertEqual('--final-iso' in args,bool(final))
+            if final:self.assertEqual(args[args.index('--final-iso')+1],final)
+            self.assertEqual(args[args.index('--revision')+1],fixture.fixture.SHA)
+        self.assertFalse(subject.exists());self.assertFalse(self.output.exists())
+
+    def test_versioned_iso_race_never_overwrites_an_existing_subject(self):
+        final=self.root/'maestro-v3.2.0.iso'
+        def appeared(args,**kwargs):
+            self.execute(args,**kwargs);final.write_bytes(b'another invocation')
+        with self.assertRaises(FileExistsError):self.stage(final_iso=final,execute=appeared)
+        self.assertEqual(final.read_bytes(),b'another invocation')
+        self.assertFalse(self.output.exists())
+
     def test_high_findings_block_before_iso_or_producer_operations(self):
         self.case.findings=[self.case.finding('critical')];self.bundle=self.case.bundle()
         with self.assertRaises(pub.MandatoryVerdictError):self.stage()
         self.assertEqual(self.calls,[]);self.assertFalse(self.output.exists())
+        subject=self.root/'maestro-v3.2.0.iso'
+        with self.assertRaises(pub.MandatoryVerdictError):self.stage(final_iso=subject)
+        self.assertFalse(subject.exists());self.assertEqual(self.calls,[])
     def reused_inventory(self):
         self.bundle['binding']['isoSha256']=None
         self.bundle['result'].update(inventoryTransferSha256='e'*64,
@@ -69,7 +152,8 @@ class ReleaseStage(unittest.TestCase):
         self.bundle['receipt']['bootOrigin']=dict(runId=8,runAttempt=2,revision='b'*40)
         self.media=(8,2,'b'*40)
     def test_reused_inventory_receipt_keeps_original_proof_and_exact_iso_byte_check(self):
-        self.reused_inventory();result=self.stage()
+        self.reused_inventory();subject=self.root/'maestro-v3.2.0.iso';result=self.stage(final_iso=subject)
+        self.assertEqual(pub.native.file_hash(subject),result['isoSha256'])
         self.assertTrue(result['isoBytesVerified']);self.assertFalse(result['authorization'])
         self.assertEqual(result['mediaProducer'],dict(runId=8,runAttempt=2,revision='b'*40))
         self.assertEqual(result['isoSha256'],pub.native.file_hash(self.iso))
@@ -129,7 +213,9 @@ class ReleaseStage(unittest.TestCase):
                 if change=='policy':self.case.policy_path.write_text('{}')
             self.case.policy_path.write_text(json.dumps(self.case.policy))
             old_expiry=self.bundle['scans']['expiresAt']
-            with patch.object(self,'api',side_effect=api),self.subTest(change=change),self.assertRaises(ValueError):self.stage(execute=execute)
+            subject=self.root/'maestro-v3.2.0.iso'
+            with patch.object(self,'api',side_effect=api),self.subTest(change=change),self.assertRaises(ValueError):self.stage(execute=execute,final_iso=subject)
+            self.assertFalse(subject.exists())
             self.assertFalse(self.output.exists());self.bundle['scans']['expiresAt']=old_expiry
     def test_disk_headroom_and_existing_output_fail_closed(self):
         with patch.object(release.shutil,'disk_usage',return_value=type('Disk',(),dict(free=1))()):

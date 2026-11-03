@@ -107,3 +107,36 @@ original boot source. Both pairs are authenticated independently. Old receipts
 that mix the two producers remain invalid; this correction does not rewrite
 those receipts or waive the original executed-boot proof. A fresh qualification
 is required before retrying the native proof trial.
+
+### Optional final-name attestation subject
+
+`NATIVE_RELEASE_FINAL_ISO` (CLI `--final-iso`) optionally preserves the verified
+private ISO snapshot as `maestro-v<VERSION>.iso`, alongside the selected output
+directory. It must be a new sibling with exactly that basename. An existing
+file/symlink, other name/parent, changed snapshot or failed handoff rejects. The
+subject is a hard link to this invocation's snapshot, not the caller's mutable
+download; no additional full ISO copy, download, export or SBOM generation occurs.
+The existing three-ISO-plus-256-MiB free-space preflight remains sufficient. These
+bounds are not a measured full-size hosted runner headroom claim.
+
+The ISO is kept outside the public asset inventory: the existing split parts
+and compressed authenticated SBOMs remain the only release payloads. The receipt
+identifies the versioned subject and explicitly requires final-name attestation;
+`authorization:false` and `publicationReady:false` remain unchanged. No workflow
+calls this option, no attestation is created and no public writer is added.
+
+This prepares the exact path consumed by the existing GitHub provenance/SPDX
+attestation actions and `release:attestations` verifier. A future reviewed caller
+must create and verify both final-name attestations, bind the exact SBOM, retain
+current policy/findings review and source/freshness checks before each write,
+and perform hosted-byte/cold-consumer validation. Keeping a local ISO is not
+publication authority or a signature. Failed handoff removes only this
+invocation's new subject link; preexisting/replaced subjects are not overwritten.
+The temporary subject's lifecycle belongs to the future runner job.
+
+The existing mandatory findings gate also remains unchanged in this local helper:
+blocking unaccepted findings produce no subject or assets. The new option does
+not create an exception or accept current findings. Full-size hosted handoff and
+final-name signing remain unvalidated until a separately reviewed eligible caller
+exists; tiny subprocess fixtures and theoretical disk bounds do not establish
+production runner headroom.
