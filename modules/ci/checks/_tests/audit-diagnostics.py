@@ -20,7 +20,7 @@ class AuditDiagnostics(unittest.TestCase):
             binary.mkdir()
             for name, body in {
                 'maestro-ci-security-inventory-preflight': 'exit "${FAIL_PREFLIGHT:-0}"',
-                'nix': 'exit "${FAIL_EVALUATION:-0}"',
+                'nix': 'printf \'%s\\0\' \"$@\" > \"$NIX_CALLS\"\nexit \"${FAIL_EVALUATION:-0}\"',
                 'flake-plan-runner': '''
 printf 'run\\n' >> "$CALLS"
 while (($#)); do
@@ -38,11 +38,11 @@ exit "${FAIL_TARGETS:-0}"
             evidence = root / 'evidence'
             calls = root / 'calls'
             environment = dict(os.environ, PATH=str(binary) + os.pathsep + os.environ['PATH'],
-                               MAESTRO_SYSTEM_ROOT=str(root), CALLS=str(calls),
+                               MAESTRO_SYSTEM_ROOT=str(root), CALLS=str(calls), NIX_CALLS=str(root/'nix-args'),
                                MAESTRO_CI_AUDIT_MANIFEST=str(evidence / 'audit.json'),
                                MAESTRO_CI_AUDIT_TIMINGS=str(evidence / 'timings.json'),
                                FAIL_PREFLIGHT='7' if failure == 'inventory-preflight' else '0',
-                               FAIL_EVALUATION='8' if failure == 'flake-evaluation' else '0',
+                               FAIL_EVALUATION='8' if failure == 'flake-checks' else '0',
                                FAIL_TARGETS='9' if failure == 'validation-targets' else '0')
             result = subprocess.run(['bash', str(ROOT / 'modules/ci/checks/_source/repository-audit.sh')],
                                     cwd=root, env=environment, capture_output=True, timeout=15)
@@ -54,8 +54,13 @@ exit "${FAIL_TARGETS:-0}"
                 self.assertEqual(summary['phase'], failure)
             else:
                 self.assertEqual(result.returncode, 0, result.stderr)
-            expected_runs = int(failure not in ('inventory-preflight', 'flake-evaluation'))
+            expected_runs = int(failure not in ('inventory-preflight', 'flake-checks'))
             self.assertEqual(calls.read_text().count('run\n') if calls.exists() else 0, expected_runs)
+            if failure != 'inventory-preflight':
+                nix_args=(root/'nix-args').read_bytes().decode().split('\0')[:-1]
+                self.assertEqual(nix_args[:2],['flake','check'])
+                self.assertNotIn('--no-build',nix_args)
+                self.assertIn('--accept-flake-config',nix_args)
             self.assertEqual((evidence / 'audit.json').exists(), bool(expected_runs))
             self.assertEqual((evidence / 'timings.json').exists(), bool(expected_runs))
 
@@ -63,7 +68,7 @@ exit "${FAIL_TARGETS:-0}"
         self.run_audit(None)
 
     def test_failures_retain_the_original_phase_and_exit(self):
-        for phase in ('inventory-preflight', 'flake-evaluation', 'validation-targets'):
+        for phase in ('inventory-preflight', 'flake-checks', 'validation-targets'):
             with self.subTest(phase=phase):
                 self.run_audit(phase)
 

@@ -260,9 +260,8 @@ grep -Fq '"name": "maestro-validation"' \
 grep -Fq 'flake-plan-runner' \
   "$TEST_ROOT/modules/features/installer/_source/qualification-assets.sh" \
   || fail "installer builds bypass the shared schema-v2 plan runner"
-grep -Fq -- '--no-build --print-build-logs' \
-  "$TEST_ROOT/modules/ci/checks/_source/repository-audit.sh" \
-  || fail "complete validation does not separate evaluation from planned builds"
+# Full flake realization and failure propagation are exercised behaviorally in
+# modules/ci/checks/_tests/audit-diagnostics.py, not by matching an old command.
 # GitHub and shell expressions must remain literal in the source contract.
 # shellcheck disable=SC2016
 grep -Fq 'CACHIX_MAESTRO_AUTH_TOKEN: ${{ secrets.CACHIX_MAESTRO_AUTH_TOKEN }}' \
