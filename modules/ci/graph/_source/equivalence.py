@@ -19,6 +19,8 @@ cases = [
     ('packer', 'modules/features/xcp-ng/template/_source/build.sh', False, False, 'packages-x86_64-linux-deploy-template'),
     ('scan-policy', 'modules/ci/security/_source/security-policy.json', False, False, None),
     ('scheduler', 'modules/ci/graph/_source/graph.py', False, False, None),
+    ('ci-routing', '.github/workflows/ci.yml', False, False, None),
+    ('inventory-generator', 'modules/ci/inventory/_source/security-inventory.py', False, False, None),
     ('binding-verifier', 'modules/ci/graph/_source/bindings.py', False, False, None),
 ]
 appliance, iso = 'nixosConfigurations-maestro-config-system-build-toplevel', 'packages-x86_64-linux-installer-iso'
@@ -40,6 +42,10 @@ for name, path, expect_appliance, expect_iso, changed_target in cases:
             raise ValueError(f'{name}: owning output did not change')
         if name == 'scan-policy' and graph['policy']['scan'] == original['policy']['scan']:
             raise ValueError('Changed scan policy has no identity')
+        if name in ('ci-routing', 'inventory-generator'):
+            changed_inventory = graph['policy']['qualificationInputs'] != original['policy']['qualificationInputs']
+            if changed_inventory != (name == 'inventory-generator'):
+                raise ValueError(f'{name}: unexpected inventory identity propagation')
         if name in ('scheduler', 'binding-verifier'):
             for key in ('boot', 'bootVerifier'):
                 changed_policy = graph['policy'][key] != original['policy'][key]
