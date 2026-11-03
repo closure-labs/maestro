@@ -86,7 +86,10 @@ unsupported or ambiguous review evidence fails closed.
 The consumer requires the identical record on protected current main, the merged
 dedicated PR on main's ancestry, the same record at the reviewed PR head, and an
 exact-head approval on this dedicated risk PR from a current human CODEOWNER other than the PR
-author. A routine code-PR approval, bot, self-review, review of an older head, withdrawn
+author. The current repository permission read must still identify that human
+as having write/maintain/admin access; revoked access or an unavailable permission
+read denies. This is one current repository role, not historical team/admin replay.
+A routine code-PR approval, bot, self-review, review of an older head, withdrawn
 approval or later changes-requested review cannot accept risk. Reviews are fetched
 again before write groups; mutable approval conclusions are never cached across
 invocations. Removal/replacement, expiry or dismissal revokes acceptance. This

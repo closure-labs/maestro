@@ -40,10 +40,12 @@ class Risk(unittest.TestCase):
         self.reviews=[dict(id=30,state='APPROVED',commit_id=HEAD,body='Reviewed: accept the risks specified by this dedicated findings decision',
             user=dict(id=20,type='User',login='human'))]
         self.changed_files=[dict(filename=risk.PATH,status='added')]
+        self.permission=dict(permission='write',user=dict(id=20))
     def write(self):self.path.write_text(json.dumps(self.record))
     def api(self,path):
         if path.startswith('contents/'+risk.PATH+'?ref='):return encoded(self.path.read_bytes())
         if path.startswith('contents/.github/CODEOWNERS?ref='):return encoded(self.files['.github/CODEOWNERS'].read_bytes())
+        if path=='collaborators/human/permission':return self.permission
         if path=='pulls/209':return self.pr
         if path=='pulls/209/files?per_page=2':return self.changed_files
         if path==f'compare/{MERGE}...{SHA}':return dict(merge_base_commit=dict(sha=MERGE))
@@ -69,6 +71,12 @@ class Risk(unittest.TestCase):
             later=dict(self.reviews[0],id=31,state=status)
             with patch.object(self,'reviews',[later,*self.reviews]):
                 with self.assertRaises(ValueError):risk.live(self.api,state,SHA)
+    def test_repository_write_access_revocation_is_live_and_not_cached(self):
+        state=self.accept();self.permission['permission']='read'
+        with self.assertRaises(ValueError):risk.live(self.api,state,SHA)
+        self.permission.update(permission='write',user=dict(id=99))
+        with self.assertRaises(ValueError):self.accept()
+
     def test_dedicated_one_file_merged_pr_required(self):
         for change in [dict(changed_files=2),dict(merged_at=None),dict(title='ordinary code review')]:
             with self.subTest(change=change),patch.dict(self.pr,change):
