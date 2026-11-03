@@ -44,6 +44,7 @@
             ./_source/transfer.py
             ./_source/summary.py
             ./_source/comparison.py
+            ./_source/equivalence.py
             ./_tests/test_graph.py
             ./_tests/test_plan.py
             ./_tests/test_results.py
@@ -53,6 +54,7 @@
             ./_tests/test_signing.py
             ./_tests/test_summary.py
             ./_tests/test_comparison.py
+            ./_tests/test_equivalence_identity.py
           ];
         };
       } ''

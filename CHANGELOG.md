@@ -99,6 +99,10 @@ correspond to published GitHub tags.
   Continue verifying retained ISO bytes, original provenance and attestations,
   and the current inventory binding; signing still downloads its byte subjects.
 
+- Keep immutable inventory identity independent of CI routing text, preserving
+  exact roots, generator/verifier policy and fresh vulnerability scans while
+  avoiding SBOM regeneration for workflow-only edits.
+
 ### Fixed
 
 - Reject ambiguous security decision graphs before authenticating superseded
