@@ -17,9 +17,11 @@
 in {
   native-release-stage = mkCommand {
     name = "native-release-stage";
-    prefix = (import ../../../ci/security/_lib/native-context.nix {inherit publicCacheWorker;}) + ''
-      export MAESTRO_NATIVE_RELEASE_STAGE_SOURCE=${../_source/native-release-stage.py}
-    '';
+    prefix =
+      (import ../../../ci/security/_lib/native-context.nix {inherit publicCacheWorker;})
+      + ''
+        export MAESTRO_NATIVE_RELEASE_STAGE_SOURCE=${../_source/native-release-stage.py}
+      '';
     runtimeInputs = commonInputs ++ [pkgs.python3 commands.release-stage];
     source = ../_source/native-release-stage.sh;
   };
