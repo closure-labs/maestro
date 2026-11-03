@@ -16,13 +16,16 @@ SIGNER = Path(os.environ.get('MAESTRO_SIGNER_SOURCE', Path(__file__).parents[4] 
 
 
 class SigningMode(unittest.TestCase):
-    def execute(self, expected='active', actual='active', revision=None):
+    def execute(self, expected='active', actual='active', revision=None, **changes):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             producer = dict(GITHUB_REPOSITORY='closure-labs/maestro', GITHUB_SHA=revision or 'a' * 40,
                             GITHUB_RUN_ID='9', GITHUB_RUN_ATTEMPT='1')
-            value = dict(schemaVersion=1, planSha256='b' * 64, producer=producer,
+            value = dict(schemaVersion=2, validationMode='complete-audit',
+                         auditReferenceSha256='d'*64,completeAuditSha256='e'*64,
+                         jobs={k:'success' for k in ('AUDIT_RESULT','SCAN_RESULT','QUALIFICATION_RESULT')},planSha256='b' * 64, producer=producer,
                          completeValidationRequired=True, schedulingMode=actual)
+            value.update(changes)
             data = json.dumps(value).encode()
             (root / 'ci-result.json').write_bytes(data)
             (root / 'maestro-qualification-state.json').write_text(json.dumps({'source_commit': 'a' * 40}))
@@ -46,6 +49,11 @@ print(json.dumps({'protected':True,'commit':{'sha':sha}} if '/branches/' in sys.
                        CI_GRAPH_PLAN_SHA256='b' * 64, GRAPH_SCHEDULING_MODE=expected,
                        PATH=str(binary)+os.pathsep+os.environ['PATH'])
             return subprocess.run(['bash', str(SIGNER)], cwd=root, env=env, capture_output=True).returncode
+
+    def test_current_signing_rejects_downgrade_missing_or_conflicting_complete_audit(self):
+        for change in (dict(schemaVersion=1),dict(validationMode='comparison'),dict(auditReferenceSha256=''),
+                       dict(completeAuditSha256=None),dict(jobs={}),dict(comparisonSha256='f'*64)):
+            with self.subTest(change=change):self.assertNotEqual(self.execute(**change),0)
 
     def test_mode_and_producer_remain_mandatory_after_digest_validation(self):
         self.assertEqual(self.execute(), 0)

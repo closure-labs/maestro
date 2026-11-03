@@ -11,9 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
-- Keep immutable inventory identity independent of CI routing text, preserving
-  exact roots, generator/verifier policy and fresh vulnerability scans while
-  avoiding SBOM regeneration for workflow-only edits.
+- Validate the complete twenty-check plan once in required CI, retire the
+  temporary parallel flake/comparison experiment after recorded parity, and
+  bind signed version 2 results to the original complete audit. Keep strict
+  historical proof validation, installer boot, scanners and publication policy.
 
 - Prepare inactive native release asset staging with exact signed ISO/boot
   identity checks, authenticated SBOM reuse and verified existing installer
@@ -97,6 +98,10 @@ correspond to published GitHub tags.
 - Download installer media once in the boot job when refreshing evidence.
   Continue verifying retained ISO bytes, original provenance and attestations,
   and the current inventory binding; signing still downloads its byte subjects.
+
+- Keep immutable inventory identity independent of CI routing text, preserving
+  exact roots, generator/verifier policy and fresh vulnerability scans while
+  avoiding SBOM regeneration for workflow-only edits.
 
 ### Fixed
 

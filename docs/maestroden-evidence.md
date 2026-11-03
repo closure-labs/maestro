@@ -355,3 +355,10 @@ older fingerprints cannot satisfy that stronger contract. Installer content
 roots travel with the installer phase, with complete Nix source contexts and an
 evaluated completeness contract. Gating remains disabled until this handoff's
 full hosted acceptance passes.
+
+The temporary duplicate-realization experiment described above is now retired
+by the single-complete-validation migration. Recorded same-candidate parity
+matched all twenty outputs. Current producers bind the original complete-audit
+reference directly in explicit version 2 results; see
+[the migration contract](flake-validation-migration.md). Historical entries and
+version 1 proof semantics remain unchanged.

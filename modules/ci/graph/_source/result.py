@@ -9,7 +9,7 @@ import re
 
 from graph import digest, require
 from transfer import bindings, producer
-from comparison import validate_comparison
+from comparison import read_bound_reference
 
 
 def file_digest(path):
@@ -53,21 +53,20 @@ def main():
     validate_boot(boot, graph, route, producer())
     require(os.environ['AUDIT_RESULT'] == 'success' and os.environ['SCAN_RESULT'] == 'success'
             and os.environ['QUALIFICATION_RESULT'] == 'success', 'Missing complete validation obligation')
-    require(os.environ['COMPARISON_RESULT'] == 'success', 'Missing same-candidate comparison')
-    comparison_path = 'ci-comparison/comparison.json'
-    require(file_digest(comparison_path) == os.environ['COMPARISON_SHA256'], 'Comparison digest mismatch')
-    validate_comparison(json.loads(Path(comparison_path).read_text()), graph, os.environ['GRAPH_PLAN_SHA256'], producer())
+    reference_path = Path('complete-audit/reference.json')
+    reference, _ = read_bound_reference(reference_path.parent, graph, os.environ['GRAPH_PLAN_SHA256'],
+                                       os.environ['AUDIT_REFERENCE_SHA256'])
     native = json.loads(Path('security-report/security-result.json').read_text())
     require(native.get('status') == 'complete' and native.get('scannerHealth') == 'healthy', 'Incomplete native scan')
     # Current database and effective runtime policy checks run through the existing
     # native verifier immediately before this binding is created.
-    manifest = dict(schemaVersion=1, producer=producer(), planSha256=os.environ['GRAPH_PLAN_SHA256'],
+    manifest = dict(schemaVersion=2, validationMode='complete-audit', producer=producer(), planSha256=os.environ['GRAPH_PLAN_SHA256'],
                     graphSha256=digest(graph), routePlanSha256=digest(route), boot=boot,
                     inventoryTransferSha256=os.environ['INVENTORY_TRANSFER_SHA256'],
                     inventoryIsoBinding=inventory_iso_binding(boot, os.environ['INVENTORY_TRANSFER_SHA256'], producer()),
                     nativeScanSha256=file_digest('security-report/security-result.json'),
-                    comparisonSha256=file_digest(comparison_path),
-                    jobs={key: os.environ[key] for key in ['AUDIT_RESULT', 'COMPARISON_RESULT', 'SCAN_RESULT', 'QUALIFICATION_RESULT']},
+                    auditReferenceSha256=file_digest(reference_path), completeAuditSha256=reference['auditSha256'],
+                    jobs={key: os.environ[key] for key in ['AUDIT_RESULT', 'SCAN_RESULT', 'QUALIFICATION_RESULT']},
                     schedulingMode=plan['mode'], completeValidationRequired=True)
     output = Path('ci-result.json')
     output.write_text(json.dumps(manifest, sort_keys=True, indent=2) + '\n')

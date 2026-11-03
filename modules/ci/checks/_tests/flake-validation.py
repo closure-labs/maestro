@@ -100,36 +100,24 @@ if count + 1 == int(os.environ['FAKE_NIX_FAIL_AT']):
         self.assertNotIn('--accept-flake-config', SOURCE.read_text())
         self.assertNotIn('TOKEN', SOURCE.read_text())
 
-    def test_workflow_has_one_nonrequired_read_only_job_and_no_consumers(self):
-        value = json.loads(subprocess.check_output(['yq', '-o=json', '.', str(WORKFLOW)], text=True))
-        self.assertEqual(value['permissions'], {'contents': 'read'})
-        self.assertEqual(set(value['on']), {'pull_request', 'merge_group', 'push', 'workflow_dispatch'})
-        self.assertEqual(value['on']['push']['branches'], ['main'])
-        self.assertEqual(value['on']['pull_request']['branches'], ['main'])
-        self.assertEqual(set(value['jobs']), {'flake-checks'})
-        job = value['jobs']['flake-checks']
-        self.assertEqual(job['name'], 'Ordinary flake validation (non-required)')
-        self.assertLessEqual(job['timeout-minutes'], 120)
-        self.assertNotIn('permissions', job)
-        self.assertNotIn('needs', job)
-        self.assertNotIn('environment', job)
-        steps = job['steps']
-        self.assertEqual(len(steps), 3)
-        self.assertFalse(steps[0]['with']['persist-credentials'])
-        self.assertNotIn('ref', steps[0]['with'])  # Test the actual PR/queue tree.
-        self.assertEqual(steps[1]['uses'], '$/.github/actions/setup-nix')
-        self.assertTrue(steps[2]['run'].endswith('ci:flake:validate'))
-        self.assertNotIn('secrets.', WORKFLOW.read_text())
-        self.assertFalse(any('env' in step for step in steps))
-        policy = json.loads((ROOT / 'modules/ci/authority/_source/github/main-ruleset.json').read_text())
-        required = [check['context'] for rule in policy['rules'] if rule['type'] == 'required_status_checks'
-                    for check in rule['parameters']['required_status_checks']]
-        self.assertNotIn(job['name'], required)
-        for path in (ROOT / '.github/workflows').glob('*.yml'):
-            workflow = json.loads(subprocess.check_output(['yq', '-o=json', '.', str(path)], text=True))
-            triggers = workflow.get('on') or {}
-            consumers = (triggers.get('workflow_run') or {}).get('workflows', [])
-            self.assertNotIn(value['name'], consumers, str(path))
+    def test_trial_is_retired_and_required_ci_keeps_one_complete_audit(self):
+        self.assertFalse(WORKFLOW.exists())
+        value=json.loads(subprocess.check_output(['yq','-o=json','.',str(ROOT/'.github/workflows/ci.yml')],text=True))
+        jobs=value['jobs'];self.assertNotIn('comparison',jobs)
+        for name,job in jobs.items():
+            needs=job.get('needs',[])
+            self.assertTrue(set([needs] if isinstance(needs,str) else needs)<=set(jobs),name)
+        self.assertNotIn('needs.comparison', (ROOT/'.github/workflows/ci.yml').read_text())
+        self.assertIn('audit',jobs['verdict']['needs'])
+        audit=next(s for s in jobs['audit']['steps'] if s['name']=='Validate repository')
+        self.assertIn('ci:repository-audit',audit['run'])
+        enforce=next(s for s in jobs['verdict']['steps'] if s['name']=='Enforce the conditional CI graph')
+        self.assertTrue(enforce['env']['AUDIT_REQUIRED'])
+        self.assertNotIn('COMPARISON_RESULT',enforce['env'])
+        policy=json.loads((ROOT/'modules/ci/authority/_source/github/main-ruleset.json').read_text())
+        required=[c['context'] for r in policy['rules'] if r['type']=='required_status_checks' for c in r['parameters']['required_status_checks']]
+        self.assertIn('Required CI verdict',required)
+        self.assertNotIn('Ordinary flake validation (non-required)',required)
 
     def test_task_is_native_and_trial_has_an_explicit_end(self):
         tasks = (ROOT / 'modules/ci/checks/_lib/tasks.nix').read_text()
@@ -137,8 +125,8 @@ if count + 1 == int(os.environ['FAKE_NIX_FAIL_AT']):
         commands = (ROOT / 'modules/ci/checks/_lib/commands.nix').read_text()
         self.assertIn('runtimeInputs = [ciNix];', commands)
         note = (ROOT / 'docs/flake-validation-migration.md').read_text()
-        self.assertIn('one agreed PR/merge-group validation cycle', note)
-        self.assertIn('Delete `flake-checks.yml` in that same cutover', note)
+        self.assertIn('trial is retired', note)
+        self.assertIn('twenty obligations remain mandatory', note)
 
 
 if __name__ == '__main__':

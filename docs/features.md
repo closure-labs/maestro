@@ -51,22 +51,28 @@ databases and live review authority remain separate obligations.
 
 ```mermaid
 flowchart TD
-  P[Plan CI] --> R[Repository checks]
+  P[Plan CI] --> R[Repository checks: complete audit once]
   P --> A[Build appliance]
-  R --> C[Compare complete and graph-driven validation]
-  C --> V
-  A --> I[Build installer ISO]
-  I --> N[Generate release inventory]
-  N --> B[Test installer boot]
-  N --> S[Scan release outputs]
-  R --> V[Verify release evidence]
+  P --> E[Appliance equivalence]
+  A --> I[Build installer ISO when required]
+  A --> N[Generate inventory and scan]
+  I --> N
+  N --> B[Verify executed or retained installer boot]
+  R --> V[Verify release evidence and complete-audit binding]
+  E --> V
   B --> V
-  S --> V
+  N --> V
   V --> G[Sign release evidence on protected main]
   G --> F[Required CI verdict]
   V --> F
   R --> F
+  E --> F
 ```
+
+The temporary parallel flake workflow and duplicate full graph realization are
+retired after recorded twenty-obligation parity. Version 2 native results bind
+the complete audit directly; historical version 1 proofs keep their strict
+comparison requirement. No skipped comparison is claimed as success.
 
 The existing verified retained-evidence path remains separate and keeps its
 fork restrictions and force-build controls. Same-attempt transfer manifests use version 2; existing release receipts and

@@ -157,10 +157,17 @@ def origin_identity(run_id, attempt, revision):
 
 
 def complete(result):
-    require(type(result.get('schemaVersion')) is int and result['schemaVersion'] == 1, 'Unsupported result schema')
+    version = result.get('schemaVersion')
+    require(type(version) is int and version in (1, 2), 'Unsupported result schema')
+    jobs = ('AUDIT_RESULT', 'COMPARISON_RESULT', 'SCAN_RESULT', 'QUALIFICATION_RESULT') if version == 1 else (
+        'AUDIT_RESULT', 'SCAN_RESULT', 'QUALIFICATION_RESULT')
     require(result.get('completeValidationRequired') is True and result.get('jobs') == {
-        k: 'success' for k in ('AUDIT_RESULT', 'COMPARISON_RESULT', 'SCAN_RESULT', 'QUALIFICATION_RESULT')},
-        'Missing complete validation obligation')
+        k: 'success' for k in jobs}, 'Missing complete validation obligation')
+    if version == 2:
+        require(result.get('validationMode') == 'complete-audit'
+                and all(isinstance(result.get(key), str) and re.fullmatch(r'[0-9a-f]{64}', result[key])
+                        for key in ('auditReferenceSha256', 'completeAuditSha256'))
+                and 'comparisonSha256' not in result, 'Missing or conflicting complete-audit binding')
 
 
 def retained_boot(root, boot, result, binding, current, selected):
