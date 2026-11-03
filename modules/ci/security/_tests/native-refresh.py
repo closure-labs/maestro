@@ -28,7 +28,7 @@ class NativeRefresh(unittest.TestCase):
         self.case=self.inputs.case
         self.case.scans['transport']={'parts':['original-closure.part']}
         self.case.write_bundle()
-        self.output=self.case.root/'fresh';self.calls=[];self.change=None;self.mainReads=0
+        self.output=self.case.root/'fresh';self.calls=[];self.change=None;self.mainReads=0;self.policy_revision='a'*40
         self.env=dict(GITHUB_REPOSITORY=refresh.native.REPO,GITHUB_REF='refs/heads/main',
             GITHUB_SHA='a'*40,GITHUB_RUN_ID='20',GITHUB_RUN_ATTEMPT='1',GITHUB_EVENT_NAME='workflow_dispatch')
         self.bundle=dict(inventoryOnly=True,directory=self.case.bundle,receipt=dict(sourceRevision='a'*40,runId=7,runAttempt=1),
@@ -36,9 +36,23 @@ class NativeRefresh(unittest.TestCase):
             policyHash=refresh.native.common.canonical_hash(self.case.cfg),
             inputIdentities={name:refresh.native.file_hash(self.case.bundle/name) for name in refresh.INPUTS})
 
+    def test_current_scanner_policy_does_not_reissue_the_original_product(self):
+        self.policy_revision='e'*40;self.bundle['receipt']['policyRevision']=self.policy_revision
+        self.env['GITHUB_SHA']=self.policy_revision
+        result=self.run_refresh()
+        self.assertEqual(result['schemaVersion'],2)
+        self.assertEqual(result['policyRevision'],self.policy_revision)
+        self.assertEqual(result['producer']['revision'],self.policy_revision)
+        self.assertEqual(result['sourceRevision'],'a'*40)
+        self.assertEqual(result['originalProducer']['revision'],'a'*40)
+        self.assertFalse(result['authorization']);self.assertFalse(result['publicationReady'])
+        self.assertEqual(self.calls.count('scan'),1)
+        self.assertFalse((self.output/'maestro-system.spdx.json').exists())
+        self.assertFalse((self.output/'product.json').exists())
+
     def api(self, path):
         self.assertEqual(path,'git/ref/heads/main');self.mainReads+=1
-        return {'object':{'sha':'f'*40 if self.change=='main' and self.mainReads>=3 else 'a'*40}}
+        return {'object':{'sha':'f'*40 if self.change=='main' and self.mainReads>=3 else self.policy_revision}}
 
     def scan(self, env):
         self.calls.append('scan')

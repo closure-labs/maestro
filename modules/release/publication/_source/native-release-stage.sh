@@ -9,4 +9,10 @@ if [[ -n ${NATIVE_BOOT_ORIGIN_RUN:-} ]]; then
 else
   [[ -z ${NATIVE_BOOT_ORIGIN_ATTEMPT:-} && -z ${NATIVE_BOOT_ORIGIN_REVISION:-} ]]
 fi
+if [[ -n ${NATIVE_RELEASE_FINAL_ISO:-} ]]; then
+  args+=(--final-iso "$NATIVE_RELEASE_FINAL_ISO")
+fi
+if [[ -n ${NATIVE_POLICY_REVISION:-} ]]; then
+  args+=(--policy-revision "$NATIVE_POLICY_REVISION")
+fi
 exec python3 "$MAESTRO_NATIVE_RELEASE_STAGE_SOURCE" "${args[@]}" "$@"

@@ -87,8 +87,9 @@ if args[:3]==['api','--method','GET']:
     if path==prefix+'git/ref/heads/main':
         after=any('git/ref/heads/main' in row for row in previous)
         value={'object':{'sha':state.get('mainAfter',state['main']) if after else state['main']}}
-    elif path==prefix+'contents/modules/ci/authority/_source/decision-policy.json?ref='+'a'*40:
+    elif path==prefix+'contents/modules/ci/authority/_source/decision-policy.json?ref='+state.get('policyRevision','a'*40):
         raw=json.dumps(state['policy']).encode();value={'encoding':'base64','size':len(raw),'content':base64.b64encode(raw).decode()}
+    elif path==prefix+'compare/'+'a'*40+'...'+state.get('policyRevision','')+'?per_page=1':value=state['comparison']
     elif path==prefix+'actions/runs/7/attempts/1':value=state['run']
     elif path==prefix+'actions/runs/8/attempts/2':value=state['originalRun']
     else:raise AssertionError('Unexpected endpoint/history/ledger/mutation: '+path)
@@ -133,7 +134,7 @@ else:raise AssertionError('Unexpected write/registry command')
             (self.bundle/'original-ci-result.json').write_text(json.dumps(self.original))
             (self.bundle/'original-boot.log').write_bytes(self.original_log)
 
-    def invoke(self, write=True, memory_limit=512*1024**2):
+    def invoke(self, write=True, memory_limit=512*1024**2, policy_revision=None):
         if write:self.write_bundle()
         state=self.root/'state.json';state.write_text(json.dumps(self.state))
         env=dict(os.environ,PATH=str(self.bin)+os.pathsep+os.environ['PATH'],PYTHONDONTWRITEBYTECODE='1',
@@ -141,9 +142,49 @@ else:raise AssertionError('Unexpected write/registry command')
             NATIVE_FIXTURE_CALLS=str(self.calls),NATIVE_FIXTURE_BUNDLE=str(self.bundle))
         extra=[] if self.boot_origin is None else ['--boot-origin-run',str(self.boot_origin[0]),
             '--boot-origin-attempt',str(self.boot_origin[1]),'--boot-origin-revision',self.boot_origin[2]]
+        if policy_revision is not None:extra+=['--policy-revision',policy_revision]
         def limit():resource.setrlimit(resource.RLIMIT_AS,(memory_limit,memory_limit))
         return subprocess.run([sys.executable,str(SOURCE),'--directory',str(self.bundle),'--run','7','--attempt','1','--revision',SHA,*extra],
             env=env,capture_output=True,text=True,timeout=60,preexec_fn=limit)
+
+    def ancestor_policy(self):
+        revision='e'*40;self.state.update(main=revision,policyRevision=revision,
+            comparison=dict(status='ahead',base_commit=dict(sha=SHA),merge_base_commit=dict(sha=SHA)))
+        return revision
+
+    def test_explicit_ancestor_promotion_keeps_artifact_and_signature_sources(self):
+        policy_revision=self.ancestor_policy()
+        result=self.invoke(policy_revision=policy_revision)
+        self.assertEqual(result.returncode,0,result.stderr)
+        receipt=json.loads(result.stdout)
+        self.assertEqual(receipt['sourceRevision'],SHA);self.assertEqual(receipt['policyRevision'],policy_revision)
+        self.assertFalse(receipt['authorization']);self.assertFalse(receipt['publicationReady'])
+        calls=[json.loads(line) for line in self.calls.read_text().splitlines()]
+        self.assertTrue(all(row[row.index('--source-digest')+1]==SHA for row in calls if row[:2]==['attestation','verify']))
+        self.assertTrue(any(row[-1].endswith('?ref='+policy_revision) for row in calls if row[:3]==['api','--method','GET']))
+        self.assertNotEqual(self.invoke().returncode,0) # no implicit current-policy selection
+
+    def test_explicit_ancestor_still_authenticates_the_complete_original_boot(self):
+        self.retained();policy_revision=self.ancestor_policy()
+        result=self.invoke(policy_revision=policy_revision)
+        self.assertEqual(result.returncode,0,result.stderr)
+        self.assertEqual(json.loads(result.stdout)['bootOrigin'],dict(runId=8,runAttempt=2,revision='b'*40))
+        self.state['forgedOriginal']=True
+        self.assertNotEqual(self.invoke(policy_revision=policy_revision).returncode,0)
+
+    def test_explicit_policy_rejects_nonancestor_malformed_stale_or_changed_policy(self):
+        policy_revision=self.ancestor_policy()
+        valid=deepcopy(self.state['comparison'])
+        for changed in (dict(status='diverged',base_commit=dict(sha=SHA),merge_base_commit=dict(sha='f'*40)),
+                        dict(valid,base_commit=dict(sha='f'*40)),dict(valid,merge_base_commit={}),{}):
+            self.state['comparison']=changed
+            with self.subTest(comparison=changed):self.assertNotEqual(self.invoke(policy_revision=policy_revision).returncode,0)
+        self.state['comparison']=valid
+        self.assertNotEqual(self.invoke(policy_revision='bad').returncode,0)
+        self.state['mainAfter']='f'*40
+        self.assertNotEqual(self.invoke(policy_revision=policy_revision).returncode,0)
+        self.state.pop('mainAfter');self.state['policy']=dict(self.cfg,maxEvidenceAgeHours=99)
+        self.assertNotEqual(self.invoke(policy_revision=policy_revision).returncode,0)
 
     def blocked(self, write=True):
         result=self.invoke(write);self.assertEqual(result.returncode,2,result.stdout+result.stderr);self.assertEqual(result.stdout,'')

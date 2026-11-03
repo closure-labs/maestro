@@ -11,6 +11,13 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Prepare explicit immutable-product/current-policy native verification so a
+  reviewed risk decision can promote its exact artifact without requalification;
+  keep the original strict default and all active callers unchanged.
+
+- Prepare an opt-in verified, versioned ISO handoff for standard GitHub release
+  attestations without an extra ISO copy, public upload or publisher activation.
+
 - Validate the complete twenty-check plan once in required CI, retire the
   temporary parallel flake/comparison experiment after recorded parity, and
   bind signed version 2 results to the original complete audit. Keep strict

@@ -152,6 +152,14 @@ def trusted_run(run_id, attempt, revision):
             and run.get('status') == 'completed' and run.get('conclusion') == 'success', 'Untrusted native run')
 
 
+def require_ancestor(source, policy):
+    if source != policy:
+        ancestry=api('compare/'+source+'...'+policy+'?per_page=1')
+        require(ancestry.get('status')=='ahead' and ancestry.get('base_commit',{}).get('sha')==source
+                and ancestry.get('merge_base_commit',{}).get('sha')==source,
+                'Evidence source is not an ancestor of protected current policy')
+
+
 def origin_identity(run_id, attempt, revision):
     return dict(GITHUB_REPOSITORY=REPO, GITHUB_SHA=revision, GITHUB_RUN_ID=str(run_id), GITHUB_RUN_ATTEMPT=str(attempt))
 
@@ -226,13 +234,18 @@ def refresh_inputs(root, native):
 
 
 @contextmanager
-def _verified_bundle(directory, run_id, attempt, revision, policy_path, boot_origin=None, publication=False, for_refresh=False):
+def _verified_bundle(directory, run_id, attempt, revision, policy_path, boot_origin=None, publication=False, for_refresh=False, policy_revision=None):
     require(type(run_id) is int and run_id > 0 and type(attempt) is int and attempt > 0
             and re.fullmatch(r'[0-9a-f]{40}', revision), 'Exact native producer inputs required')
     cfg = common.config(policy_path)
     require(cfg['repository'] == REPO and cfg['profiles'] == ['maestro'], 'Unsupported native profile contract')
-    require(api('git/ref/heads/main')['object']['sha'] == revision, 'Selected source is not current main')
-    remote = api('contents/' + POLICY + '?ref=' + revision)
+    explicit_policy = policy_revision is not None
+    policy_revision = revision if policy_revision is None else policy_revision
+    require(isinstance(policy_revision,str) and re.fullmatch(r'[0-9a-f]{40}',policy_revision),
+            'Exact explicit policy revision required')
+    require(api('git/ref/heads/main')['object']['sha'] == policy_revision, 'Selected policy is not current main')
+    require_ancestor(revision,policy_revision)
+    remote = api('contents/' + POLICY + '?ref=' + policy_revision)
     require(remote.get('encoding') == 'base64' and remote.get('size', MAX_JSON + 1) <= MAX_JSON,
             'Bounded protected policy required')
     require(common.canonical_hash(json.loads(base64.b64decode(remote['content']))) == common.canonical_hash(cfg),
@@ -311,11 +324,12 @@ def _verified_bundle(directory, run_id, attempt, revision, policy_path, boot_ori
                 original = retained_boot(root, boot, result, binding, origin, boot_origin)
             else:
                 raise ValueError('Unsupported boot disposition')
-        require(api('git/ref/heads/main')['object']['sha'] == revision, 'Main changed during preparation')
+        require(api('git/ref/heads/main')['object']['sha'] == policy_revision, 'Main changed during preparation')
         receipt = dict(schemaVersion=1, status='prepared-native-data', authorization=False, publicationReady=False,
             sourceRevision=revision, runId=run_id, runAttempt=attempt, rootCount=len(expected), boundDocumentCount=len(DOCUMENTS),
             bootDisposition=disposition, bootOrigin=original, narBytesVerified=False, isoBytesVerified=False, riskAcceptanceEvaluated=False)
 
+        if explicit_policy:receipt['policyRevision']=policy_revision
         if for_refresh:
             receipt.update(status='verified-inventory-for-refresh', currentHealthVerified=False)
         # Keep one frozen bundle and one authenticated native object for the
@@ -325,20 +339,20 @@ def _verified_bundle(directory, run_id, attempt, revision, policy_path, boot_ori
 
 
 @contextmanager
-def verified_bundle(directory, run_id, attempt, revision, policy_path, boot_origin=None, publication=False):
-    with _verified_bundle(directory, run_id, attempt, revision, policy_path, boot_origin, publication) as bundle:
+def verified_bundle(directory, run_id, attempt, revision, policy_path, boot_origin=None, publication=False, policy_revision=None):
+    with _verified_bundle(directory, run_id, attempt, revision, policy_path, boot_origin, publication, policy_revision=policy_revision) as bundle:
         yield bundle
 
 
 @contextmanager
-def verified_inventory(directory, run_id, attempt, revision, policy_path, boot_origin=None):
+def verified_inventory(directory, run_id, attempt, revision, policy_path, boot_origin=None, policy_revision=None):
     """Immutable original inputs only, for a new independently fresh rescan."""
-    with _verified_bundle(directory, run_id, attempt, revision, policy_path, boot_origin, for_refresh=True) as bundle:
+    with _verified_bundle(directory, run_id, attempt, revision, policy_path, boot_origin, for_refresh=True, policy_revision=policy_revision) as bundle:
         yield bundle
 
 
-def prepare(directory, run_id, attempt, revision, policy_path, boot_origin=None):
-    with verified_bundle(directory, run_id, attempt, revision, policy_path, boot_origin) as bundle:
+def prepare(directory, run_id, attempt, revision, policy_path, boot_origin=None, policy_revision=None):
+    with verified_bundle(directory, run_id, attempt, revision, policy_path, boot_origin, policy_revision=policy_revision) as bundle:
         return bundle['receipt']
 
 
@@ -348,6 +362,7 @@ def main():
     cli.add_argument('--run', type=int, required=True)
     cli.add_argument('--attempt', type=int, required=True)
     cli.add_argument('--revision', required=True)
+    cli.add_argument('--policy-revision', help='Explicit current main policy; product remains the exact qualified ancestor')
     cli.add_argument('--boot-origin-run', type=int)
     cli.add_argument('--boot-origin-attempt', type=int)
     cli.add_argument('--boot-origin-revision')
@@ -356,7 +371,7 @@ def main():
     require(all(v is None for v in selected) or all(v is not None for v in selected), 'Complete explicit boot origin required')
     selected = None if all(v is None for v in selected) else selected
     with operations.budget(300):
-        result = prepare(args.directory, args.run, args.attempt, args.revision, Path(os.environ['MAESTRO_NATIVE_PREPARE_POLICY']), selected)
+        result = prepare(args.directory, args.run, args.attempt, args.revision, Path(os.environ['MAESTRO_NATIVE_PREPARE_POLICY']), selected, policy_revision=args.policy_revision)
     print(json.dumps(result, sort_keys=True))
 
 

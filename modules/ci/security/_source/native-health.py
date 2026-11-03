@@ -38,16 +38,19 @@ def freeze(source, destination, original):
             require(copied==info.st_size,'Fresh evidence shrank')
 
 
-def trusted(run, attempt, revision):
+def trusted(run, attempt, revision=None):
     require(type(run) is int and run>0 and type(attempt) is int and attempt>0,'Exact positive health producer required')
     record=native.api(f'actions/runs/{run}/attempts/{attempt}')
     require(type(record.get('id')) is int and type(record.get('run_attempt')) is int
-            and record.get('id')==run and record.get('run_attempt')==attempt and record.get('head_sha')==revision
+            and record.get('id')==run and record.get('run_attempt')==attempt
+            and isinstance(record.get('head_sha'),str) and refresh.re.fullmatch(r'[0-9a-f]{40}',record['head_sha'])
+            and (revision is None or record['head_sha']==revision)
             and record.get('head_branch')=='main' and record.get('repository',{}).get('full_name')==native.REPO
             and record.get('head_repository',{}).get('full_name')==native.REPO
             and record.get('path','').split('@')[0]==WORKFLOW
             and record.get('event') == 'workflow_dispatch'
             and record.get('status')=='completed' and record.get('conclusion')=='success','Untrusted fresh-health producer')
+    return record['head_sha']
 
 
 def attest(path, revision):
@@ -62,22 +65,29 @@ def attest(path, revision):
 
 
 @contextmanager
-def verified(original, directory, run, attempt, cfg):
+def verified(original, directory, run, attempt, cfg, fetch=None):
     require(original.get('inventoryOnly') is True,'Verified original inventory context required')
     require(native.common.canonical_hash(cfg)==original['policyHash'],'Changed original scope policy')
     revision=original['receipt']['sourceRevision']
-    def current():require(native.api('git/ref/heads/main')['object']['sha']==revision,'Main changed during health verification')
-    current();trusted(run,attempt,revision)
+    policy_revision=original['receipt'].get('policyRevision',revision)
+    def current():require(native.api('git/ref/heads/main')['object']['sha']==policy_revision,'Main changed during health verification')
+    current()
+    health_revision=trusted(run,attempt,None if 'policyRevision' in original['receipt'] else revision)
+    if health_revision != revision:native.require_ancestor(health_revision,policy_revision)
+    if fetch is not None:fetch(health_revision)
     with tempfile.TemporaryDirectory(prefix='maestro-native-health-') as temp:
         root=Path(temp);freeze(Path(directory),root,original['directory'])
-        attest(root/'native-health.json',revision)
+        attest(root/'native-health.json',health_revision)
         with native.bounded_validation():
             manifest=native.load_json(root/'native-health.json')
-            require(type(manifest.get('schemaVersion')) is int and manifest['schemaVersion']==1
+            require(type(manifest.get('schemaVersion')) is int and manifest['schemaVersion'] in (1,2)
                 and manifest.get('kind')=='native-refreshed-health' and manifest.get('repository')==native.REPO
                 and manifest.get('sourceRevision')==revision and manifest.get('authorization') is False
                 and manifest.get('publicationReady') is False,'Invalid fresh-health manifest')
-            require(manifest.get('producer')==dict(workflow=WORKFLOW,runId=run,runAttempt=attempt,revision=revision)
+            require((manifest['schemaVersion']==1 and health_revision==revision and 'policyRevision' not in manifest)
+                or (manifest['schemaVersion']==2 and manifest.get('policyRevision')==health_revision),
+                'Fresh-health schema confuses product and scanner policy')
+            require(manifest.get('producer')==dict(workflow=WORKFLOW,runId=run,runAttempt=attempt,revision=health_revision)
                 and manifest.get('originalProducer')==dict(runId=original['receipt']['runId'],runAttempt=original['receipt']['runAttempt'],revision=revision),
                 'Fresh health substitutes a producer')
             require(all(type(manifest[key][field]) is int for key in ('producer','originalProducer')

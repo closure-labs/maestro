@@ -51,10 +51,11 @@ def refresh(bundle, output, cfg, transport, restore, query=identities, scan=None
     require(bundle.get('inventoryOnly') is True, 'Explicit authenticated inventory purpose required')
     require(native.common.canonical_hash(cfg) == bundle['policyHash'], 'Original scope/freshness policy changed')
     revision = bundle['receipt']['sourceRevision']
+    policy_revision = bundle['receipt'].get('policyRevision',revision)
     require(os.environ.get('GITHUB_REPOSITORY') == native.REPO
             and os.environ.get('GITHUB_REF') == 'refs/heads/main'
             and os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch'
-            and os.environ.get('GITHUB_SHA') == revision, 'Protected exact-source refresh required')
+            and os.environ.get('GITHUB_SHA') == policy_revision, 'Protected exact-source refresh required')
     run, attempt = int(os.environ['GITHUB_RUN_ID']), int(os.environ['GITHUB_RUN_ATTEMPT'])
     require(run > 0 and attempt > 0, 'Positive fresh producer identity required')
     source = bundle['directory']
@@ -64,7 +65,7 @@ def refresh(bundle, output, cfg, transport, restore, query=identities, scan=None
     require(set(bundle['inputIdentities']) == set(INPUTS), 'Complete original scanner inputs required')
 
     def current():
-        require(api('git/ref/heads/main')['object']['sha'] == revision, 'Main changed during native refresh')
+        require(api('git/ref/heads/main')['object']['sha'] == policy_revision, 'Main changed during native refresh')
 
     current()
     proof_names = (*native.JSON_FILES, *native.DOCUMENTS, 'inputs.sha256', 'Cargo.lock',
@@ -133,12 +134,13 @@ def refresh(bundle, output, cfg, transport, restore, query=identities, scan=None
         require(original_proof() == proof, 'Original frozen evidence changed during scan')
         manifest = dict(schemaVersion=1, kind='native-refreshed-health', repository=native.REPO,
             sourceRevision=revision, producer=dict(workflow='.github/workflows/security.yml',
-                runId=run, runAttempt=attempt, revision=revision),
+                runId=run, runAttempt=attempt, revision=policy_revision),
             originalProducer=dict(runId=bundle['receipt']['runId'], runAttempt=bundle['receipt']['runAttempt'], revision=revision),
             originalProof=proof, originalTransport=expected_transport,
             securityResult=dict(sha256=native.file_hash(output / 'security-result.json'), size=(output / 'security-result.json').stat().st_size),
             scannedAt=fresh['scannedAt'], expiresAt=(scanned + dt.timedelta(hours=min(24, cfg['maxEvidenceAgeHours']))).isoformat(),
             authorization=False, publicationReady=False)
+        if 'policyRevision' in bundle['receipt']:manifest.update(schemaVersion=2,policyRevision=policy_revision)
         current()
         encoded=json.dumps(manifest,sort_keys=True)+'\n'
         require(len(encoded.encode())<=native.MAX_JSON and sum(path.stat().st_size for path in files)+len(encoded.encode())<=native.MAX_BUNDLE,
@@ -155,8 +157,10 @@ def main():
     cli=argparse.ArgumentParser(description=__doc__)
     cli.add_argument('--run',type=int,required=True);cli.add_argument('--attempt',type=int,required=True)
     cli.add_argument('--revision',required=True);cli.add_argument('--output',type=Path,required=True)
+    cli.add_argument('--policy-revision',help='Explicit current scanner/policy source; immutable product source is unchanged')
     cli.add_argument('--boot-origin-run',type=int);cli.add_argument('--boot-origin-attempt',type=int)
     cli.add_argument('--boot-origin-revision');args=cli.parse_args()
+    require(args.policy_revision is None or re.fullmatch(r'[0-9a-f]{40}',args.policy_revision),'Exact policy revision required')
     origin=(args.boot_origin_run,args.boot_origin_attempt,args.boot_origin_revision)
     require(all(v is None for v in origin) or all(v is not None for v in origin),'Complete original boot identity required')
     origin=None if all(v is None for v in origin) else origin
@@ -168,7 +172,7 @@ def main():
         print('Native refresh: stage exact original CI evidence',file=sys.stderr,flush=True)
         stage.stage_refresh(directory,args.run,args.attempt,args.revision,origin)
         print('Native refresh: authenticate original CI and boot proof',file=sys.stderr,flush=True)
-        with native.verified_inventory(directory,args.run,args.attempt,args.revision,policy,origin) as bundle:
+        with native.verified_inventory(directory,args.run,args.attempt,args.revision,policy,origin,policy_revision=args.policy_revision) as bundle:
             result=refresh(bundle,args.output,native.common.config(policy),
                 lambda:stage.transport(args.run,args.revision,root/'closure'),distribution.restore)
     print(json.dumps(dict(status='fresh-health-produced',authorization=False,publicationReady=False,

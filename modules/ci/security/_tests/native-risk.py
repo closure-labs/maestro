@@ -40,7 +40,7 @@ class Risk(unittest.TestCase):
         self.reviews=[dict(submitted_at=now.isoformat(),id=30,state='APPROVED',commit_id=HEAD,body='Reviewed: accept the risks specified by this dedicated findings decision',
             user=dict(id=20,type='User',login='human'))]
         self.changed_files=[dict(filename=risk.PATH,status='added')]
-        self.permission=dict(permission='write',user=dict(id=20))
+        self.permission=dict(permission='write',user=dict(id=20));self.policy_revision=SHA
     def write(self):self.path.write_text(json.dumps(self.record))
     def api(self,path):
         if path.startswith('contents/'+risk.PATH+'?ref='):return encoded(self.path.read_bytes())
@@ -48,7 +48,7 @@ class Risk(unittest.TestCase):
         if path=='collaborators/human/permission':return self.permission
         if path=='pulls/209':return self.pr
         if path=='pulls/209/files?per_page=2':return self.changed_files
-        if path==f'compare/{MERGE}...{SHA}':return dict(merge_base_commit=dict(sha=MERGE))
+        if path==f'compare/{MERGE}...{self.policy_revision}':return dict(merge_base_commit=dict(sha=MERGE))
         if path=='pulls/209/reviews?per_page=100&page=1':return self.reviews
         return self.case.api(path)
     def accept(self):return risk.acceptance(self.bundle,self.case.findings,self.case.findings,self.bundle['normalizedFindings'],self.files,self.api,self.root)
@@ -58,6 +58,24 @@ class Risk(unittest.TestCase):
         risk.live(self.api,state,SHA)
         self.reviews[0]['body']='LGTM'
         self.assertEqual(self.accept()['proof']['reviewId'],30)
+    def test_current_policy_risk_pr_can_approve_the_exact_older_artifact_without_rebuild(self):
+        self.policy_revision='e'*40;self.bundle['receipt']['policyRevision']=self.policy_revision
+        observed=[];original_api=self.api
+        def api(path):
+            observed.append(path);return original_api(path)
+        with patch.object(self,'api',side_effect=api):
+            state=self.accept();risk.live(self.api,state,self.policy_revision)
+            self.permission['permission']='read'
+            with self.assertRaises(ValueError):risk.live(self.api,state,self.policy_revision)
+        self.assertEqual(self.bundle['receipt']['sourceRevision'],SHA)
+        self.assertIn(f'compare/{MERGE}...{self.policy_revision}',observed)
+        self.assertIn('contents/'+risk.PATH+'?ref='+self.policy_revision,observed)
+        self.assertIn('contents/'+risk.PATH+'?ref='+HEAD,observed) # exact reviewed PR head stays distinct
+        self.assertTrue(all(path.endswith('?ref='+self.policy_revision) for path in observed
+            if path.startswith('contents/') and path!='contents/'+risk.PATH+'?ref='+HEAD))
+        self.case.findings[0]['version']='new'
+        with self.assertRaises(ValueError):self.accept()
+
     def test_self_bot_wrong_head_or_nonowner_reject(self):
         for field,value in [('commit_id','f'*40),('state','DISMISSED')]:
             with self.subTest(field=field),patch.dict(self.reviews[0],{field:value}):
