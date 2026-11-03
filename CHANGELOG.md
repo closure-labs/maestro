@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Keep immutable inventory identity independent of CI routing text, preserving
+  exact roots, generator/verifier policy and fresh vulnerability scans while
+  avoiding SBOM regeneration for workflow-only edits.
+
 - Prepare inactive native release asset staging with exact signed ISO/boot
   identity checks, authenticated SBOM reuse and verified existing installer
   splitting; add no public writer, workflow caller or risk acceptance.
