@@ -37,7 +37,7 @@ class Publication(unittest.TestCase):
         self.case.native['evidence']={}
         self.case.scans['transport']={}
         self.env=dict(os.environ,MAESTRO_NATIVE_PREPARE_POLICY=str(self.case.policy),
-            GITHUB_REPOSITORY='closure-labs/maestro',GITHUB_REF='refs/heads/main',GITHUB_EVENT_NAME='workflow_dispatch',
+            GITHUB_REPOSITORY='closure-labs/maestro',GITHUB_REF='refs/heads/main',GITHUB_EVENT_NAME='workflow_dispatch',GITHUB_SHA=fixture.SHA,
             MAESTRO_NATIVE_PUBLICATION_ENABLED='true',CACHIX_MAESTRO_PUBKEY=pub.KEY,CACHIX_MAESTRO_AUTH_TOKEN='fixture-secret')
 
     def finding(self,severity='high',i='a'):
@@ -69,6 +69,37 @@ class Publication(unittest.TestCase):
                         restore=lambda *a,**k:calls.append('restore'),probe=lambda *a,**k:calls.append('probe'),
                         inspect=lambda *a,**k:calls.append('inspect'))
                 self.assertEqual(error.exception.outcome['blockingRows'],1);self.assertEqual(calls,[])
+
+    def test_explicit_product_source_and_current_policy_are_distinct(self):
+        policy_revision='e'*40;bundle=self.bundle();bundle['receipt']['policyRevision']=policy_revision
+        observed=[]
+        def api(path):
+            observed.append(path)
+            if path=='git/ref/heads/main':return {'object':{'sha':policy_revision}}
+            self.assertEqual(path,'contents/'+pub.POLICY+'?ref='+policy_revision)
+            return self.api(path)
+        with patch.dict(os.environ,self.env),patch.object(pub.native,'api',side_effect=api):
+            result=pub.consume(bundle,self.policy_path,'check')
+        self.assertEqual(bundle['receipt']['sourceRevision'],fixture.SHA)
+        self.assertIn('contents/'+pub.POLICY+'?ref='+policy_revision,observed)
+        self.assertEqual(result['status'],'native-policy-clear');self.assertFalse(result['authorization'])
+
+    def test_writer_requires_the_current_policy_workflow_context_before_side_effects(self):
+        policy_revision='e'*40;bundle=self.bundle();bundle['receipt']['policyRevision']=policy_revision;calls=[]
+        def api(path):
+            if path=='git/ref/heads/main':return {'object':{'sha':policy_revision}}
+            return self.api(path)
+        with patch.dict(os.environ,self.env),patch.object(pub.native,'api',side_effect=api):
+            with self.assertRaises(ValueError):pub.consume(bundle,self.policy_path,'publish',inspect=lambda *a:calls.append('inspect'))
+        self.assertEqual(calls,[])
+
+    def test_malformed_policy_or_partial_health_reject_before_api_or_download(self):
+        source=ROOT/'modules/ci/security/_source/native-publication.py'
+        for extra in (['--policy-revision','bad'],['--policy-revision','e'*40,'--health-run','20']):
+            result=subprocess.run([sys.executable,str(source),'check','--run','7','--attempt','1','--revision',fixture.SHA,*extra],
+                capture_output=True,text=True,timeout=10,env=dict(os.environ,GH_TOKEN=''))
+            self.assertEqual(result.returncode,2,result.stdout+result.stderr)
+            self.assertIn('"error": "ValueError"',result.stderr)
 
     def test_low_medium_clear_without_granting_authority(self):
         self.findings=[self.finding('low'),self.finding('medium','b')];bundle=self.bundle()

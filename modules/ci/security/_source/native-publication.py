@@ -7,6 +7,7 @@ from collections import Counter
 import importlib.util
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -88,7 +89,7 @@ def policy_verdict(bundle, source_policy, blocking=None):
 
 
 def protected_policy(bundle, policy_path):
-    revision = bundle['receipt']['sourceRevision']
+    revision = bundle['receipt'].get('policyRevision',bundle['receipt']['sourceRevision'])
     remote = native.api('contents/' + POLICY + '?ref=' + revision)
     require(remote.get('encoding') == 'base64' and remote.get('size', native.MAX_JSON + 1) <= native.MAX_JSON,
             'Bounded protected security policy required')
@@ -98,13 +99,13 @@ def protected_policy(bundle, policy_path):
 
 
 def fresh(bundle, policy_path, policy_digest):
-    require(native.api('git/ref/heads/main')['object']['sha'] == bundle['receipt']['sourceRevision'],
+    require(native.api('git/ref/heads/main')['object']['sha'] == bundle['receipt'].get('policyRevision',bundle['receipt']['sourceRevision']),
             'Main changed before native consumer operation')
     require(native.file_hash(policy_path) == policy_digest, 'Local security policy changed')
     cfg = native.common.config(Path(os.environ['MAESTRO_NATIVE_PREPARE_POLICY']))
     require(native.common.canonical_hash(cfg) == bundle['policyHash'], 'Native scope/freshness policy changed')
     if bundle.get('_riskAcceptance'):
-        risk.live(native.api,bundle['_riskAcceptance'],bundle['receipt']['sourceRevision'])
+        risk.live(native.api,bundle['_riskAcceptance'],bundle['receipt'].get('policyRevision',bundle['receipt']['sourceRevision']))
     now = native.common.dt.datetime.now(native.common.dt.timezone.utc)
     scanned = native.common.timestamp(bundle['native']['scannedAt'])
     built = native.common.timestamp(bundle['native']['database']['built'])
@@ -157,7 +158,9 @@ def consume(bundle, policy_path, operation, transport=None, execute=native.opera
     require(operation == 'publish' and os.environ.get('MAESTRO_NATIVE_PUBLICATION_ENABLED') == 'true'
             and os.environ.get('GITHUB_REPOSITORY') == native.REPO
             and os.environ.get('GITHUB_REF') == 'refs/heads/main'
-            and os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch', 'Native writer remains disabled')
+            and os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch'
+            and os.environ.get('GITHUB_SHA') == bundle['receipt'].get('policyRevision',bundle['receipt']['sourceRevision']),
+            'Native writer remains disabled or has the wrong protected policy context')
     destinations = module('native_destinations', 'PUBLICATION_DESTINATIONS_SOURCE', '../../authority/_source/decisions/destinations.py')
     observe = inspect or (lambda product: destinations.cache(product, CACHE,
         upstreams=('https://cache.nixos.org', 'https://xen-orchestra-ce.cachix.org')))
@@ -217,10 +220,12 @@ def main():
     cli.add_argument('--directory', type=Path)
     cli.add_argument('--run', type=int, required=True); cli.add_argument('--attempt', type=int, required=True)
     cli.add_argument('--revision', required=True); cli.add_argument('--transport-directory', type=Path)
+    cli.add_argument('--policy-revision', help='Explicit current main policy; does not change product identity')
     cli.add_argument('--health-run', type=int); cli.add_argument('--health-attempt', type=int)
     cli.add_argument('--health-directory', type=Path)
     cli.add_argument('--boot-origin-run', type=int); cli.add_argument('--boot-origin-attempt', type=int)
     cli.add_argument('--boot-origin-revision'); args = cli.parse_args()
+    require(args.policy_revision is None or re.fullmatch(r'[0-9a-f]{40}',args.policy_revision), 'Exact explicit policy revision required')
     origin = (args.boot_origin_run, args.boot_origin_attempt, args.boot_origin_revision)
     require(all(v is None for v in origin) or all(v is not None for v in origin), 'Complete explicit boot origin required')
     origin = None if all(v is None for v in origin) else origin
@@ -234,18 +239,22 @@ def main():
             (stage.stage_refresh if args.health_run is not None else stage.stage)(directory, args.run, args.attempt, args.revision, origin)
         policy = Path(os.environ['MAESTRO_NATIVE_PREPARE_POLICY'])
         if args.health_run is None:
-            with native.verified_bundle(directory, args.run, args.attempt, args.revision, policy, origin, publication=True) as bundle:
+            with native.verified_bundle(directory, args.run, args.attempt, args.revision, policy, origin, publication=True, policy_revision=args.policy_revision) as bundle:
                 result = consume(bundle, Path(os.environ['MAESTRO_NATIVE_SECURITY_POLICY']), args.operation, args.transport_directory)
         else:
             health_directory = args.health_directory
+            fetch=None
             if health_directory is None:
                 health_directory = Path(os.environ['RUNNER_TEMP']) / 'native-health'
-                stage.stage_health(health_directory, args.health_run, args.revision)
+                fetch=lambda health_revision:stage.stage_health(health_directory,args.health_run,health_revision)
             health = module('native_health', 'MAESTRO_NATIVE_HEALTH_SOURCE', 'native-health.py')
-            with native.verified_inventory(directory, args.run, args.attempt, args.revision, policy, origin) as original:
-                with health.verified(original, health_directory, args.health_run, args.health_attempt, native.common.config(policy)) as bundle:
+            with native.verified_inventory(directory, args.run, args.attempt, args.revision, policy, origin,
+                    policy_revision=args.policy_revision) as original:
+                with health.verified(original, health_directory, args.health_run, args.health_attempt, native.common.config(policy),fetch=fetch) as bundle:
                     result = consume(bundle, Path(os.environ['MAESTRO_NATIVE_SECURITY_POLICY']), args.operation, args.transport_directory)
+                    result['healthProducer']=bundle['healthManifest']['producer']
     result.update(authorization=False, sourceRevision=args.revision, sourceRun=args.run, sourceAttempt=args.attempt)
+    if args.policy_revision is not None:result['policyRevision']=args.policy_revision
     emit(result)
 
 

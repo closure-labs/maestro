@@ -129,7 +129,7 @@ def load_local(path):
 def acceptance(bundle,findings,raw_blocking,normalized_blocking,files,api,root):
     local=Path(root)/PATH
     if not local.exists():return None
-    record=load_local(local);record_hash=digest(record);revision=bundle['receipt']['sourceRevision']
+    record=load_local(local);record_hash=digest(record);revision=bundle['receipt'].get('policyRevision',bundle['receipt']['sourceRevision'])
     require(digest(parse(contents(api,PATH,revision)))==record_hash,'Risk artifact is not exact protected current source')
     required={'schemaVersion','kind','repository','reviewPullRequest','createdAt','expiresAt','reason','evidence',
               'scope','acceptedRawFindings','acceptedNormalizedFindings'}

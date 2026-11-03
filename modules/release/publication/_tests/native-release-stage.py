@@ -119,13 +119,14 @@ class ReleaseStage(unittest.TestCase):
             NATIVE_RELEASE_VERSION='3.2.0',NATIVE_RUN='7',NATIVE_ATTEMPT='1',NATIVE_REVISION=fixture.fixture.SHA,
             NATIVE_MEDIA_RUN='7',NATIVE_MEDIA_ATTEMPT='1',NATIVE_MEDIA_REVISION=fixture.fixture.SHA)
         for final in ('',str(subject)):
-            environment.update(NATIVE_RELEASE_FINAL_ISO=final)
+            environment.update(NATIVE_RELEASE_FINAL_ISO=final,NATIVE_POLICY_REVISION='e'*40)
             subprocess.run([shutil.which('bash'),str(ROOT/'modules/release/publication/_source/native-release-stage.sh')],
                 env=environment,check=True,capture_output=True,timeout=5)
             args=json.loads(captured.read_text())
             self.assertEqual('--final-iso' in args,bool(final))
             if final:self.assertEqual(args[args.index('--final-iso')+1],final)
             self.assertEqual(args[args.index('--revision')+1],fixture.fixture.SHA)
+            self.assertEqual(args[args.index('--policy-revision')+1],'e'*40)
         self.assertFalse(subject.exists());self.assertFalse(self.output.exists())
 
     def test_versioned_iso_race_never_overwrites_an_existing_subject(self):
@@ -135,6 +136,20 @@ class ReleaseStage(unittest.TestCase):
         with self.assertRaises(FileExistsError):self.stage(final_iso=final,execute=appeared)
         self.assertEqual(final.read_bytes(),b'another invocation')
         self.assertFalse(self.output.exists())
+
+    def test_older_product_uses_its_version_and_the_explicit_current_policy(self):
+        policy_revision='e'*40;self.bundle['receipt']['policyRevision']=policy_revision;observed=[];original_api=self.api
+        def api(path):
+            observed.append(path)
+            if path=='git/ref/heads/main':return dict(object=dict(sha=policy_revision))
+            return original_api(path)
+        with patch.object(self,'api',side_effect=api):
+            result=self.stage(final_iso=self.root/'maestro-v3.2.0.iso')
+        self.assertEqual(result['sourceRevision'],fixture.fixture.SHA)
+        self.assertEqual(result['policyRevision'],policy_revision)
+        self.assertIn('contents/VERSION?ref='+fixture.fixture.SHA,observed)
+        self.assertIn('contents/'+pub.POLICY+'?ref='+policy_revision,observed)
+        self.assertFalse(result['authorization']);self.assertFalse(result['publicationReady'])
 
     def test_high_findings_block_before_iso_or_producer_operations(self):
         self.case.findings=[self.case.finding('critical')];self.bundle=self.case.bundle()

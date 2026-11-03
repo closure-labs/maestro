@@ -26,7 +26,7 @@ health=module('native_health',fixture.fixture.ROOT/'modules/ci/security/_source/
 class NativeHealth(unittest.TestCase):
     def setUp(self):
         self.case=fixture.NativeRefresh();self.case.setUp();self.addCleanup(self.case.doCleanups)
-        self.main='a'*40;self.runPatch={};self.forged=False;self.calls=[]
+        self.main='a'*40;self.health_revision='a'*40;self.ancestry=True;self.runPatch={};self.forged=False;self.calls=[]
         self.policy=dict(schema_version=2,mode='report',dispositions=[],exceptions=[])
         self.fresh_findings=[]
         self.create_report()
@@ -45,22 +45,66 @@ class NativeHealth(unittest.TestCase):
     def api(self,path):
         self.calls.append(path)
         if path=='git/ref/heads/main':return {'object':{'sha':self.main}}
+        if path.startswith('compare/'):
+            self.assertEqual(path,'compare/'+self.health_revision+'...'+self.main+'?per_page=1')
+            return dict(status='ahead',base_commit=dict(sha=self.health_revision),
+                merge_base_commit=dict(sha=self.health_revision if self.ancestry else 'f'*40))
         self.assertEqual(path,'actions/runs/20/attempts/1')
-        return dict(dict(id=20,run_attempt=1,head_sha='a'*40,head_branch='main',
+        return dict(dict(id=20,run_attempt=1,head_sha=self.health_revision,head_branch='main',
             repository={'full_name':health.native.REPO},head_repository={'full_name':health.native.REPO},
             path=health.WORKFLOW,event='workflow_dispatch',status='completed',conclusion='success'),**self.runPatch)
 
     def attestation(self,*args):
         self.assertEqual(args[:2],('attestation','verify'))
         for flag,expected in [('--repo',health.native.REPO),('--signer-workflow',health.native.REPO+'/'+health.WORKFLOW),
-            ('--source-ref','refs/heads/main'),('--source-digest','a'*40),('--signer-digest','a'*40),('--format','json')]:
+            ('--source-ref','refs/heads/main'),('--source-digest',self.health_revision),('--signer-digest',self.health_revision),('--format','json')]:
             self.assertEqual(args[args.index(flag)+1],expected)
         self.assertIn('--deny-self-hosted-runners',args)
         return [{'verificationResult':{'statement':{'subject':[{'digest':{'sha256':'f'*64 if self.forged else health.native.file_hash(Path(args[2]))}}]}}}]
 
-    def verify(self):
+    def verify(self,**kwargs):
         with patch.object(health.native,'api',side_effect=self.api),patch.object(health.native,'response',side_effect=self.attestation):
-            with health.verified(self.case.bundle,self.case.output,20,1,self.case.case.cfg) as bundle:return bundle.copy()
+            with health.verified(self.case.bundle,self.case.output,20,1,self.case.case.cfg,**kwargs) as bundle:return bundle.copy()
+
+    def cross_source(self):
+        import shutil
+        shutil.rmtree(self.case.output)
+        self.health_revision='d'*40;self.case.policy_revision=self.health_revision
+        self.case.env['GITHUB_SHA']=self.health_revision
+        self.case.bundle['receipt']['policyRevision']=self.health_revision
+        self.create_report()
+        self.main='e'*40;self.case.bundle['receipt']['policyRevision']=self.main
+
+    def test_product_health_and_current_policy_are_three_bound_identities(self):
+        self.cross_source();fetched=[]
+        bundle=self.verify(fetch=fetched.append)
+        self.assertEqual(fetched,[self.health_revision])
+        self.assertEqual(bundle['receipt']['sourceRevision'],'a'*40)
+        self.assertEqual(bundle['receipt']['policyRevision'],self.main)
+        self.assertEqual(bundle['healthManifest']['schemaVersion'],2)
+        self.assertEqual(bundle['healthManifest']['producer']['revision'],self.health_revision)
+        self.assertEqual(bundle['healthManifest']['originalProducer']['revision'],'a'*40)
+        self.assertIn('compare/'+self.health_revision+'...'+self.main+'?per_page=1',self.calls)
+        self.assertFalse(bundle['inventoryOnly'])
+
+    def test_cross_source_health_cannot_forge_downgrade_or_omit_explicit_policy(self):
+        self.cross_source();path=self.case.output/'native-health.json';old=json.loads(path.read_text())
+        for change in (dict(policyRevision=self.main),dict(schemaVersion=1),dict(originalProducer={}),
+                       dict(producer=dict(old['producer'],revision=self.main))):
+            path.write_text(json.dumps(dict(old,**change)))
+            with self.subTest(change=change),self.assertRaises(ValueError):self.verify()
+        path.write_text(json.dumps(old));self.ancestry=False
+        with self.assertRaises(ValueError):self.verify()
+        self.ancestry=True;self.case.bundle['receipt'].pop('policyRevision');self.main='a'*40;fetched=[]
+        with self.assertRaises(ValueError):self.verify(fetch=fetched.append)
+        self.assertEqual(fetched,[])
+
+    def test_real_cli_uses_expired_immutable_inventory_fresh_other_signer_and_current_policy(self):
+        old=dt.datetime.now(dt.timezone.utc)-dt.timedelta(days=3)
+        self.case.case.native['scannedAt']=old.isoformat();self.case.case.native['database']['built']=old.isoformat()
+        self.case.case.scans['scannedAt']=old.isoformat();self.case.case.scans['expiresAt']=(old+dt.timedelta(hours=24)).isoformat()
+        self.case.bundle['scans']['expiresAt']=self.case.case.scans['expiresAt'];self.case.case.write_bundle()
+        self.exercise_cli((None,'high'),policy_revision='e'*40,health_revision='d'*40)
 
     def test_both_proofs_bound_without_reissuing_original_scan_or_copying_inventory(self):
         bundle=self.verify()
@@ -109,7 +153,7 @@ class NativeHealth(unittest.TestCase):
         policy_path=self.case.case.root/'security-policy.json';policy_path.write_text(json.dumps(self.policy))
         old=dt.datetime.now(dt.timezone.utc)-dt.timedelta(days=3)
         self.case.case.native['scannedAt']=old.isoformat();self.case.case.native['database']['built']=old.isoformat()
-        self.case.case.scans['expiresAt']=(old+dt.timedelta(hours=24)).isoformat();self.case.case.write_bundle()
+        self.case.case.scans['scannedAt']=old.isoformat();self.case.case.scans['expiresAt']=(old+dt.timedelta(hours=24)).isoformat();self.case.case.write_bundle()
         self.case.bundle['scans']['expiresAt']=self.case.case.scans['expiresAt']
         def api(path):
             if path=='git/ref/heads/main':return {'object':{'sha':'a'*40}}
@@ -139,17 +183,27 @@ class NativeHealth(unittest.TestCase):
             maxParentRssKiB=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
             maxChildRssKiB=resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss,liveRefresh=False)))
 
-    def exercise_cli(self,severities):
+    def exercise_cli(self,severities,policy_revision=None,health_revision=None):
         import shutil
         pub=module('cli_health_publication',fixture.fixture.ROOT/'modules/ci/security/_source/native-publication.py')
         c=self.case.case;fake=c.bin/'gh';text=fake.read_text()
+        signer=health_revision or 'a'*40
+        if policy_revision is not None:
+            c.state.update(main=policy_revision,policyRevision=policy_revision,
+                comparison=dict(status='ahead',base_commit=dict(sha='a'*40),merge_base_commit=dict(sha='a'*40)))
+            self.case.policy_revision=signer;self.case.env['GITHUB_SHA']=signer
+            self.case.bundle['receipt']['policyRevision']=signer
+
         marker="    elif path==prefix+'actions/runs/7/attempts/1':value=state['run']"
         inserted="    elif path==prefix+'actions/runs/20/attempts/1':value=state['healthRun']\n"
-        inserted+="    elif path==prefix+'contents/'+"+repr(pub.POLICY)+"+'?ref='+'a'*40:\n        raw=json.dumps(state['nativeSecurityPolicy']).encode();value={'encoding':'base64','size':len(raw),'content':base64.b64encode(raw).decode()}\n"
+        inserted+="    elif path==prefix+'contents/'+"+repr(pub.POLICY)+"+'?ref='+state.get('policyRevision','a'*40):\n        raw=json.dumps(state['nativeSecurityPolicy']).encode();value={'encoding':'base64','size':len(raw),'content':base64.b64encode(raw).decode()}\n"
+        inserted+="    elif path==prefix+'compare/'+state['healthRun']['head_sha']+'...'+state['main']+'?per_page=1':\n        value={'status':'ahead','base_commit':{'sha':state['healthRun']['head_sha']},'merge_base_commit':{'sha':state['healthRun']['head_sha']}}\n"
+        text=text.replace("revision='b'*40 if Path(args[2]).name=='original-ci-result.json' else 'a'*40",
+            "revision='b'*40 if Path(args[2]).name=='original-ci-result.json' else state['healthRun']['head_sha'] if Path(args[2]).name=='native-health.json' else 'a'*40")
         text=text.replace(marker,inserted+marker).replace("('--signer-workflow','closure-labs/maestro/.github/workflows/ci.yml')",
             "('--signer-workflow','closure-labs/maestro/.github/workflows/security.yml' if Path(args[2]).name=='native-health.json' else 'closure-labs/maestro/.github/workflows/ci.yml')")
         fake.write_text(text)
-        c.state['healthRun']=dict(id=20,run_attempt=1,head_sha='a'*40,head_branch='main',
+        c.state['healthRun']=dict(id=20,run_attempt=1,head_sha=signer,head_branch='main',
             repository={'full_name':health.native.REPO},head_repository={'full_name':health.native.REPO},
             path=health.WORKFLOW,event='workflow_dispatch',status='completed',conclusion='success')
         c.state['nativeSecurityPolicy']=self.policy
@@ -162,13 +216,15 @@ class NativeHealth(unittest.TestCase):
             MAESTRO_NATIVE_SECURITY_POLICY=str(policy),NATIVE_FIXTURE_STATE=str(state),NATIVE_FIXTURE_CALLS=str(c.calls),
             NATIVE_FIXTURE_BUNDLE=str(c.bundle),PYTHONDONTWRITEBYTECODE='1',MAESTRO_NATIVE_PUBLICATION_ENABLED='true',
             CACHIX_MAESTRO_PUBKEY=pub.KEY,CACHIX_MAESTRO_AUTH_TOKEN='fixture-only',**self.case.env)
+        if policy_revision is not None:env['GITHUB_SHA']=policy_revision
         for severity in severities:
             shutil.rmtree(self.case.output)
             self.fresh_findings=[] if severity is None else [dict(advisory='CVE-2026-1',component='package',version='1',severity=severity,identity='a'*64)]
             self.create_report()
             result=subprocess.run([sys.executable,str(fixture.fixture.ROOT/'modules/ci/security/_source/native-publication.py'),
                 'check' if severity is None else 'publish','--directory',str(c.bundle),'--run','7','--attempt','1','--revision','a'*40,
-                '--health-directory',str(self.case.output),'--health-run','20','--health-attempt','1'],
+                '--health-directory',str(self.case.output),'--health-run','20','--health-attempt','1',
+                *([] if policy_revision is None else ['--policy-revision',policy_revision])],
                 env=env,capture_output=True,text=True,timeout=20)
             with self.subTest(severity=severity):
                 self.assertEqual(result.returncode,0 if severity is None else 2,result.stdout+result.stderr)

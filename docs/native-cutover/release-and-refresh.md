@@ -140,3 +140,53 @@ not create an exception or accept current findings. Full-size hosted handoff and
 final-name signing remain unvalidated until a separately reviewed eligible caller
 exists; tiny subprocess fixtures and theoretical disk bounds do not establish
 production runner headroom.
+
+### Explicit immutable product and current policy revisions: inactive proposal
+
+An optional `--policy-revision` (`NATIVE_POLICY_REVISION` for the native consumer
+and release wrappers) separates two identities. `--revision` remains the exact
+qualified product source, run and attempt. The explicit policy revision must be
+the current protected main commit, and the product source must be its GitHub-
+verified ancestor. Omitting the option retains the original exact-current-main
+behavior; no product or current-policy revision is chosen implicitly.
+
+This permits a separately reviewed risk artifact merged after qualification to
+refer to the exact older artifact. It avoids forcing a rebuild or new SBOM just
+because the findings-review commit advances main. Original source/run/attempt,
+signatures, root/NAR coverage, security context and original boot proofs stay
+bound to the product. Current effective policy, the dedicated findings-risk PR,
+CODEOWNERS and live reviewer access are read at the policy revision. Changed
+findings/product/context or incompatible policy still reject. Both revisions
+remain frozen, and main/policy/freshness/access are rechecked before writes;
+the writer must run in the exact current policy workflow context.
+
+**Admission delta for later review:** an explicit qualified ancestor product may
+be promoted instead of requiring the product source to equal the latest main.
+This is immutable-artifact promotion, not permission to choose a historical
+leaf, skip signatures, reuse expired health or carry over previous acceptance.
+No existing workflow passes the new option and no writer is activated. The
+maximum-30-day human risk decision and access-loss/reapproval requirement remain;
+current permission checks still do not establish loss-and-restoration continuity,
+which continues to block activation.
+
+Fresh health has its own exact run, attempt and signer revision. That producer
+must be a successful protected-main security workflow and an ancestor of the
+explicit current policy revision. A version 2 manifest separates its scanner/
+policy source from the original product source; historical version 1 manifests
+retain their strict same-source producer shape. The reader authenticates original
+CI/boot proofs and fresh health independently and rechecks current policy, scope,
+database age and finding bytes. Expired original evidence is inventory only until
+fresh health is authenticated. Changed/new findings still need a new decision.
+
+The refresh restores and verifies the original NARs once for shipped-file/npm
+coverage, generates no new SBOM, and retains only fresh health plus authenticated
+references to original input/transport. It does not re-export the old closure.
+Current policy can advance without rebuilding the exact immutable product or
+reissuing still-valid fresh observations. A later product/configuration commit is
+not silently incorporated into the explicitly selected older artifact: that is
+part of the admission delta. Incompatible policy or expired health still reject.
+
+This is not a compatibility waiver for old official releases lacking complete
+original native proof. The full native versioned-release writer and cold public
+consumer still require reviewed wiring and validation; no settings or writers
+are activated here.
