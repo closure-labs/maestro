@@ -98,7 +98,9 @@ Super Admin/membership checks, not an equivalent claim to those checks.
 
 **Confirmed expiry policy:** each decision
 chooses an explicit expiry no more than 30 days after creation (the existing
-source-policy ceiling), with no implicit duration or renewal. Renewal requires a new dedicated PR and
+source-policy ceiling), with no implicit duration or renewal. The human review timestamp must be at
+or after the record's declared creation and no later than now; an old approval
+cannot preapprove a future-dated acceptance that activates by waiting. Renewal requires a new dedicated PR and
 fresh exact-head human review, rather than extending a prior approval. Fresh independent
 scanner DB/evidence and all integrity proofs are still required every invocation.
 A fresh scan of identical findings/products/contexts/inventories/policy may reuse
