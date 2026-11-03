@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "${MAESTRO_SYSTEM_ROOT:-$PWD}"
 
-# Temporary comparison of ordinary flake outputs. No decision/evidence routing,
+# Local ordinary flake validation. No decision/evidence routing,
 # upload, signing or acceptance: existing required validation stays in place.
 # Match legacy's declared public cache inputs without accepting arbitrary flake
 # settings or adding URLs/keys. Values come from modules/flake/caches.nix at

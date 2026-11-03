@@ -51,22 +51,28 @@ class BoundResults(unittest.TestCase):
             candidateGraphSha256=graph.digest(self.graph),decisions={'routePlanSha256':graph.digest(self.route)})
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary)
-            for directory in ('ci-graph','ci-comparison','security-report'):(root/directory).mkdir()
+            for directory in ('ci-graph','complete-audit','security-report'):(root/directory).mkdir()
             for name,value in (('ci-graph/candidate.json',self.graph),('ci-graph/plan.json',plan),
-                ('boot-result.json',self.boot),('ci-comparison/comparison.json',{}),
+                ('boot-result.json',self.boot),('complete-audit/reference.json',{}),
                 ('security-report/security-result.json',{'status':'complete','scannerHealth':'healthy'})):
                 (root/name).write_text(json.dumps(value))
             sha=lambda name:hashlib.sha256((root/name).read_bytes()).hexdigest()
             env=dict(PRODUCER,GRAPH_PLAN_SHA256=sha('ci-graph/plan.json'),CI_PLAN=json.dumps(self.route),
                 BOOT_RESULT_SHA256=sha('boot-result.json'),INVENTORY_TRANSFER_SHA256='f'*64,
-                COMPARISON_SHA256=sha('ci-comparison/comparison.json'),
-                AUDIT_RESULT='success',SCAN_RESULT='success',QUALIFICATION_RESULT='success',COMPARISON_RESULT='success')
+                AUDIT_REFERENCE_SHA256=sha('complete-audit/reference.json'),
+                AUDIT_RESULT='success',SCAN_RESULT='success',QUALIFICATION_RESULT='success')
             before=Path.cwd()
             try:
                 os.chdir(root)
-                with patch.dict(os.environ,env,clear=True),patch.object(result,'validate_comparison'):
+                with patch.dict(os.environ,env,clear=True),patch.object(result,'read_bound_reference',return_value=({'auditSha256':'e'*64},{})) as reference:
                     result.main()
                     emitted=json.loads(Path('ci-result.json').read_text())
+                    self.assertEqual(emitted['schemaVersion'],2)
+                    self.assertEqual(emitted['validationMode'],'complete-audit')
+                    self.assertEqual(emitted['completeAuditSha256'],'e'*64)
+                    self.assertEqual(emitted['jobs'],{k:'success' for k in ('AUDIT_RESULT','SCAN_RESULT','QUALIFICATION_RESULT')})
+                    self.assertNotIn('comparisonSha256',emitted)
+                    reference.assert_called_once()
                     self.assertEqual(emitted['inventoryIsoBinding'],dict(schemaVersion=1,producer=PRODUCER,
                         inventorySha256='f'*64,isoSha256='d'*64))
                     self.assertEqual(emitted['boot']['disposition'],'verified-retained')

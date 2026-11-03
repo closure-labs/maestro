@@ -10,7 +10,12 @@ if [[ ${GRAPH_RESULT_REQUIRED:-false} == true || -n ${CI_RESULT_SHA256:-} ]]; th
   [[ $graph_mode == shadow || $graph_mode == active ]]
   jq -e --arg repository "${GITHUB_REPOSITORY:?}" --arg revision "${GITHUB_SHA:?}" --arg run "${GITHUB_RUN_ID:?}" --arg attempt "${GITHUB_RUN_ATTEMPT:?}" \
     --arg graph_mode "$graph_mode" --arg graph_plan "$CI_GRAPH_PLAN_SHA256" '
-      .schemaVersion == 1 and .planSha256 == $graph_plan and
+      (.schemaVersion == 2 and .validationMode == "complete-audit" and
+         (.auditReferenceSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+         (.completeAuditSha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+         (has("comparisonSha256") | not) and
+         .jobs == {AUDIT_RESULT:"success",SCAN_RESULT:"success",QUALIFICATION_RESULT:"success"}) and
+      .planSha256 == $graph_plan and
       .producer.GITHUB_REPOSITORY == $repository and .producer.GITHUB_SHA == $revision and .producer.GITHUB_RUN_ID == $run and
       .producer.GITHUB_RUN_ATTEMPT == $attempt and
       .completeValidationRequired == true and .schedulingMode == $graph_mode
@@ -23,9 +28,6 @@ case "${GITHUB_EVENT_NAME:-}" in
 esac
 
 test "${ROUTE_RESULT:?}" = success
-if [[ ${COMPARISON_REQUIRED:-false} == true ]]; then
-  [[ ${COMPARISON_RESULT:?} == success ]]
-fi
 if [[ ${AUDIT_REQUIRED:-false} == true ]]; then
   [[ ${AUDIT_RESULT:?} == success && ${EQUIVALENCE_RESULT:?} == success ]]
 else

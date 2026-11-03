@@ -23,7 +23,7 @@ def route(mode):
 class VerdictTests(unittest.TestCase):
     def execute(self, mode='qualify-media', **changes):
         env = dict(os.environ, INCOMING_SECRET_RESULT='success', ROUTE_RESULT='success', AUDIT_REQUIRED='true', AUDIT_RESULT='success',
-                   EQUIVALENCE_RESULT='success', COMPARISON_REQUIRED='true', COMPARISON_RESULT='success', SPLIT_QUALIFICATION='true', CI_PLAN=json.dumps(route(mode)),
+                   EQUIVALENCE_RESULT='success', SPLIT_QUALIFICATION='true', CI_PLAN=json.dumps(route(mode)),
                    GITHUB_EVENT_NAME='pull_request', GITHUB_REF='refs/pull/1/merge', GITHUB_SHA='c' * 40,
                    GITHUB_REPOSITORY='closure-labs/maestro', GITHUB_RUN_ID='1', GITHUB_RUN_ATTEMPT='1', MAESTRO_DECISION_ONLY_REUSE_ENABLED='false',
                    APPLIANCE_RESULT='success', INSTALLER_RESULT='success', QUALIFICATION_RESULT='success',
@@ -39,7 +39,9 @@ class VerdictTests(unittest.TestCase):
         env.update(changes)
         with tempfile.TemporaryDirectory() as work:
             if 'CI_RESULT_SHA256' in changes and changes['CI_RESULT_SHA256'] != 'missing':
-                result = dict(schemaVersion=1, planSha256='d' * 64, producer={
+                result = dict(schemaVersion=int(changes.get('RESULT_SCHEMA','2')),validationMode=changes.get('RESULT_VALIDATION_MODE','complete-audit'),
+                    auditReferenceSha256=changes.get('RESULT_AUDIT_REFERENCE','e'*64),completeAuditSha256='f'*64,
+                    jobs={k:'success' for k in ('AUDIT_RESULT','SCAN_RESULT','QUALIFICATION_RESULT')},planSha256='d' * 64, producer={
                     'GITHUB_REPOSITORY': env['GITHUB_REPOSITORY'], 'GITHUB_SHA': env['GITHUB_SHA'], 'GITHUB_RUN_ID': '1', 'GITHUB_RUN_ATTEMPT': '1'},
                     completeValidationRequired=True, schedulingMode=changes.get('RESULT_SCHEDULING_MODE', 'shadow'))
                 data = json.dumps(result).encode()
@@ -48,13 +50,20 @@ class VerdictTests(unittest.TestCase):
                     env['CI_RESULT_SHA256'] = hashlib.sha256(data).hexdigest()
             return subprocess.run(['bash', str(VERDICT)], cwd=work, env=env, capture_output=True).returncode
 
+    def test_retired_comparison_cannot_replace_the_required_complete_audit(self):
+        self.assertEqual(self.execute(COMPARISON_RESULT='skipped'),0)
+        self.assertNotEqual(self.execute(AUDIT_RESULT='skipped',COMPARISON_RESULT='success'),0)
+        for change in (dict(RESULT_SCHEMA='1'),dict(RESULT_VALIDATION_MODE='comparison'),dict(RESULT_AUDIT_REFERENCE='')):
+            with self.subTest(change=change):
+                self.assertNotEqual(self.execute(CI_RESULT_SHA256='valid',CI_GRAPH_PLAN_SHA256='d'*64,**change),0)
+
     def test_each_route_requires_all_applicable_results(self):
         for mode in ('qualify-media', 'qualify-media-reuse-evidence', 'refresh-evidence', 'reuse', 'skip'):
             with self.subTest(mode=mode):
                 self.assertEqual(self.execute(mode), 0)
 
     def test_missing_interrupted_or_unjustified_skips_rejected(self):
-        for key in ('INCOMING_SECRET_RESULT', 'ROUTE_RESULT', 'AUDIT_RESULT', 'EQUIVALENCE_RESULT', 'COMPARISON_RESULT', 'APPLIANCE_RESULT', 'INSTALLER_RESULT',
+        for key in ('INCOMING_SECRET_RESULT', 'ROUTE_RESULT', 'AUDIT_RESULT', 'EQUIVALENCE_RESULT', 'APPLIANCE_RESULT', 'INSTALLER_RESULT',
                     'QUALIFICATION_RESULT', 'BOOT_RESULT', 'SCAN_RESULT', 'SECURITY_RESULT'):
             for status in ('', 'failure', 'cancelled', 'skipped'):
                 with self.subTest(key=key, status=status):

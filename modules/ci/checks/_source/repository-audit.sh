@@ -35,8 +35,8 @@ if [[ -n ${MAESTRO_CI_AUDIT_TIMINGS:-} ]]; then
   mkdir -p "$(dirname "$MAESTRO_CI_AUDIT_TIMINGS")"
 fi
 MAESTRO_SYSTEM_ROOT="$repo_root" maestro-ci-security-inventory-preflight
-audit_phase=flake-evaluation
-nix flake check --accept-flake-config --no-build --print-build-logs \
+audit_phase=flake-checks
+nix flake check --accept-flake-config --print-build-logs \
   "$flake_ref" "$@"
 manifest_args=()
 if [[ -n ${MAESTRO_CI_AUDIT_MANIFEST:-} ]]; then
@@ -45,6 +45,10 @@ fi
 if [[ -n ${MAESTRO_CI_AUDIT_TIMINGS:-} ]]; then
   manifest_args+=(--timings "$MAESTRO_CI_AUDIT_TIMINGS")
 fi
+# Every public flake check is now valid in this same immutable Nix store.
+# Retain the existing twenty-target identity/timing manifest using cached
+# realizations; this does not execute those checks a second time. Timings here
+# are realization-request latencies, not individual fresh test runtimes.
 audit_phase=validation-targets
 flake-plan-runner \
   --flake "$flake_ref" \

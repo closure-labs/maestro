@@ -148,6 +148,26 @@ else:raise AssertionError('Unexpected write/registry command')
     def blocked(self, write=True):
         result=self.invoke(write);self.assertEqual(result.returncode,2,result.stdout+result.stderr);self.assertEqual(result.stdout,'')
 
+    def test_complete_audit_v2_and_historical_v1_have_distinct_strict_obligations(self):
+        current=dict(schemaVersion=2,validationMode='complete-audit',completeValidationRequired=True,
+            auditReferenceSha256='d'*64,completeAuditSha256='e'*64,
+            jobs={k:'success' for k in ('AUDIT_RESULT','SCAN_RESULT','QUALIFICATION_RESULT')})
+        prepare.complete(current)
+        for change in (dict(validationMode='comparison'),dict(auditReferenceSha256=''),dict(completeAuditSha256=None),
+                       dict(completeValidationRequired=False),dict(jobs={}),dict(comparisonSha256='f'*64),dict(schemaVersion=True)):
+            with self.subTest(change=change),self.assertRaises(ValueError):prepare.complete(dict(current,**change))
+        legacy=deepcopy(self.result);prepare.complete(legacy)
+        legacy['jobs'].pop('COMPARISON_RESULT')
+        with self.assertRaises(ValueError):prepare.complete(legacy)
+
+    def test_v2_current_bundle_can_retain_a_strict_v1_executed_boot_origin(self):
+        self.retained()
+        self.result.update(schemaVersion=2,validationMode='complete-audit',auditReferenceSha256='d'*64,completeAuditSha256='e'*64)
+        self.result['jobs'].pop('COMPARISON_RESULT')
+        outcome=self.invoke()
+        self.assertEqual(outcome.returncode,0,outcome.stderr)
+        self.original['jobs'].pop('COMPARISON_RESULT');self.blocked()
+
     def test_success_is_inactive_and_only_uses_get_and_signature_verification(self):
         result=self.invoke();self.assertEqual(result.returncode,0,result.stderr)
         value=json.loads(result.stdout)

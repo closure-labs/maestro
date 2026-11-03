@@ -1,45 +1,67 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# Stage 1: ordinary flake validation
+# Single complete validation after the ordinary-flake trial
 
-`flake-checks.yml` is a temporary, non-required, read-only comparison on PR,
-merge-group and main revisions. It has no publication, signing, cache-upload,
-packet, decision, inspector or recovery role. Existing required CI, CodeQL,
-Gitleaks, App authority and merge queue remain unchanged. No review/settings
-cutover is included; the future accepted one-human-review policy, including
-Dependabot, must be applied only through a separately approved change.
+The temporary parallel trial is retired. The twenty obligations remain mandatory
+in the required `Repository checks` job, whose native `ci:repository-audit` task
+runs full `nix flake check`, including checks outside the legacy twenty-target
+plan. The existing plan runner then records cached output identities for those
+twenty obligations in the same Nix store; it does not execute them again. Its
+per-target timings describe realization requests, not fresh test runtimes. Essential
+appliance/installer qualification, boot verification, equivalence, scanners,
+CodeQL, incoming Gitleaks, signing and the stable `Required CI verdict` remain.
+No ruleset, review policy, publication flag, cache trust or findings acceptance
+changes here. The local `ci:flake:validate` task remains a developer convenience;
+there is no second automatic ordinary-flake workflow.
 
-The single `ci:flake:validate` task realizes all ordinary flake checks with
-`nix flake check`, including every current twenty-plan obligation and existing
-CLI, runtime-security VM, storage and file-restore checks. It then builds the
-appliance, installer ISO, pinned XO, compiled menu, CLI and deployment wrapper. Those VM tests cover XO/Redis service startup, TLS, management ingress,
-NFS/CIFS/VHD storage and privilege boundaries. Build and test failures stop the
-job. No substitute success receipt or advisory finding baseline is generated.
-The task inherits exactly the existing URLs/keys from `modules/flake/caches.nix`
-through its package, preserving setup's baseline configuration. It adds no cache,
-key or credential, and does not accept arbitrary flake settings. Phase labels go
-to stderr and native build logs remain visible. The earlier evaluation-only trial
-and its ignored-cache timings cannot establish parity. Existing required
-installer boot qualification remains unchanged; an ISO build
-in this workflow does not claim to replace its boot evidence.
+## Recorded parity, not a permanent extra layer
 
-## One-cycle exit and deletion
+Run 41579547621 attempt 1 on PR merge candidate
+`28e66d6e93f4a5b564437c9e3c80a59bedc5d741` produced comparison artifact
+13206073571 (archive SHA-256
+`96f4d78a04428645286eac2ff525f2b2adbb58a52284c5ea9f94af379aab9959`).
+It matched all twenty exact attributes/outputs between complete validation and
+independent graph realization, with no missing obligations or failures. The
+comparison took 511.762 seconds. The ordinary flake workflow passed too. Required
+boot evidence was verified-retained against exact media/verifier identity; this
+does not claim that the PR executed a new VM boot. #212/#213 protected queue CI
+subsequently passed. Final-main qualification and normal CI for this change still
+must pass before treating the new producer contract as admitted evidence.
 
-Observe one agreed PR/merge-group validation cycle on matching source revisions.
-The cutover checklist is:
+## Explicit evidence transition
 
-- Product builds and the named tests pass on the compared revision; existing
-  required ISO boot qualification also passes.
-- Classify all twenty existing validation obligations as retained product
-  checks, replacement checks, or explicitly approved controller-only removals.
-  This selected workflow does not claim complete parity on its own.
-- Keep every unexplained failure or coverage omission blocking the migration.
+The producer now emits a version 2 `ci-result.json` with
+`validationMode: complete-audit`, exact full-audit/reference hashes, and successful
+audit/qualification/scan results. Before emitting it, the existing bound-reference
+validator checks all twenty results, exact output identities, zero failures,
+producer/run/attempt and graph/plan hashes. The signed result does not claim a
+comparison job ran. The duplicate realization job and its artifacts are removed;
+the original complete audit manifest/timings remain for diagnostics.
 
-After that cycle, the next reviewed cutover should replace redundant `ci.yml`
-routing/comparison/equivalence/retained-evidence work with ordinary checks/builds
-and a stable required verdict, preserving actual product assertions and boot
-coverage. Delete `flake-checks.yml` in that same cutover; reuse its small native
-task only if it becomes the ordinary validation entry point. Do not extend the
-parallel trial into a permanent second gate or add a proof/benchmark controller.
-If parity fails, remove the temporary workflow and fix the named gap before
-another specifically agreed trial. Publication/admission and required-review
-changes are later stages with their own explicit security-guarantee decisions.
+Current signing and verdict require that explicit version 2 contract. Native
+consumers recognize it strictly; historical version 1 proofs, including original
+executed boot, retain their original requirement that comparison actually passed.
+No skipped comparison is relabeled success. The full-flake pass is required
+before the twenty-target receipt; evaluation-only `--no-build` is not used. Missing/mismatched full-audit proofs,
+interrupted tests, stale attempts, scanner failures, boot substitutions and
+integrity/freshness failures remain rejection cases.
+
+The intentional guarantee delta is retirement of the independent routing
+experiment after recorded parity. A second runner no longer reexecutes the same
+checks as additional defense against a compromised first runner; the pipeline
+relies on one trusted GitHub build/audit and its verified signed provenance.
+This is ordinary CI trust, not a claim that builder compromise is impossible.
+It is not removal of product/security tests.
+The twenty obligations include metadata, CLI, evaluation, workflow/devenv/shell
+contracts, automation/qualification/release fixtures, secretspec, operator and
+repository policy, configuration, plan contracts, security fixtures, the runtime
+security VM, Packer policy and source security. Additional flake checks such as generated-flake consistency, graph fixtures and
+bootstrap/template wrappers are retained by the full-flake pass. Dependency
+checks such as XO
+file-restore/storage fixtures and the evidence-phase SBOM runtime test remain
+covered by their existing derivation/job dependencies. Do not replace the real
+installer boot contract with an ISO build.
+
+Graph routing and historical publication consumers are separate staged work;
+this change does not activate native publication or delete historical records.
+The obsolete comparison command can be removed with the remaining graph/controller
+consumers after their reference checks, rather than inventing another controller.

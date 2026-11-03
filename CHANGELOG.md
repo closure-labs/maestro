@@ -11,6 +11,11 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Validate the complete twenty-check plan once in required CI, retire the
+  temporary parallel flake/comparison experiment after recorded parity, and
+  bind signed version 2 results to the original complete audit. Keep strict
+  historical proof validation, installer boot, scanners and publication policy.
+
 - Prepare inactive native release asset staging with exact signed ISO/boot
   identity checks, authenticated SBOM reuse and verified existing installer
   splitting; add no public writer, workflow caller or risk acceptance.

@@ -153,8 +153,12 @@ class ConsolidatedWorkflow(unittest.TestCase):
             self.assertNotIn('scan', jobs[name]['needs'])
         for name in ('security', 'signing'):
             self.assertIn("needs.qualification.outputs.scan_result == 'success'", jobs[name]['if'])
-        self.assertIn('comparison', jobs['security']['needs'])
-        self.assertIn('comparison', jobs['verdict']['needs'])
+        for name in ('security','verdict'):
+            self.assertIn('audit',jobs[name]['needs'])
+            self.assertNotIn('comparison',jobs[name]['needs'])
+        binding=next(s for s in jobs['security']['steps'] if s.get('id')=='bound_result')
+        self.assertEqual(binding['env']['AUDIT_REFERENCE_SHA256'],'${{ needs.audit.outputs.reference_sha256 }}')
+        self.assertNotIn('COMPARISON_RESULT',binding['env'])
         diagnostic = next(s for s in steps if s.get('with', {}).get('name') == 'maestro-qualification-diagnostics')
         self.assertEqual(diagnostic['if'], 'always()')
         self.assertGreater(steps.index(diagnostic), steps.index(scan))
