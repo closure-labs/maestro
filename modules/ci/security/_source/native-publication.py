@@ -4,6 +4,7 @@
 import argparse
 import base64
 from collections import Counter
+from contextlib import contextmanager
 import importlib.util
 import json
 import os
@@ -34,6 +35,7 @@ KEY = 'maestro.cachix.org-1:fGFZFVwe2ZHEBENWZLHVzERZrz2c50ru+g0UewH68I0='
 RISK_POLICY_FILES=(
     '.github/CODEOWNERS', '.github/workflows/publication.yml',
     '.github/workflows/consumer-probe.yml',
+    '.github/workflows/release.yml', '.github/workflows/release-publication.yml',
     'modules/ci/authority/_source/decision-policy.json',
     'modules/ci/security/_source/security-policy.json',
     'modules/ci/security/_source/native-risk.py',
@@ -47,6 +49,9 @@ RISK_POLICY_FILES=(
     'modules/ci/security/_source/security-normalize.py',
     'modules/ci/security/_source/security-scan.sh',
     'modules/release/publication/_source/native-release-stage.py',
+    'modules/release/publication/_source/native-release-publish.py',
+    'modules/release/publication/_source/publication-assets.py',
+    'modules/release/publication/_source/release-attestations.sh',
     'modules/release/publication/_source/release-split.sh',
 )
 
@@ -125,7 +130,7 @@ def store_metadata(paths):
             return json.load(out)
 
 
-def consume(bundle, policy_path, operation, transport=None, execute=native.operations.run, probe=None, restore=None, inspect=None, query=store_metadata):
+def consume(bundle, policy_path, operation, transport=None, execute=native.operations.run, probe=None, restore=None, inspect=None, query=store_metadata, release=None):
     require(bundle.get('inventoryOnly') is not True, 'Inventory identity is not current publication health')
     policy_digest = native.file_hash(policy_path)
     fresh(bundle, policy_path, policy_digest)
@@ -148,6 +153,10 @@ def consume(bundle, policy_path, operation, transport=None, execute=native.opera
         raise MandatoryVerdictError(outcome)
     if operation == 'check':
         return dict(status='native-policy-clear', authorization=False, publicationReady=False, verdict=outcome)
+    if operation == 'release':
+        require(isinstance(release,dict) and set(release)=={'directory','iso'}, 'Exact staged release inputs required')
+        writer=module('native_release_writer','MAESTRO_NATIVE_RELEASE_WRITER_SOURCE','../../../release/publication/_source/native-release-publish.py')
+        return dict(writer.publish(bundle,release['directory'],release['iso'],policy_path),verdict=outcome)
     if probe is None:
         reader = module('native_consumer_probe', 'MAESTRO_NATIVE_CONSUMER_SOURCE', '../../../release/consumer/_source/consumer-probe.py')
         probe = reader.probe
@@ -202,6 +211,32 @@ def consume(bundle, policy_path, operation, transport=None, execute=native.opera
     return dict(result, verdict=outcome)
 
 
+@contextmanager
+def selected(directory,run,attempt,revision,origin=None,*,policy_revision=None,
+             health_run=None,health_attempt=None,health_directory=None):
+    """Share one exact original/fresh evidence selection across native consumers."""
+    require(policy_revision is None or re.fullmatch(r'[0-9a-f]{40}',policy_revision),'Exact explicit policy revision required')
+    require((health_run is None)==(health_attempt is None),'Complete exact fresh-health producer required')
+    require(health_directory is None or health_run is not None,'Fresh-health directory needs exact producer')
+    loader=module('native_stage','MAESTRO_NATIVE_STAGE_SOURCE','native-stage.py')
+    if directory is None:
+        directory=Path(os.environ['RUNNER_TEMP'])/'native-candidate'
+        (loader.stage_refresh if health_run is not None else loader.stage)(directory,run,attempt,revision,origin)
+    policy=Path(os.environ['MAESTRO_NATIVE_PREPARE_POLICY'])
+    if health_run is None:
+        with native.verified_bundle(directory,run,attempt,revision,policy,origin,publication=True,
+                policy_revision=policy_revision) as bundle:yield bundle
+    else:
+        fetch=None
+        if health_directory is None:
+            health_directory=Path(os.environ['RUNNER_TEMP'])/'native-health'
+            fetch=lambda health_revision:loader.stage_health(health_directory,health_run,health_revision)
+        health=module('native_health','MAESTRO_NATIVE_HEALTH_SOURCE','native-health.py')
+        with native.verified_inventory(directory,run,attempt,revision,policy,origin,policy_revision=policy_revision) as original:
+            with health.verified(original,health_directory,health_run,health_attempt,native.common.config(policy),fetch=fetch) as bundle:
+                yield bundle
+
+
 def emit(result, error=False):
     value = json.dumps(result, sort_keys=True)
     target = os.environ.get('NATIVE_RESULT_FILE')
@@ -216,8 +251,9 @@ def emit(result, error=False):
 
 def main():
     cli = argparse.ArgumentParser(description=__doc__)
-    cli.add_argument('operation', choices=('check', 'probe', 'publish'))
+    cli.add_argument('operation', choices=('check', 'probe', 'publish', 'release'))
     cli.add_argument('--directory', type=Path)
+    cli.add_argument('--release-directory',type=Path);cli.add_argument('--release-iso',type=Path)
     cli.add_argument('--run', type=int, required=True); cli.add_argument('--attempt', type=int, required=True)
     cli.add_argument('--revision', required=True); cli.add_argument('--transport-directory', type=Path)
     cli.add_argument('--policy-revision', help='Explicit current main policy; does not change product identity')
@@ -226,33 +262,19 @@ def main():
     cli.add_argument('--boot-origin-run', type=int); cli.add_argument('--boot-origin-attempt', type=int)
     cli.add_argument('--boot-origin-revision'); args = cli.parse_args()
     require(args.policy_revision is None or re.fullmatch(r'[0-9a-f]{40}',args.policy_revision), 'Exact explicit policy revision required')
+    release=dict(directory=args.release_directory,iso=args.release_iso) if args.operation=='release' else None
+    require((args.operation=='release' and all(v is not None for v in (args.release_directory,args.release_iso)))
+        or (args.operation!='release' and args.release_directory is None and args.release_iso is None), 'Complete release-only inputs required')
     origin = (args.boot_origin_run, args.boot_origin_attempt, args.boot_origin_revision)
     require(all(v is None for v in origin) or all(v is not None for v in origin), 'Complete explicit boot origin required')
     origin = None if all(v is None for v in origin) else origin
     require((args.health_run is None) == (args.health_attempt is None), 'Complete exact fresh-health producer required')
     require(args.health_directory is None or args.health_run is not None, 'Fresh-health directory needs exact producer')
-    with native.operations.budget(3300):
-        directory = args.directory
-        stage = module('native_stage', 'MAESTRO_NATIVE_STAGE_SOURCE', 'native-stage.py')
-        if directory is None:
-            directory = Path(os.environ['RUNNER_TEMP']) / 'native-candidate'
-            (stage.stage_refresh if args.health_run is not None else stage.stage)(directory, args.run, args.attempt, args.revision, origin)
-        policy = Path(os.environ['MAESTRO_NATIVE_PREPARE_POLICY'])
-        if args.health_run is None:
-            with native.verified_bundle(directory, args.run, args.attempt, args.revision, policy, origin, publication=True, policy_revision=args.policy_revision) as bundle:
-                result = consume(bundle, Path(os.environ['MAESTRO_NATIVE_SECURITY_POLICY']), args.operation, args.transport_directory)
-        else:
-            health_directory = args.health_directory
-            fetch=None
-            if health_directory is None:
-                health_directory = Path(os.environ['RUNNER_TEMP']) / 'native-health'
-                fetch=lambda health_revision:stage.stage_health(health_directory,args.health_run,health_revision)
-            health = module('native_health', 'MAESTRO_NATIVE_HEALTH_SOURCE', 'native-health.py')
-            with native.verified_inventory(directory, args.run, args.attempt, args.revision, policy, origin,
-                    policy_revision=args.policy_revision) as original:
-                with health.verified(original, health_directory, args.health_run, args.health_attempt, native.common.config(policy),fetch=fetch) as bundle:
-                    result = consume(bundle, Path(os.environ['MAESTRO_NATIVE_SECURITY_POLICY']), args.operation, args.transport_directory)
-                    result['healthProducer']=bundle['healthManifest']['producer']
+    with native.operations.budget(3300),selected(args.directory,args.run,args.attempt,args.revision,origin,
+            policy_revision=args.policy_revision,health_run=args.health_run,health_attempt=args.health_attempt,
+            health_directory=args.health_directory) as bundle:
+        result=consume(bundle,Path(os.environ['MAESTRO_NATIVE_SECURITY_POLICY']),args.operation,args.transport_directory,release=release)
+        if args.health_run is not None:result['healthProducer']=bundle['healthManifest']['producer']
     result.update(authorization=False, sourceRevision=args.revision, sourceRun=args.run, sourceAttempt=args.attempt)
     if args.policy_revision is not None:result['policyRevision']=args.policy_revision
     emit(result)

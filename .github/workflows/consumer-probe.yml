@@ -14,7 +14,7 @@ on:
         type: string
         default: '1'
       native_revision:
-        description: Full current-main source SHA
+        description: Full exact qualified product source SHA
         type: string
         default: ''
       native_health_run:
@@ -107,6 +107,7 @@ jobs:
           NATIVE_HEALTH_ATTEMPT: ${{ inputs.native_health_attempt }}
           NATIVE_ATTEMPT: ${{ inputs.native_attempt }}
           NATIVE_REVISION: ${{ inputs.native_revision }}
+          NATIVE_POLICY_REVISION: ${{ github.sha }}
           NATIVE_BOOT_ORIGIN_RUN: ${{ inputs.native_boot_run }}
           NATIVE_BOOT_ORIGIN_ATTEMPT: ${{ inputs.native_boot_attempt }}
           NATIVE_BOOT_ORIGIN_REVISION: ${{ inputs.native_boot_revision }}

@@ -7,11 +7,15 @@ on:
   workflow_dispatch:
     inputs:
       native_refresh:
-        description: Trial one exact-current-main native inventory refresh; no publication or risk acceptance
+        description: Trial one exact immutable native inventory refresh; no publication or risk acceptance
         type: boolean
         default: false
       native_run:
-        description: Exact successful current-main CI producer
+        description: Exact successful CI producer of the selected immutable native product
+        type: string
+        default: ''
+      native_revision:
+        description: Exact qualified product source SHA; empty retains current-main source selection
         type: string
         default: ''
       native_attempt:
@@ -154,7 +158,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           NATIVE_RUN: ${{ inputs.native_run }}
           NATIVE_ATTEMPT: ${{ inputs.native_attempt }}
-          NATIVE_REVISION: ${{ github.sha }}
+          NATIVE_REVISION: ${{ inputs.native_revision || github.sha }}
+          NATIVE_POLICY_REVISION: ${{ github.sha }}
           NATIVE_BOOT_ORIGIN_RUN: ${{ inputs.native_boot_run }}
           NATIVE_BOOT_ORIGIN_ATTEMPT: ${{ inputs.native_boot_attempt }}
           NATIVE_BOOT_ORIGIN_REVISION: ${{ inputs.native_boot_revision }}

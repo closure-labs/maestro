@@ -115,6 +115,10 @@ correspond to published GitHub tags.
 
 ### Fixed
 
+- Reuse the native exact original/fresh evidence selector in inactive release
+  staging, allowing fresh health for unchanged artifacts without rebuilding
+  them or accepting unreviewed findings.
+
 - Reject ambiguous security decision graphs before authenticating superseded
   history. Keep historical provenance, current approval and final ledger refresh
   mandatory for otherwise valid graphs; conflicting decisions need reconciliation.
@@ -135,6 +139,13 @@ correspond to published GitHub tags.
 ## [3.2.0] - 2026-10-27
 
 ### Added
+
+- Pass exact immutable product and protected current policy revisions separately
+  in existing gated native consumers and manual read-only refresh.
+
+- Prepare an inactive native versioned release writer that reuses exact asset
+  reconciliation after mandatory findings review and ISO/SBOM/provenance checks,
+  without historical ledger admission or activating a caller.
 
 - Add a feature navigation map and evaluated CI graph so contributors can find
   each feature's policy, implementation, tests, and delivery outputs together.

@@ -24,7 +24,7 @@ in {
   native-publication = mkCommand {
     name = "native-publication";
     prefix = import ./native-context.nix {inherit publicCacheWorker;};
-    runtimeInputs = commonInputs ++ [pkgs.python3 pkgs.cachix pkgs.curl];
+    runtimeInputs = commonInputs ++ [pkgs.python3 pkgs.cachix pkgs.curl commands.release-attestations];
     source = ../_source/native-publication.sh;
   };
   native-prepare = mkCommand {

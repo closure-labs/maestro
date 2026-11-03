@@ -190,3 +190,107 @@ This is not a compatibility waiver for old official releases lacking complete
 original native proof. The full native versioned-release writer and cold public
 consumer still require reviewed wiring and validation; no settings or writers
 are activated here.
+
+
+### Inactive native versioned writer
+
+`release:native:publish` is a declared task with no workflow caller. It uses the
+native publisher's mandatory findings verdict and requires
+`MAESTRO_NATIVE_RELEASE_ENABLED=true` in a protected-main manual workflow at the
+explicit current policy revision. The flag defaults false; this source addition
+changes no repository variable, environment, credential, permission or writer.
+
+Inputs are the exact verified original/fresh-health evidence selection plus
+`NATIVE_RELEASE_DIRECTORY` and `NATIVE_RELEASE_ISO`. The staging receipt is only
+data: the writer independently checks the product source/run/attempt, VERSION,
+current policy, exact allowed assets, part sequence, joined ISO digest against
+authenticated boot proof, checksums, and expanded SPDX/CycloneDX bytes against
+the signed original inventory. It never regenerates a bill of materials or
+re-exports a closure. A verified inventory without fresh health still rejects.
+
+The existing `release:attestations` verifier must successfully verify both SLSA
+provenance and the entire SPDX predicate for the exact final ISO filename,
+digest and protected-main release-workflow source. Metadata or a staging receipt
+does not substitute for ISO-byte or cryptographic verification. Private asset
+snapshots prevent source-path changes between verification and upload. The
+versioned ISO is verified at its exact original path, never copied or uploaded as
+an extra full asset;
+existing split parts/SBOM/checksum contracts remain unchanged.
+
+After these checks, the existing `publication-assets.reconcile` operations
+reserve the exact product tag, create/resume a draft, reject conflicting or
+unexpected assets, upload only missing verified bytes, perform complete hosted
+readback and publish. Its authorization callback is native main/policy/evidence
+freshness plus the live dedicated findings-risk review. No historical graph,
+OCI packet, journal branch, reconciliation dispatcher or live custom admin
+approval is invoked. An uncertain upload is resolved by the existing exact
+remote inventory/digest readback before any new upload; no automatic retry is
+added. Nonzero attestation/upload/readback failures propagate.
+
+A private copy adds at most the 32 GiB ISO-part bound plus 256 MiB compressed
+metadata, with an additional 256 MiB free-space reserve checked before copying. A bounded
+private copy of the original SPDX document (at most 64 MiB) fits in that reserve;
+no hardlink across the bundle/asset filesystems is required.
+It adds no ISO/closure network handoff, but it does add local disk I/O. Only tiny
+real-subprocess fixtures have run: production peak disk/RSS, full-size SPDX
+attestation memory, hosted readback and idempotent interrupted upload still need
+an explicit nonpublishing hosted trial. These fixtures do not establish runner
+headroom. The standard verifier retains its current timeout/resource behavior;
+this change does not silently loosen it.
+
+Activation remains blocked on independent exact-head review, reliable
+reviewer-loss/reapproval continuity, sole-maintainer-compatible protections and
+the actual fresh cryptographic trial after the boot-origin correction. Existing
+current-access checks cannot detect an unobserved removal followed by restoration.
+GitHub's documented audit API requires organization Administration read and
+GitHub Enterprise Cloud availability; neither that permission nor capability is
+established by the current repository-scoped token. No grant, new credential or
+audit controller is added here. A history backend must demonstrate complete
+effective-access transitions and reject missing/truncated/denied evidence;
+current permission or a merely empty audit response is not proof of continuity.
+
+The remaining caller migration should preserve the existing release producer's
+read/provenance role and publisher's contents-write role. Do not consolidate
+those credentials into one job merely to avoid a native artifact handoff. A
+reviewed exact producer/artifact handoff, final-name signing, cold public reader
+and disabled legacy writers are still prerequisites; this helper alone does not
+complete or activate the cutover. No vulnerability findings are accepted.
+
+Sources: [GitHub organization audit API](https://docs.github.com/en/enterprise-cloud@latest/rest/orgs/orgs#get-the-audit-log-for-an-organization),
+[audit API availability](https://docs.github.com/en/organizations/keeping-your-organization-secure/managing-security-settings-for-your-organization/reviewing-the-audit-log-for-your-organization#using-the-audit-log-api).
+
+
+### Caller preparation for the explicit source/policy split
+
+The existing disabled native cache writer and read-only cache probe pass their
+explicit product `native_revision` separately from protected workflow
+`github.sha` as the policy revision. Their enabling conditions and permissions
+are unchanged. The manually requested read/sign-only native refresh accepts the
+same explicit product revision; its empty default keeps current-main product
+selection. Its signer/policy source remains the exact workflow revision, and the
+verifier rejects main drift or a nonancestor product. No schedule starts native
+mode, no workflow calls the new versioned writer, and no live setting is enabled.
+This allows later policy/findings-review commits and fresh scans without
+rebuilding or regenerating the bill of materials for the immutable product.
+
+
+### Fresh health during release staging
+
+The unused release stager accepts the same explicit `NATIVE_HEALTH_RUN`,
+`NATIVE_HEALTH_ATTEMPT` and optional local `NATIVE_HEALTH_DIRECTORY` as the native
+publisher. Both use one existing-evidence selection function: authenticate the
+original immutable inventory/CI/boot first, then the independent fresh scanner
+proof, current policy, exact input hashes and complete coverage. No health
+producer is selected implicitly. Without a health tuple, the original strict
+current-health path remains. Missing/partial identities, forged or expired
+proofs and changed inputs still fail before ISO operations.
+
+A bounded real CLI fixture starts from a 31-day-old original inventory, applies
+fresh independently signed-shaped health under a later current policy, and runs
+the actual ISO splitter. It then rejects missing health and unaccepted critical
+findings before reading a nonexistent ISO. The synthetic verifier outputs test
+the command contract, not real cryptographic attestations. No rebuild, SBOM
+regeneration, network trial or actual acceptance occurs. The staging receipt
+records the exact fresh producer and remains authorization/publicationReady
+false. The versioned release workflow caller remains unwired and disabled;
+existing live policies and writers are unchanged.

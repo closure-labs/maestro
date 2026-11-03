@@ -104,6 +104,7 @@ def stage(bundle,iso,media,output,version,policy_path,execute=native.operations.
             mediaProducer=dict(runId=media[0],runAttempt=media[1],revision=media[2]),version=version,tag=tag,
             isoSha256=digest,isoBytesVerified=True,narBytesVerified=False,assets=assets,verdict=outcome['verdict'])
         if 'policyRevision' in bundle['receipt']:receipt['policyRevision']=bundle['receipt']['policyRevision']
+        if 'healthManifest' in bundle:receipt['healthProducer']=bundle['healthManifest']['producer']
         if final_iso is not None:
             receipt['versionedIso']=dict(filename=final_iso.name,sha256=digest,size=frozen.stat().st_size,
                 requiresFinalNameAttestation=True)
@@ -131,6 +132,7 @@ def main():
     cli.add_argument('--run',type=int,required=True);cli.add_argument('--attempt',type=int,required=True);cli.add_argument('--revision',required=True)
     cli.add_argument('--media-run',type=int,required=True);cli.add_argument('--media-attempt',type=int,required=True);cli.add_argument('--media-revision',required=True)
     cli.add_argument('--version',required=True);cli.add_argument('--output',type=Path,required=True)
+    cli.add_argument('--health-run',type=int);cli.add_argument('--health-attempt',type=int);cli.add_argument('--health-directory',type=Path)
     cli.add_argument('--policy-revision',help='Explicit current main policy for this exact qualified product')
     cli.add_argument('--final-iso',type=Path,help='Keep verified versioned ISO sibling for subsequent native GitHub attestation; no publication')
     cli.add_argument('--boot-origin-run',type=int);cli.add_argument('--boot-origin-attempt',type=int);cli.add_argument('--boot-origin-revision')
@@ -138,8 +140,9 @@ def main():
     native.require(args.policy_revision is None or re.fullmatch(r'[0-9a-f]{40}',args.policy_revision),'Exact explicit policy revision required')
     native.require(all(v is None for v in origin) or all(v is not None for v in origin),'Complete original boot tuple required')
     origin=None if all(v is None for v in origin) else origin
-    with native.operations.budget(3300),native.verified_bundle(args.directory,args.run,args.attempt,args.revision,
-        Path(os.environ['MAESTRO_NATIVE_PREPARE_POLICY']),origin,publication=True,policy_revision=args.policy_revision) as bundle:
+    with native.operations.budget(3300),publication.selected(args.directory,args.run,args.attempt,args.revision,origin,
+        policy_revision=args.policy_revision,health_run=args.health_run,health_attempt=args.health_attempt,
+        health_directory=args.health_directory) as bundle:
         result=stage(bundle,args.iso,(args.media_run,args.media_attempt,args.media_revision),args.output,args.version,Path(os.environ['MAESTRO_NATIVE_SECURITY_POLICY']),final_iso=args.final_iso)
     print(json.dumps(result,sort_keys=True))
 

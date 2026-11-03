@@ -16,4 +16,9 @@ fi
 if [[ -n ${NATIVE_POLICY_REVISION:-} ]]; then
   args+=(--policy-revision "$NATIVE_POLICY_REVISION")
 fi
+if [[ -n ${NATIVE_RELEASE_DIRECTORY:-} ]]; then
+  args+=(--release-directory "$NATIVE_RELEASE_DIRECTORY" --release-iso "${NATIVE_RELEASE_ISO:?}")
+else
+  [[ -z ${NATIVE_RELEASE_ISO:-} ]]
+fi
 exec python3 "$MAESTRO_NATIVE_PUBLICATION_SOURCE" "${args[@]}"
