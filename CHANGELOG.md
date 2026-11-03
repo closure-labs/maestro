@@ -11,6 +11,12 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Stage native cache publication and public-consumer inputs behind a disabled
+  manual cutover switch; enforce authenticated vulnerability verdicts regardless
+  of report mode, permit only separately explicit independent human findings-risk
+  acceptance of exact high/critical scopes, retain complete provenance/coverage/boot and cache-byte checks,
+  and declare standard human-review protections for separately coordinated activation.
+
 - Prepare inactive native evidence compatibility with bounded large-report
   parsing, one exact original executed-boot proof and an explicit signed
   ISO/inventory binding; keep publication policy and consumer wiring unchanged.

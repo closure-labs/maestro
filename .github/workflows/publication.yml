@@ -6,6 +6,30 @@ on:
     types: [completed]
   workflow_dispatch:
     inputs:
+      native_run:
+        description: Exact successful current-main CI producer for native publication
+        type: string
+        default: ''
+      native_attempt:
+        description: Exact native producer attempt
+        type: string
+        default: '1'
+      native_revision:
+        description: Full current-main source SHA
+        type: string
+        default: ''
+      native_boot_run:
+        description: Exact original executed-boot run, when boot was retained
+        type: string
+        default: ''
+      native_boot_attempt:
+        description: Exact original executed-boot attempt
+        type: string
+        default: ''
+      native_boot_revision:
+        description: Full original executed-boot source SHA
+        type: string
+        default: ''
       candidate_run:
         description: Completed protected candidate run; with proposal_hash use its exact fresh Security maintenance run
         type: string
@@ -44,7 +68,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   publish:
-    if: github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.repository.full_name == github.repository && contains(fromJSON('["push","schedule","workflow_dispatch","workflow_run"]'), github.event.workflow_run.event)))
+    if: vars.MAESTRO_NATIVE_PUBLICATION_ENABLED != 'true' && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.repository.full_name == github.repository && contains(fromJSON('["push","schedule","workflow_dispatch","workflow_run"]'), github.event.workflow_run.event)))
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     environment: publication
@@ -178,4 +202,49 @@ jobs:
           name: maestro-publication-diagnostics-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/publication-diagnostics/
           if-no-files-found: error
+          retention-days: 30
+
+  native_publish:
+    if: vars.MAESTRO_NATIVE_PUBLICATION_ENABLED == 'true' && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.native_run != '' && inputs.native_revision != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: publication
+    permissions:
+      actions: read
+      attestations: read
+      pull-requests: read
+      contents: read
+    steps:
+      - name: Monitor hosted runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2
+        with:
+          egress-policy: audit
+      - name: Checkout protected native controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Set up Nix
+        uses: $/.github/actions/setup-nix
+      - name: Enforce native policy before any restore or selected cache write
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NATIVE_RESULT_FILE: ${{ runner.temp }}/native-publication-result.json
+          MAESTRO_NATIVE_PUBLICATION_ENABLED: ${{ vars.MAESTRO_NATIVE_PUBLICATION_ENABLED }}
+          NATIVE_RUN: ${{ inputs.native_run }}
+          NATIVE_ATTEMPT: ${{ inputs.native_attempt }}
+          NATIVE_REVISION: ${{ inputs.native_revision }}
+          NATIVE_BOOT_ORIGIN_RUN: ${{ inputs.native_boot_run }}
+          NATIVE_BOOT_ORIGIN_ATTEMPT: ${{ inputs.native_boot_attempt }}
+          NATIVE_BOOT_ORIGIN_REVISION: ${{ inputs.native_boot_revision }}
+          CACHIX_MAESTRO_AUTH_TOKEN: ${{ secrets.CACHIX_MAESTRO_AUTH_TOKEN }}
+          CACHIX_MAESTRO_PUBKEY: ${{ vars.CACHIX_MAESTRO_PUBKEY }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:native:publication
+      - name: Retain bounded native consumer receipt
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-native-consumer-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-publication-result.json
+          if-no-files-found: ignore
           retention-days: 30

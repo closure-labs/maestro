@@ -5,6 +5,30 @@ on:
     - cron: "23 10 * * 0"
   workflow_dispatch:
     inputs:
+      native_run:
+        description: Exact successful current-main CI producer
+        type: string
+        default: ''
+      native_attempt:
+        description: Exact producer attempt
+        type: string
+        default: '1'
+      native_revision:
+        description: Full current-main source SHA
+        type: string
+        default: ''
+      native_boot_run:
+        description: Exact original executed-boot run
+        type: string
+        default: ''
+      native_boot_attempt:
+        description: Exact original executed-boot attempt
+        type: string
+        default: ''
+      native_boot_revision:
+        description: Full original executed-boot source SHA
+        type: string
+        default: ''
       proposal_hash:
         description: Exact active accepted product proposal; empty selects the newest
         type: string
@@ -16,7 +40,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   consumer:
-    if: github.ref == 'refs/heads/main'
+    if: vars.MAESTRO_NATIVE_PUBLICATION_ENABLED != 'true' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
@@ -46,5 +70,42 @@ jobs:
         with:
           name: maestro-decision-byte-reuse-${{ github.job }}
           path: ${{ runner.temp }}/decision-git-blobs/*/observations.jsonl
+          if-no-files-found: ignore
+          retention-days: 30
+
+  native_consumer:
+    if: vars.MAESTRO_NATIVE_PUBLICATION_ENABLED == 'true' && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.native_run != '' && inputs.native_revision != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    permissions:
+      actions: read
+      attestations: read
+      pull-requests: read
+      contents: read
+    steps:
+      - name: Checkout protected native consumer
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Set up Nix
+        uses: $/.github/actions/setup-nix
+      - name: Verify exact native policy and cold selected public bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NATIVE_RESULT_FILE: ${{ runner.temp }}/native-publication-result.json
+          NATIVE_RUN: ${{ inputs.native_run }}
+          NATIVE_ATTEMPT: ${{ inputs.native_attempt }}
+          NATIVE_REVISION: ${{ inputs.native_revision }}
+          NATIVE_BOOT_ORIGIN_RUN: ${{ inputs.native_boot_run }}
+          NATIVE_BOOT_ORIGIN_ATTEMPT: ${{ inputs.native_boot_attempt }}
+          NATIVE_BOOT_ORIGIN_REVISION: ${{ inputs.native_boot_revision }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:native:probe
+      - name: Retain bounded native consumer receipt
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-native-consumer-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-publication-result.json
           if-no-files-found: ignore
           retention-days: 30
