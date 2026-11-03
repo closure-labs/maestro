@@ -36,12 +36,12 @@ class Risk(unittest.TestCase):
         if path=='actions/runs/123/approvals':return self.reviews
         if path=='collaborators/human/permission':return self.permission
         return self.case.api(path)
-    def plan(self):return risk.plan(self.bundle,self.case.findings,self.files,self.api,'publish')
-    def state(self):
-        value=self.plan()
+    def plan(self,operation='publish'):return risk.plan(self.bundle,self.case.findings,self.files,self.api,operation)
+    def state(self,operation='publish'):
+        value=self.plan(operation)
         self.env['NATIVE_FINDINGS_CONTEXT_SHA256']=value['contextSha256']
         os.environ['NATIVE_FINDINGS_CONTEXT_SHA256']=value['contextSha256']
-        value['rebuild']=lambda:risk.context(self.bundle,self.case.findings,self.files,'publish',123)
+        value['rebuild']=lambda:risk.context(self.bundle,self.case.findings,self.files,operation,123)
         return value
     def test_explicit_environment_review_accepts_exact_high_critical_for_only_one_run(self):
         with patch.dict(os.environ,self.env):
@@ -143,6 +143,7 @@ class Risk(unittest.TestCase):
         self.assertNotIn('secrets.',json.dumps(before))
         review_step=next(s for s in before['steps'] if s.get('id')=='review')
         self.assertIn('ci:native:review',review_step['run'])
+        self.assertIn('inputs.native_qualification_only != true',review_step['if'])
         self.assertNotIn('ci:native:publication',review_step['run'])
         step=next(s for s in writer['steps'] if 'NATIVE_FINDINGS_CONTEXT_SHA256' in s.get('env',{}))
         self.assertEqual(step['env']['NATIVE_FINDINGS_CONTEXT_SHA256'],'${{ needs.native_review.outputs.context_sha256 }}')
@@ -157,6 +158,70 @@ class Risk(unittest.TestCase):
         self.assertIn('high/critical',value['notice'])
         self.assertEqual(value['rawFindings'],self.case.findings)
         self.assertNotIn('actions/runs/123/approvals',self.calls)
+
+    def test_qualification_uses_real_gate_without_accepting_risk_or_destination_calls(self):
+        root=self.case.case.root;(root/'.github').mkdir();(root/'.github/CODEOWNERS').write_text('* @human\n')
+        self.files={'.github/CODEOWNERS':root/'.github/CODEOWNERS'}
+        def forbidden(*a,**k):self.fail('Qualification invoked a destination')
+        with patch.dict(os.environ,self.env),patch.object(pub,'RISK_POLICY_FILES',tuple(self.files)),patch.object(pub.native,'api',side_effect=self.api):
+            self.state('qualify')
+            result=pub.consume(self.bundle,self.case.policy_path,'qualify',execute=forbidden,restore=forbidden,probe=forbidden,inspect=forbidden)
+            self.assertEqual(result['status'],'nonpublishing-findings-gate-qualified')
+            self.assertEqual(result['verdict']['status'],'blocked')
+            for key in ('authorization','publicationReady','findingsAccepted'):self.assertFalse(result[key])
+            self.assertEqual(result['review']['kind'],'nonpublishing-findings-gate-qualification')
+            with self.assertRaises(ValueError):pub.consume(self.bundle,self.case.policy_path,'publish',execute=forbidden,inspect=forbidden)
+
+    def test_missing_or_changed_review_blocks_qualification(self):
+        root=self.case.case.root;(root/'.github').mkdir();(root/'.github/CODEOWNERS').write_text('* @human\n')
+        self.files={'.github/CODEOWNERS':root/'.github/CODEOWNERS'}
+        with patch.dict(os.environ,self.env),patch.object(pub,'RISK_POLICY_FILES',tuple(self.files)),patch.object(pub.native,'api',side_effect=self.api):
+            self.state('qualify');self.reviews=[]
+            with self.assertRaises(ValueError):pub.consume(self.bundle,self.case.policy_path,'qualify')
+            self.bundle.pop('_riskAcceptance',None);self.reviews=self.case.api('actions/runs/123/approvals')
+            self.state('qualify');self.case.findings[0]['version']='changed'
+            self.bundle=self.case.bundle();self.bundle['normalizedFindings']=[dict(identity='x',severity='High')]
+            with self.assertRaises(ValueError):pub.consume(self.bundle,self.case.policy_path,'qualify')
+
+    def test_manual_qualification_cannot_reach_either_writer_or_writer_credentials(self):
+        import subprocess
+        data=json.loads(subprocess.run(['yq','-o=json','.',str(fixture.ROOT/'.github/workflows/publication.yml')],
+            capture_output=True,text=True,check=True,timeout=10).stdout)
+        self.assertFalse(data['on']['workflow_dispatch']['inputs']['native_qualification_only']['default'])
+        self.assertIn('maestro-publication-qualification',data['concurrency']['group'])
+        self.assertIn("|| 'maestro-publication'",data['concurrency']['group'])
+        for name in ('publish','native_publish'):
+            self.assertIn('inputs.native_qualification_only != true',data['jobs'][name]['if'])
+        job=data['jobs']['native_qualify'];encoded=json.dumps(job)
+        self.assertIn('inputs.native_qualification_only == true',job['if'])
+        self.assertIn("github.event_name == 'workflow_dispatch'",job['if'])
+        self.assertIn("github.ref == 'refs/heads/main'",job['if'])
+        self.assertEqual(job['needs'],'native_review');self.assertEqual(job['environment']['name'],risk.ENVIRONMENT)
+        self.assertEqual(set(job['permissions'].values()),{'read'})
+        for forbidden in ('secrets.','CACHIX','DECIDER','release:native:publish','ci:native:publication'):
+            self.assertNotIn(forbidden,encoded)
+        self.assertIn('ci:native:qualify',encoded)
+
+    def test_literal_tasks_and_exact_production_queue_match_repository_contract(self):
+        import subprocess,re
+        path=fixture.ROOT/'.github/workflows/publication.yml'
+        data=json.loads(subprocess.run(['yq','-o=json','.',str(path)],capture_output=True,text=True,check=True,timeout=10).stdout)
+        contract=json.loads((fixture.ROOT/'modules/ci/checks/_lib/repository-rules.json').read_text())
+        rule=next(r for r in contract if r['path']=='.github/workflows/publication.yml' and 'production queue' in r['message'])
+        self.assertIn(rule['needle'],path.read_text())
+        self.assertNotIn(rule['needle'],path.read_text().replace("|| 'maestro-publication'","|| 'wrong-production-queue'"))
+        pattern=r"nix run --accept-flake-config \.#devenv -- tasks run --mode single .* [a-z0-9:_-]+"
+        for job in data['jobs'].values():
+            for step in job['steps']:
+                if 'run' in step:
+                    self.assertRegex(step['run'],'^'+pattern+'$')
+                    self.assertIn("--option 'packages:pkgs!' ''",step['run'])
+        self.assertIsNone(re.fullmatch(pattern,"nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' \"${TASK}\""))
+        pre=data['jobs']['native_review']
+        selection={step['id']:step for step in pre['steps'] if step.get('id') in ('review','qualification_review')}
+        self.assertIn('inputs.native_qualification_only == true',selection['qualification_review']['if'])
+        self.assertTrue(selection['qualification_review']['run'].endswith('ci:native:review-qualification'))
+        self.assertIn('steps.qualification_review.outputs.context_sha256',pre['outputs']['context_sha256'])
 
     def test_real_review_cli_retains_bounded_context_and_summary_without_authority(self):
         import subprocess,sys,tempfile

@@ -94,3 +94,35 @@ References:
 - [GitHub environment availability and reviewer behavior](https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments)
 - [Native run review history](https://docs.github.com/en/rest/actions/workflow-runs#get-the-review-history-for-a-workflow-run)
 - [GitHub environment configuration and self-review](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments)
+
+## Harmless protected-gate qualification
+
+A manual `native_qualification_only=true` dispatch uses the same reviewed
+publication workflow and exact original/fresh evidence inputs. It does not need
+or change the native publication activation flag. Both legacy and native writers
+are explicitly excluded when this input is true. The qualification job has only
+read permissions, no cache secret or App key, and cannot restore a closure or
+call a destination. It verifies the environment's real human approval and emits
+`authorization:false`, `publicationReady:false` and `findingsAccepted:false`.
+Its context uses the distinct `nonpublishing-findings-gate-qualification` kind
+and `qualify` purpose; that approval cannot satisfy a publication context. The
+review summary explicitly says that qualification accepts no production risks.
+This is an optional manual test, not a scheduled controller or duplicate build.
+Its separate read-only concurrency group cannot hold the production publication
+lock while waiting for a human; the production group name is unchanged.
+
+The live read on 2026-11-03 found only `publication` and `release`, both without
+required human reviewers. The findings environment is absent. The merged verifier
+rejects that configuration. `publication` permits administrator bypass, while
+`release` does not; neither existing environment is changed by this preparation.
+The six existing App-bound required checks and all queue settings remain intact.
+
+Before the harmless trial: independently review and merge this code, wait for
+complete fresh hosted evidence, separately approve and configure only the
+`findings-risk-review` environment described above, and verify the exact protected
+main SHA and inputs. A human may then approve the qualification-only summary;
+that tests mechanics and accepts no findings. Inspect the actual token-route
+attestation and gate receipts to terminal. Missing approval, changed context or
+expired evidence must fail; a successful qualification is not permission to turn
+on a publisher. Production activation and any review-check replacement remain
+separate confirmed actions.

@@ -114,6 +114,8 @@ correspond to published GitHub tags.
 - Keep immutable inventory identity independent of CI routing text, preserving
   exact roots, generator/verifier policy and fresh vulnerability scans while
   avoiding SBOM regeneration for workflow-only edits.
+- Add a manual, nonpublishing native gate qualification path that cannot accept
+  findings or access publication credentials.
 
 ### Fixed
 

@@ -6,6 +6,10 @@ on:
     types: [completed]
   workflow_dispatch:
     inputs:
+      native_qualification_only:
+        description: Read-only findings gate qualification; accepts no findings and never publishes
+        type: boolean
+        default: false
       native_run:
         description: Exact successful CI producer of the selected immutable native product
         type: string
@@ -71,12 +75,12 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: maestro-publication
+  group: ${{ inputs.native_qualification_only && 'maestro-publication-qualification' || 'maestro-publication' }}
   queue: max
   cancel-in-progress: false
 jobs:
   publish:
-    if: vars.MAESTRO_NATIVE_PUBLICATION_ENABLED != 'true' && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.repository.full_name == github.repository && contains(fromJSON('["push","schedule","workflow_dispatch","workflow_run"]'), github.event.workflow_run.event)))
+    if: inputs.native_qualification_only != true && vars.MAESTRO_NATIVE_PUBLICATION_ENABLED != 'true' && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.repository.full_name == github.repository && contains(fromJSON('["push","schedule","workflow_dispatch","workflow_run"]'), github.event.workflow_run.event)))
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     environment: publication
@@ -213,11 +217,11 @@ jobs:
           retention-days: 30
 
   native_review:
-    if: vars.MAESTRO_NATIVE_PUBLICATION_ENABLED == 'true' && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.native_run != '' && inputs.native_revision != ''
+    if: (vars.MAESTRO_NATIVE_PUBLICATION_ENABLED == 'true' || inputs.native_qualification_only == true) && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.native_run != '' && inputs.native_revision != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     outputs:
-      context_sha256: ${{ steps.review.outputs.context_sha256 }}
+      context_sha256: ${{ steps.review.outputs.context_sha256 || steps.qualification_review.outputs.context_sha256 }}
     permissions:
       actions: read
       attestations: read
@@ -237,6 +241,7 @@ jobs:
         uses: $/.github/actions/setup-nix
       - name: Prepare exact findings for explicit human risk review
         id: review
+        if: inputs.native_qualification_only != true
         env:
           GH_TOKEN: ${{ github.token }}
           NATIVE_RISK_REVIEW_FILE: ${{ runner.temp }}/native-findings-review.json
@@ -251,6 +256,23 @@ jobs:
           NATIVE_BOOT_ORIGIN_ATTEMPT: ${{ inputs.native_boot_attempt }}
           NATIVE_BOOT_ORIGIN_REVISION: ${{ inputs.native_boot_revision }}
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:native:review
+      - name: Prepare read-only qualification context; accept no findings
+        id: qualification_review
+        if: inputs.native_qualification_only == true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NATIVE_RISK_REVIEW_FILE: ${{ runner.temp }}/native-findings-review.json
+          MAESTRO_NATIVE_PUBLICATION_ENABLED: ${{ vars.MAESTRO_NATIVE_PUBLICATION_ENABLED }}
+          NATIVE_RUN: ${{ inputs.native_run }}
+          NATIVE_HEALTH_RUN: ${{ inputs.native_health_run }}
+          NATIVE_HEALTH_ATTEMPT: ${{ inputs.native_health_attempt }}
+          NATIVE_ATTEMPT: ${{ inputs.native_attempt }}
+          NATIVE_REVISION: ${{ inputs.native_revision }}
+          NATIVE_POLICY_REVISION: ${{ github.sha }}
+          NATIVE_BOOT_ORIGIN_RUN: ${{ inputs.native_boot_run }}
+          NATIVE_BOOT_ORIGIN_ATTEMPT: ${{ inputs.native_boot_attempt }}
+          NATIVE_BOOT_ORIGIN_REVISION: ${{ inputs.native_boot_revision }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:native:review-qualification
       - name: Retain bounded native consumer receipt
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -262,7 +284,7 @@ jobs:
 
   native_publish:
     needs: native_review
-    if: vars.MAESTRO_NATIVE_PUBLICATION_ENABLED == 'true' && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.native_run != '' && inputs.native_revision != ''
+    if: inputs.native_qualification_only != true && vars.MAESTRO_NATIVE_PUBLICATION_ENABLED == 'true' && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.native_run != '' && inputs.native_revision != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     environment:
@@ -309,5 +331,55 @@ jobs:
         with:
           name: maestro-native-consumer-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/native-publication-result.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+  native_qualify:
+    needs: native_review
+    if: inputs.native_qualification_only == true && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.native_run != '' && inputs.native_revision != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment:
+      name: findings-risk-review
+      url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#summary
+    permissions:
+      actions: read
+      attestations: read
+      pull-requests: read
+      contents: read
+    steps:
+      - name: Monitor hosted runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2
+        with:
+          egress-policy: audit
+      - name: Checkout protected native controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Set up Nix
+        uses: $/.github/actions/setup-nix
+      - name: Verify gate mechanics without accepting risk or writing a destination
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NATIVE_FINDINGS_CONTEXT_SHA256: ${{ needs.native_review.outputs.context_sha256 }}
+          NATIVE_RESULT_FILE: ${{ runner.temp }}/native-qualification-result.json
+          MAESTRO_NATIVE_PUBLICATION_ENABLED: ${{ vars.MAESTRO_NATIVE_PUBLICATION_ENABLED }}
+          NATIVE_RUN: ${{ inputs.native_run }}
+          NATIVE_HEALTH_RUN: ${{ inputs.native_health_run }}
+          NATIVE_HEALTH_ATTEMPT: ${{ inputs.native_health_attempt }}
+          NATIVE_ATTEMPT: ${{ inputs.native_attempt }}
+          NATIVE_REVISION: ${{ inputs.native_revision }}
+          NATIVE_POLICY_REVISION: ${{ github.sha }}
+          NATIVE_BOOT_ORIGIN_RUN: ${{ inputs.native_boot_run }}
+          NATIVE_BOOT_ORIGIN_ATTEMPT: ${{ inputs.native_boot_attempt }}
+          NATIVE_BOOT_ORIGIN_REVISION: ${{ inputs.native_boot_revision }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:native:qualify
+      - name: Retain bounded native consumer receipt
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-native-gate-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-qualification-result.json
           if-no-files-found: ignore
           retention-days: 30
