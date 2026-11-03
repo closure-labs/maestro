@@ -141,6 +141,18 @@ def stage_refresh(directory, run, attempt, revision, origin):
     return _stage(directory, run, attempt, revision, origin, refresh=True)
 
 
+def stage_health(directory, run, revision):
+    if directory.exists() or type(run) is not int or run <= 0 or not re.fullmatch('[0-9a-f]{40}', revision):
+        raise ValueError('New directory and exact fresh-health producer required')
+    directory.mkdir(parents=True)
+    try:
+        names=('native-health.json','security-result.json','inputs.sha256','findings.json',
+               'source-policy.json','effective-policy.json','critical-applicability.json')
+        download(select(run,revision,'maestro-native-health'),directory,{n:n for n in names},[0],CAP)
+    except BaseException:
+        shutil.rmtree(directory);raise
+
+
 def transport(run, revision, directory):
     if directory.exists():raise ValueError('New transport directory required')
     directory.mkdir()

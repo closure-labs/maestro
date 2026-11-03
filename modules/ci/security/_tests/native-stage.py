@@ -74,6 +74,17 @@ class ArtifactStage(unittest.TestCase):
 
 
 class StagePurpose(unittest.TestCase):
+    def test_health_stages_one_exact_small_artifact_without_original_inventory_or_transport(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            destination=Path(temporary)/'health'
+            with patch.object(stage,'select',return_value={'id':20}) as select,patch.object(stage,'download') as download:
+                stage.stage_health(destination,20,'b'*40)
+            select.assert_called_once_with(20,'b'*40,'maestro-native-health')
+            self.assertEqual(set(download.call_args.args[2]),{'native-health.json','security-result.json','inputs.sha256',
+                'findings.json','source-policy.json','effective-policy.json','critical-applicability.json'})
+            self.assertEqual(download.call_count,1)
+            self.assertEqual(download.call_args.args[4],stage.CAP)
+
     def test_refresh_fetches_only_original_inputs_and_never_a_transport(self):
         for refresh in (False,True):
             with tempfile.TemporaryDirectory() as temporary:
