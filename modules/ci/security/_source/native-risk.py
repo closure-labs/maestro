@@ -97,6 +97,11 @@ def review(api,record,record_hash,revision,eligible):
         if (row.get('state')=='APPROVED' and row.get('commit_id')==head
                 and user.get('type')=='User' and type(user.get('id')) is int and user['id']>0
                 and user.get('login','').lower() in eligible and user['id']!=pr.get('user',{}).get('id')):
+            require(isinstance(row.get('submitted_at'),str),'Human risk review timestamp required')
+            submitted=datetime.fromisoformat(row['submitted_at'].replace('Z','+00:00'))
+            created=datetime.fromisoformat(record['createdAt'].replace('Z','+00:00'))
+            require(submitted.tzinfo is not None and created<=submitted<=datetime.now(timezone.utc),
+                'Risk review predates its declared creation or is in the future')
             permission=api('collaborators/'+user['login']+'/permission')
             require(permission.get('permission') in ('write','maintain','admin')
                 and permission.get('user',{}).get('id')==user['id'],
