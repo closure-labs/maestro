@@ -30,7 +30,7 @@ class ReleasePublish(unittest.TestCase):
         self.assertEqual(args,['maestro-ci-release-attestations']);self.assertTrue(kwargs['check'])
         self.assertEqual(kwargs['env']['SOURCE_SHA'],self.case.bundle['receipt']['sourceRevision'])
         self.assertEqual(kwargs['env']['RELEASE_TAG'],'v3.2.0')
-        root=Path(kwargs['cwd']);self.assertEqual((root/self.final.name).read_bytes(),self.final.read_bytes())
+        root=Path(kwargs['cwd']);self.assertEqual((Path(kwargs['env']['RUNNER_TEMP'])/self.final.name).read_bytes(),self.final.read_bytes())
         self.assertEqual((root/'candidate/maestro-system.spdx.json').read_bytes(),(self.case.bundle['directory']/'maestro-system.spdx.json').read_bytes())
         self.calls.append('provenance-and-spdx')
     def reconcile(self,repo,product,directory,tag,revision,publish,authorize):
@@ -53,6 +53,10 @@ class ReleasePublish(unittest.TestCase):
         self.assertEqual(result['status'],'published');self.assertFalse(result['authorization'])
         self.assertTrue(result['isoBytesVerified']);self.assertFalse(result['narBytesVerified'])
         self.assertFalse(list(self.case.root.glob('.native-release-writer-*')))
+    def test_verification_needs_no_cross_filesystem_iso_or_document_hardlinks(self):
+        with patch.object(writer.os,'link',side_effect=AssertionError('No cross-filesystem link permitted')):
+            self.assertEqual(self.publish()['status'],'published')
+
     def test_disabled_or_wrong_repository_event_source_rejects_without_public_operations(self):
         for key,value in [('MAESTRO_NATIVE_RELEASE_ENABLED','false'),('GITHUB_REPOSITORY','other/repo'),('GITHUB_EVENT_NAME','push'),('GITHUB_SHA','f'*40)]:
             with self.subTest(key=key),patch.dict(self.env,{key:value}),self.assertRaises(ValueError):self.publish()

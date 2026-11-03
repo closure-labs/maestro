@@ -213,7 +213,8 @@ provenance and the entire SPDX predicate for the exact final ISO filename,
 digest and protected-main release-workflow source. Metadata or a staging receipt
 does not substitute for ISO-byte or cryptographic verification. Private asset
 snapshots prevent source-path changes between verification and upload. The
-versioned ISO is linked for verification, never uploaded as an extra full asset;
+versioned ISO is verified at its exact original path, never copied or uploaded as
+an extra full asset;
 existing split parts/SBOM/checksum contracts remain unchanged.
 
 After these checks, the existing `publication-assets.reconcile` operations
@@ -227,7 +228,9 @@ remote inventory/digest readback before any new upload; no automatic retry is
 added. Nonzero attestation/upload/readback failures propagate.
 
 A private copy adds at most the 32 GiB ISO-part bound plus 256 MiB compressed
-metadata, with an additional 256 MiB free-space reserve checked before copying.
+metadata, with an additional 256 MiB free-space reserve checked before copying. A bounded
+private copy of the original SPDX document (at most 64 MiB) fits in that reserve;
+no hardlink across the bundle/asset filesystems is required.
 It adds no ISO/closure network handoff, but it does add local disk I/O. Only tiny
 real-subprocess fixtures have run: production peak disk/RSS, full-size SPDX
 attestation memory, hosted readback and idempotent interrupted upload still need

@@ -87,6 +87,7 @@ def publish(bundle,directory,iso,policy_path,*,publication=None,assets=None,exec
             with (frozen/name).open('rb') as source:
                 while block:=source.read(1024**2):joined.update(block)
         require(joined.hexdigest()==digest and (frozen/(filename+'.sha256')).read_text()==digest+'  '+filename+'\n','Split installer bytes/checksum differ from boot proof')
+        sbom_hashes={}
         for kind in ('spdx','cdx'):
             name='maestro-'+tag+'.'+kind+'.json.gz'
             require((frozen/(name+'.sha256')).read_text()==records[name]['sha256']+'  '+name+'\n','Changed SBOM checksum')
@@ -95,15 +96,24 @@ def publish(bundle,directory,iso,policy_path,*,publication=None,assets=None,exec
                 while block:=source.read(1024**2):
                     length+=len(block);require(length<=original.stat().st_size,'Expanded SBOM exceeds original inventory')
                     h.update(block)
-            require(length==original.stat().st_size and h.hexdigest()==native.file_hash(original),'Compressed SBOM differs from authenticated inventory')
+            sbom_hashes[kind]=native.file_hash(original)
+            require(length==original.stat().st_size and h.hexdigest()==sbom_hashes[kind],'Compressed SBOM differs from authenticated inventory')
         # Reuse the established native GitHub verifier for both SLSA provenance
         # and the complete SPDX predicate, exact final filename/digest/source.
         candidate=root/'candidate';candidate.mkdir()
-        os.link(bundle['directory']/'maestro-system.spdx.json',candidate/'maestro-system.spdx.json')
-        os.link(iso,root/filename,follow_symlinks=False)
+        document=bundle['directory']/'maestro-system.spdx.json'
+        target=candidate/document.name
+        with document.open('rb') as source,target.open('xb') as output:
+            remaining=document.stat().st_size
+            require(0<remaining<=native.MAX_DOCUMENT,'Bounded original SPDX required')
+            while remaining:
+                block=source.read(min(1024**2,remaining));require(block,'Original SPDX shrank')
+                remaining-=len(block);output.write(block)
+            require(not source.read(1),'Original SPDX grew')
+        require(native.file_hash(target)==sbom_hashes['spdx'],'Original SPDX changed during verification snapshot')
         execute(['maestro-ci-release-attestations'],check=True,timeout=900,cwd=root,
-            env=dict(os.environ,SOURCE_SHA=policy_revision,RELEASE_TAG=tag,RUNNER_TEMP=str(root)))
-        require(native.file_hash(root/filename)==digest,'ISO changed during final-name attestation verification')
+            env=dict(os.environ,SOURCE_SHA=policy_revision,RELEASE_TAG=tag,RUNNER_TEMP=str(iso.parent.resolve())))
+        require(native.file_hash(iso)==digest,'ISO changed during final-name attestation verification')
         authorize()
         product=dict(repository=native.REPO,revision=revision,assets={name:row['sha256'] for name,row in records.items()})
         result=assets.reconcile(native.REPO,product,frozen,tag,revision,True,authorize)
