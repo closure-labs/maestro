@@ -37,7 +37,7 @@ class Risk(unittest.TestCase):
         self.pr=dict(number=209,merged_at='2026-11-02T00:00:00Z',state='closed',changed_files=1,
             title='security: accept findings risk for fixture',base=dict(ref='main',repo=dict(full_name='closure-labs/maestro')),
             head=dict(sha=HEAD,repo=dict(full_name='closure-labs/maestro')),merge_commit_sha=MERGE,user=dict(id=10))
-        self.reviews=[dict(id=30,state='APPROVED',commit_id=HEAD,body='Reviewed: accept the risks specified by this dedicated findings decision',
+        self.reviews=[dict(submitted_at=now.isoformat(),id=30,state='APPROVED',commit_id=HEAD,body='Reviewed: accept the risks specified by this dedicated findings decision',
             user=dict(id=20,type='User',login='human'))]
         self.changed_files=[dict(filename=risk.PATH,status='added')]
         self.permission=dict(permission='write',user=dict(id=20))
@@ -71,6 +71,16 @@ class Risk(unittest.TestCase):
             later=dict(self.reviews[0],id=31,state=status)
             with patch.object(self,'reviews',[later,*self.reviews]):
                 with self.assertRaises(ValueError):risk.live(self.api,state,SHA)
+    def test_old_approval_cannot_preapprove_a_future_dated_acceptance(self):
+        # Creation/expiry are valid today, but approval preceded this record's
+        # declared creation. This must not become valid just by waiting.
+        self.reviews[0]['submitted_at']=(datetime.now(timezone.utc)-timedelta(days=31)).isoformat()
+        with self.assertRaises(ValueError):self.accept()
+    def test_missing_future_and_naive_human_review_timestamp_reject(self):
+        for value in (None,'2099-01-01T00:00:00Z','2020-01-01T00:00:00'):
+            with self.subTest(value=value),patch.dict(self.reviews[0],submitted_at=value):
+                with self.assertRaises((ValueError,TypeError)):self.accept()
+
     def test_repository_write_access_revocation_is_live_and_not_cached(self):
         state=self.accept();self.permission['permission']='read'
         with self.assertRaises(ValueError):risk.live(self.api,state,SHA)
