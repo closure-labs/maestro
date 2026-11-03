@@ -8,6 +8,13 @@ trial. `MAESTRO_NATIVE_PUBLICATION_ENABLED` defaults to `false`; current consume
 remain in place until the explicitly coordinated switch. There is one existing
 publication concurrency group, no new scheduled controller and no parallel build.
 
+## Current findings-review route
+
+The reusable risk-file proposal below is historical staging context. The reviewed
+Free-plan route now uses a fresh protected environment approval per publication.
+See [the current contract and harmless qualification](per-publication-findings-review.md).
+No native publisher is activated by that implementation or its qualification mode.
+
 ## Real evidence trial and limits
 
 Main `59a6a50a0f022988ff23fbc2a39a3ab92407d843`, CI `41529099686/1`, passed bounded

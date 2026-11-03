@@ -141,7 +141,7 @@ def consume(bundle, policy_path, operation, transport=None, execute=native.opera
         outcome = policy_verdict(bundle, source_policy, blocking)
     if operation in ('publish','release') and not os.environ.get('NATIVE_FINDINGS_CONTEXT_SHA256') and outcome['status']!='clear':
         raise MandatoryVerdictError(outcome)
-    if operation in ('review','publish','release'):
+    if operation in ('review','publish','release','qualify'):
         root=Path(os.environ.get('MAESTRO_SYSTEM_ROOT',os.getcwd()))
         files={name:root/name for name in RISK_POLICY_FILES}
         target=review_operation if operation=='review' else operation
@@ -149,10 +149,15 @@ def consume(bundle, policy_path, operation, transport=None, execute=native.opera
         if operation=='review':
             return dict(status='awaiting-explicit-findings-risk-review',authorization=False,publicationReady=False,
                 verdict=outcome,review=state,rawFindings=blocking['findings'],normalizedFindings=bundle['normalizedFindings'],
-                notice='Approving findings-risk-review accepts the exact displayed vulnerability risk, including high/critical findings, for this publication only.')
+                notice=('This is a nonpublishing gate qualification only. Approval accepts no findings and authorizes no cache or release write.' if target=='qualify' else
+                    'Approving findings-risk-review accepts the exact displayed vulnerability risk, including high/critical findings, for this publication only.'))
         state['rebuild']=lambda:risk.context(bundle,bound_json(bundle,'findings.json','findings'),files,target,state['context']['runId'])
         bundle['_riskAcceptance']=state
         proof=risk.approval(native.api,state)
+        if operation=='qualify':
+            fresh(bundle,policy_path,policy_digest)
+            return dict(status='nonpublishing-findings-gate-qualified',authorization=False,publicationReady=False,
+                findingsAccepted=False,verdict=outcome,review=proof)
         outcome.update(status='clear',riskAcceptance=proof)
     if outcome['status'] != 'clear':
         raise MandatoryVerdictError(outcome)
@@ -256,8 +261,8 @@ def emit(result, error=False):
 
 def main():
     cli = argparse.ArgumentParser(description=__doc__)
-    cli.add_argument('operation', choices=('check', 'probe', 'publish', 'release', 'review'))
-    cli.add_argument('--review-operation',choices=('publish','release'),default='publish')
+    cli.add_argument('operation', choices=('check', 'probe', 'publish', 'release', 'review', 'qualify'))
+    cli.add_argument('--review-operation',choices=('publish','release','qualify'),default='publish')
     cli.add_argument('--directory', type=Path)
     cli.add_argument('--release-directory',type=Path);cli.add_argument('--release-iso',type=Path)
     cli.add_argument('--run', type=int, required=True); cli.add_argument('--attempt', type=int, required=True)
@@ -299,7 +304,7 @@ def main():
         with Path(os.environ['GITHUB_OUTPUT']).open('a') as stream:
             stream.write('context_sha256='+result['review']['contextSha256']+'\n')
         with Path(os.environ['GITHUB_STEP_SUMMARY']).open('a') as stream:
-            stream.write('## Explicit findings-risk review\n'+result['notice']+'\n\n')
+            stream.write(('## Nonpublishing gate qualification\n' if args.review_operation=='qualify' else '## Explicit findings-risk review\n')+result['notice']+'\n\n')
             stream.write('Context SHA-256: `'+result['review']['contextSha256']+'`\n\n')
             stream.write('Review the immutable `maestro-findings-review` artifact for exact product, evidence, policy and finding identities.\n\n')
             stream.write('```json\n'+json.dumps(result['verdict'],sort_keys=True)+'\n```\n')
