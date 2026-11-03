@@ -212,11 +212,62 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-  native_publish:
+  native_review:
     if: vars.MAESTRO_NATIVE_PUBLICATION_ENABLED == 'true' && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.native_run != '' && inputs.native_revision != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 60
-    environment: publication
+    outputs:
+      context_sha256: ${{ steps.review.outputs.context_sha256 }}
+    permissions:
+      actions: read
+      attestations: read
+      pull-requests: read
+      contents: read
+    steps:
+      - name: Monitor hosted runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2
+        with:
+          egress-policy: audit
+      - name: Checkout protected native controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Set up Nix
+        uses: $/.github/actions/setup-nix
+      - name: Prepare exact findings for explicit human risk review
+        id: review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NATIVE_RISK_REVIEW_FILE: ${{ runner.temp }}/native-findings-review.json
+          MAESTRO_NATIVE_PUBLICATION_ENABLED: ${{ vars.MAESTRO_NATIVE_PUBLICATION_ENABLED }}
+          NATIVE_RUN: ${{ inputs.native_run }}
+          NATIVE_HEALTH_RUN: ${{ inputs.native_health_run }}
+          NATIVE_HEALTH_ATTEMPT: ${{ inputs.native_health_attempt }}
+          NATIVE_ATTEMPT: ${{ inputs.native_attempt }}
+          NATIVE_REVISION: ${{ inputs.native_revision }}
+          NATIVE_POLICY_REVISION: ${{ github.sha }}
+          NATIVE_BOOT_ORIGIN_RUN: ${{ inputs.native_boot_run }}
+          NATIVE_BOOT_ORIGIN_ATTEMPT: ${{ inputs.native_boot_attempt }}
+          NATIVE_BOOT_ORIGIN_REVISION: ${{ inputs.native_boot_revision }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:native:review
+      - name: Retain bounded native consumer receipt
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-findings-review
+          path: ${{ runner.temp }}/native-findings-review.json
+          if-no-files-found: error
+          retention-days: 30
+
+  native_publish:
+    needs: native_review
+    if: vars.MAESTRO_NATIVE_PUBLICATION_ENABLED == 'true' && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.native_run != '' && inputs.native_revision != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment:
+      name: findings-risk-review
+      url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#summary
     permissions:
       actions: read
       attestations: read
@@ -237,6 +288,7 @@ jobs:
       - name: Enforce native policy before any restore or selected cache write
         env:
           GH_TOKEN: ${{ github.token }}
+          NATIVE_FINDINGS_CONTEXT_SHA256: ${{ needs.native_review.outputs.context_sha256 }}
           NATIVE_RESULT_FILE: ${{ runner.temp }}/native-publication-result.json
           MAESTRO_NATIVE_PUBLICATION_ENABLED: ${{ vars.MAESTRO_NATIVE_PUBLICATION_ENABLED }}
           NATIVE_RUN: ${{ inputs.native_run }}

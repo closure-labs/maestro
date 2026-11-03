@@ -45,7 +45,7 @@ class RefreshWorkflow(unittest.TestCase):
         for filename,name in [('publication.yml','native_publish'),('consumer-probe.yml','native_consumer')]:
             data=workflow(filename)
             # Locate by command rather than depending on presentation job IDs.
-            jobs=[j for j in data['jobs'].values() if "vars.MAESTRO_NATIVE_PUBLICATION_ENABLED == 'true'" in j.get('if','')]
+            jobs=[j for key,j in data['jobs'].items() if key==name and "vars.MAESTRO_NATIVE_PUBLICATION_ENABLED == 'true'" in j.get('if','')]
             self.assertEqual(len(jobs),1);job=jobs[0]
             self.assertIn("github.ref == 'refs/heads/main'",job['if'])
             self.assertIn("github.event_name == 'workflow_dispatch'",job['if'])

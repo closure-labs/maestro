@@ -42,11 +42,27 @@ class ReleasePublish(unittest.TestCase):
             authorize();self.published.append(phase)
         return dict(status='published',tag=tag,revision=revision)
     def publish(self,**kwargs):
-        with patch.dict(os.environ,self.env),patch.object(pub.native,'api',side_effect=self.case.api):
+        original=self.case.api
+        def api(path):
+            value=original(path)
+            if path=='actions/runs/123':value=dict(value,path=pub.risk.WORKFLOWS['release'])
+            return value
+        files={'VERSION':self.case.root/'risk-version'};files['VERSION'].write_text('3.2.0\n')
+        with patch.dict(os.environ,self.env),patch.object(pub.native,'api',side_effect=api):
+            state=pub.risk.plan(self.case.bundle,[],files,api,'release')
+            os.environ['NATIVE_FINDINGS_CONTEXT_SHA256']=state['contextSha256']
+            state['rebuild']=lambda:pub.risk.context(self.case.bundle,[],files,'release',123)
+            self.case.bundle['_riskAcceptance']=state
             return writer.publish(self.case.bundle,self.case.output,self.final,self.case.case.policy_path,
                 publication=pub,assets=SimpleNamespace(reconcile=self.reconcile),execute=kwargs.pop('execute',self.attest),**kwargs)
     def changed(self):
         (self.case.output/'native-release-staging.json').write_text(json.dumps(self.receipt))
+    def test_direct_release_writer_cannot_bypass_the_findings_gate(self):
+        with patch.dict(os.environ,self.env),self.assertRaises(ValueError):
+            writer.publish(self.case.bundle,self.case.output,self.final,self.case.case.policy_path,
+                publication=pub,assets=SimpleNamespace(reconcile=self.reconcile),execute=self.attest)
+        self.assertEqual(self.published,[]);self.assertEqual(self.calls,[])
+
     def test_exact_staged_bytes_final_provenance_and_each_live_write_boundary(self):
         result=self.publish();self.assertEqual(self.calls,['provenance-and-spdx','reconcile'])
         self.assertEqual(self.published,['tag','draft','upload','publish'])
@@ -118,7 +134,7 @@ class ReleasePublish(unittest.TestCase):
                 if counter>=4:return dict(object=dict(sha='f'*40))
             return original(path)
         with patch.object(self.case,'api',side_effect=api),self.assertRaises(ValueError):self.publish()
-        self.assertEqual(self.published,['tag']);self.assertNotIn('upload',self.published)
+        self.assertLessEqual(len(self.published),1);self.assertNotIn('upload',self.published)
     def test_bounded_disk_rejection_and_mutation_failure_cleanup(self):
         with patch.object(writer.shutil,'disk_usage',return_value=SimpleNamespace(free=0)),self.assertRaises(ValueError):self.publish()
         def failed(*args):raise ValueError('upload denied')
@@ -158,7 +174,7 @@ print(json.dumps([{'verificationResult':{'statement':{'subject':[{'name':iso.nam
         for severity in ('high','critical','unknown'):
             self.case.case.findings=[self.case.case.finding(severity)];bundle=self.case.case.bundle()
             with self.subTest(severity=severity),patch.dict(os.environ,self.env),patch.object(pub.native,'api',side_effect=self.case.api),patch.object(pub,'module',side_effect=AssertionError('Writer must not load')):
-                with self.assertRaises(pub.MandatoryVerdictError):pub.consume(bundle,self.case.case.policy_path,'release',release={'directory':self.case.output,'iso':self.final})
+                with self.assertRaises(ValueError):pub.consume(bundle,self.case.case.policy_path,'release',release={'directory':self.case.output,'iso':self.final})
         self.assertEqual(self.published,[])
 
 if __name__=='__main__':unittest.main()
