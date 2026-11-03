@@ -1,169 +1,211 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Exact human risk approval is distinct from routine code approval."""
+"""Native first-attempt findings review, without cross-publication authority reuse."""
 from copy import deepcopy
-from datetime import datetime,timezone,timedelta
+from datetime import datetime, timezone, timedelta
 import base64
 import importlib.util
 import json
+import os
 from pathlib import Path
-import tempfile
 import unittest
 from unittest.mock import patch
 
 spec=importlib.util.spec_from_file_location('publication_fixture',Path(__file__).with_name('native-publication.py'))
 fixture=importlib.util.module_from_spec(spec);spec.loader.exec_module(fixture)
-pub=fixture.pub;risk=pub.risk
-SHA='a'*40;HEAD='b'*40;MERGE='c'*40
-
-def encoded(raw):return dict(encoding='base64',size=len(raw),content=base64.b64encode(raw).decode())
+pub=fixture.pub;risk=pub.risk;SHA='a'*40
 
 class Risk(unittest.TestCase):
     def setUp(self):
         self.case=fixture.Publication();self.case.setUp();self.addCleanup(self.case.doCleanups)
-        self.root=self.case.case.root
         self.case.findings=[self.case.finding('high'),self.case.finding('critical','b')]
-        self.bundle=self.case.bundle();self.bundle['binding']=self.case.case.binding
-        self.bundle['normalizedFindings']=[dict(identity='x',severity='High'),dict(identity='y',severity='Critical')]
-        self.files={'.github/CODEOWNERS':self.root/'owners'};self.files['.github/CODEOWNERS'].write_text('* @human\n')
-        now=datetime.now(timezone.utc)
-        self.record=dict(schemaVersion=1,kind=risk.KIND,repository='closure-labs/maestro',reviewPullRequest=209,
-            createdAt=(now-timedelta(minutes=1)).isoformat(),expiresAt=(now+timedelta(days=1)).isoformat(),
-            reason='Explicitly accept these fixture high and critical risks',evidence=['https://example.test/review'],
-            scope=risk.scope(self.bundle,self.case.findings,self.files),
-            acceptedRawFindings=risk.fingerprints(self.case.findings),
-            acceptedNormalizedFindings=risk.fingerprints(self.bundle['normalizedFindings']))
-        self.path=self.root/risk.PATH;self.path.parent.mkdir(parents=True);self.write()
-        self.pr=dict(number=209,merged_at='2026-11-02T00:00:00Z',state='closed',changed_files=1,
-            title='security: accept findings risk for fixture',base=dict(ref='main',repo=dict(full_name='closure-labs/maestro')),
-            head=dict(sha=HEAD,repo=dict(full_name='closure-labs/maestro')),merge_commit_sha=MERGE,user=dict(id=10))
-        self.reviews=[dict(submitted_at=now.isoformat(),id=30,state='APPROVED',commit_id=HEAD,body='Reviewed: accept the risks specified by this dedicated findings decision',
-            user=dict(id=20,type='User',login='human'))]
-        self.changed_files=[dict(filename=risk.PATH,status='added')]
-        self.permission=dict(permission='write',user=dict(id=20));self.policy_revision=SHA
-    def write(self):self.path.write_text(json.dumps(self.record))
+        self.bundle=self.case.bundle();self.bundle['normalizedFindings']=[dict(identity='x',severity='High')]
+        self.files={'.github/CODEOWNERS':self.case.case.root/'owners'}
+        self.files['.github/CODEOWNERS'].write_text('* @human\n')
+        self.env=dict(self.case.env,MAESTRO_SYSTEM_ROOT=str(self.case.case.root))
+        self.environment=self.case.api('environments/'+risk.ENVIRONMENT)
+        self.run=self.case.api('actions/runs/123');self.reviews=self.case.api('actions/runs/123/approvals')
+        self.permission=self.case.api('collaborators/human/permission');self.calls=[]
     def api(self,path):
-        if path.startswith('contents/'+risk.PATH+'?ref='):return encoded(self.path.read_bytes())
-        if path.startswith('contents/.github/CODEOWNERS?ref='):return encoded(self.files['.github/CODEOWNERS'].read_bytes())
+        self.calls.append(path)
+        if path.startswith('contents/.github/CODEOWNERS?ref='):
+            raw=self.files['.github/CODEOWNERS'].read_bytes()
+            return dict(encoding='base64',size=len(raw),content=base64.b64encode(raw).decode())
+        if path=='environments/'+risk.ENVIRONMENT:return self.environment
+        if path=='actions/runs/123':return self.run
+        if path=='actions/runs/123/approvals':return self.reviews
         if path=='collaborators/human/permission':return self.permission
-        if path=='pulls/209':return self.pr
-        if path=='pulls/209/files?per_page=2':return self.changed_files
-        if path==f'compare/{MERGE}...{self.policy_revision}':return dict(merge_base_commit=dict(sha=MERGE))
-        if path=='pulls/209/reviews?per_page=100&page=1':return self.reviews
         return self.case.api(path)
-    def accept(self):return risk.acceptance(self.bundle,self.case.findings,self.case.findings,self.bundle['normalizedFindings'],self.files,self.api,self.root)
-    def test_independent_explicit_review_accepts_exact_high_critical_risk(self):
-        state=self.accept();self.assertEqual(state['raw'],set(risk.fingerprints(self.case.findings)))
-        self.assertEqual(state['proof']['reviewId'],30)
-        risk.live(self.api,state,SHA)
-        self.reviews[0]['body']='LGTM'
-        self.assertEqual(self.accept()['proof']['reviewId'],30)
-    def test_current_policy_risk_pr_can_approve_the_exact_older_artifact_without_rebuild(self):
-        self.policy_revision='e'*40;self.bundle['receipt']['policyRevision']=self.policy_revision
-        observed=[];original_api=self.api
-        def api(path):
-            observed.append(path);return original_api(path)
-        with patch.object(self,'api',side_effect=api):
-            state=self.accept();risk.live(self.api,state,self.policy_revision)
-            self.permission['permission']='read'
-            with self.assertRaises(ValueError):risk.live(self.api,state,self.policy_revision)
-        self.assertEqual(self.bundle['receipt']['sourceRevision'],SHA)
-        self.assertIn(f'compare/{MERGE}...{self.policy_revision}',observed)
-        self.assertIn('contents/'+risk.PATH+'?ref='+self.policy_revision,observed)
-        self.assertIn('contents/'+risk.PATH+'?ref='+HEAD,observed) # exact reviewed PR head stays distinct
-        self.assertTrue(all(path.endswith('?ref='+self.policy_revision) for path in observed
-            if path.startswith('contents/') and path!='contents/'+risk.PATH+'?ref='+HEAD))
-        self.case.findings[0]['version']='new'
-        with self.assertRaises(ValueError):self.accept()
-
-    def test_self_bot_wrong_head_or_nonowner_reject(self):
-        for field,value in [('commit_id','f'*40),('state','DISMISSED')]:
-            with self.subTest(field=field),patch.dict(self.reviews[0],{field:value}):
-                with self.assertRaises(ValueError):self.accept()
-        for change in [dict(id=10),dict(type='Bot'),dict(login='other')]:
-            with self.subTest(change=change),patch.dict(self.reviews[0]['user'],change):
-                with self.assertRaises(ValueError):self.accept()
-    def test_later_revoked_or_changes_requested_review_rejects_even_out_of_order(self):
-        state=self.accept()
-        for status in ('DISMISSED','CHANGES_REQUESTED'):
-            later=dict(self.reviews[0],id=31,state=status)
-            with patch.object(self,'reviews',[later,*self.reviews]):
-                with self.assertRaises(ValueError):risk.live(self.api,state,SHA)
-    def test_old_approval_cannot_preapprove_a_future_dated_acceptance(self):
-        # Creation/expiry are valid today, but approval preceded this record's
-        # declared creation. This must not become valid just by waiting.
-        self.reviews[0]['submitted_at']=(datetime.now(timezone.utc)-timedelta(days=31)).isoformat()
-        with self.assertRaises(ValueError):self.accept()
-    def test_missing_future_and_naive_human_review_timestamp_reject(self):
-        for value in (None,'2099-01-01T00:00:00Z','2020-01-01T00:00:00'):
-            with self.subTest(value=value),patch.dict(self.reviews[0],submitted_at=value):
-                with self.assertRaises((ValueError,TypeError)):self.accept()
-
-    def test_repository_write_access_revocation_is_live_and_not_cached(self):
-        state=self.accept();self.permission['permission']='read'
-        with self.assertRaises(ValueError):risk.live(self.api,state,SHA)
-        self.permission.update(permission='write',user=dict(id=99))
-        with self.assertRaises(ValueError):self.accept()
-
-    def test_dedicated_one_file_merged_pr_required(self):
-        for change in [dict(changed_files=2),dict(merged_at=None),dict(title='ordinary code review')]:
-            with self.subTest(change=change),patch.dict(self.pr,change):
-                with self.assertRaises(ValueError):self.accept()
-        with patch.object(self,'changed_files',[dict(filename='README.md',status='modified')]):
-            with self.assertRaises(ValueError):self.accept()
-    def test_every_scope_change_requires_new_risk_review(self):
-        changes=[lambda:self.case.findings[0].update(version='changed'),
-            lambda:self.bundle['normalizedFindings'][0].update(severity='Critical'),
-            lambda:self.bundle['native']['securityContext'].update(extra=True),
-            lambda:self.bundle['binding']['evidenceFiles'].update(extra='e'*64),
-            lambda:next(iter(self.bundle['product']['products'].values())).update(narHash='changed'),
+    def plan(self):return risk.plan(self.bundle,self.case.findings,self.files,self.api,'publish')
+    def state(self):
+        value=self.plan()
+        self.env['NATIVE_FINDINGS_CONTEXT_SHA256']=value['contextSha256']
+        os.environ['NATIVE_FINDINGS_CONTEXT_SHA256']=value['contextSha256']
+        value['rebuild']=lambda:risk.context(self.bundle,self.case.findings,self.files,'publish',123)
+        return value
+    def test_explicit_environment_review_accepts_exact_high_critical_for_only_one_run(self):
+        with patch.dict(os.environ,self.env):
+            state=self.state();proof=risk.approval(self.api,state)
+            self.assertEqual(proof['reviewerId'],risk.REVIEWER_ID)
+            self.assertEqual(proof['contextSha256'],state['contextSha256'])
+            risk.live(self.api,state,SHA)
+        self.assertFalse(any('audit' in p or 'pulls/' in p for p in self.calls))
+    def test_plan_never_accepts_risk_or_reads_an_approval(self):
+        with patch.dict(os.environ,self.env):self.plan()
+        self.assertNotIn('actions/runs/123/approvals',self.calls)
+    def test_no_approval_rejection_duplicate_or_wrong_environment_rejects(self):
+        cases=[[],[dict(self.reviews[0],state='rejected')],self.reviews*2,
+            [dict(self.reviews[0],environments=[dict(id=99,name=risk.ENVIRONMENT)])]]
+        for reviews in cases:
+            with self.subTest(reviews=reviews),patch.dict(os.environ,self.env):
+                state=self.state();self.reviews=reviews
+                with self.assertRaises(ValueError):risk.approval(self.api,state)
+    def test_bot_identity_or_current_access_loss_rejects_and_cannot_revive(self):
+        with patch.dict(os.environ,self.env):
+            state=self.state();self.permission['permission']='read'
+            with self.assertRaises(ValueError):risk.live(self.api,state,SHA)
+            self.permission['permission']='write'
+            with self.assertRaises(ValueError):risk.live(self.api,state,SHA)
+            self.assertTrue(state['invalidated'])
+        for user in [dict(type='Bot',id=risk.REVIEWER_ID,login='human'),dict(type='User',id=99,login='human')]:
+            with patch.dict(os.environ,self.env):
+                state=self.state();self.reviews[0]['user']=user
+                with self.assertRaises(ValueError):risk.approval(self.api,state)
+    def test_changed_context_or_missing_digest_rejects(self):
+        changes=[lambda:self.case.findings[0].update(version='new'),
+            lambda:self.bundle['normalizedFindings'][0].update(identity='new'),
+            lambda:self.bundle['native'].update(scannedAt='changed'),
             lambda:self.files['.github/CODEOWNERS'].write_text('* @other\n')]
         for change in changes:
-            originals=deepcopy((self.case.findings,self.bundle));owners=self.files['.github/CODEOWNERS'].read_text()
-            change()
-            with self.assertRaises(ValueError):self.accept()
-            self.case.findings,self.bundle=originals;self.files['.github/CODEOWNERS'].write_text(owners)
-    def test_expired_future_and_overlong_acceptance_reject(self):
-        now=datetime.now(timezone.utc)
-        for created,expires in [(now-timedelta(days=2),now-timedelta(days=1)),(now+timedelta(hours=1),now+timedelta(days=1)),(now-timedelta(minutes=1),now+timedelta(days=31))]:
-            self.record.update(createdAt=created.isoformat(),expiresAt=expires.isoformat());self.write()
-            with self.assertRaises(ValueError):self.accept()
-    def test_renewal_cannot_extend_an_old_exact_head_approval(self):
-        old=self.path.read_bytes();original=self.api
-        self.record['expiresAt']=(datetime.now(timezone.utc)+timedelta(days=2)).isoformat();self.write()
-        def api(path):
-            if path=='contents/'+risk.PATH+'?ref='+HEAD:return encoded(old)
-            return original(path)
-        with patch.object(self,'api',side_effect=api):
-            with self.assertRaises(ValueError):self.accept()
+            with self.subTest(change=change),patch.dict(os.environ,self.env):
+                state=self.state();change()
+                with self.assertRaises(ValueError):risk.approval(self.api,state)
+        with patch.dict(os.environ,self.env):
+            state=self.state();os.environ.pop('NATIVE_FINDINGS_CONTEXT_SHA256')
+            with self.assertRaises(ValueError):risk.approval(self.api,state)
+    def test_first_attempt_only_exact_run_workflow_main_public_repository(self):
+        for key,value in [('GITHUB_RUN_ATTEMPT','2'),('GITHUB_RUN_ID','999'),('GITHUB_SHA','f'*40),('GITHUB_EVENT_NAME','push')]:
+            with self.subTest(key=key),patch.dict(os.environ,dict(self.env,**{key:value})):
+                with self.assertRaises((ValueError,AssertionError)):self.plan()
+        for key,value in [('run_attempt',2),('head_sha','f'*40),('path','.github/workflows/ci.yml')]:
+            with self.subTest(key=key),patch.dict(os.environ,self.env),patch.dict(self.run,{key:value}):
+                with self.assertRaises(ValueError):self.plan()
+        with patch.dict(os.environ,self.env),patch.dict(self.run,created_at=(datetime.now(timezone.utc)-timedelta(days=31)).isoformat()):
+            with self.assertRaises(ValueError):self.plan()
+    def test_documented_branch_policy_rule_shape_is_required_and_order_independent(self):
+        with patch.dict(os.environ,self.env):
+            self.environment['protection_rules'].reverse();self.plan()
+            self.environment['protection_rules']=[r for r in self.environment['protection_rules'] if r['type']!='branch_policy']
+            with self.assertRaises(ValueError):self.plan()
 
-    def test_missing_unsupported_or_duplicate_record_rejects(self):
-        self.path.unlink();self.assertIsNone(self.accept());self.write()
-        self.path.write_text('{"kind":"a","kind":"b"}')
-        with self.assertRaises(ValueError):self.accept()
-        self.write();self.record['acceptedRawFindings'].append('f'*64);self.write()
-        with self.assertRaises(ValueError):self.accept()
-    def test_partial_acceptance_leaves_blockers_and_technical_failures_are_not_waived(self):
-        self.record['acceptedRawFindings']=self.record['acceptedRawFindings'][:1];self.write()
-        state=self.accept();self.assertEqual(len(state['raw']),1)
-        # Integration: use only this fixture's policy files but execute the real gate.
-        with patch.dict(pub.os.environ,dict(self.case.env,MAESTRO_SYSTEM_ROOT=str(self.root))),patch.object(pub,'RISK_POLICY_FILES',tuple(self.files)),patch.object(pub.native,'api',side_effect=self.api):
-            # Make the checked policy path identical to the scope's file location.
-            (self.root/'.github').mkdir(exist_ok=True);(self.root/'.github/CODEOWNERS').write_text('* @human\n')
-            with self.assertRaises(pub.MandatoryVerdictError):pub.consume(self.bundle,self.case.policy_path,'check')
-            self.case.case.bundle.joinpath('findings.json').write_text('[]')
-            with self.assertRaises(ValueError):pub.consume(self.bundle,self.case.policy_path,'check')
-    def test_accepted_gate_permits_high_critical_but_live_revocation_stops_upload(self):
-        (self.root/'.github').mkdir(exist_ok=True);self.files['.github/CODEOWNERS']=self.root/'.github/CODEOWNERS';self.files['.github/CODEOWNERS'].write_text('* @human\n')
-        scope=pub.native.common.cache_publication.closure(self.bundle['product']);selected=next(iter(scope));calls=[]
+    def test_environment_replacement_bypass_wrong_reviewer_or_unprotected_branch_rejects(self):
+        for change in [dict(can_admins_bypass=True),dict(deployment_branch_policy=None),dict(protection_rules=[])]:
+            with self.subTest(change=change),patch.dict(os.environ,self.env),patch.dict(self.environment,change):
+                with self.assertRaises(ValueError):self.plan()
+        with patch.dict(os.environ,self.env):
+            state=self.state();self.environment['id']=100
+            with self.assertRaises(ValueError):risk.approval(self.api,state)
+    def test_free_plan_private_visibility_or_missing_environment_never_runs_unprotected(self):
+        original=self.api
+        def private(path):
+            if path=='':return dict(id=risk.REPO_ID,full_name='closure-labs/maestro',private=True,visibility='private')
+            return original(path)
+        with patch.dict(os.environ,self.env),self.assertRaises(ValueError):
+            risk.plan(self.bundle,self.case.findings,self.files,private,'publish')
+        with patch.dict(os.environ,self.env),patch.object(self,'environment',{}),self.assertRaises(ValueError):self.plan()
+
+    def test_denial_or_transport_error_is_never_fallback_authority(self):
+        with patch.dict(os.environ,self.env):
+            state=self.state()
+            def denied(path):
+                if path.endswith('/approvals'):raise OSError('denied')
+                return self.api(path)
+            with self.assertRaises(OSError):risk.approval(denied,state)
+            with self.assertRaises(ValueError):risk.approval(self.api,state)
+    def test_current_snapshot_cannot_distinguish_unobserved_remove_and_restore(self):
+        # This is the explicitly accepted limitation, not a continuity guarantee.
+        with patch.dict(os.environ,self.env):
+            state=self.state();before=risk.approval(self.api,state)
+            self.permission['permission']='read';self.permission['permission']='write'
+            self.assertEqual(risk.approval(self.api,state),before)
+    def test_protected_review_job_has_no_writer_and_gates_the_disabled_writer(self):
+        import subprocess
+        data=json.loads(subprocess.run(['yq','-o=json','.',str(fixture.ROOT/'.github/workflows/publication.yml')],
+            capture_output=True,text=True,check=True,timeout=10).stdout)
+        before=data['jobs']['native_review'];writer=data['jobs']['native_publish']
+        self.assertEqual(writer['needs'],'native_review')
+        self.assertEqual(writer['environment']['name'],risk.ENVIRONMENT)
+        self.assertIn('github.run_id',writer['environment']['url'])
+        self.assertNotIn('environment',before)
+        for job in (before,writer):
+            self.assertIn("vars.MAESTRO_NATIVE_PUBLICATION_ENABLED == 'true'",job['if'])
+            self.assertEqual(set(job['permissions'].values()),{'read'})
+        self.assertNotIn('secrets.',json.dumps(before))
+        review_step=next(s for s in before['steps'] if s.get('id')=='review')
+        self.assertIn('ci:native:review',review_step['run'])
+        self.assertNotIn('ci:native:publication',review_step['run'])
+        step=next(s for s in writer['steps'] if 'NATIVE_FINDINGS_CONTEXT_SHA256' in s.get('env',{}))
+        self.assertEqual(step['env']['NATIVE_FINDINGS_CONTEXT_SHA256'],'${{ needs.native_review.outputs.context_sha256 }}')
+
+    def test_real_review_consumer_does_not_accept_findings_or_invoke_a_writer(self):
+        root=self.case.case.root;(root/'.github').mkdir();(root/'.github/CODEOWNERS').write_text('* @human\n')
+        self.files={'.github/CODEOWNERS':root/'.github/CODEOWNERS'}
+        with patch.dict(os.environ,self.env),patch.object(pub,'RISK_POLICY_FILES',tuple(self.files)),patch.object(pub.native,'api',side_effect=self.api):
+            value=pub.consume(self.bundle,self.case.policy_path,'review',execute=lambda *a,**k:self.fail('writer called'))
+        self.assertEqual(value['verdict']['status'],'blocked')
+        self.assertFalse(value['authorization']);self.assertFalse(value['publicationReady'])
+        self.assertIn('high/critical',value['notice'])
+        self.assertEqual(value['rawFindings'],self.case.findings)
+        self.assertNotIn('actions/runs/123/approvals',self.calls)
+
+    def test_real_review_cli_retains_bounded_context_and_summary_without_authority(self):
+        import subprocess,sys,tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            driver="""import importlib.util,sys,os,json
+from pathlib import Path
+from unittest.mock import patch
+from contextlib import contextmanager
+spec=importlib.util.spec_from_file_location('fixture',sys.argv[1]);f=importlib.util.module_from_spec(spec);spec.loader.exec_module(f)
+c=f.Risk();c.setUp();root=c.case.case.root
+(root/'.github').mkdir();(root/'.github/CODEOWNERS').write_text('* @human\\n')
+c.files={'.github/CODEOWNERS':root/'.github/CODEOWNERS'}
+c.bundle['normalizedFindings'][0]['largeExposure']='x'*(2*1024**2)
+@contextmanager
+def selected(*a,**k):yield c.bundle
+out=Path(sys.argv[2])
+if len(sys.argv)>3 and sys.argv[3]=='cap':f.pub.MAX_REVIEW_BYTES=1024
+if len(sys.argv)>3 and sys.argv[3]=='exists':(out/'review.json').write_text('sentinel')
+env=dict(c.env,MAESTRO_NATIVE_SECURITY_POLICY=str(c.case.policy_path),NATIVE_RISK_REVIEW_FILE=str(out/'review.json'),GITHUB_OUTPUT=str(out/'outputs'),GITHUB_STEP_SUMMARY=str(out/'summary'))
+sys.argv=['native-publication','review','--run','7','--attempt','1','--revision','a'*40]
+with patch.dict(os.environ,env),patch.object(f.pub,'RISK_POLICY_FILES',tuple(c.files)),patch.object(f.pub.native,'api',side_effect=c.api),patch.object(f.pub,'selected',selected):f.pub.main()
+c.doCleanups()
+"""
+            result=subprocess.run([sys.executable,'-c',driver,str(Path(__file__)),directory],capture_output=True,text=True,timeout=20)
+            self.assertEqual(result.returncode,0,result.stderr)
+            value=json.loads((Path(directory)/'review.json').read_text())
+            self.assertFalse(value['authorization']);self.assertEqual(value['verdict']['status'],'blocked')
+            self.assertGreater((Path(directory)/'review.json').stat().st_size,1024**2)
+            self.assertEqual((Path(directory)/'outputs').read_text().strip(),'context_sha256='+value['review']['contextSha256'])
+            self.assertIn('including high/critical',(Path(directory)/'summary').read_text())
+            for flag in ('cap','exists'):
+                child=Path(directory)/flag;child.mkdir()
+                failed=subprocess.run([sys.executable,'-c',driver,str(Path(__file__)),str(child),flag],capture_output=True,text=True,timeout=20)
+                self.assertNotEqual(failed.returncode,0)
+                self.assertFalse((child/'outputs').exists())
+                if flag=='cap':self.assertFalse((child/'review.json').exists())
+                else:self.assertEqual((child/'review.json').read_text(),'sentinel')
+
+    def test_real_consumer_accepts_exact_risk_but_stops_before_write_on_access_loss(self):
+        root=self.case.case.root;(root/'.github').mkdir();(root/'.github/CODEOWNERS').write_text('* @human\n')
+        self.files={'.github/CODEOWNERS':root/'.github/CODEOWNERS'}
+        scope=pub.native.common.cache_publication.closure(self.bundle['product']);calls=[]
         def restore(*args,**kwargs):
-            kwargs['closure_metadata'].write_text(json.dumps(scope));self.reviews[0]['state']='DISMISSED'
-        with patch.dict(pub.os.environ,dict(self.case.env,MAESTRO_SYSTEM_ROOT=str(self.root))),patch.object(pub,'RISK_POLICY_FILES',tuple(self.files)),patch.object(pub.native,'api',side_effect=self.api):
-            result=pub.consume(self.bundle,self.case.policy_path,'check');self.assertEqual(result['status'],'native-policy-clear')
-            self.assertEqual(result['verdict']['riskAcceptance']['reviewId'],30)
+            kwargs['closure_metadata'].write_text(json.dumps(scope));self.permission['permission']='read'
+        with patch.dict(os.environ,self.env),patch.object(pub,'RISK_POLICY_FILES',tuple(self.files)),patch.object(pub.native,'api',side_effect=self.api):
+            self.state()
             with self.assertRaises(ValueError):pub.consume(self.bundle,self.case.policy_path,'publish',transport=Path('/fixture'),
-                inspect=lambda *a:dict(status='partial',missing=[selected]),restore=restore,query=lambda paths:scope,
-                execute=lambda *a,**kw:calls.append('upload'),probe=lambda *a:dict(status='verified'))
+                inspect=lambda *a:dict(status='partial',missing=[next(iter(scope))]),restore=restore,query=lambda p:scope,
+                execute=lambda *a,**k:calls.append('write'),probe=lambda *a:dict(status='verified'))
         self.assertEqual(calls,[])
 
 if __name__=='__main__':unittest.main()

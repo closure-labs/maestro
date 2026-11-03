@@ -28,7 +28,8 @@ class ReleaseStage(unittest.TestCase):
         self.root=self.case.case.root;self.bundle=self.case.bundle()
         self.iso=self.root/'input.iso';self.iso.write_bytes(b'bounded fixture ISO\x00'*100)
         digest=pub.native.file_hash(self.iso)
-        self.bundle.update(binding=dict(isoSha256=digest),result=dict(boot=dict(isoSha256=digest)))
+        self.bundle['binding']['isoSha256']=digest
+        self.bundle.update(result=dict(boot=dict(isoSha256=digest)))
         self.bundle['receipt']['runAttempt']=1
         self.output=self.root/'output';self.media=(7,1,fixture.fixture.SHA);self.calls=[]
         bash=os.environ.get('BASH') or '/bin/bash'

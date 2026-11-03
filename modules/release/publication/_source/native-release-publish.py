@@ -25,6 +25,8 @@ def publish(bundle,directory,iso,policy_path,*,publication=None,assets=None,exec
         and os.environ.get('GITHUB_REF')=='refs/heads/main'
         and os.environ.get('GITHUB_EVENT_NAME')=='workflow_dispatch'
         and os.environ.get('GITHUB_SHA')==policy_revision,'Native release writer disabled or wrong protected policy context')
+    require(bundle.get('_riskAcceptance',{}).get('context',{}).get('operation')=='release',
+        'Exact per-publication findings review required before release writes')
     require(bundle.get('inventoryOnly') is not True,'Original inventory cannot authorize publication')
     directory=Path(directory);iso=Path(iso)
     require(directory.is_dir() and not directory.is_symlink(),'Regular staged release directory required')
