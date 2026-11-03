@@ -221,7 +221,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     outputs:
-      context_sha256: ${{ steps.review.outputs.context_sha256 }}
+      context_sha256: ${{ steps.review.outputs.context_sha256 || steps.qualification_review.outputs.context_sha256 }}
     permissions:
       actions: read
       attestations: read
@@ -241,8 +241,8 @@ jobs:
         uses: $/.github/actions/setup-nix
       - name: Prepare exact findings for explicit human risk review
         id: review
+        if: inputs.native_qualification_only != true
         env:
-          NATIVE_REVIEW_TASK: ${{ inputs.native_qualification_only && 'ci:native:review-qualification' || 'ci:native:review' }}
           GH_TOKEN: ${{ github.token }}
           NATIVE_RISK_REVIEW_FILE: ${{ runner.temp }}/native-findings-review.json
           MAESTRO_NATIVE_PUBLICATION_ENABLED: ${{ vars.MAESTRO_NATIVE_PUBLICATION_ENABLED }}
@@ -255,7 +255,24 @@ jobs:
           NATIVE_BOOT_ORIGIN_RUN: ${{ inputs.native_boot_run }}
           NATIVE_BOOT_ORIGIN_ATTEMPT: ${{ inputs.native_boot_attempt }}
           NATIVE_BOOT_ORIGIN_REVISION: ${{ inputs.native_boot_revision }}
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' "${NATIVE_REVIEW_TASK:?}"
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:native:review
+      - name: Prepare read-only qualification context; accept no findings
+        id: qualification_review
+        if: inputs.native_qualification_only == true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NATIVE_RISK_REVIEW_FILE: ${{ runner.temp }}/native-findings-review.json
+          MAESTRO_NATIVE_PUBLICATION_ENABLED: ${{ vars.MAESTRO_NATIVE_PUBLICATION_ENABLED }}
+          NATIVE_RUN: ${{ inputs.native_run }}
+          NATIVE_HEALTH_RUN: ${{ inputs.native_health_run }}
+          NATIVE_HEALTH_ATTEMPT: ${{ inputs.native_health_attempt }}
+          NATIVE_ATTEMPT: ${{ inputs.native_attempt }}
+          NATIVE_REVISION: ${{ inputs.native_revision }}
+          NATIVE_POLICY_REVISION: ${{ github.sha }}
+          NATIVE_BOOT_ORIGIN_RUN: ${{ inputs.native_boot_run }}
+          NATIVE_BOOT_ORIGIN_ATTEMPT: ${{ inputs.native_boot_attempt }}
+          NATIVE_BOOT_ORIGIN_REVISION: ${{ inputs.native_boot_revision }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:native:review-qualification
       - name: Retain bounded native consumer receipt
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

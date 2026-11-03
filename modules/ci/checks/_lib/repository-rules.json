@@ -266,8 +266,8 @@
   {
     "kind": "contains",
     "path": ".github/workflows/publication.yml",
-    "needle": "group: maestro-publication",
-    "message": "Rolling publication must use the shared publication queue"
+    "needle": "group: ${{ inputs.native_qualification_only && 'maestro-publication-qualification' || 'maestro-publication' }}",
+    "message": "Rolling publication must retain its production queue and isolate read-only qualification"
   },
   {
     "kind": "contains",

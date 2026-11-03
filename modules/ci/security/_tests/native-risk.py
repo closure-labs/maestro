@@ -142,8 +142,8 @@ class Risk(unittest.TestCase):
             self.assertEqual(set(job['permissions'].values()),{'read'})
         self.assertNotIn('secrets.',json.dumps(before))
         review_step=next(s for s in before['steps'] if s.get('id')=='review')
-        self.assertIn('NATIVE_REVIEW_TASK',review_step['run'])
-        self.assertIn('ci:native:review',review_step['env']['NATIVE_REVIEW_TASK'])
+        self.assertIn('ci:native:review',review_step['run'])
+        self.assertIn('inputs.native_qualification_only != true',review_step['if'])
         self.assertNotIn('ci:native:publication',review_step['run'])
         step=next(s for s in writer['steps'] if 'NATIVE_FINDINGS_CONTEXT_SHA256' in s.get('env',{}))
         self.assertEqual(step['env']['NATIVE_FINDINGS_CONTEXT_SHA256'],'${{ needs.native_review.outputs.context_sha256 }}')
@@ -201,6 +201,27 @@ class Risk(unittest.TestCase):
         for forbidden in ('secrets.','CACHIX','DECIDER','release:native:publish','ci:native:publication'):
             self.assertNotIn(forbidden,encoded)
         self.assertIn('ci:native:qualify',encoded)
+
+    def test_literal_tasks_and_exact_production_queue_match_repository_contract(self):
+        import subprocess,re
+        path=fixture.ROOT/'.github/workflows/publication.yml'
+        data=json.loads(subprocess.run(['yq','-o=json','.',str(path)],capture_output=True,text=True,check=True,timeout=10).stdout)
+        contract=json.loads((fixture.ROOT/'modules/ci/checks/_lib/repository-rules.json').read_text())
+        rule=next(r for r in contract if r['path']=='.github/workflows/publication.yml' and 'production queue' in r['message'])
+        self.assertIn(rule['needle'],path.read_text())
+        self.assertNotIn(rule['needle'],path.read_text().replace("|| 'maestro-publication'","|| 'wrong-production-queue'"))
+        pattern=r"nix run --accept-flake-config \.#devenv -- tasks run --mode single .* [a-z0-9:_-]+"
+        for job in data['jobs'].values():
+            for step in job['steps']:
+                if 'run' in step:
+                    self.assertRegex(step['run'],'^'+pattern+'$')
+                    self.assertIn("--option 'packages:pkgs!' ''",step['run'])
+        self.assertIsNone(re.fullmatch(pattern,"nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' \"${TASK}\""))
+        pre=data['jobs']['native_review']
+        selection={step['id']:step for step in pre['steps'] if step.get('id') in ('review','qualification_review')}
+        self.assertIn('inputs.native_qualification_only == true',selection['qualification_review']['if'])
+        self.assertTrue(selection['qualification_review']['run'].endswith('ci:native:review-qualification'))
+        self.assertIn('steps.qualification_review.outputs.context_sha256',pre['outputs']['context_sha256'])
 
     def test_real_review_cli_retains_bounded_context_and_summary_without_authority(self):
         import subprocess,sys,tempfile
