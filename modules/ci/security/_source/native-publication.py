@@ -29,11 +29,12 @@ require = native.require
 POLICY = 'modules/ci/security/_source/security-policy.json'
 CACHE = 'https://maestro.cachix.org'
 KEY = 'maestro.cachix.org-1:fGFZFVwe2ZHEBENWZLHVzERZrz2c50ru+g0UewH68I0='
+MAX_REVIEW_BYTES = 64 * 1024**2
 
 # These protected-source policy/verifier files are part of every risk scope.
 # This is a data digest, not a persisted authority capability.
 RISK_POLICY_FILES=(
-    '.github/CODEOWNERS', '.github/workflows/publication.yml',
+    '.github/CODEOWNERS', 'VERSION', '.github/workflows/publication.yml',
     '.github/workflows/consumer-probe.yml',
     '.github/workflows/release.yml', '.github/workflows/release-publication.yml',
     'modules/ci/authority/_source/decision-policy.json',
@@ -130,7 +131,7 @@ def store_metadata(paths):
             return json.load(out)
 
 
-def consume(bundle, policy_path, operation, transport=None, execute=native.operations.run, probe=None, restore=None, inspect=None, query=store_metadata, release=None):
+def consume(bundle, policy_path, operation, transport=None, execute=native.operations.run, probe=None, restore=None, inspect=None, query=store_metadata, release=None, review_operation='publish'):
     require(bundle.get('inventoryOnly') is not True, 'Inventory identity is not current publication health')
     policy_digest = native.file_hash(policy_path)
     fresh(bundle, policy_path, policy_digest)
@@ -138,17 +139,21 @@ def consume(bundle, policy_path, operation, transport=None, execute=native.opera
     blocking={}
     with native.bounded_validation():
         outcome = policy_verdict(bundle, source_policy, blocking)
-    if outcome['status'] != 'clear':
+    if operation in ('publish','release') and not os.environ.get('NATIVE_FINDINGS_CONTEXT_SHA256') and outcome['status']!='clear':
+        raise MandatoryVerdictError(outcome)
+    if operation in ('review','publish','release'):
         root=Path(os.environ.get('MAESTRO_SYSTEM_ROOT',os.getcwd()))
         files={name:root/name for name in RISK_POLICY_FILES}
-        state=risk.acceptance(bundle,blocking['findings'],blocking['raw'],blocking['normalized'],files,native.api,root)
-        if state:
-            bundle['_riskAcceptance']=state
-            remaining_raw=[row for row in blocking['raw'] if risk.digest(row) not in state['raw']]
-            remaining_normalized=[row for row in blocking['normalized'] if risk.digest(row) not in state['normalized']]
-            outcome.update(status='blocked' if remaining_raw or remaining_normalized else 'clear',
-                unacceptedBlockingRows=len(remaining_raw),unacceptedNormalizedIdentities=len(remaining_normalized),
-                riskAcceptance=dict(**state['proof'],recordSha256=state['recordHash'],expiresAt=state['record']['expiresAt']))
+        target=review_operation if operation=='review' else operation
+        state=risk.plan(bundle,blocking['findings'],files,native.api,target)
+        if operation=='review':
+            return dict(status='awaiting-explicit-findings-risk-review',authorization=False,publicationReady=False,
+                verdict=outcome,review=state,rawFindings=blocking['findings'],normalizedFindings=bundle['normalizedFindings'],
+                notice='Approving findings-risk-review accepts the exact displayed vulnerability risk, including high/critical findings, for this publication only.')
+        state['rebuild']=lambda:risk.context(bundle,bound_json(bundle,'findings.json','findings'),files,target,state['context']['runId'])
+        bundle['_riskAcceptance']=state
+        proof=risk.approval(native.api,state)
+        outcome.update(status='clear',riskAcceptance=proof)
     if outcome['status'] != 'clear':
         raise MandatoryVerdictError(outcome)
     if operation == 'check':
@@ -251,7 +256,8 @@ def emit(result, error=False):
 
 def main():
     cli = argparse.ArgumentParser(description=__doc__)
-    cli.add_argument('operation', choices=('check', 'probe', 'publish', 'release'))
+    cli.add_argument('operation', choices=('check', 'probe', 'publish', 'release', 'review'))
+    cli.add_argument('--review-operation',choices=('publish','release'),default='publish')
     cli.add_argument('--directory', type=Path)
     cli.add_argument('--release-directory',type=Path);cli.add_argument('--release-iso',type=Path)
     cli.add_argument('--run', type=int, required=True); cli.add_argument('--attempt', type=int, required=True)
@@ -273,8 +279,31 @@ def main():
     with native.operations.budget(3300),selected(args.directory,args.run,args.attempt,args.revision,origin,
             policy_revision=args.policy_revision,health_run=args.health_run,health_attempt=args.health_attempt,
             health_directory=args.health_directory) as bundle:
-        result=consume(bundle,Path(os.environ['MAESTRO_NATIVE_SECURITY_POLICY']),args.operation,args.transport_directory,release=release)
+        result=consume(bundle,Path(os.environ['MAESTRO_NATIVE_SECURITY_POLICY']),args.operation,args.transport_directory,release=release,review_operation=args.review_operation)
         if args.health_run is not None:result['healthProducer']=bundle['healthManifest']['producer']
+    if args.operation=='review':
+        review_file=os.environ.get('NATIVE_RISK_REVIEW_FILE')
+        require(review_file,'Explicit review artifact output required')
+        target=Path(review_file);created=False
+        try:
+            with target.open('xb') as stream:
+                created=True;length=0
+                for chunk in json.JSONEncoder(sort_keys=True,allow_nan=False).iterencode(result):
+                    raw=chunk.encode();length+=len(raw)
+                    require(length<MAX_REVIEW_BYTES,'Bounded findings review document required')
+                    stream.write(raw)
+                stream.write(b'\n')
+        except Exception:
+            if created:target.unlink(missing_ok=True)
+            raise
+        with Path(os.environ['GITHUB_OUTPUT']).open('a') as stream:
+            stream.write('context_sha256='+result['review']['contextSha256']+'\n')
+        with Path(os.environ['GITHUB_STEP_SUMMARY']).open('a') as stream:
+            stream.write('## Explicit findings-risk review\n'+result['notice']+'\n\n')
+            stream.write('Context SHA-256: `'+result['review']['contextSha256']+'`\n\n')
+            stream.write('Review the immutable `maestro-findings-review` artifact for exact product, evidence, policy and finding identities.\n\n')
+            stream.write('```json\n'+json.dumps(result['verdict'],sort_keys=True)+'\n```\n')
+        result={k:v for k,v in result.items() if k not in ('rawFindings','normalizedFindings')}
     result.update(authorization=False, sourceRevision=args.revision, sourceRun=args.run, sourceAttempt=args.attempt)
     if args.policy_revision is not None:result['policyRevision']=args.policy_revision
     emit(result)

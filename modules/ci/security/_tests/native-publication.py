@@ -37,8 +37,13 @@ class Publication(unittest.TestCase):
         self.case.native['evidence']={}
         self.case.scans['transport']={}
         self.env=dict(os.environ,MAESTRO_NATIVE_PREPARE_POLICY=str(self.case.policy),
-            GITHUB_REPOSITORY='closure-labs/maestro',GITHUB_REF='refs/heads/main',GITHUB_EVENT_NAME='workflow_dispatch',GITHUB_SHA=fixture.SHA,
+            GITHUB_RUN_ID='123',GITHUB_RUN_ATTEMPT='1',MAESTRO_SYSTEM_ROOT=str(ROOT),GITHUB_REPOSITORY='closure-labs/maestro',GITHUB_REF='refs/heads/main',GITHUB_EVENT_NAME='workflow_dispatch',GITHUB_SHA=fixture.SHA,
             MAESTRO_NATIVE_PUBLICATION_ENABLED='true',CACHIX_MAESTRO_PUBKEY=pub.KEY,CACHIX_MAESTRO_AUTH_TOKEN='fixture-secret')
+        self.review_approved=True
+        self.policy_root=self.case.root/'protected-policy'
+        self.env['MAESTRO_SYSTEM_ROOT']=str(self.policy_root)
+        for name in pub.RISK_POLICY_FILES:
+            target=self.policy_root/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes((ROOT/name).read_bytes())
 
     def finding(self,severity='high',i='a'):
         return dict(advisory='CVE-2026-1234',component='package',version='1',severity=severity,identity=i*64)
@@ -49,11 +54,30 @@ class Publication(unittest.TestCase):
             path=self.case.bundle/name;path.write_text(json.dumps(value))
             self.case.native['evidence'][key]=dict(sha256=pub.native.file_hash(path),size=path.stat().st_size)
         self.case.write_bundle()
-        return dict(directory=self.case.bundle,native=self.case.native,product=self.case.product,scans=self.case.scans,
+        bundle=dict(binding=self.case.binding,directory=self.case.bundle,native=self.case.native,product=self.case.product,scans=self.case.scans,
             receipt=dict(sourceRevision=fixture.SHA,runId=7),policyHash=pub.native.common.canonical_hash(self.case.cfg),
             normalizedFindings=[])
+        (self.policy_root/pub.POLICY).write_bytes(self.policy_path.read_bytes())
+        files={name:self.policy_root/name for name in pub.RISK_POLICY_FILES}
+        self.env['NATIVE_FINDINGS_CONTEXT_SHA256']=pub.risk.digest(pub.risk.context(bundle,self.findings,files,'publish',123))
+        return bundle
 
     def api(self,path):
+        if path=='':return dict(id=pub.risk.REPO_ID,full_name='closure-labs/maestro',private=False,visibility='public')
+        if path=='actions/runs/123':return dict(id=123,run_attempt=1,head_sha=fixture.SHA,head_branch='main',
+            event='workflow_dispatch',path=pub.risk.WORKFLOWS['publish'],repository=dict(id=pub.risk.REPO_ID),
+            status='in_progress',created_at=dt.datetime.now(dt.timezone.utc).isoformat())
+        if path=='environments/'+pub.risk.ENVIRONMENT:return dict(id=9,name=pub.risk.ENVIRONMENT,can_admins_bypass=False,
+            deployment_branch_policy=dict(protected_branches=True,custom_branch_policies=False),
+            protection_rules=[dict(type='required_reviewers',prevent_self_review=False,
+                reviewers=[dict(type='User',reviewer=dict(id=pub.risk.REVIEWER_ID))]),dict(type='branch_policy')])
+        if path=='actions/runs/123/approvals' and not self.review_approved:return []
+        if path=='actions/runs/123/approvals':return [dict(state='approved',environments=[dict(id=9,name=pub.risk.ENVIRONMENT)],user=dict(type='User',id=pub.risk.REVIEWER_ID,login='human'))]
+        if path=='collaborators/human/permission':return dict(permission='write',user=dict(id=pub.risk.REVIEWER_ID))
+        if path.startswith('contents/') and '?ref=' in path and not path.startswith('contents/'+pub.POLICY+'?ref='):
+            import base64
+            raw=(self.policy_root/path[len('contents/'):].split('?ref=')[0]).read_bytes()
+            return dict(encoding='base64',size=len(raw),content=base64.b64encode(raw).decode())
         if path=='git/ref/heads/main':return {'object':{'sha':fixture.SHA}}
         if path.startswith('contents/'+pub.POLICY+'?ref='):
             import base64
@@ -61,14 +85,15 @@ class Publication(unittest.TestCase):
         raise AssertionError('Unexpected history/ledger/mutation endpoint '+path)
 
     def test_report_mode_high_critical_unknown_block_before_every_side_effect(self):
+        self.review_approved=False
         for severity in ('high','critical','unknown'):
             self.findings=[self.finding(severity)];bundle=self.bundle();calls=[]
             with self.subTest(severity=severity),patch.dict(os.environ,self.env),patch.object(pub.native,'api',side_effect=self.api):
-                with self.assertRaises(pub.MandatoryVerdictError) as error:
+                with self.assertRaises(ValueError):
                     pub.consume(bundle,self.policy_path,'publish',execute=lambda *a,**k:calls.append('upload'),
                         restore=lambda *a,**k:calls.append('restore'),probe=lambda *a,**k:calls.append('probe'),
                         inspect=lambda *a,**k:calls.append('inspect'))
-                self.assertEqual(error.exception.outcome['blockingRows'],1);self.assertEqual(calls,[])
+                self.assertEqual(pub.policy_verdict(bundle,self.policy)['blockingRows'],1);self.assertEqual(calls,[])
 
     def test_explicit_product_source_and_current_policy_are_distinct(self):
         policy_revision='e'*40;bundle=self.bundle();bundle['receipt']['policyRevision']=policy_revision
@@ -194,7 +219,7 @@ class Publication(unittest.TestCase):
             with self.subTest(severity=severity):
                 self.assertEqual(result.returncode,expected,result.stdout+result.stderr)
                 self.assertFalse(side_effect.exists())
-                if expected:self.assertEqual(json.loads(result.stderr)['verdict']['blockingRows'],1)
+                if expected:self.assertEqual(json.loads(result.stderr)['status'],'blocked')
                 else:self.assertFalse(json.loads(result.stdout)['authorization'])
 
     def test_main_or_expiry_race_after_restore_prevents_upload(self):

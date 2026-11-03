@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""One explicit standard-review risk artifact; no chain, registry or newest selector."""
+"""One native environment findings review per exact first-attempt publication."""
 import base64
 from datetime import datetime, timezone, timedelta
 import hashlib
@@ -10,8 +10,6 @@ from pathlib import Path
 import re
 import stat
 
-PATH = 'automation/security-risk-acceptance.json'
-KIND = 'explicit-findings-risk-acceptance'
 MAX_DAYS = 30
 
 
@@ -48,66 +46,12 @@ def scope(bundle, findings, files):
         verificationPolicySha256=policy_context(files))
 
 
-def owners(raw):
-    lines=[line.strip() for line in raw.splitlines() if line.strip() and not line.lstrip().startswith('#')]
-    require(len(lines)==1,'Risk review requires the reviewed global CODEOWNERS contract')
-    tokens=lines[0].split();require(tokens[0]=='*' and len(tokens)>1,'Global CODEOWNERS required')
-    require(all(re.fullmatch(r'@[A-Za-z0-9][A-Za-z0-9-]*',v) for v in tokens[1:]),'Human CODEOWNER logins required')
-    return {v[1:].lower() for v in tokens[1:]}
-
-
 def contents(api,path,revision):
     row=api('contents/'+path+'?ref='+revision)
     require(row.get('encoding')=='base64' and type(row.get('size')) is int and 0<row['size']<=1024**2,'Bounded reviewed source document required')
     raw=base64.b64decode(row['content'],validate=False)
     require(len(raw)==row['size'],'Source document size mismatch')
     return raw
-
-
-def review(api,record,record_hash,revision,eligible):
-    number=record['reviewPullRequest'];require(type(number) is int and number>0,'Exact findings-review PR required')
-    pr=api(f'pulls/{number}')
-    require(pr.get('number')==number and pr.get('merged_at') and pr.get('state')=='closed'
-        and pr.get('base',{}).get('ref')=='main'
-        and pr.get('base',{}).get('repo',{}).get('full_name')=='closure-labs/maestro'
-        and pr.get('head',{}).get('repo',{}).get('full_name')=='closure-labs/maestro'
-        and pr.get('changed_files')==1 and pr.get('title','').startswith('security: accept findings risk'),
-        'Only a merged dedicated findings-risk PR may accept risk')
-    head=pr['head']['sha'];require(re.fullmatch('[0-9a-f]{40}',head),'Exact reviewed head required')
-    files=api(f'pulls/{number}/files?per_page=2')
-    require(len(files)==1 and files[0].get('filename')==PATH and files[0].get('status') in ('added','modified'),
-        'Findings-risk PR may change only the risk artifact')
-    require(digest(parse(contents(api,PATH,head)))==record_hash,'Risk artifact differs from reviewed PR head')
-    merge=pr.get('merge_commit_sha','');require(re.fullmatch('[0-9a-f]{40}',merge),'Merged risk decision required')
-    comparison=api(f'compare/{merge}...{revision}')
-    require(comparison.get('merge_base_commit',{}).get('sha')==merge,'Risk decision is not on current main history')
-    rows=[]
-    for page in range(1,6):
-        values=api(f'pulls/{number}/reviews?per_page=100&page={page}');rows.extend(values)
-        if len(values)<100:break
-    else:raise ValueError('Risk-review inventory exceeds bound')
-    latest={}
-    for row in rows:
-        if row.get('state') in ('APPROVED','CHANGES_REQUESTED','DISMISSED'):
-            uid=row.get('user',{}).get('id');rid=row.get('id')
-            require(type(uid) is int and type(rid) is int and rid>0,'Invalid review identity')
-            if rid>latest.get(uid,{}).get('id',0):latest[uid]=row
-    for row in latest.values():
-        user=row.get('user',{})
-        if (row.get('state')=='APPROVED' and row.get('commit_id')==head
-                and user.get('type')=='User' and type(user.get('id')) is int and user['id']>0
-                and user.get('login','').lower() in eligible and user['id']!=pr.get('user',{}).get('id')):
-            require(isinstance(row.get('submitted_at'),str),'Human risk review timestamp required')
-            submitted=datetime.fromisoformat(row['submitted_at'].replace('Z','+00:00'))
-            created=datetime.fromisoformat(record['createdAt'].replace('Z','+00:00'))
-            require(submitted.tzinfo is not None and created<=submitted<=datetime.now(timezone.utc),
-                'Risk review predates its declared creation or is in the future')
-            permission=api('collaborators/'+user['login']+'/permission')
-            require(permission.get('permission') in ('write','maintain','admin')
-                and permission.get('user',{}).get('id')==user['id'],
-                'Findings-risk reviewer no longer has eligible repository write access')
-            return dict(pullRequest=number,reviewId=row['id'],reviewedHead=head,reviewer=user['login'])
-    raise ValueError('Explicit independent human findings-risk approval missing, stale or revoked')
 
 
 def parse(raw):
@@ -119,48 +63,122 @@ def parse(raw):
     return json.loads(raw,object_pairs_hook=unique,parse_constant=lambda _:(_ for _ in ()).throw(ValueError('Nonfinite risk artifact')))
 
 
-def load_local(path):
-    with os.fdopen(os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK),'rb') as stream:
-        info=os.fstat(stream.fileno());require(stat.S_ISREG(info.st_mode) and 0<info.st_size<=1024**2,'Bounded regular risk artifact required')
-        raw=stream.read(1024**2+1);require(len(raw)==info.st_size,'Risk artifact changed during read')
-    return parse(raw)
+ENVIRONMENT = 'findings-risk-review'
+REPO_ID = 1127149753
+REVIEWER_ID = 52590374
+WORKFLOWS = {'publish': '.github/workflows/publication.yml',
+             'release': '.github/workflows/release-publication.yml'}
 
 
-def acceptance(bundle,findings,raw_blocking,normalized_blocking,files,api,root):
-    local=Path(root)/PATH
-    if not local.exists():return None
-    record=load_local(local);record_hash=digest(record);revision=bundle['receipt'].get('policyRevision',bundle['receipt']['sourceRevision'])
-    require(digest(parse(contents(api,PATH,revision)))==record_hash,'Risk artifact is not exact protected current source')
-    required={'schemaVersion','kind','repository','reviewPullRequest','createdAt','expiresAt','reason','evidence',
-              'scope','acceptedRawFindings','acceptedNormalizedFindings'}
-    require(isinstance(record,dict) and set(record)==required and type(record['schemaVersion']) is int
-        and record['schemaVersion']==1 and record['kind']==KIND and record['repository']=='closure-labs/maestro',
-        'Invalid explicit findings-risk artifact')
-    require(isinstance(record['reason'],str) and 0<len(record['reason'].strip())<=4000
-        and isinstance(record['evidence'],list) and 0<len(record['evidence'])<=20
-        and all(isinstance(v,str) and v.startswith('https://') and len(v)<=2048 for v in record['evidence']),
-        'Risk acceptance requires an explicit rationale and reviewable evidence')
-    require(all(isinstance(record[k],str) for k in ('createdAt','expiresAt')),'Explicit risk timestamps required')
-    created=datetime.fromisoformat(record['createdAt'].replace('Z','+00:00'));expires=datetime.fromisoformat(record['expiresAt'].replace('Z','+00:00'));now=datetime.now(timezone.utc)
-    require(created.tzinfo is not None and expires.tzinfo is not None and created<=now<expires
-        and timedelta()<expires-created<=timedelta(days=MAX_DAYS),'Expired, future or over-30-day risk acceptance')
-    require(record['scope']==scope(bundle,findings,files),'Changed/new findings, product, context, inventory or verification policy need new risk review')
-    raw=set(fingerprints(raw_blocking));normalized=set(fingerprints(normalized_blocking))
-    for field,present in [('acceptedRawFindings',raw),('acceptedNormalizedFindings',normalized)]:
-        accepted=record[field]
-        require(isinstance(accepted,list) and all(isinstance(v,str) and re.fullmatch('[0-9a-f]{64}',v) for v in accepted)
-            and accepted==sorted(set(accepted)) and set(accepted)<=present,'Risk acceptance exceeds exact present finding scope')
-    for name,path in files.items():
-        require(hashlib.sha256(contents(api,name,revision)).hexdigest()==hashlib.sha256(policy_bytes(path)).hexdigest(),
-            'Risk verifier/policy differs from protected source: '+name)
-    eligible=owners(contents(api,'.github/CODEOWNERS',revision).decode())
-    proof=review(api,record,record_hash,revision,eligible)
-    return dict(record=record,recordHash=record_hash,proof=proof,eligible=eligible,expires=expires,
-        raw=set(record['acceptedRawFindings']),normalized=set(record['acceptedNormalizedFindings']))
+def protected_files(api, files, revision):
+    for name, path in files.items():
+        row=api('contents/'+name+'?ref='+revision)
+        require(row.get('encoding')=='base64' and type(row.get('size')) is int
+            and 0<row['size']<=1024**2, 'Bounded protected risk policy required')
+        raw=base64.b64decode(row['content'],validate=False)
+        require(len(raw)==row['size'] and raw==policy_bytes(path),
+            'Risk policy differs from exact protected source: '+name)
+
+
+def runtime(api, revision, operation):
+    require(operation in WORKFLOWS, 'Unsupported findings-review destination')
+    run=os.environ.get('GITHUB_RUN_ID','')
+    require(re.fullmatch('[1-9][0-9]*',run) and os.environ.get('GITHUB_RUN_ATTEMPT')=='1',
+        'Fresh first-attempt publication run required; reruns cannot reuse review')
+    require(os.environ.get('GITHUB_REPOSITORY')=='closure-labs/maestro'
+        and os.environ.get('GITHUB_REF')=='refs/heads/main'
+        and os.environ.get('GITHUB_EVENT_NAME')=='workflow_dispatch'
+        and os.environ.get('GITHUB_SHA')==revision, 'Protected publication context required')
+    repository=api('')
+    require(repository.get('id')==REPO_ID and repository.get('full_name')=='closure-labs/maestro'
+        and repository.get('private') is False and repository.get('visibility')=='public',
+        'Public repository required for GitHub Free environment protections')
+    producer=api('actions/runs/'+run)
+    require(producer.get('id')==int(run) and producer.get('run_attempt')==1
+        and producer.get('head_sha')==revision and producer.get('head_branch')=='main'
+        and producer.get('event')=='workflow_dispatch' and producer.get('path')==WORKFLOWS[operation]
+        and producer.get('repository',{}).get('id')==REPO_ID
+        and producer.get('status')=='in_progress', 'Publication run identity or attempt changed')
+    created=datetime.fromisoformat(producer.get('created_at','').replace('Z','+00:00'))
+    now=datetime.now(timezone.utc)
+    require(created.tzinfo is not None and created<=now<created+timedelta(days=MAX_DAYS),
+        'Publication approval window exceeds thirty days')
+    require(api('git/ref/heads/main')['object']['sha']==revision,'Publication policy/main changed')
+    return int(run)
+
+
+def environment(api):
+    value=api('environments/'+ENVIRONMENT)
+    require(type(value.get('id')) is int and value['id']>0 and value.get('name')==ENVIRONMENT
+        and value.get('can_admins_bypass') is False, 'Configured non-bypass findings environment required')
+    require(value.get('deployment_branch_policy')==dict(protected_branches=True,custom_branch_policies=False),
+        'Protected branch environment policy required')
+    rules=value.get('protection_rules')
+    require(isinstance(rules,list) and len(rules)==2
+        and sorted(row.get('type','') for row in rules)==['branch_policy','required_reviewers'],
+        'Exact branch and human-review environment rules required')
+    rule=next(row for row in rules if row['type']=='required_reviewers')
+    require(rule.get('prevent_self_review') is False,'Exact sole-maintainer review rule required')
+    reviewers=rule.get('reviewers')
+    require(isinstance(reviewers,list) and len(reviewers)==1 and reviewers[0].get('type')=='User'
+        and reviewers[0].get('reviewer',{}).get('id')==REVIEWER_ID,
+        'Configured eligible human findings reviewer required')
+    return value['id']
+
+
+def context(bundle, findings, files, operation, run):
+    revision=bundle['receipt'].get('policyRevision',bundle['receipt']['sourceRevision'])
+    return dict(schemaVersion=2,kind='per-publication-findings-risk-review',repositoryId=REPO_ID,
+        runId=run,runAttempt=1,workflow=WORKFLOWS[operation],operation=operation,
+        policyRevision=revision,productProducer=bundle['receipt'],
+        healthProducer=bundle.get('healthManifest',{}).get('producer'),
+        scanEvidenceSha256=digest(bundle['native']),scope=scope(bundle,findings,files))
+
+
+def plan(bundle, findings, files, api, operation):
+    revision=bundle['receipt'].get('policyRevision',bundle['receipt']['sourceRevision'])
+    run=runtime(api,revision,operation);eid=environment(api)
+    protected_files(api,files,revision)
+    value=json.loads(json.dumps(context(bundle,findings,files,operation,run),allow_nan=False))
+    return dict(context=value,contextSha256=digest(value),environmentId=eid)
+
+
+def approval(api, state):
+    require(not state.get('invalidated'), 'Observed failed review cannot revive after restoration')
+    try:
+        value=state['context']
+        require(digest(value)==state['contextSha256'],'Frozen review context changed')
+        run=runtime(api,value['policyRevision'],value['operation'])
+        require(environment(api)==state['environmentId'],'Findings environment replaced')
+        require(state['rebuild']()==value,'Changed findings, evidence, product or policy need fresh review')
+        require(os.environ.get('NATIVE_FINDINGS_CONTEXT_SHA256')==state['contextSha256'],
+            'Missing or changed protected pre-review context')
+        rows=api('actions/runs/'+str(run)+'/approvals')
+        require(isinstance(rows,list) and 0<len(rows)<=100,'Bounded native findings review history required')
+        relevant=[row for row in rows if any(env.get('id')==state['environmentId']
+            and env.get('name')==ENVIRONMENT for env in row.get('environments',[]))]
+        # More than one decision is ambiguous; no newest-review selector or retry reuse.
+        require(len(relevant)==1 and relevant[0].get('state')=='approved',
+            'One explicit findings-risk approval for this run required')
+        user=relevant[0].get('user',{})
+        require(user.get('type')=='User' and user.get('id')==REVIEWER_ID
+            and re.fullmatch('[A-Za-z0-9][A-Za-z0-9-]*',user.get('login','')),
+            'Eligible human findings-risk approval required')
+        permission=api('collaborators/'+user['login']+'/permission')
+        require(permission.get('permission') in ('write','maintain','admin')
+            and permission.get('user',{}).get('id')==REVIEWER_ID,
+            'Findings reviewer no longer has required access')
+        return dict(kind=value['kind'],runId=run,runAttempt=1,environmentId=state['environmentId'],
+            reviewerId=REVIEWER_ID,contextSha256=state['contextSha256'])
+    except Exception:
+        state['invalidated']=True
+        raise
 
 
 def live(api,state,revision):
-    require(datetime.now(timezone.utc)<state['expires'],'Risk acceptance expired before operation')
-    # Only this one exact risk review is mutable. No historic graph, App-admin
-    # replay, newest selection or org membership credential is used.
-    return review(api,state['record'],state['recordHash'],revision,state['eligible'])
+    try:
+        require(revision==state['context']['policyRevision'],'Risk policy revision changed')
+        return approval(api,state)
+    except Exception:
+        state['invalidated']=True
+        raise

@@ -7,6 +7,16 @@ This document changes no executable policy, workflow, ruleset, permission,
 publication setting or historical decision. Preparing it does not authorize
 publishing a policy-changing PR, running a publication, or accepting findings.
 
+## Findings-review update (2026-11-03)
+
+The organization is confirmed GitHub Free. Dale approved fresh findings-specific
+native environment approval per publication, with the disclosed inability to
+detect unobserved access removal/restoration and the sole-maintainer self-review
+tradeoff. This supersedes the reusable risk-PR/audit continuity proposal below
+for the inactive native publisher. See [implementation and activation prerequisites](native-cutover/per-publication-findings-review.md).
+No current findings are accepted and no live environment/ruleset setting or
+publication flag is changed by this preparation.
+
 ## Decision and immediate scope
 
 Replace historical-ledger admission with standard GitHub source review plus
