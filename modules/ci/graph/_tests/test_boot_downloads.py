@@ -78,7 +78,7 @@ class DownloadContract(unittest.TestCase):
 
 
 class BootBytes(unittest.TestCase):
-    def execute(self, mode='refresh-evidence', mutation=None):
+    def execute(self, mode='refresh-evidence', mutation=None, *, media_source=SOURCE, media_run=17):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             retained = root / 'reused-media'
@@ -88,8 +88,8 @@ class BootBytes(unittest.TestCase):
             iso.write_bytes(ISO)
             state = dict(schema_version=5, mode='qualify-media', media_input=MEDIA,
                          evidence_input='e'*64, source_commit=SOURCE, artifact_source_commit=SOURCE,
-                         media_source_commit=SOURCE, producer_event='push', artifact_run_id=17,
-                         media_run_id=17, evidence_run_id=18)
+                         media_source_commit=media_source, producer_event='push', artifact_run_id=17,
+                         media_run_id=media_run, evidence_run_id=18)
             (retained / 'maestro-qualification-state.json').write_text(json.dumps(state))
             originals = {}
             names = ['result-installer/iso/maestro-installer.iso',
@@ -126,10 +126,10 @@ class BootBytes(unittest.TestCase):
             wrapper.write_text('#!/bin/sh\nexec bash "$TEST_INVENTORY_VERIFIER" "$@"\n')
             wrapper.chmod(0o755)
             script('maestro-ci-validate-state', 'import json,sys\nx=json.load(open(sys.argv[1])); assert x["schema_version"]==5\n')
-            script('maestro-ci-trusted-run', '''import json,sys
+            script('maestro-ci-trusted-run', '''import json,os,sys
 assert sys.argv[1:]==['--batch']
 x=json.load(sys.stdin)
-assert x==[{'run_id':17,'source_sha':'d'*40},{'run_id':17,'source_sha':'d'*40},{'run_id':18,'source_sha':''}]
+assert x==json.loads(os.environ['TEST_EXPECTED_TRUSTED_RUNS'])
 ''')
             script('gh', '''import hashlib,json,os,sys
 from pathlib import Path
@@ -150,7 +150,11 @@ if '--predicate-type' in a:
                        BOOT_LOG=str(root / 'boot.log'), TEST_INVENTORY_VERIFIER=str(VERIFY_SOURCE),
                        PATH=str(binary)+os.pathsep+os.environ['PATH'], GH_BIN='gh',
                        GITHUB_OUTPUT=str(root/'github-output'), GITHUB_STEP_SUMMARY=str(root/'summary'),
-                       TEST_DENY_ATTESTATION='false')
+                       TEST_DENY_ATTESTATION='false',
+                       TEST_EXPECTED_TRUSTED_RUNS=json.dumps([
+                           {'run_id':17,'source_sha':SOURCE},
+                           {'run_id':media_run,'source_sha':media_source},
+                           {'run_id':18,'source_sha':''}]))
             if mode.startswith('qualify-media'):
                 current = root / 'result-installer/iso/maestro-installer.iso'
                 current.parent.mkdir(parents=True); current.write_bytes(ISO)
@@ -192,6 +196,30 @@ if '--predicate-type' in a:
         self.assertIn('result-installer/iso/maestro-installer.iso', verified)
         self.assertIn('maestro-qualification-state.json', verified)
         self.assertEqual(len(verified), 8)  # six subjects, state, SPDX predicate
+
+    def test_retained_origin_preserves_distinct_executed_media_source_and_run(self):
+        for mode in ('reuse', 'refresh-evidence'):
+            with self.subTest(mode=mode):
+                result, verified, current = self.execute(mode, media_source='e'*40, media_run=19)
+                self.assertEqual(result['origin'], {'revision':'e'*40, 'runId':19})
+                self.assertEqual(result['producer'], PRODUCER)
+                self.assertEqual(result['disposition'], 'verified-retained')
+                self.assertIsNone(result['bootLogSha256'])
+                self.assertEqual(result['isoSha256'], sha(ISO))
+                self.assertFalse(current)
+                self.assertIn('maestro-qualification-state.json', verified)
+                self.assertIn('result-installer/iso/maestro-installer.iso', verified)
+
+    def test_retained_media_source_substitution_or_missing_binding_rejects(self):
+        def changed(root, env, remove=False):
+            path=root/'reused-media/maestro-qualification-state.json'
+            state=json.loads(path.read_text())
+            if remove:state.pop('media_source_commit')
+            else:state['media_source_commit']='f'*40
+            path.write_text(json.dumps(state))
+        for remove in (False, True):
+            self.assertIsNone(self.execute(mutation=lambda root,env:changed(root,env,remove),
+                                           media_source='e'*40, media_run=19))
 
     def test_fresh_modes_still_require_current_bytes_and_boot_log(self):
         for mode in ('qualify-media','qualify-media-reuse-evidence'):

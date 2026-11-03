@@ -35,7 +35,9 @@ def main():
         require(state['media_input'] == os.environ['EXPECTED_MEDIA_INPUT'], 'Changed retained boot inputs or verifier policy')
         subprocess.run(['maestro-ci-verify-inventory', 'reused-media', state['artifact_source_commit']], check=True)
         iso = Path('reused-media/result-installer/iso/maestro-installer.iso')
-        origin = {'revision': state['artifact_source_commit'], 'runId': state['media_run_id']}
+        # Artifact assembly and the original executed boot can have distinct
+        # producers. Preserve the authenticated media source/run pair.
+        origin = {'revision': state['media_source_commit'], 'runId': state['media_run_id']}
         log = None
     else:
         raise ValueError('Unknown boot evidence mode')

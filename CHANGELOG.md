@@ -11,6 +11,9 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Bind retained boot receipts to the original media source commit and run,
+  keeping later inventory artifact assembly provenance separate.
+
 - Prepare inactive native release asset staging with exact signed ISO/boot
   identity checks, authenticated SBOM reuse and verified existing installer
   splitting; add no public writer, workflow caller or risk acceptance.
