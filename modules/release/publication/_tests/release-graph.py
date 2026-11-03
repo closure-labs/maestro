@@ -72,7 +72,18 @@ class ReleaseGraph(unittest.TestCase):
         for filename in ['publication.yml', 'release-publication.yml']:
             document = json.loads(subprocess.check_output(
                 ['yq', '-o=json', '.', str(ROOT / '.github/workflows' / filename)], text=True))
-            self.assertEqual(document['concurrency']['group'], 'maestro-publication')
+            group=document['concurrency']['group']
+            if filename=='publication.yml':
+                rules=json.loads((ROOT/'modules/ci/checks/_lib/repository-rules.json').read_text())
+                expected,=[row['needle'].removeprefix('group: ') for row in rules
+                    if row.get('path')=='.github/workflows/publication.yml' and row.get('needle','').startswith('group: ')]
+                self.assertEqual(group,expected)
+                choices=re.fullmatch(r"\$\{\{ inputs.native_qualification_only && '([^']+)' \|\| '([^']+)' \}\}",group)
+                self.assertIsNotNone(choices)
+                self.assertEqual(choices[2],'maestro-publication')
+                self.assertNotEqual(choices[1],choices[2])
+            else:
+                self.assertEqual(group,'maestro-publication')
             self.assertEqual(document['concurrency']['queue'], 'max')
             steps = document['jobs']['publish']['steps']
             tasks = [step.get('run', '') for step in steps]

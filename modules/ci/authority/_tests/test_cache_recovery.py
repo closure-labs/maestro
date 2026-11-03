@@ -403,7 +403,10 @@ class RecoveryWorkflow(unittest.TestCase):
         selector = workflow['on']['workflow_dispatch']['inputs']['proposal_hash']
         self.assertEqual(selector['type'], 'string')
         self.assertEqual(selector['default'], '')
-        self.assertEqual(workflow['concurrency'], {'group': 'maestro-publication', 'queue': 'max',
+        rules=json.loads((ROOT/'modules/ci/checks/_lib/repository-rules.json').read_text())
+        expected_group,=[row['needle'].removeprefix('group: ') for row in rules
+            if row.get('path')=='.github/workflows/publication.yml' and row.get('needle','').startswith('group: ')]
+        self.assertEqual(workflow['concurrency'], {'group': expected_group, 'queue': 'max',
                                                   'cancel-in-progress': False})
         job = workflow['jobs']['publish']
         self.assertIn("github.repository == 'closure-labs/maestro'", job['if'])
