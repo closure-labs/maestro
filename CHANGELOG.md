@@ -111,6 +111,10 @@ correspond to published GitHub tags.
 - Prepare an inactive GitHub Free per-publication findings-risk review gate, with
   exact context binding, current-access checks and first-attempt-only approval.
 
+- Keep immutable inventory identity independent of CI routing text, preserving
+  exact roots, generator/verifier policy and fresh vulnerability scans while
+  avoiding SBOM regeneration for workflow-only edits.
+
 ### Fixed
 
 - Reuse the native exact original/fresh evidence selector in inactive release

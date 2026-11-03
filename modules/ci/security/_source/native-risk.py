@@ -46,14 +46,6 @@ def scope(bundle, findings, files):
         verificationPolicySha256=policy_context(files))
 
 
-def owners(raw):
-    lines=[line.strip() for line in raw.splitlines() if line.strip() and not line.lstrip().startswith('#')]
-    require(len(lines)==1,'Risk review requires the reviewed global CODEOWNERS contract')
-    tokens=lines[0].split();require(tokens[0]=='*' and len(tokens)>1,'Global CODEOWNERS required')
-    require(all(re.fullmatch(r'@[A-Za-z0-9][A-Za-z0-9-]*',v) for v in tokens[1:]),'Human CODEOWNER logins required')
-    return {v[1:].lower() for v in tokens[1:]}
-
-
 def contents(api,path,revision):
     row=api('contents/'+path+'?ref='+revision)
     require(row.get('encoding')=='base64' and type(row.get('size')) is int and 0<row['size']<=1024**2,'Bounded reviewed source document required')
