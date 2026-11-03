@@ -224,8 +224,15 @@ grep -Fq "fetch-depth: \${{ contains(fromJSON('[\"pull_request\",\"push\",\"merg
 route_outputs=$(yq -r '.jobs.route.outputs | keys | join(",")' \
   "$TEST_ROOT/.github/workflows/ci.yml")
 assert_eq "$route_outputs" plan,graph_jobs,graph_gating,graph_mode,graph_sha256
-yq -e \
-  '.concurrency.group == "maestro-publication" and
+# Use the reviewed queue definition rather than duplicating its expression.
+expected_publication_group=$(jq -er '
+  [.[] | select(.kind == "contains" and .path == ".github/workflows/publication.yml"
+    and (.needle | startswith("group: ")))] |
+  if length == 1 then .[0].needle | sub("^group: "; "")
+  else error("Exactly one publication queue contract is required") end
+' "$TEST_ROOT/modules/ci/checks/_lib/repository-rules.json")
+EXPECTED_PUBLICATION_GROUP="$expected_publication_group" yq -e \
+  '.concurrency.group == strenv(EXPECTED_PUBLICATION_GROUP) and
    .concurrency.queue == "max" and
    .concurrency.cancel-in-progress == false' \
   "$TEST_ROOT/.github/workflows/publication.yml" >/dev/null \

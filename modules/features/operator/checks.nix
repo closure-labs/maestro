@@ -43,6 +43,7 @@
             ../../ci/authority/_source/decisions/cache_publication.py
             ../../ci/authority/_source/queue.sh
             ../../ci/checks/_source/repository-audit.sh
+            ../../ci/checks/_lib/repository-rules.json
             ../../ci/graph/_lib/plans.json
             ../../release/publication/_source/publication-assets.py
             ../../release/publication/_source/publish.sh
