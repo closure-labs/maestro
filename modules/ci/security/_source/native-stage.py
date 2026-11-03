@@ -93,7 +93,7 @@ def download(row, target, names, budget, limit):
                 raise ValueError('Missing allowlisted artifact files')
 
 
-def stage(directory, run, attempt, revision, origin):
+def _stage(directory, run, attempt, revision, origin, refresh=False):
     if directory.exists() or type(run) is not int or run <= 0 or type(attempt) is not int or attempt <= 0 or not re.fullmatch('[0-9a-f]{40}', revision):
         raise ValueError('New staging directory and exact producer required')
     directory.mkdir(parents=True); budget = [0]
@@ -103,9 +103,11 @@ def stage(directory, run, attempt, revision, origin):
         if result['producer']['GITHUB_RUN_ATTEMPT'] != str(attempt):
             raise ValueError('Changed current producer attempt')
         download(select(run, revision, 'maestro-inventory-binding'), directory, {'manifest.json':'inventory-binding.json'}, budget, CAP)
-        report_names = ('product.json','scans.json','security-result.json','findings.json',
-                        'source-policy.json','effective-policy.json','critical-applicability.json')
-        download(select(run, revision, 'maestro-security-report'), directory, {n:n for n in report_names}, budget, CAP)
+        report_names = ('product.json','scans.json','security-result.json')
+        report = {n:n for n in report_names}
+        report.update({'inputs.sha256':'inputs.sha256','inventory/Cargo.lock':'Cargo.lock'} if refresh else
+                      {n:n for n in ('findings.json','source-policy.json','effective-policy.json','critical-applicability.json')})
+        download(select(run, revision, 'maestro-security-report'), directory, report, budget, CAP)
         if result['boot']['disposition'] == 'verified-retained':
             if origin is None:raise ValueError('Explicit original boot producer required')
             run_id, old_attempt, old_revision = origin
@@ -129,6 +131,14 @@ def stage(directory, run, attempt, revision, origin):
     except BaseException:
         shutil.rmtree(directory)
         raise
+
+
+def stage(directory, run, attempt, revision, origin):
+    return _stage(directory, run, attempt, revision, origin)
+
+
+def stage_refresh(directory, run, attempt, revision, origin):
+    return _stage(directory, run, attempt, revision, origin, refresh=True)
 
 
 def transport(run, revision, directory):

@@ -119,6 +119,7 @@ def store_metadata(paths):
 
 
 def consume(bundle, policy_path, operation, transport=None, execute=native.operations.run, probe=None, restore=None, inspect=None, query=store_metadata):
+    require(bundle.get('inventoryOnly') is not True, 'Inventory identity is not current publication health')
     policy_digest = native.file_hash(policy_path)
     fresh(bundle, policy_path, policy_digest)
     source_policy = protected_policy(bundle, policy_path)
