@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Prepare inactive native release asset staging with exact signed ISO/boot
+  identity checks, authenticated SBOM reuse and verified existing installer
+  splitting; add no public writer, workflow caller or risk acceptance.
+
 - Stage native cache publication and public-consumer inputs behind a disabled
   manual cutover switch; enforce authenticated vulnerability verdicts regardless
   of report mode, permit only separately explicit independent human findings-risk
