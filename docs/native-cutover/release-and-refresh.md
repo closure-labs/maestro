@@ -255,3 +255,17 @@ complete or activate the cutover. No vulnerability findings are accepted.
 
 Sources: [GitHub organization audit API](https://docs.github.com/en/enterprise-cloud@latest/rest/orgs/orgs#get-the-audit-log-for-an-organization),
 [audit API availability](https://docs.github.com/en/organizations/keeping-your-organization-secure/managing-security-settings-for-your-organization/reviewing-the-audit-log-for-your-organization#using-the-audit-log-api).
+
+
+### Caller preparation for the explicit source/policy split
+
+The existing disabled native cache writer and read-only cache probe pass their
+explicit product `native_revision` separately from protected workflow
+`github.sha` as the policy revision. Their enabling conditions and permissions
+are unchanged. The manually requested read/sign-only native refresh accepts the
+same explicit product revision; its empty default keeps current-main product
+selection. Its signer/policy source remains the exact workflow revision, and the
+verifier rejects main drift or a nonancestor product. No schedule starts native
+mode, no workflow calls the new versioned writer, and no live setting is enabled.
+This allows later policy/findings-review commits and fresh scans without
+rebuilding or regenerating the bill of materials for the immutable product.

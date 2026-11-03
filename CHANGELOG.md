@@ -132,6 +132,9 @@ correspond to published GitHub tags.
 
 ### Added
 
+- Pass exact immutable product and protected current policy revisions separately
+  in existing gated native consumers and manual read-only refresh.
+
 - Prepare an inactive native versioned release writer that reuses exact asset
   reconciliation after mandatory findings review and ISO/SBOM/provenance checks,
   without historical ledger admission or activating a caller.
