@@ -16,6 +16,9 @@ correspond to published GitHub tags.
   bind signed version 2 results to the original complete audit. Keep strict
   historical proof validation, installer boot, scanners and publication policy.
 
+- Bind retained boot receipts to the original media source commit and run,
+  keeping later inventory artifact assembly provenance separate.
+
 - Prepare inactive native release asset staging with exact signed ISO/boot
   identity checks, authenticated SBOM reuse and verified existing installer
   splitting; add no public writer, workflow caller or risk acceptance.

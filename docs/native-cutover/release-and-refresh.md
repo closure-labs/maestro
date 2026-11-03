@@ -97,3 +97,13 @@ transport once. Keep its expiry/missing-artifact failures explicit. Do not inven
 an alternate registry or select the newest historical decision. This follow-on is
 not implemented or activated by the ISO-staging increment. Preserve all twenty
 obligations, existing active refresh jobs and every historical record meanwhile.
+
+### Distinct media and assembly producers
+
+A retained boot receipt must pair `media_source_commit` with `media_run_id`.
+The installer artifact can have been assembled and signed by a later producer;
+its `artifact_source_commit` remains the inventory attestation source, not the
+original boot source. Both pairs are authenticated independently. Old receipts
+that mix the two producers remain invalid; this correction does not rewrite
+those receipts or waive the original executed-boot proof. A fresh qualification
+is required before retrying the native proof trial.
