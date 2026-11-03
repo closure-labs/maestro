@@ -272,3 +272,25 @@ verifier rejects main drift or a nonancestor product. No schedule starts native
 mode, no workflow calls the new versioned writer, and no live setting is enabled.
 This allows later policy/findings-review commits and fresh scans without
 rebuilding or regenerating the bill of materials for the immutable product.
+
+
+### Fresh health during release staging
+
+The unused release stager accepts the same explicit `NATIVE_HEALTH_RUN`,
+`NATIVE_HEALTH_ATTEMPT` and optional local `NATIVE_HEALTH_DIRECTORY` as the native
+publisher. Both use one existing-evidence selection function: authenticate the
+original immutable inventory/CI/boot first, then the independent fresh scanner
+proof, current policy, exact input hashes and complete coverage. No health
+producer is selected implicitly. Without a health tuple, the original strict
+current-health path remains. Missing/partial identities, forged or expired
+proofs and changed inputs still fail before ISO operations.
+
+A bounded real CLI fixture starts from a 31-day-old original inventory, applies
+fresh independently signed-shaped health under a later current policy, and runs
+the actual ISO splitter. It then rejects missing health and unaccepted critical
+findings before reading a nonexistent ISO. The synthetic verifier outputs test
+the command contract, not real cryptographic attestations. No rebuild, SBOM
+regeneration, network trial or actual acceptance occurs. The staging receipt
+records the exact fresh producer and remains authorization/publicationReady
+false. The versioned release workflow caller remains unwired and disabled;
+existing live policies and writers are unchanged.

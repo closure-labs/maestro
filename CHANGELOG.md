@@ -111,6 +111,10 @@ correspond to published GitHub tags.
 
 ### Fixed
 
+- Reuse the native exact original/fresh evidence selector in inactive release
+  staging, allowing fresh health for unchanged artifacts without rebuilding
+  them or accepting unreviewed findings.
+
 - Reject ambiguous security decision graphs before authenticating superseded
   history. Keep historical provenance, current approval and final ledger refresh
   mandatory for otherwise valid graphs; conflicting decisions need reconciliation.

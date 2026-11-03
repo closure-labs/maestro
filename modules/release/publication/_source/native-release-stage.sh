@@ -15,4 +15,10 @@ fi
 if [[ -n ${NATIVE_POLICY_REVISION:-} ]]; then
   args+=(--policy-revision "$NATIVE_POLICY_REVISION")
 fi
+if [[ -n ${NATIVE_HEALTH_RUN:-} ]]; then
+  args+=(--health-run "$NATIVE_HEALTH_RUN" --health-attempt "${NATIVE_HEALTH_ATTEMPT:?}")
+else
+  [[ -z ${NATIVE_HEALTH_ATTEMPT:-} && -z ${NATIVE_HEALTH_DIRECTORY:-} ]]
+fi
+[[ -z ${NATIVE_HEALTH_DIRECTORY:-} ]] || args+=(--health-directory "$NATIVE_HEALTH_DIRECTORY")
 exec python3 "$MAESTRO_NATIVE_RELEASE_STAGE_SOURCE" "${args[@]}" "$@"

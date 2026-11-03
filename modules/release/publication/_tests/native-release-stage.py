@@ -8,6 +8,9 @@ import os
 from pathlib import Path
 import shlex
 import subprocess
+import sys
+import shutil
+import datetime as dt
 import unittest
 from unittest.mock import patch
 
@@ -150,6 +153,69 @@ class ReleaseStage(unittest.TestCase):
         self.assertIn('contents/VERSION?ref='+fixture.fixture.SHA,observed)
         self.assertIn('contents/'+pub.POLICY+'?ref='+policy_revision,observed)
         self.assertFalse(result['authorization']);self.assertFalse(result['publicationReady'])
+
+    def test_real_cli_expired_original_and_fresh_scan_stage_without_rebuild_or_acceptance(self):
+        hf=module('stage_health_fixture',ROOT/'modules/ci/security/_tests/native-health.py')
+        h=hf.NativeHealth();h.setUp();self.addCleanup(h.doCleanups);c=h.case.case
+        iso=c.root/'source.iso';iso.write_bytes(b'bounded fresh-health installer\x00'*64)
+        for kind,raw in [('spdx',b'{"spdxVersion":"SPDX-2.3"}'),('cdx',b'{"bomFormat":"CycloneDX"}')]:
+            name='maestro-system.'+kind+'.json';(c.bundle/name).write_bytes(raw)
+            c.binding['evidenceFiles'][name]=pub.native.file_hash(c.bundle/name)
+        identities={name:pub.native.file_hash(c.bundle/name) for name in hf.fixture.refresh.INPUTS}
+        hashes=c.bundle/'inputs.sha256';hashes.write_text(''.join(value+'  /original/inventory/'+name+'\n' for name,value in identities.items()))
+        c.native['evidence'].update(inputHashes=dict(sha256=pub.native.file_hash(hashes),size=hashes.stat().st_size),
+            inventory=dict(sha256=identities['maestro-system.cdx.json'],size=(c.bundle/'maestro-system.cdx.json').stat().st_size))
+        h.case.bundle['inputIdentities']=identities
+        digest=pub.native.file_hash(iso);c.binding['isoSha256']=digest;c.result['boot']['isoSha256']=digest
+        past=dt.datetime.now(dt.timezone.utc)-dt.timedelta(days=31)
+        c.native['scannedAt']=past.isoformat();c.native['database']['built']=past.isoformat()
+        c.scans['scannedAt']=past.isoformat();c.scans['expiresAt']=(past+dt.timedelta(hours=1)).isoformat()
+        c.write_bundle()
+        h.case.bundle['scans'].update(scannedAt=c.scans['scannedAt'],expiresAt=c.scans['expiresAt'])
+        # This existing real-CLI fixture also builds signed-manifest-shaped fresh
+        # evidence and the bounded synthetic gh verifier contract.
+        h.exercise_cli([None],policy_revision='e'*40,health_revision='d'*40)
+        fake=c.bin/'gh';text=fake.read_text();marker="    elif path==prefix+'actions/runs/7/attempts/1':value=state['run']"
+        text=text.replace(marker,"    elif path==prefix+'contents/VERSION?ref='+ 'a'*40:\n        value={'encoding':'base64','size':6,'content':'My4yLjAK'}\n"+marker);fake.write_text(text)
+        bash=shutil.which('bash');split=c.bin/'maestro-ci-release-stage'
+        split.write_text('#!'+bash+'\nexec '+shlex.quote(bash)+' '+shlex.quote(str(ROOT/'modules/release/publication/_source/release-split.sh'))+' "$@"\n');split.chmod(0o700)
+        env=dict(os.environ,PATH=str(c.bin)+os.pathsep+os.environ['PATH'],MAESTRO_NATIVE_PREPARE_POLICY=str(c.policy),
+            MAESTRO_NATIVE_PUBLICATION_SOURCE=str(ROOT/'modules/ci/security/_source/native-publication.py'),
+            MAESTRO_NATIVE_SECURITY_POLICY=str(c.root/'security-policy.json'),NATIVE_FIXTURE_STATE=str(c.root/'state.json'),
+            NATIVE_FIXTURE_CALLS=str(c.calls),NATIVE_FIXTURE_BUNDLE=str(c.bundle),GITHUB_SHA='e'*40)
+        output=c.root/'release-assets';subject=c.root/'maestro-v3.2.0.iso'
+        args=[sys.executable,str(ROOT/'modules/release/publication/_source/native-release-stage.py'),
+            '--directory',str(c.bundle),'--iso',str(iso),'--run','7','--attempt','1','--revision','a'*40,
+            '--media-run','7','--media-attempt','1','--media-revision','a'*40,'--version','3.2.0',
+            '--output',str(output),'--final-iso',str(subject),'--policy-revision','e'*40,
+            '--health-run','20','--health-attempt','1','--health-directory',str(h.case.output)]
+        result=subprocess.run(args,env=env,capture_output=True,text=True,timeout=30)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        receipt=json.loads(result.stdout);self.assertEqual(receipt['healthProducer']['revision'],'d'*40)
+        self.assertEqual(json.loads((output/'native-release-staging.json').read_text())['healthProducer'],receipt['healthProducer'])
+        self.assertEqual(receipt['sourceRevision'],'a'*40);self.assertEqual(receipt['policyRevision'],'e'*40)
+        self.assertEqual(subject.read_bytes(),iso.read_bytes());self.assertFalse(receipt['authorization'])
+        self.assertFalse(receipt['publicationReady']);self.assertFalse(receipt['narBytesVerified'])
+        # Preserve the proper subject name in a different empty parent.
+        (c.root/'blocked').mkdir();args[args.index('--output')+1]=str(c.root/'blocked/assets')
+        args[args.index('--final-iso')+1]=str(c.root/'blocked/maestro-v3.2.0.iso')
+        (h.case.output/'native-health.json').unlink()
+        result=subprocess.run(args,env=env,capture_output=True,text=True,timeout=30)
+        self.assertNotEqual(result.returncode,0);self.assertFalse((c.root/'blocked/assets').exists())
+        self.assertFalse((c.root/'blocked/maestro-v3.2.0.iso').exists())
+        h.exercise_cli(['critical'],policy_revision='e'*40,health_revision='d'*40)
+        args[args.index('--iso')+1]=str(c.root/'not-downloaded.iso')
+        result=subprocess.run(args,env=env,capture_output=True,text=True,timeout=30)
+        self.assertNotEqual(result.returncode,0);self.assertIn('MandatoryVerdictError',result.stderr)
+        self.assertFalse((c.root/'blocked/assets').exists());self.assertFalse((c.root/'blocked/maestro-v3.2.0.iso').exists())
+
+    def test_partial_health_cli_identity_rejects_before_iso_or_network(self):
+        base=[sys.executable,str(ROOT/'modules/release/publication/_source/native-release-stage.py'),
+            '--directory','missing','--iso','missing.iso','--output','missing-output','--version','3.2.0',
+            '--run','7','--attempt','1','--revision','a'*40,'--media-run','7','--media-attempt','1','--media-revision','a'*40]
+        for extra in (['--health-run','20'],['--health-attempt','1'],['--health-directory','missing']):
+            p=subprocess.run(base+extra,capture_output=True,text=True,timeout=10,env=dict(os.environ,GH_TOKEN='',MAESTRO_NATIVE_PUBLICATION_SOURCE=str(ROOT/'modules/ci/security/_source/native-publication.py')))
+            self.assertNotEqual(p.returncode,0,p.stdout+p.stderr);self.assertIn('ValueError',p.stderr)
 
     def test_high_findings_block_before_iso_or_producer_operations(self):
         self.case.findings=[self.case.finding('critical')];self.bundle=self.case.bundle()
