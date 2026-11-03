@@ -25,6 +25,10 @@ native = module('refresh_prepare', os.environ.get('MAESTRO_NATIVE_PREPARE_SOURCE
 health = module('refresh_health', os.environ.get('MAESTRO_SECURITY_NATIVE_CHECK_SOURCE', Path(__file__).with_name('security-native-check.py')))
 require = native.require
 INPUTS = ('maestro-system.cdx.json', 'xen-orchestra-supply.cdx.json', 'Cargo.lock')
+REPORTS = {'grype-version.json','cargo-audit-version.txt','scanner-check.grype.json',
+    'maestro-system.grype.json','grype-database.json','cargo-audit.json','rustsec-database.json',
+    'findings.json','grype-findings.json','critical-applicability.json','effective-policy.json',
+    'inputs.sha256','source-policy.json','security-result.json','new-high-critical.json'}
 
 
 def identities(paths):
@@ -49,6 +53,7 @@ def refresh(bundle, output, cfg, transport, restore, query=identities, scan=None
     revision = bundle['receipt']['sourceRevision']
     require(os.environ.get('GITHUB_REPOSITORY') == native.REPO
             and os.environ.get('GITHUB_REF') == 'refs/heads/main'
+            and os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch'
             and os.environ.get('GITHUB_SHA') == revision, 'Protected exact-source refresh required')
     run, attempt = int(os.environ['GITHUB_RUN_ID']), int(os.environ['GITHUB_RUN_ATTEMPT'])
     require(run > 0 and attempt > 0, 'Positive fresh producer identity required')
@@ -71,7 +76,9 @@ def refresh(bundle, output, cfg, transport, restore, query=identities, scan=None
     roots = {row['storePath']: row['narHash'] for row in bundle['native']['subjects']}
     expected_transport = bundle['scans'].get('transport')
     require(isinstance(expected_transport, dict) and expected_transport, 'Original authenticated transport required')
+    print('Native refresh: download original transport once',file=sys.stderr,flush=True)
     directory = transport() # Exactly one lazy download of the original authenticated transport.
+    print('Native refresh: restore and verify original root/NAR identities',file=sys.stderr,flush=True)
     restore(directory, expected_transport, [dict(storePath=p, narHash=h) for p, h in roots.items()])
     require(query(roots) == roots, 'Realized original root/NAR identities differ')
     current()
@@ -80,13 +87,18 @@ def refresh(bundle, output, cfg, transport, restore, query=identities, scan=None
         started = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
         environment = dict(os.environ, SECURITY_INVENTORY=str(source), SECURITY_OUTPUT=str(output),
                            SECURITY_CARGO_LOCK=str(source / 'Cargo.lock'))
-        def scan_cap():resource.setrlimit(resource.RLIMIT_FSIZE, (native.MAX_DOCUMENT, native.MAX_DOCUMENT))
         # Existing scanner uses one fresh temporary Grype DB and one fresh RustSec
         # checkout. It revalidates shipped files/npm against the restored NARs.
+        print('Native refresh: scan original inventory with fresh databases',file=sys.stderr,flush=True)
         (scan or (lambda env: native.operations.run(['maestro-ci-security-scan'], env=env,
-                                                    check=True, timeout=3600, preexec_fn=scan_cap)))(environment)
+                                                    check=True, timeout=3600)))(environment)
+        # Bound retained report files below, not every scanner subprocess file:
+        # a global file-size ulimit would also truncate legitimate temporary DBs.
         current()
+        print('Native refresh: verify fresh health and immutable input bindings',file=sys.stderr,flush=True)
         files = list(output.iterdir())
+        require({'security-result.json','inputs.sha256',*native.PUBLICATION_FILES} <= {p.name for p in files}
+                and {p.name for p in files} <= REPORTS, 'Incomplete or unexpected fresh report files')
         require(all(path.is_file() and not path.is_symlink() and path.stat().st_size <= native.MAX_DOCUMENT
                     for path in files) and sum(path.stat().st_size for path in files) <= native.MAX_BUNDLE,
                 'Fresh scanner output exceeds regular-file resource bounds')
@@ -128,7 +140,11 @@ def refresh(bundle, output, cfg, transport, restore, query=identities, scan=None
             scannedAt=fresh['scannedAt'], expiresAt=(scanned + dt.timedelta(hours=min(24, cfg['maxEvidenceAgeHours']))).isoformat(),
             authorization=False, publicationReady=False)
         current()
-        (output / 'native-health.json').write_text(json.dumps(manifest, sort_keys=True) + '\n')
+        encoded=json.dumps(manifest,sort_keys=True)+'\n'
+        require(len(encoded.encode())<=native.MAX_JSON and sum(path.stat().st_size for path in files)+len(encoded.encode())<=native.MAX_BUNDLE,
+                'Fresh manifest/report resource bound exceeded')
+        (output / 'native-health.json').write_text(encoded)
+        print('Native refresh: fresh report ready for separate attestation; no publication',file=sys.stderr,flush=True)
         return manifest
     except BaseException:
         shutil.rmtree(output)
@@ -149,7 +165,9 @@ def main():
     policy=Path(os.environ['MAESTRO_NATIVE_PREPARE_POLICY'])
     with native.operations.budget(2400),tempfile.TemporaryDirectory(prefix='maestro-refresh-',dir=os.environ.get('RUNNER_TEMP')) as temp:
         root=Path(temp);directory=root/'original'
+        print('Native refresh: stage exact original CI evidence',file=sys.stderr,flush=True)
         stage.stage_refresh(directory,args.run,args.attempt,args.revision,origin)
+        print('Native refresh: authenticate original CI and boot proof',file=sys.stderr,flush=True)
         with native.verified_inventory(directory,args.run,args.attempt,args.revision,policy,origin) as bundle:
             result=refresh(bundle,args.output,native.common.config(policy),
                 lambda:stage.transport(args.run,args.revision,root/'closure'),distribution.restore)

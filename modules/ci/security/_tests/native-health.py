@@ -9,6 +9,9 @@ import importlib.util
 import base64
 import datetime as dt
 import os
+import subprocess
+import sys
+import resource
 
 
 def module(name,path):
@@ -77,7 +80,8 @@ class NativeHealth(unittest.TestCase):
 
     def test_failed_fork_wrong_attempt_or_workflow_producer_rejects(self):
         for patch_value in ({'conclusion':'failure'},{'run_attempt':2},{'path':'.github/workflows/ci.yml'},
-                            {'head_sha':'b'*40},{'head_repository':{'full_name':'attacker/maestro'}}):
+                            {'head_sha':'b'*40},{'head_repository':{'full_name':'attacker/maestro'}},
+                            {'event':'schedule'},{'event':'workflow_run'},{'event':'pull_request'}):
             self.runPatch=patch_value
             with self.subTest(patch_value=patch_value),self.assertRaises(ValueError):self.verify()
 
@@ -121,6 +125,56 @@ class NativeHealth(unittest.TestCase):
                         if severity is None:self.assertEqual(pub.consume(bundle,policy_path,'check')['status'],'native-policy-clear')
                         else:
                             with self.assertRaises(pub.MandatoryVerdictError):pub.consume(bundle,policy_path,'check')
+
+    def test_real_cli_verifies_both_producers_and_never_writes_for_unaccepted_blockers(self):
+        self.exercise_cli((None,'high','critical','unknown'))
+
+    def test_generated_large_original_and_fresh_reports_fit_bounded_real_cli(self):
+        self.case.case.native['diagnostics']=['x'*4096]*13600
+        self.case.case.write_bundle()
+        self.exercise_cli((None,))
+        self.assertGreater((self.case.case.bundle/'scans.json').stat().st_size,55_706_156)
+        self.assertGreater((self.case.output/'security-result.json').stat().st_size,52_521_292)
+        print(json.dumps(dict(generatedRefreshReportFixture=True,
+            maxParentRssKiB=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
+            maxChildRssKiB=resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss,liveRefresh=False)))
+
+    def exercise_cli(self,severities):
+        import shutil
+        pub=module('cli_health_publication',fixture.fixture.ROOT/'modules/ci/security/_source/native-publication.py')
+        c=self.case.case;fake=c.bin/'gh';text=fake.read_text()
+        marker="    elif path==prefix+'actions/runs/7/attempts/1':value=state['run']"
+        inserted="    elif path==prefix+'actions/runs/20/attempts/1':value=state['healthRun']\n"
+        inserted+="    elif path==prefix+'contents/'+"+repr(pub.POLICY)+"+'?ref='+'a'*40:\n        raw=json.dumps(state['nativeSecurityPolicy']).encode();value={'encoding':'base64','size':len(raw),'content':base64.b64encode(raw).decode()}\n"
+        text=text.replace(marker,inserted+marker).replace("('--signer-workflow','closure-labs/maestro/.github/workflows/ci.yml')",
+            "('--signer-workflow','closure-labs/maestro/.github/workflows/security.yml' if Path(args[2]).name=='native-health.json' else 'closure-labs/maestro/.github/workflows/ci.yml')")
+        fake.write_text(text)
+        c.state['healthRun']=dict(id=20,run_attempt=1,head_sha='a'*40,head_branch='main',
+            repository={'full_name':health.native.REPO},head_repository={'full_name':health.native.REPO},
+            path=health.WORKFLOW,event='workflow_dispatch',status='completed',conclusion='success')
+        c.state['nativeSecurityPolicy']=self.policy
+        state=c.root/'state.json';state.write_text(json.dumps(c.state))
+        policy=c.root/'security-policy.json';policy.write_text(json.dumps(self.policy))
+        marker=c.root/'unexpected-write'
+        for name in ('nix','cachix'):
+            binary=c.bin/name;binary.write_text('#!'+sys.executable+'\nfrom pathlib import Path\nPath('+repr(str(marker))+').write_text("unexpected")\nraise SystemExit(99)\n');binary.chmod(0o700)
+        env=dict(os.environ,PATH=str(c.bin)+os.pathsep+os.environ['PATH'],MAESTRO_NATIVE_PREPARE_POLICY=str(c.policy),
+            MAESTRO_NATIVE_SECURITY_POLICY=str(policy),NATIVE_FIXTURE_STATE=str(state),NATIVE_FIXTURE_CALLS=str(c.calls),
+            NATIVE_FIXTURE_BUNDLE=str(c.bundle),PYTHONDONTWRITEBYTECODE='1',MAESTRO_NATIVE_PUBLICATION_ENABLED='true',
+            CACHIX_MAESTRO_PUBKEY=pub.KEY,CACHIX_MAESTRO_AUTH_TOKEN='fixture-only',**self.case.env)
+        for severity in severities:
+            shutil.rmtree(self.case.output)
+            self.fresh_findings=[] if severity is None else [dict(advisory='CVE-2026-1',component='package',version='1',severity=severity,identity='a'*64)]
+            self.create_report()
+            result=subprocess.run([sys.executable,str(fixture.fixture.ROOT/'modules/ci/security/_source/native-publication.py'),
+                'check' if severity is None else 'publish','--directory',str(c.bundle),'--run','7','--attempt','1','--revision','a'*40,
+                '--health-directory',str(self.case.output),'--health-run','20','--health-attempt','1'],
+                env=env,capture_output=True,text=True,timeout=20)
+            with self.subTest(severity=severity):
+                self.assertEqual(result.returncode,0 if severity is None else 2,result.stdout+result.stderr)
+                self.assertFalse(marker.exists())
+                if severity is None:self.assertFalse(json.loads(result.stdout)['authorization'])
+                else:self.assertEqual(json.loads(result.stderr)['verdict']['blockingRows'],1)
 
 
 if __name__=='__main__':unittest.main()

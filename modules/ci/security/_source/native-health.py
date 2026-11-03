@@ -46,7 +46,7 @@ def trusted(run, attempt, revision):
             and record.get('head_branch')=='main' and record.get('repository',{}).get('full_name')==native.REPO
             and record.get('head_repository',{}).get('full_name')==native.REPO
             and record.get('path','').split('@')[0]==WORKFLOW
-            and record.get('event') in ('workflow_dispatch','schedule','workflow_run')
+            and record.get('event') == 'workflow_dispatch'
             and record.get('status')=='completed' and record.get('conclusion')=='success','Untrusted fresh-health producer')
 
 

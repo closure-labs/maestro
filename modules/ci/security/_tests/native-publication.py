@@ -21,6 +21,14 @@ pub=module('native_publication',ROOT/'modules/ci/security/_source/native-publica
 
 
 class Publication(unittest.TestCase):
+    def test_real_cli_rejects_partial_refresh_identity_before_any_api_or_transport(self):
+        source=ROOT/'modules/ci/security/_source/native-publication.py'
+        for extra in (['--health-run','20'],['--health-attempt','1'],['--health-directory','unverified']):
+            result=subprocess.run([sys.executable,str(source),'check','--run','7','--attempt','1','--revision','a'*40,*extra],
+                capture_output=True,text=True,timeout=10,env=dict(os.environ,GH_TOKEN=''))
+            self.assertEqual(result.returncode,2,result.stdout+result.stderr)
+            self.assertIn('"error": "ValueError"',result.stderr)
+
     def setUp(self):
         self.case=fixture.NativePrepare();self.case.setUp();self.addCleanup(self.case.doCleanups)
         self.policy=dict(schema_version=2,mode='report',dispositions=[],exceptions=[])

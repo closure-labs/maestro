@@ -25,10 +25,12 @@ refresh=module('refresh_producer',fixture.ROOT/'modules/ci/security/_source/nati
 class NativeRefresh(unittest.TestCase):
     def setUp(self):
         self.inputs=fixture.RefreshInputs();self.inputs.setUp();self.addCleanup(self.inputs.doCleanups)
-        self.case=self.inputs.case;self.case.write_bundle()
+        self.case=self.inputs.case
+        self.case.scans['transport']={'parts':['original-closure.part']}
+        self.case.write_bundle()
         self.output=self.case.root/'fresh';self.calls=[];self.change=None;self.mainReads=0
         self.env=dict(GITHUB_REPOSITORY=refresh.native.REPO,GITHUB_REF='refs/heads/main',
-            GITHUB_SHA='a'*40,GITHUB_RUN_ID='20',GITHUB_RUN_ATTEMPT='1')
+            GITHUB_SHA='a'*40,GITHUB_RUN_ID='20',GITHUB_RUN_ATTEMPT='1',GITHUB_EVENT_NAME='workflow_dispatch')
         self.bundle=dict(inventoryOnly=True,directory=self.case.bundle,receipt=dict(sourceRevision='a'*40,runId=7,runAttempt=1),
             native=self.case.native,scans=dict(self.case.scans,transport={'parts':['original-closure.part']}),
             policyHash=refresh.native.common.canonical_hash(self.case.cfg),
@@ -51,7 +53,13 @@ class NativeRefresh(unittest.TestCase):
         if self.change=='inputs':hashes.write_text(hashes.read_text().replace('original','changed').replace('a','b',1))
         if self.change=='original':(self.case.bundle/'ci-result.json').write_text('{}')
         fresh['evidence']['inputHashes']=dict(sha256=refresh.native.file_hash(hashes),size=hashes.stat().st_size)
+        for name,key,value in [('findings.json','findings',[]),('source-policy.json','sourcePolicy',{}),
+                ('effective-policy.json','effectivePolicy',{}),('critical-applicability.json','applicability',{})]:
+            path=self.output/name;path.write_text(json.dumps(value))
+            fresh['evidence'][key]=dict(sha256=refresh.native.file_hash(path),size=path.stat().st_size)
         (self.output/'security-result.json').write_text(json.dumps(fresh))
+        if self.change=='extra':(self.output/'original-closure.part').write_text('unexpected transport copy')
+        if self.change=='missing':(self.output/'findings.json').unlink()
 
     def run_refresh(self, scan=None):
         def download():self.calls.append('download');return self.case.root/'original-transport'
@@ -66,14 +74,14 @@ class NativeRefresh(unittest.TestCase):
     def test_one_original_restore_one_scan_no_reexport_or_inventory_copy(self):
         result=self.run_refresh()
         self.assertEqual(self.calls,['download','restore','query','scan'])
-        self.assertEqual({p.name for p in self.output.iterdir()},{'security-result.json','inputs.sha256','native-health.json'})
+        self.assertEqual({p.name for p in self.output.iterdir()},{'security-result.json','inputs.sha256','native-health.json',*refresh.native.PUBLICATION_FILES})
         self.assertFalse(result['authorization']);self.assertFalse(result['publicationReady'])
         self.assertEqual(result['originalProducer']['runId'],7);self.assertEqual(result['producer']['runId'],20)
         self.assertEqual(result['originalProof']['scans.json']['sha256'],refresh.native.file_hash(self.case.bundle/'scans.json'))
         self.assertEqual(result['originalTransport'],self.bundle['scans']['transport'])
 
     def test_changed_health_context_inputs_or_live_main_reject_and_clean_output(self):
-        for change in ('stale','database','context','subjects','inputs','main','original'):
+        for change in ('stale','database','context','subjects','inputs','main','original','extra','missing'):
             self.change=change;self.calls=[];self.mainReads=0
             with self.subTest(change=change),self.assertRaises(ValueError):self.run_refresh()
             self.assertFalse(self.output.exists())
@@ -99,6 +107,13 @@ class NativeRefresh(unittest.TestCase):
         with self.assertRaises(ValueError):self.run_refresh()
         self.assertEqual(self.calls,[])
 
+    def test_only_explicit_protected_manual_source_can_refresh(self):
+        for key,value in [('GITHUB_EVENT_NAME','schedule'),('GITHUB_EVENT_NAME','workflow_run'),
+                          ('GITHUB_EVENT_NAME','pull_request'),('GITHUB_REF','refs/heads/topic'),
+                          ('GITHUB_REPOSITORY','attacker/maestro'),('GITHUB_SHA','f'*40)]:
+            with self.subTest(key=key,value=value),patch.dict(self.env,{key:value}),self.assertRaises(ValueError):self.run_refresh()
+            self.assertEqual(self.calls,[])
+
     def test_retained_boot_links_both_original_executed_proof_files(self):
         self.bundle['receipt']['bootOrigin']=dict(runId=6,runAttempt=1)
         for name in ('original-ci-result.json','original-boot.log'):(self.case.bundle/name).write_text('authenticated original fixture')
@@ -119,6 +134,16 @@ class NativeRefresh(unittest.TestCase):
             refresh.native.operations.run([sys.executable,'-c','while True: pass'],check=True,timeout=0.05)
         with self.assertRaises(subprocess.TimeoutExpired):self.run_refresh(timeout)
         self.assertFalse(self.output.exists())
+
+    def test_default_scanner_keeps_temporary_database_contract_separate_from_report_bounds(self):
+        def execute(args,**kwargs):
+            self.assertEqual(args,['maestro-ci-security-scan']);self.assertEqual(kwargs['timeout'],3600)
+            self.assertTrue(kwargs['check']);self.assertNotIn('preexec_fn',kwargs)
+            self.scan(kwargs['env'])
+        with patch.dict(os.environ,self.env),patch.object(refresh.native.operations,'run',side_effect=execute):
+            result=refresh.refresh(self.bundle,self.output,self.case.cfg,lambda:self.case.root/'transport',
+                lambda *args:None,lambda paths:dict(paths),api=self.api)
+        self.assertFalse(result['authorization'])
 
 
 if __name__=='__main__':unittest.main()
