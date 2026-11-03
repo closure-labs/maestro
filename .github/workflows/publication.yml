@@ -18,6 +18,14 @@ on:
         description: Full current-main source SHA
         type: string
         default: ''
+      native_health_run:
+        description: Optional exact successful native Security maintenance refresh run
+        type: string
+        default: ''
+      native_health_attempt:
+        description: Exact refresh attempt when supplying native_health_run
+        type: string
+        default: ''
       native_boot_run:
         description: Exact original executed-boot run, when boot was retained
         type: string
@@ -232,6 +240,8 @@ jobs:
           NATIVE_RESULT_FILE: ${{ runner.temp }}/native-publication-result.json
           MAESTRO_NATIVE_PUBLICATION_ENABLED: ${{ vars.MAESTRO_NATIVE_PUBLICATION_ENABLED }}
           NATIVE_RUN: ${{ inputs.native_run }}
+          NATIVE_HEALTH_RUN: ${{ inputs.native_health_run }}
+          NATIVE_HEALTH_ATTEMPT: ${{ inputs.native_health_attempt }}
           NATIVE_ATTEMPT: ${{ inputs.native_attempt }}
           NATIVE_REVISION: ${{ inputs.native_revision }}
           NATIVE_BOOT_ORIGIN_RUN: ${{ inputs.native_boot_run }}

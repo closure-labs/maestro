@@ -6,6 +6,30 @@ on:
     - cron: "41 8 * * *"
   workflow_dispatch:
     inputs:
+      native_refresh:
+        description: Trial one exact-current-main native inventory refresh; no publication or risk acceptance
+        type: boolean
+        default: false
+      native_run:
+        description: Exact successful current-main CI producer
+        type: string
+        default: ''
+      native_attempt:
+        description: Exact original CI attempt
+        type: string
+        default: ''
+      native_boot_run:
+        description: Exact original executed-boot run if retained
+        type: string
+        default: ''
+      native_boot_attempt:
+        description: Exact original executed-boot attempt
+        type: string
+        default: ''
+      native_boot_revision:
+        description: Original executed-boot source SHA
+        type: string
+        default: ''
       policy_only:
         description: Check GitHub policy without rescanning inventories
         type: boolean
@@ -21,7 +45,7 @@ concurrency:
 jobs:
   dependencies:
     name: Rescan latest trusted inventories
-    if: github.event_name != 'workflow_dispatch' || inputs.policy_only != true
+    if: github.event_name != 'workflow_dispatch' || (inputs.policy_only != true && inputs.native_refresh != true)
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
@@ -63,7 +87,7 @@ jobs:
 
   release_candidates:
     name: Refresh retained official product evidence
-    if: github.event_name != 'workflow_dispatch' || inputs.policy_only != true
+    if: github.event_name != 'workflow_dispatch' || (inputs.policy_only != true && inputs.native_refresh != true)
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     permissions:
@@ -105,6 +129,47 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 90
+
+  native_refresh:
+    name: Trial exact native inventory refresh without publication
+    if: github.event_name == 'workflow_dispatch' && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && inputs.native_refresh == true && inputs.policy_only != true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+      attestations: write
+      id-token: write
+      artifact-metadata: write
+    steps:
+      - name: Checkout protected scanner code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Set up Nix
+        uses: $/.github/actions/setup-nix
+      - name: Restore original closure once and refresh independently fresh databases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NATIVE_RUN: ${{ inputs.native_run }}
+          NATIVE_ATTEMPT: ${{ inputs.native_attempt }}
+          NATIVE_REVISION: ${{ github.sha }}
+          NATIVE_BOOT_ORIGIN_RUN: ${{ inputs.native_boot_run }}
+          NATIVE_BOOT_ORIGIN_ATTEMPT: ${{ inputs.native_boot_attempt }}
+          NATIVE_BOOT_ORIGIN_REVISION: ${{ inputs.native_boot_revision }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:native:refresh
+      - name: Attest fresh health linked to original immutable evidence
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: security-report/native-health.json
+      - name: Retain fresh health without re-uploading original closure or inventories
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-native-health
+          path: security-report
+          if-no-files-found: error
+          retention-days: 30
 
   policy:
     name: Detect GitHub security policy drift

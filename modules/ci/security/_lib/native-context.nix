@@ -14,4 +14,6 @@
   export PUBLICATION_CURL_WORKER_SOURCE=${publicCacheWorker}
   export MAESTRO_DISTRIBUTION_CACHE_SOURCE=${../../graph/_source/distribution-cache.py}
   export MAESTRO_NATIVE_PUBLICATION_SOURCE=${../_source/native-publication.py}
+  export MAESTRO_NATIVE_REFRESH_SOURCE=${../_source/native-refresh.py}
+  export MAESTRO_NATIVE_HEALTH_SOURCE=${../_source/native-health.py}
 ''

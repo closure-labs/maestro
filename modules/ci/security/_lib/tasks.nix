@@ -6,6 +6,7 @@ in {
     "ci:native:probe".exec = runFlakePackage "maestro-ci-native-publication" "probe";
     "ci:native:check".exec = runFlakePackage "maestro-ci-native-publication" "check";
     "ci:native:prepare".exec = runFlakePackage "maestro-ci-native-prepare" "";
+    "ci:native:refresh".exec = runFlakePackage "maestro-ci-native-refresh" "";
     "ci:security:verify-native".exec = runFlakePackage "maestro-ci-security-native-check" "";
     "ci:security:scan".exec = runFlakePackage "maestro-ci-security-scan" "";
     "ci:security:inventory-preflight".exec = runFlakePackage "maestro-ci-security-inventory-preflight" "";

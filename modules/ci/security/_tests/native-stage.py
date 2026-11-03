@@ -73,6 +73,41 @@ class ArtifactStage(unittest.TestCase):
         with patch.object(stage,'api',return_value={'artifacts':[row]}):self.assertEqual(stage.select(7,'b'*40,'report')['id'],1)
 
 
+class StagePurpose(unittest.TestCase):
+    def test_health_stages_one_exact_small_artifact_without_original_inventory_or_transport(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            destination=Path(temporary)/'health'
+            with patch.object(stage,'select',return_value={'id':20}) as select,patch.object(stage,'download') as download:
+                stage.stage_health(destination,20,'b'*40)
+            select.assert_called_once_with(20,'b'*40,'maestro-native-health')
+            self.assertEqual(set(download.call_args.args[2]),{'native-health.json','security-result.json','inputs.sha256',
+                'findings.json','source-policy.json','effective-policy.json','critical-applicability.json'})
+            self.assertEqual(download.call_count,1)
+            self.assertEqual(download.call_args.args[4],stage.CAP)
+
+    def test_refresh_fetches_only_original_inputs_and_never_a_transport(self):
+        for refresh in (False,True):
+            with tempfile.TemporaryDirectory() as temporary:
+                destination=Path(temporary)/'data';seen=[]
+                def select(run,revision,name):
+                    self.assertNotIn('transport',name);return {'name':name}
+                def download(row,directory,names,budget,limit):
+                    seen.append((row['name'],set(names)))
+                    for source,target in names.items():
+                        value={}
+                        if row['name']=='maestro-ci-result':value={'producer':{'GITHUB_RUN_ATTEMPT':'1'},'boot':{'disposition':'executed'}}
+                        if row['name']=='maestro-inventory-binding':value={'evidenceFiles':{'document.json':'a'*64}}
+                        if row['name']=='maestro-qualification-state':value={'source_commit':'b'*40,'evidence_run_id':7}
+                        (directory/target).write_text(json.dumps(value))
+                with patch.object(stage,'select',side_effect=select),patch.object(stage,'download',side_effect=download):
+                    (stage.stage_refresh if refresh else stage.stage)(destination,7,1,'b'*40,None)
+                report=next(names for name,names in seen if name=='maestro-security-report')
+                self.assertEqual(report,{'product.json','scans.json','security-result.json'}|(
+                    {'inputs.sha256','inventory/Cargo.lock'} if refresh else
+                    {'findings.json','source-policy.json','effective-policy.json','critical-applicability.json'}))
+                self.assertEqual(sum(name=='maestro-security-report' for name,_ in seen),1)
+
+
 class ProtectionPlan(unittest.TestCase):
     def test_only_approved_review_changes_then_one_app_check_removal(self):
         p=json.loads((ROOT/'docs/native-cutover/ruleset-20919039-plan.json').read_text())
