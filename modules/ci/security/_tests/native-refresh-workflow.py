@@ -46,7 +46,7 @@ class RefreshWorkflow(unittest.TestCase):
         data=workflow('security.yml');job=data['jobs']['native_refresh']
         self.assertIn("github.event_name == 'schedule' && vars.MAESTRO_NATIVE_REFRESH_ENABLED == 'true'",job['if'])
         self.assertIn("github.event_name != 'schedule' || vars.MAESTRO_NATIVE_REFRESH_ENABLED != 'true'",data['jobs']['dependencies']['if'])
-        self.assertNotIn('MAESTRO_NATIVE_REFRESH_ENABLED',data['jobs']['release_candidates']['if'])
+        self.assertIn('MAESTRO_NATIVE_RELEASE_ENABLED',data['jobs']['release_candidates']['if'])
         step=next(s for s in job['steps'] if 'run' in s)
         self.assertEqual(step['env']['MAESTRO_NATIVE_REFRESH_ENABLED'],"${{ vars.MAESTRO_NATIVE_REFRESH_ENABLED || 'false' }}")
         self.assertEqual(step['env']['NATIVE_REFRESH_SELECT_CURRENT_MAIN'],"${{ github.event_name == 'schedule' && 'true' || 'false' }}")
@@ -64,7 +64,7 @@ class RefreshWorkflow(unittest.TestCase):
             ('workflow_dispatch','true',True,True,(False,False))]:
             values={'github.event_name':event,'github.repository':'closure-labs/maestro',
                 'github.ref':'refs/heads/main','vars.MAESTRO_NATIVE_REFRESH_ENABLED':enabled,
-                'inputs.native_refresh':native_input,'inputs.policy_only':policy_input,
+                'inputs.native_refresh':native_input,'inputs.policy_only':policy_input,'vars.MAESTRO_NATIVE_RELEASE_ENABLED':'false',
                 'inputs.native_official_tag':'','inputs.native_official_publication_revision':''}
             def condition(name):
                 expression=data['jobs'][name]['if']

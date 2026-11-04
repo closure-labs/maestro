@@ -86,6 +86,58 @@ def official_binding(bundle,target):
         'Verified official inventory/media differs from published native release')
 
 
+def scheduled_official(policy,api=native.api):
+    require(os.environ.get('GITHUB_REPOSITORY')==native.REPO and os.environ.get('GITHUB_REF')=='refs/heads/main'
+        and os.environ.get('GITHUB_EVENT_NAME')=='schedule' and os.environ.get('GITHUB_SHA')==policy
+        and os.environ.get('MAESTRO_NATIVE_REFRESH_ENABLED')=='true'
+        and os.environ.get('MAESTRO_NATIVE_RELEASE_ENABLED')=='true','Scheduled official refresh remains disabled')
+    latest=api('releases/latest')
+    require(type(latest.get('id')) is int and latest['id']>0 and latest.get('draft') is False
+        and latest.get('prerelease') is False and isinstance(latest.get('tag_name'),str)
+        and re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+',latest['tag_name']),'One stable official release required')
+    locator=module('scheduled_official_target',os.environ.get('MAESTRO_NATIVE_RELEASE_TARGET_SOURCE',Path(__file__).with_name('native-release-target.py')))
+    result=locator.fetch(latest['tag_name'],None,policy,discover_signer=True)
+    require(result['releaseId']==latest['id'],'Official release changed during selection')
+    return result
+
+
+def official_current(target,api=native.api):
+    latest=api('releases/latest')
+    require(latest.get('id')==target['releaseId'] and latest.get('tag_name')==target['tag']
+        and latest.get('draft') is False and latest.get('prerelease') is False,'Official release changed during refresh')
+    require(api('git/ref/heads/main')['object']['sha']==os.environ['GITHUB_SHA'],'Main changed during official refresh')
+
+
+def reuse_same_product(target,raw):
+    if not raw:return False
+    require(len(raw.encode())<=4096,'Bounded same-run product metadata required')
+    def unique(pairs):
+        result={}
+        for key,value in pairs:
+            require(key not in result,'Duplicate same-run product metadata');result[key]=value
+        return result
+    value=json.loads(raw,object_pairs_hook=unique,parse_constant=lambda _:require(False,'Nonfinite same-run product metadata'))
+    require(isinstance(value,dict) and value.get('healthRunId')==int(os.environ['GITHUB_RUN_ID'])
+        and type(value.get('healthRunId')) is int and value.get('healthRunAttempt')==int(os.environ['GITHUB_RUN_ATTEMPT'])
+        and type(value.get('healthRunAttempt')) is int and value.get('policyRevision')==os.environ['GITHUB_SHA'],
+        'Health reuse must come from the successful upstream job of this invocation')
+    expires=native.common.timestamp(value.get('expiresAt'));now=dt.datetime.now(dt.timezone.utc)
+    require(now<expires<=now+dt.timedelta(hours=24),'Same-run health expired or overlong')
+    for key in ('runId','runAttempt'):require(type(value.get(key)) is int and value[key]>0,'Exact upstream verified product required')
+    require(isinstance(value.get('revision'),str) and re.fullmatch(r'[0-9a-f]{40}',value['revision']),'Exact upstream source required')
+    return all(value[k]==target[k] for k in ('runId','runAttempt','revision'))
+
+
+def job_outputs(manifest,scoped=False):
+    if not os.environ.get('GITHUB_OUTPUT'):return
+    product=dict(manifest['originalProducer'],healthRunId=int(os.environ['GITHUB_RUN_ID']),
+        healthRunAttempt=int(os.environ['GITHUB_RUN_ATTEMPT']),policyRevision=os.environ['GITHUB_SHA'],expiresAt=manifest['expiresAt'])
+    name=(f"maestro-native-health-{product['runId']}-{product['runAttempt']}-{product['revision']}" if scoped else 'maestro-native-health')
+    if os.environ.get('GITHUB_OUTPUT'):
+        with open(os.environ['GITHUB_OUTPUT'],'a') as output:
+            output.write('verified_product='+json.dumps(product,separators=(',',':'))+'\nhealth_artifact='+name+'\nreused=false\n')
+
+
 def identities(paths):
     # Only the sixty explicit roots, not another recursive closure inventory.
     def cap():resource.setrlimit(resource.RLIMIT_FSIZE, (16 * 1024**2, 16 * 1024**2))
@@ -212,6 +264,7 @@ def refresh(bundle, output, cfg, transport, restore, query=identities, scan=None
 
 def run():
     cli=argparse.ArgumentParser(description=__doc__)
+    cli.add_argument('--select-official-release',action='store_true',help='Both-flags-protected scheduled shipped-product refresh')
     cli.add_argument('--official-tag',help='Explicit stable native release; requires its exact signed public receipt')
     cli.add_argument('--official-publication-revision',help='Exact reviewed release signer revision')
     cli.add_argument('--select-current-main',action='store_true',help='Opt-in exact protected-main CI selection; never select historical decisions')
@@ -226,7 +279,19 @@ def run():
     origin=None if all(v is None for v in origin) else origin
     target=None
     require((args.official_tag is None)==(args.official_publication_revision is None),'Complete official tag/signer identity required')
-    if args.official_tag is not None:
+    require(not args.select_official_release or (args.official_tag is None and not args.select_current_main
+        and all(v is None for v in (args.run,args.attempt,args.revision,origin))),'Conflicting scheduled/explicit refresh identities')
+    if args.select_official_release:
+        target=scheduled_official(args.policy_revision)
+        args.run,args.attempt,args.revision=(target[k] for k in ('runId','runAttempt','revision'))
+        if reuse_same_product(target,os.environ.get('NATIVE_REFRESH_REUSE_PRODUCT','')):
+            official_current(target)
+            print('Native refresh: reuse this successful invocation health; no second restore or scan',file=sys.stderr,flush=True)
+            if os.environ.get('GITHUB_OUTPUT'):
+                with open(os.environ['GITHUB_OUTPUT'],'a') as out:out.write('reused=true\n')
+            print(json.dumps(dict(status='same-invocation-product-health-reused',authorization=False,publicationReady=False)))
+            return
+    elif args.official_tag is not None:
         require(not args.select_current_main and all(v is None for v in (args.run,args.attempt,args.revision,origin)),
             'Conflicting official/current/manual refresh identities')
         print('Native refresh: resolve exact signed official release receipt',file=sys.stderr,flush=True)
@@ -251,7 +316,12 @@ def run():
             if target is not None:official_binding(bundle,target)
             result=refresh(bundle,args.output,native.common.config(policy),
                 lambda:stage.transport(args.run,args.revision,root/'closure'),distribution.restore,
-                scheduled=args.select_current_main and os.environ.get('GITHUB_EVENT_NAME')=='schedule')
+                scheduled=(args.select_current_main or args.select_official_release) and os.environ.get('GITHUB_EVENT_NAME')=='schedule')
+            if args.select_official_release:
+                try:official_current(target)
+                except Exception:
+                    shutil.rmtree(args.output);raise
+            job_outputs(result,scoped=args.select_official_release)
     print(json.dumps(dict(status='fresh-health-produced',authorization=False,publicationReady=False,
         sourceRevision=result['sourceRevision'],originalProducer=result['originalProducer'],producer=result['producer']),sort_keys=True))
 

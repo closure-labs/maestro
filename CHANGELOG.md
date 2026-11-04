@@ -40,6 +40,9 @@ correspond to published GitHub tags.
   bind signed version 2 results to the original complete audit. Keep strict
   historical proof validation, installer boot, scanners and publication policy.
 
+- Prepare native scheduled shipped-product refresh using standard release
+  selection and same-invocation exact-producer health reuse, behind both native flags.
+
 - Bind retained boot receipts to the original media source commit and run,
   keeping later inventory artifact assembly provenance separate.
 

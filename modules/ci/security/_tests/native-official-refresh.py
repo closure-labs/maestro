@@ -78,7 +78,7 @@ class Official(unittest.TestCase):
         def owner(name,path):
             return stage if name=='refresh_stage' else distribution if name=='refresh_distribution' else original(name,path)
         argv=['refresh','--official-tag','v1.2.3','--official-publication-revision',fixture.M,'--policy-revision',fixture.P,'--output',str(output)]
-        env=dict(MAESTRO_NATIVE_PREPARE_POLICY=str(ROOT/'modules/ci/authority/_source/decision-policy.json'))
+        env=dict(MAESTRO_NATIVE_PREPARE_POLICY=str(ROOT/'modules/ci/authority/_source/decision-policy.json'),GITHUB_OUTPUT='')
         with patch.dict(os.environ,env),patch.object(sys,'argv',argv),patch.object(refresh,'official_product',return_value=self.target),patch.object(refresh,'module',side_effect=owner),patch.object(refresh.native,'verified_inventory',side_effect=verified),patch.object(refresh,'refresh',side_effect=scan),redirect_stdout(io.StringIO()):
             refresh.main();self.assertEqual(events,[('stage',True),('verified',True),('scan',True)])
             events.clear();self.bundle['result']['boot']['isoSha256']='f'*64

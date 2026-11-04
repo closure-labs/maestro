@@ -99,7 +99,7 @@ jobs:
 
   release_candidates:
     name: Refresh retained official product evidence
-    if: github.event_name != 'workflow_dispatch' || (inputs.policy_only != true && inputs.native_refresh != true && inputs.native_official_tag == '' && inputs.native_official_publication_revision == '')
+    if: (github.event_name != 'schedule' || vars.MAESTRO_NATIVE_REFRESH_ENABLED != 'true' || vars.MAESTRO_NATIVE_RELEASE_ENABLED != 'true') && (github.event_name != 'workflow_dispatch' || (inputs.policy_only != true && inputs.native_refresh != true && inputs.native_official_tag == '' && inputs.native_official_publication_revision == ''))
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     permissions:
@@ -145,6 +145,8 @@ jobs:
   native_refresh:
     name: Refresh exact native inventory without publication
     if: github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && ((github.event_name == 'workflow_dispatch' && inputs.native_refresh == true && inputs.policy_only != true) || (github.event_name == 'schedule' && vars.MAESTRO_NATIVE_REFRESH_ENABLED == 'true'))
+    outputs:
+      verified_product: ${{ steps.refresh.outputs.verified_product }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
@@ -162,6 +164,7 @@ jobs:
       - name: Set up Nix
         uses: $/.github/actions/setup-nix
       - name: Restore original closure once and refresh independently fresh databases
+        id: refresh
         env:
           GH_TOKEN: ${{ github.token }}
           MAESTRO_NATIVE_REFRESH_ENABLED: ${{ vars.MAESTRO_NATIVE_REFRESH_ENABLED || 'false' }}
@@ -184,6 +187,54 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: maestro-native-health
+          path: security-report
+          if-no-files-found: error
+          retention-days: 30
+
+  native_official_refresh:
+    name: Refresh shipped native product once per invocation
+    needs: native_refresh
+    if: >-
+      !cancelled() && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' &&
+      github.event_name == 'schedule' && vars.MAESTRO_NATIVE_REFRESH_ENABLED == 'true' &&
+      vars.MAESTRO_NATIVE_RELEASE_ENABLED == 'true' &&
+      contains(fromJSON('["success","failure"]'), needs.native_refresh.result)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+      attestations: write
+      id-token: write
+      artifact-metadata: write
+    steps:
+      - name: Checkout protected scanner code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Set up Nix
+        uses: $/.github/actions/setup-nix
+      - name: Restore original closure once and refresh independently fresh databases
+        id: refresh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAESTRO_NATIVE_REFRESH_ENABLED: ${{ vars.MAESTRO_NATIVE_REFRESH_ENABLED || 'false' }}
+          MAESTRO_NATIVE_RELEASE_ENABLED: ${{ vars.MAESTRO_NATIVE_RELEASE_ENABLED || 'false' }}
+          NATIVE_REFRESH_SELECT_OFFICIAL: 'true'
+          NATIVE_REFRESH_REUSE_PRODUCT: ${{ needs.native_refresh.result == 'success' && needs.native_refresh.outputs.verified_product || '' }}
+          NATIVE_POLICY_REVISION: ${{ github.sha }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:native:refresh
+      - name: Attest fresh official health linked to original immutable evidence
+        if: steps.refresh.outputs.reused != 'true'
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: security-report/native-health.json
+      - name: Retain fresh official health without re-uploading original inventories
+        if: steps.refresh.outputs.reused != 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.refresh.outputs.health_artifact }}
           path: security-report
           if-no-files-found: error
           retention-days: 30

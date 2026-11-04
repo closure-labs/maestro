@@ -110,11 +110,13 @@ def resolve(path,tag,publication_revision,policy_revision,*,api=native.api,verif
         narBytesVerified=False,isoBytesVerified=False,findingsAccepted=False)
 
 
-def fetch(tag,publication_revision,policy_revision,*,api=native.api,verify=native.response,execute=native.operations.run):
+def fetch(tag,publication_revision,policy_revision,*,api=native.api,verify=native.response,execute=native.operations.run,discover_signer=False):
     """Download only the exact bounded public receipt; no ISO/closure payload."""
     import resource
     require(isinstance(tag,str) and re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+',tag),'Exact version tag required')
-    require(all(isinstance(s,str) and re.fullmatch(r'[0-9a-f]{40}',s) for s in (publication_revision,policy_revision)),
+    require(isinstance(policy_revision,str) and re.fullmatch(r'[0-9a-f]{40}',policy_revision)
+            and ((discover_signer is True and publication_revision is None) or
+                 (isinstance(publication_revision,str) and re.fullmatch(r'[0-9a-f]{40}',publication_revision))),
             'Exact signer/current policy revisions required')
     release=api('releases/tags/'+tag)
     assets=release.get('assets');require(isinstance(assets,list) and len(assets)<=100,'Bounded release asset inventory required')
@@ -134,6 +136,11 @@ def fetch(tag,publication_revision,policy_revision,*,api=native.api,verify=nativ
                     check=True,timeout=90,preexec_fn=cap)
             require(out.tell()==row['size'] and err.tell()<=CAP,'Receipt transfer differs from bounded descriptor')
         require('sha256:'+native.file_hash(path)==row['digest'],'Downloaded receipt digest changed')
+        if discover_signer:
+            hint=native.load_json(path)
+            publication_revision=hint.get('policyRevision',hint.get('sourceRevision'))
+            # Scheduling hint only: resolve still verifies the exact signature,
+            # signer workflow/source, release asset and reviewed main ancestry.
         result=resolve(path,tag,publication_revision,policy_revision,api=api,verify=verify)
         require(result['releaseId']==release.get('id'),'Release changed during receipt transfer')
         return result
