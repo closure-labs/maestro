@@ -130,7 +130,7 @@ def stage(bundle,iso,media,output,version,policy_path,execute=native.operations.
 
 def main():
     cli=argparse.ArgumentParser(description=__doc__)
-    cli.add_argument('--directory',type=Path,required=True);cli.add_argument('--iso',type=Path,required=True)
+    cli.add_argument('--directory',type=Path);cli.add_argument('--iso',type=Path,required=True)
     cli.add_argument('--run',type=int,required=True);cli.add_argument('--attempt',type=int,required=True);cli.add_argument('--revision',required=True)
     cli.add_argument('--media-run',type=int,required=True);cli.add_argument('--media-attempt',type=int,required=True);cli.add_argument('--media-revision',required=True)
     cli.add_argument('--version',required=True);cli.add_argument('--output',type=Path,required=True)

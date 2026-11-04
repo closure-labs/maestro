@@ -84,6 +84,34 @@ class Publication(unittest.TestCase):
             raw=json.dumps(self.policy).encode();return dict(encoding='base64',size=len(raw),content=base64.b64encode(raw).decode())
         raise AssertionError('Unexpected history/ledger/mutation endpoint '+path)
 
+    def test_release_review_exposes_exact_original_media_and_version_without_authority(self):
+        import datetime as dt
+        self.findings=[self.finding('critical')];bundle=self.bundle()
+        bundle['receipt']['runAttempt']=1
+        bundle['receipt']['bootOrigin']=dict(runId=8,runAttempt=2,revision='b'*40)
+        artifact=dict(id=50,name='maestro-installer',size_in_bytes=100,digest='sha256:'+'c'*64,
+            expired=False,expires_at='2099-01-01T00:00:00Z',workflow_run=dict(id=8,head_sha='b'*40,head_branch='main'))
+        calls=[]
+        def api(path):
+            calls.append(path)
+            if path=='actions/runs/123':return dict(self.api(path),path=pub.risk.WORKFLOWS['release'])
+            if path.startswith('contents/VERSION?ref='):
+                return dict(encoding='base64',size=6,content='My4yLjAK')
+            if path.startswith('actions/runs/8/artifacts?'):return dict(artifacts=[artifact])
+            return self.api(path)
+        with patch.dict(os.environ,self.env),patch.object(pub.native,'api',side_effect=api):
+            result=pub.consume(bundle,self.policy_path,'review',review_operation='release')
+            self.assertEqual(result['releaseVersion'],'3.2.0');self.assertEqual(result['mediaArtifactId'],50)
+            self.assertEqual(result['mediaProducer'],bundle['receipt']['bootOrigin'])
+            self.assertFalse(result['authorization']);self.assertFalse(result['publicationReady'])
+            self.assertEqual(result['review']['context']['operation'],'release')
+            self.assertEqual(result['verdict']['status'],'blocked')
+            self.assertFalse(any('/approvals' in path for path in calls))
+            for changed in (dict(artifact,expired=True),dict(artifact,size_in_bytes=33*1024**3),dict(artifact,id=True)):
+                previous=artifact;artifact=changed
+                with self.assertRaises(ValueError):pub.consume(bundle,self.policy_path,'review',review_operation='release')
+                artifact=previous
+
     def test_report_mode_high_critical_unknown_block_before_every_side_effect(self):
         self.review_approved=False
         for severity in ('high','critical','unknown'):

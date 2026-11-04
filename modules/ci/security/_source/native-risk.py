@@ -68,7 +68,7 @@ REPO_ID = 1127149753
 REVIEWER_ID = 52590374
 WORKFLOWS = {'publish': '.github/workflows/publication.yml',
              'qualify': '.github/workflows/publication.yml',
-             'release': '.github/workflows/release-publication.yml'}
+             'release': '.github/workflows/release.yml'}
 
 
 def protected_files(api, files, revision):
