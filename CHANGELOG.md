@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Prefer exact authenticated Nix cache outputs during CI qualification reuse,
+  downloading the original closure artifact only when substitution is unavailable;
+  retain fresh scanning, producer authentication and complete NAR verification.
+
 - Prepare standard release-signer attestation of the existing native staging
   receipt for later immutable retention and official-product refresh.
 

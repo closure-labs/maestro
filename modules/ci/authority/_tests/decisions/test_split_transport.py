@@ -92,6 +92,29 @@ class SplitTransport(unittest.TestCase):
         self.assertEqual((self.output / PART).read_bytes(), self.payload)
         self.assertEqual(len(self.calls), 2)
 
+    def test_qualification_metadata_does_not_download_transport_even_on_absence(self):
+        self.env['QUALIFICATION_METADATA_ONLY'] = 'true'
+        self.invoke(companions=0)
+        self.assertEqual(len(self.calls), 1)
+        self.assertFalse((self.output / PART).exists())
+        self.assertEqual(json.loads((self.output / 'scans.json').read_text()), self.scans)
+
+    def test_metadata_mode_cannot_turn_into_discovery_or_publication(self):
+        self.env['QUALIFICATION_METADATA_ONLY'] = 'true'
+        for key, value in [('CANDIDATE_RUN', ''), ('CANDIDATE_REQUIRED', 'false'),
+                           ('CANDIDATE_WORKFLOW', '.github/workflows/security.yml'),
+                           ('PUBLICATION_METADATA_ONLY', 'true'), ('CANDIDATE_RELEASE_ONLY', 'true'),
+                           ('DECISION_RELEASE_ONLY', 'true'), ('PUBLICATION_PURPOSE', 'rolling')]:
+            original = self.env.get(key)
+            self.env[key] = value
+            with self.assertRaises(ValueError):
+                self.invoke()
+            if original is None:
+                self.env.pop(key)
+            else:
+                self.env[key] = original
+        self.assertEqual(self.calls, [])
+
     def test_companion_staging_uses_the_evidence_filesystem(self):
         with patch.object(download.tempfile, 'TemporaryDirectory', wraps=tempfile.TemporaryDirectory) as stage:
             self.invoke()

@@ -1,4 +1,8 @@
-{inputs, ...}: {
+{
+  inputs,
+  config,
+  ...
+}: {
   perSystem = {
     pkgs,
     system,
@@ -14,7 +18,10 @@
       commands =
         lib.mapAttrs' (name: package: lib.nameValuePair (lib.removePrefix "maestro-ci-" name) package)
         (lib.filterAttrs (name: _: lib.hasPrefix "maestro-ci-" name) inputs.self.packages.${system});
-      common = import ./_lib/common.nix {inherit pkgs ciNix;};
+      common = import ./_lib/common.nix {
+        inherit pkgs ciNix;
+        flakeCacheConfig = config.flake-file.nixConfig;
+      };
       devenv = inputs.devenv.packages.${system}.devenv;
       applicabilityCommand = inputs.xen-orchestra-ce.packages.${system}.security-applicability;
       appliance = inputs.self.nixosConfigurations.maestro.config;
