@@ -3,42 +3,6 @@ name: Publish approved Maestro release
 on:
   workflow_dispatch:
     inputs:
-      native_release:
-        description: Opt-in native versioned release; requires separately enabled flag and fresh explicit findings-risk approval
-        type: boolean
-        default: false
-      native_run:
-        description: Exact successful CI producer of the selected immutable native product
-        type: string
-        default: ''
-      native_attempt:
-        description: Exact native producer attempt
-        type: string
-        default: '1'
-      native_revision:
-        description: Full exact qualified product source SHA
-        type: string
-        default: ''
-      native_health_run:
-        description: Optional exact successful native Security maintenance refresh run
-        type: string
-        default: ''
-      native_health_attempt:
-        description: Exact refresh attempt when supplying native_health_run
-        type: string
-        default: ''
-      native_boot_run:
-        description: Exact original executed-boot run, when boot was retained
-        type: string
-        default: ''
-      native_boot_attempt:
-        description: Exact original executed-boot attempt
-        type: string
-        default: ''
-      native_boot_revision:
-        description: Full original executed-boot source SHA
-        type: string
-        default: ''
       candidate_run:
         description: Completed prepared release or refreshed release evidence producer
         type: string
@@ -61,7 +25,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   publish:
-    if: vars.MAESTRO_NATIVE_RELEASE_ENABLED != 'true' && inputs.native_release != true && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && (github.event_name != 'workflow_dispatch' || inputs.transaction_trial == 'default' || inputs.transaction_trial == '' || inputs.candidate_run != '')
+    if: vars.MAESTRO_NATIVE_RELEASE_ENABLED != 'true' && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && (github.event_name != 'workflow_dispatch' || inputs.transaction_trial == 'default' || inputs.transaction_trial == '' || inputs.candidate_run != '')
     runs-on: ubuntu-24.04
     timeout-minutes: 240
     environment: release
@@ -257,84 +221,3 @@ jobs:
           path: ${{ runner.temp }}/publication-diagnostics/
           if-no-files-found: error
           retention-days: 30
-
-  native_review:
-    if: vars.MAESTRO_NATIVE_RELEASE_ENABLED == 'true' && inputs.native_release == true && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.native_run != '' && inputs.native_revision != '' && inputs.candidate_run == '' && (inputs.transaction_trial == 'default' || inputs.transaction_trial == '')
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    outputs:
-      context_sha256: ${{ steps.review.outputs.context_sha256 }}
-      version: ${{ steps.review.outputs.release_version }}
-      media_artifact_id: ${{ steps.review.outputs.media_artifact_id }}
-      media_run: ${{ steps.review.outputs.media_run }}
-      media_attempt: ${{ steps.review.outputs.media_attempt }}
-      media_revision: ${{ steps.review.outputs.media_revision }}
-    permissions:
-      actions: read
-      attestations: read
-      contents: read
-    steps:
-      - name: Monitor hosted runner
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2
-        with:
-          egress-policy: audit
-      - name: Checkout protected native controller
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - name: Set up Nix
-        uses: $/.github/actions/setup-nix
-      - name: Prepare exact findings for explicit human risk review
-        id: review
-        env:
-          GH_TOKEN: ${{ github.token }}
-          NATIVE_RISK_REVIEW_FILE: ${{ runner.temp }}/native-findings-review.json
-          NATIVE_RUN: ${{ inputs.native_run }}
-          NATIVE_HEALTH_RUN: ${{ inputs.native_health_run }}
-          NATIVE_HEALTH_ATTEMPT: ${{ inputs.native_health_attempt }}
-          NATIVE_ATTEMPT: ${{ inputs.native_attempt }}
-          NATIVE_REVISION: ${{ inputs.native_revision }}
-          NATIVE_POLICY_REVISION: ${{ github.sha }}
-          NATIVE_BOOT_ORIGIN_RUN: ${{ inputs.native_boot_run }}
-          NATIVE_BOOT_ORIGIN_ATTEMPT: ${{ inputs.native_boot_attempt }}
-          NATIVE_BOOT_ORIGIN_REVISION: ${{ inputs.native_boot_revision }}
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:native:review
-      - name: Retain bounded native consumer receipt
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: maestro-findings-review
-          path: ${{ runner.temp }}/native-findings-review.json
-          if-no-files-found: error
-          retention-days: 30
-
-  native_publish:
-    needs: native_review
-    if: needs.native_review.result == 'success' && vars.MAESTRO_NATIVE_RELEASE_ENABLED == 'true' && inputs.native_release == true && github.event_name == 'workflow_dispatch'
-    permissions:
-      actions: read
-      contents: write
-      attestations: write
-      artifact-metadata: write
-      id-token: write
-    # Preserve the already-pinned release.yml attestation signer. No App key is passed.
-    uses: $/.github/workflows/release.yml
-    with:
-      release_request_run_id: ''
-      release_candidate_run_id: ''
-      native_release: true
-      native_context_sha256: ${{ needs.native_review.outputs.context_sha256 }}
-      native_version: ${{ needs.native_review.outputs.version }}
-      native_media_artifact_id: ${{ needs.native_review.outputs.media_artifact_id }}
-      native_media_run: ${{ needs.native_review.outputs.media_run }}
-      native_media_attempt: ${{ needs.native_review.outputs.media_attempt }}
-      native_media_revision: ${{ needs.native_review.outputs.media_revision }}
-      native_run: ${{ inputs.native_run }}
-      native_attempt: ${{ inputs.native_attempt }}
-      native_revision: ${{ inputs.native_revision }}
-      native_health_run: ${{ inputs.native_health_run }}
-      native_health_attempt: ${{ inputs.native_health_attempt }}
-      native_boot_run: ${{ inputs.native_boot_run }}
-      native_boot_attempt: ${{ inputs.native_boot_attempt }}
-      native_boot_revision: ${{ inputs.native_boot_revision }}

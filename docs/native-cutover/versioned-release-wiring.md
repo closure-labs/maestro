@@ -6,7 +6,7 @@ change does not set a variable, configure an environment, dispatch a run, accept
 findings or publish a release. Normal CI validates the code; it does not exercise
 the protected production path.
 
-The reviewed route is an explicit manual `release-publication.yml` invocation
+The reviewed route is an explicit manual `release.yml` invocation
 with `native_release=true` and exact original CI run/attempt/source, optional
 fresh-health run/attempt and any required original executed-boot tuple. The
 source's committed VERSION is used; there is no automatic version mutation,
@@ -17,8 +17,8 @@ new release build, risk ledger selection or newest-decision recovery.
    installer artifact ID from the verified product/boot source. It saves the
    bounded findings review and context digest for human inspection. Metadata
    identifies bytes to fetch; it does not claim those ISO bytes were verified.
-2. Only a successful review preflight can call the existing reusable `release.yml`.
-   Its `native_finalize` job waits on `findings-risk-review`. Approval explicitly
+2. Only a successful review preflight can start the direct `native_finalize` job
+   in the same `release.yml`. It waits on `findings-risk-review`. Approval explicitly
    accepts the displayed findings risk, including high/critical issues, for this
    one publication. Code review is separate. Missing or changed environment,
    review, context, current reviewer access, evidence or main still rejects.
@@ -53,18 +53,28 @@ cache readback here. Cachix publication keeps its separate actual NAR checks.
 Existing ISO/asset caps, disk-headroom checks and command deadlines remain; no
 compression or existing timeout is raised. The standard artifact download occurs
 on an ephemeral hosted runner, never the workstation. Full-size download,
-staging/asset-snapshot peak disk, runtime and real reusable-signer/token behavior
+staging/asset-snapshot peak disk, runtime and real signer/token behavior
 still require a separately authorized hosted qualification before activation.
 
 ## Credentials and legacy isolation
 
-The native caller passes **no Decider private key** to the reusable workflow.
-The workflow_call secret declaration becomes optional to permit that keyless
-call. Legacy callers still pass DECIDER_KEY explicitly and their existing token
-actions still require it; absence grants no new credential or write capability.
-The native job uses only its existing repository GitHub token plus standard OIDC,
-with read access to actions and write access to release contents/attestations.
-It receives no Cachix, organization or package-write credential.
+The native jobs run directly in the existing `release.yml`, retaining the pinned
+signer path. They receive **no Decider private key** or Cachix credential. The
+original reusable interface still requires DECIDER_KEY for its legacy caller;
+its two legacy inputs and permission envelope remain unchanged.
+
+GitHub validates reusable-workflow permission ceilings across all callee jobs,
+including conditionally skipped jobs. A new read-only native reusable caller
+would therefore fail because legacy jobs require Actions and pull-request write.
+Direct native jobs avoid that incompatible call without increasing any grants.
+The native writer keeps Actions read and contents/attestations/artifact-metadata/
+OIDC write; the preflight remains read-only. See GitHub's
+[permission downgrade rule](https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations).
+
+The exact findings-review root is replaced with `release.yml`; the previous
+`release-publication.yml` root is rejected rather than added to an allowlist.
+The gated finalizer shares the existing `maestro-publication` FIFO to serialize
+writes with other publication jobs. No workflow or job gets broader permissions.
 
 With the flag disabled, existing legacy dispatch/schedule behavior is retained.
 A native request never falls back to legacy selection. Upon a later explicitly

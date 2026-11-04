@@ -50,6 +50,15 @@ class Risk(unittest.TestCase):
             self.assertEqual(proof['contextSha256'],state['contextSha256'])
             risk.live(self.api,state,SHA)
         self.assertFalse(any('audit' in p or 'pulls/' in p for p in self.calls))
+    def test_release_review_has_one_exact_direct_release_workflow_binding(self):
+        self.assertEqual(risk.WORKFLOWS['release'],'.github/workflows/release.yml')
+        self.run['path']=risk.WORKFLOWS['release']
+        with patch.dict(os.environ,self.env):
+            state=self.state('release');risk.approval(self.api,state)
+            for wrong in ('.github/workflows/release-publication.yml','.github/workflows/publication.yml'):
+                self.run['path']=wrong
+                with self.subTest(path=wrong),self.assertRaises(ValueError):risk.approval(self.api,state)
+
     def test_plan_never_accepts_risk_or_reads_an_approval(self):
         with patch.dict(os.environ,self.env):self.plan()
         self.assertNotIn('actions/runs/123/approvals',self.calls)

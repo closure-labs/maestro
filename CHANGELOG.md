@@ -11,8 +11,8 @@ correspond to published GitHub tags.
 
 ### Changed
 
-- Prepare inactive native versioned release promotion through the existing
-  reusable signer, with fresh findings review, exact original ISO/SBOM evidence
+- Prepare inactive native versioned release promotion through direct jobs in the existing
+  release signer, with fresh findings review, exact original ISO/SBOM evidence
   and no closure restore, rescan, re-export or historical decision selection.
 
 - Prepare an explicit release-specific human findings-review route for native
