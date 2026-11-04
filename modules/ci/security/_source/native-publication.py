@@ -139,12 +139,12 @@ def consume(bundle, policy_path, operation, transport=None, execute=native.opera
     blocking={}
     with native.bounded_validation():
         outcome = policy_verdict(bundle, source_policy, blocking)
-    if operation in ('publish','release') and not os.environ.get('NATIVE_FINDINGS_CONTEXT_SHA256') and outcome['status']!='clear':
+    if operation in ('publish','release','release-stage') and not os.environ.get('NATIVE_FINDINGS_CONTEXT_SHA256') and outcome['status']!='clear':
         raise MandatoryVerdictError(outcome)
-    if operation in ('review','publish','release','qualify'):
+    if operation in ('review','publish','release','release-stage','qualify'):
         root=Path(os.environ.get('MAESTRO_SYSTEM_ROOT',os.getcwd()))
         files={name:root/name for name in RISK_POLICY_FILES}
-        target=review_operation if operation=='review' else operation
+        target=review_operation if operation=='review' else ('release' if operation=='release-stage' else operation)
         state=risk.plan(bundle,blocking['findings'],files,native.api,target)
         if operation=='review':
             return dict(status='awaiting-explicit-findings-risk-review',authorization=False,publicationReady=False,
@@ -161,6 +161,9 @@ def consume(bundle, policy_path, operation, transport=None, execute=native.opera
         outcome.update(status='clear',riskAcceptance=proof)
     if outcome['status'] != 'clear':
         raise MandatoryVerdictError(outcome)
+    if operation == 'release-stage':
+        fresh(bundle,policy_path,policy_digest)
+        return dict(status='reviewed-native-release-staging',authorization=False,publicationReady=False,verdict=outcome)
     if operation == 'check':
         return dict(status='native-policy-clear', authorization=False, publicationReady=False, verdict=outcome)
     if operation == 'release':

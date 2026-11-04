@@ -11,6 +11,9 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Prepare an explicit release-specific human findings-review route for native
+  local ISO staging, retaining strict standalone staging and all integrity checks.
+
 - Skip reconciliation wakeups from unsuccessful continuation runs and retain
   fixed, nonsensitive diagnostics for ambiguous security selection and rejected
   continuation proofs, without changing their fail-closed verification.

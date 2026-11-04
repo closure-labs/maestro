@@ -42,6 +42,10 @@ class ReleaseStage(unittest.TestCase):
         self.bundle['directory'].joinpath('maestro-system.spdx.json').write_text('{"spdxVersion":"SPDX-2.3"}')
         self.bundle['directory'].joinpath('maestro-system.cdx.json').write_text('{"bomFormat":"CycloneDX"}')
     def api(self,path):
+        if path=='actions/runs/123' and getattr(self,'release_review',False):
+            return dict(self.case.api(path),path=pub.risk.WORKFLOWS['release'])
+        if path=='collaborators/human/permission' and getattr(self,'revoked',False):
+            return dict(self.case.api(path),permission='read')
         if path.startswith('contents/VERSION?ref='):return dict(encoding='base64',size=6,content='My4yLjAK')
         return self.case.api(path)
     def execute(self,args,**kwargs):
@@ -225,6 +229,53 @@ class ReleaseStage(unittest.TestCase):
         subject=self.root/'maestro-v3.2.0.iso'
         with self.assertRaises(pub.MandatoryVerdictError):self.stage(final_iso=subject)
         self.assertFalse(subject.exists());self.assertEqual(self.calls,[])
+    def reviewed_findings(self):
+        self.case.findings=[self.case.finding('high'),self.case.finding('critical','b')]
+        previous=self.bundle
+        self.bundle=self.case.bundle()
+        self.bundle.update(receipt=previous['receipt'],result=previous['result'])
+        self.release_review=True
+        files={name:self.case.policy_root/name for name in pub.RISK_POLICY_FILES}
+        self.env['NATIVE_FINDINGS_CONTEXT_SHA256']=pub.risk.digest(pub.risk.context(self.bundle,self.case.findings,files,'release',123))
+
+    def test_release_specific_approval_allows_only_local_verified_staging(self):
+        self.reviewed_findings();result=self.stage(findings_review=True)
+        self.assertEqual(self.calls,['trusted','attest','split'])
+        self.assertFalse(result['authorization']);self.assertFalse(result['publicationReady'])
+        self.assertTrue(result['isoBytesVerified']);self.assertEqual(result['verdict']['blockingRows'],2)
+        self.assertIn('riskAcceptance',result['verdict'])
+        self.assertEqual(result['verdict']['status'],'clear')
+
+    def test_reviewed_route_flag_cannot_replace_matching_review_or_write_access(self):
+        self.reviewed_findings()
+        expected=self.env['NATIVE_FINDINGS_CONTEXT_SHA256']
+        for context in ('','0'*64):
+            with self.subTest(context=context):
+                self.env['NATIVE_FINDINGS_CONTEXT_SHA256']=context
+                with self.assertRaises(ValueError):self.stage(findings_review=True)
+                self.assertEqual(self.calls,[]);self.assertFalse(self.output.exists())
+        self.env['NATIVE_FINDINGS_CONTEXT_SHA256']=expected;self.revoked=True
+        with self.assertRaises(ValueError):self.stage(findings_review=True)
+        self.assertEqual(self.calls,[]);self.assertFalse(self.output.exists())
+
+    def test_cache_approval_cannot_authorize_release_staging(self):
+        self.reviewed_findings();self.release_review=False
+        files={name:self.case.policy_root/name for name in pub.RISK_POLICY_FILES}
+        self.env['NATIVE_FINDINGS_CONTEXT_SHA256']=pub.risk.digest(pub.risk.context(self.bundle,self.case.findings,files,'publish',123))
+        with self.assertRaises(ValueError):self.stage(findings_review=True)
+        self.assertEqual(self.calls,[])
+
+    def test_release_review_does_not_waive_iso_integrity_or_late_access_loss(self):
+        self.reviewed_findings();raw=self.iso.read_bytes();self.iso.write_bytes(b'changed ISO')
+        with self.assertRaises(ValueError):self.stage(findings_review=True)
+        self.assertNotIn('attest',self.calls);self.assertNotIn('split',self.calls);self.assertFalse(self.output.exists())
+        self.iso.write_bytes(raw);self.calls.clear()
+        def revoke(args,**kwargs):
+            result=self.execute(args,**kwargs);self.revoked=True;return result
+        with self.assertRaises(ValueError):self.stage(findings_review=True,execute=revoke)
+        self.assertFalse(self.output.exists())
+        self.assertFalse(list(self.root.glob('.maestro-release-*')))
+
     def reused_inventory(self):
         self.bundle['binding']['isoSha256']=None
         self.bundle['result'].update(inventoryTransferSha256='e'*64,

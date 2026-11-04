@@ -3,6 +3,8 @@
 in {
   tasks = {
     "release:native:publish".exec = runFlakePackage "maestro-ci-native-publication" "release";
+    "release:native:review".exec = runFlakePackage "maestro-ci-native-publication" "review --review-operation release";
+    "release:native:stage-reviewed".exec = runFlakePackage "maestro-ci-native-release-stage" "--findings-review";
     "release:native:stage".exec = runFlakePackage "maestro-ci-native-release-stage" "";
     "release:retain".exec = runFlakePackage "maestro-ci-release-retain" "";
     "release:inspect".exec = runFlakePackage "maestro-ci-publication-inspect" "";

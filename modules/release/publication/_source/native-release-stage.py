@@ -34,7 +34,7 @@ def freeze_iso(source,target):
         return digest.hexdigest()
 
 
-def stage(bundle,iso,media,output,version,policy_path,execute=native.operations.run,attest=native.attest,trusted=native.trusted_run,final_iso=None):
+def stage(bundle,iso,media,output,version,policy_path,execute=native.operations.run,attest=native.attest,trusted=native.trusted_run,final_iso=None,findings_review=False):
     native.require(not output.exists() and not output.is_symlink(),'New release output required')
     native.require(isinstance(version,str) and re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+',version),'Exact supported release version required')
     if final_iso is not None:
@@ -47,7 +47,9 @@ def stage(bundle,iso,media,output,version,policy_path,execute=native.operations.
     native.require(version==remote,'Release version differs from protected exact source')
     # Neither staging nor its receipt grants publication authority.
     policy_digest=native.file_hash(policy_path)
-    outcome=publication.consume(bundle,policy_path,'check')
+    # The explicit route verifies the same release-specific fresh human gate;
+    # its flag alone grants nothing. Standalone staging keeps the strict default.
+    outcome=publication.consume(bundle,policy_path,'release-stage' if findings_review else 'check')
     expected=bundle['receipt'].get('bootOrigin') or dict(revision=revision,runId=bundle['receipt']['runId'],runAttempt=bundle['receipt']['runAttempt'])
     native.require(media==(expected['runId'],expected['runAttempt'],expected['revision']),
                    'Exact original executed-boot media producer required')
@@ -134,6 +136,7 @@ def main():
     cli.add_argument('--version',required=True);cli.add_argument('--output',type=Path,required=True)
     cli.add_argument('--health-run',type=int);cli.add_argument('--health-attempt',type=int);cli.add_argument('--health-directory',type=Path)
     cli.add_argument('--policy-revision',help='Explicit current main policy for this exact qualified product')
+    cli.add_argument('--findings-review',action='store_true',help='Require the current release-specific protected human findings review before local staging; grants no publication authority')
     cli.add_argument('--final-iso',type=Path,help='Keep verified versioned ISO sibling for subsequent native GitHub attestation; no publication')
     cli.add_argument('--boot-origin-run',type=int);cli.add_argument('--boot-origin-attempt',type=int);cli.add_argument('--boot-origin-revision')
     args=cli.parse_args();origin=(args.boot_origin_run,args.boot_origin_attempt,args.boot_origin_revision)
@@ -143,7 +146,7 @@ def main():
     with native.operations.budget(3300),publication.selected(args.directory,args.run,args.attempt,args.revision,origin,
         policy_revision=args.policy_revision,health_run=args.health_run,health_attempt=args.health_attempt,
         health_directory=args.health_directory) as bundle:
-        result=stage(bundle,args.iso,(args.media_run,args.media_attempt,args.media_revision),args.output,args.version,Path(os.environ['MAESTRO_NATIVE_SECURITY_POLICY']),final_iso=args.final_iso)
+        result=stage(bundle,args.iso,(args.media_run,args.media_attempt,args.media_revision),args.output,args.version,Path(os.environ['MAESTRO_NATIVE_SECURITY_POLICY']),final_iso=args.final_iso,findings_review=args.findings_review)
     print(json.dumps(result,sort_keys=True))
 
 
