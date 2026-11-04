@@ -1,7 +1,12 @@
 {
   pkgs,
   ciNix,
+  flakeCacheConfig,
 }: let
+  qualificationCacheConfig = pkgs.writeText "maestro-qualification-cache-config.json" (builtins.toJSON {
+    substituters = flakeCacheConfig.extra-substituters;
+    keys = flakeCacheConfig.extra-trusted-public-keys;
+  });
   publicCacheWorker = pkgs.writeText "maestro-public-cache-worker.py" (builtins.replaceStrings
     ["@LIBCURL@"]
     ["${pkgs.curl.out}/lib/libcurl.so.4"]
@@ -61,4 +66,7 @@
     runtimeInputs = commonInputs;
     source = ../../graph/_source/classify-paths.sh;
   };
-in {inherit mkCommand commonInputs spdxSchema boundedGh publicCacheWorker validatePlan classifyPaths;}
+in {
+  inherit mkCommand commonInputs spdxSchema boundedGh publicCacheWorker validatePlan classifyPaths;
+  inherit qualificationCacheConfig;
+}

@@ -114,6 +114,17 @@ def main():
     proposal_hash = os.environ.get('CANDIDATE_PROPOSAL_HASH', '')
     identity = os.environ.get('CANDIDATE_RUN', '')
     workflow_filter = os.environ.get('CANDIDATE_WORKFLOW', '')
+    qualification_metadata = os.environ.get('QUALIFICATION_METADATA_ONLY') == 'true'
+    if qualification_metadata:
+        common.require(os.environ.get('CANDIDATE_REQUIRED') == 'true'
+                       and re.fullmatch(r'[1-9][0-9]{0,19}', identity)
+                       and workflow_filter == '.github/workflows/ci.yml'
+                       and not proposal_hash
+                       and os.environ.get('CANDIDATE_RELEASE_ONLY') != 'true'
+                       and os.environ.get('DECISION_RELEASE_ONLY') != 'true'
+                       and not os.environ.get('PUBLICATION_PURPOSE')
+                       and os.environ.get('PUBLICATION_METADATA_ONLY') != 'true',
+                       'Qualification metadata requires one exact CI producer, never publication discovery')
     admitted = None
     if os.environ.get('CANDIDATE_REQUIRED') == 'true' and not identity:
         raise ValueError('Exact candidate run ID required')
@@ -203,7 +214,8 @@ def main():
         raise ValueError("Candidate documents differ from authoritative producer")
     if admitted is not None and common.canonical_hash(product) != common.canonical_hash(admitted['payload']['product']):
         raise ValueError('Fresh recovery changed the exact admitted product')
-    distribution_transport(evidence, scans, run, inventory)
+    if not qualification_metadata:
+        distribution_transport(evidence, scans, run, inventory)
     tags = {match[1] for name in product["assets"] if (match := re.fullmatch(r"maestro-(v[0-9]+\.[0-9]+\.[0-9]+)\.iso\.sha256", name))}
     if product["assets"] and len(tags) != 1:
         raise ValueError("Official product lacks one immutable release tag")

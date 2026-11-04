@@ -22,7 +22,10 @@ in {
       export PYTHONPATH=${../../../ci/authority/_source/decisions}
       MAESTRO_DISTRIBUTION_CACHE_SOURCE=${../../../ci/graph/_source/distribution-cache.py}
       MAESTRO_QUALIFICATION_RESTORE_SOURCE=${../_source/qualification-restore.py}
-      export MAESTRO_DECISION_CORE MAESTRO_DISTRIBUTION_CACHE_SOURCE MAESTRO_QUALIFICATION_RESTORE_SOURCE
+      MAESTRO_QUALIFICATION_CACHE_CONFIG=${common.qualificationCacheConfig}
+      MAESTRO_DECISION_DOWNLOAD_SOURCE=${../../../ci/authority/_source/decision-download.py}
+      export MAESTRO_DECISION_CORE MAESTRO_DISTRIBUTION_CACHE_SOURCE MAESTRO_QUALIFICATION_RESTORE_SOURCE MAESTRO_QUALIFICATION_CACHE_CONFIG
+      export MAESTRO_DECISION_DOWNLOAD_SOURCE
     '';
     runtimeInputs = commonInputs ++ [pkgs.python3];
     source = ../_source/qualification-restore.sh;
