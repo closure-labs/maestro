@@ -11,11 +11,12 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Prepare inactive native versioned release promotion through direct jobs in the existing
+  release signer, with fresh findings review, exact original ISO/SBOM evidence
+  and no closure restore, rescan, re-export or historical decision selection.
+
 - Prepare an explicit native official-release refresh route using signed existing
   release receipts, original boot/inventory verification and one fresh scan.
-
-- Prepare an inactive official-product locator using the existing signed release
-  staging receipt, with no ledger selection, new packet format or active caller.
 
 - Prepare an explicit release-specific human findings-review route for native
   local ISO staging, retaining strict standalone staging and all integrity checks.
@@ -23,6 +24,9 @@ correspond to published GitHub tags.
 - Skip reconciliation wakeups from unsuccessful continuation runs and retain
   fixed, nonsensitive diagnostics for ambiguous security selection and rejected
   continuation proofs, without changing their fail-closed verification.
+
+- Prepare an inactive official-product locator using the existing signed release
+  staging receipt, with no ledger selection, new packet format or active caller.
 
 - Prepare explicit immutable-product/current-policy native verification so a
   reviewed risk decision can promote its exact artifact without requalification;

@@ -25,7 +25,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   publish:
-    if: github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && (github.event_name != 'workflow_dispatch' || inputs.transaction_trial == 'default' || inputs.transaction_trial == '' || inputs.candidate_run != '')
+    if: vars.MAESTRO_NATIVE_RELEASE_ENABLED != 'true' && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && (github.event_name != 'workflow_dispatch' || inputs.transaction_trial == 'default' || inputs.transaction_trial == '' || inputs.candidate_run != '')
     runs-on: ubuntu-24.04
     timeout-minutes: 240
     environment: release
