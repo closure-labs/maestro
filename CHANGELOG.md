@@ -11,6 +11,9 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Prepare standard release-signer attestation of the existing native staging
+  receipt for later immutable retention and official-product refresh.
+
 - Prepare inactive native versioned release promotion through direct jobs in the existing
   release signer, with fresh findings review, exact original ISO/SBOM evidence
   and no closure restore, rescan, re-export or historical decision selection.
