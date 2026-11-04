@@ -237,11 +237,20 @@ c.files={'.github/CODEOWNERS':root/'.github/CODEOWNERS'}
 c.bundle['normalizedFindings'][0]['largeExposure']='x'*(2*1024**2)
 @contextmanager
 def selected(*a,**k):yield c.bundle
-out=Path(sys.argv[2])
+out=Path(sys.argv[2]);mode=sys.argv[3] if len(sys.argv)>3 else ''
 if len(sys.argv)>3 and sys.argv[3]=='cap':f.pub.MAX_REVIEW_BYTES=1024
 if len(sys.argv)>3 and sys.argv[3]=='exists':(out/'review.json').write_text('sentinel')
 env=dict(c.env,MAESTRO_NATIVE_SECURITY_POLICY=str(c.case.policy_path),NATIVE_RISK_REVIEW_FILE=str(out/'review.json'),GITHUB_OUTPUT=str(out/'outputs'),GITHUB_STEP_SUMMARY=str(out/'summary'))
 sys.argv=['native-publication','review','--run','7','--attempt','1','--revision','a'*40]
+if mode=='release':
+ c.bundle['receipt'].update(runAttempt=1,bootOrigin=dict(runId=8,runAttempt=2,revision='b'*40))
+ original_api=c.api
+ def release_api(path):
+  if path=='actions/runs/123':return dict(original_api(path),path=f.risk.WORKFLOWS['release'])
+  if path.startswith('contents/VERSION?ref='):return dict(encoding='base64',size=6,content='My4yLjAK')
+  if path.startswith('actions/runs/8/artifacts?'):return dict(artifacts=[dict(id=50,name='maestro-installer',size_in_bytes=100,digest='sha256:'+'c'*64,expired=False,expires_at='2099-01-01T00:00:00Z',workflow_run=dict(id=8,head_sha='b'*40,head_branch='main'))])
+  return original_api(path)
+ c.api=release_api;sys.argv+=['--review-operation','release']
 with patch.dict(os.environ,env),patch.object(f.pub,'RISK_POLICY_FILES',tuple(c.files)),patch.object(f.pub.native,'api',side_effect=c.api),patch.object(f.pub,'selected',selected):f.pub.main()
 c.doCleanups()
 """
@@ -252,6 +261,14 @@ c.doCleanups()
             self.assertGreater((Path(directory)/'review.json').stat().st_size,1024**2)
             self.assertEqual((Path(directory)/'outputs').read_text().strip(),'context_sha256='+value['review']['contextSha256'])
             self.assertIn('including high/critical',(Path(directory)/'summary').read_text())
+            released=Path(directory)/'release';released.mkdir()
+            result=subprocess.run([sys.executable,'-c',driver,str(Path(__file__)),str(released),'release'],capture_output=True,text=True,timeout=20)
+            self.assertEqual(result.returncode,0,result.stderr)
+            outputs=dict(line.split('=',1) for line in (released/'outputs').read_text().splitlines())
+            self.assertEqual(outputs['release_version'],'3.2.0');self.assertEqual(outputs['media_artifact_id'],'50')
+            self.assertEqual((outputs['media_run'],outputs['media_attempt'],outputs['media_revision']),('8','2','b'*40))
+            review=json.loads((released/'review.json').read_text());self.assertFalse(review['authorization'])
+            self.assertEqual(review['review']['context']['operation'],'release')
             for flag in ('cap','exists'):
                 child=Path(directory)/flag;child.mkdir()
                 failed=subprocess.run([sys.executable,'-c',driver,str(Path(__file__)),str(child),flag],capture_output=True,text=True,timeout=20)

@@ -1,0 +1,95 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+# Inactive native versioned-release wiring
+
+The existing `MAESTRO_NATIVE_RELEASE_ENABLED` default is still `false`. This
+change does not set a variable, configure an environment, dispatch a run, accept
+findings or publish a release. Normal CI validates the code; it does not exercise
+the protected production path.
+
+The reviewed route is an explicit manual `release-publication.yml` invocation
+with `native_release=true` and exact original CI run/attempt/source, optional
+fresh-health run/attempt and any required original executed-boot tuple. The
+source's committed VERSION is used; there is no automatic version mutation,
+new release build, risk ledger selection or newest-decision recovery.
+
+1. The read-only `native_review` job authenticates complete signed native evidence
+   and mandatory fresh findings. It derives VERSION and the unique original
+   installer artifact ID from the verified product/boot source. It saves the
+   bounded findings review and context digest for human inspection. Metadata
+   identifies bytes to fetch; it does not claim those ISO bytes were verified.
+2. Only a successful review preflight can call the existing reusable `release.yml`.
+   Its `native_finalize` job waits on `findings-risk-review`. Approval explicitly
+   accepts the displayed findings risk, including high/critical issues, for this
+   one publication. Code review is separate. Missing or changed environment,
+   review, context, current reviewer access, evidence or main still rejects.
+3. The gated job downloads the exact media artifact ID and verifies its actual
+   ISO against signed original CI and directly executed boot proof. The reviewed
+   staging command checks approval independently, stages the existing ISO parts
+   and original SBOMs, and retains a verified final-name ISO snapshot.
+4. Standard GitHub actions create final-name SLSA and SPDX attestations **inside
+   release.yml**, preserving the existing pinned signer. The native writer
+   independently revalidates evidence, findings review, current main/policy,
+   staged byte hashes and both attestations before normal immutable release writes.
+   Mutable approval/access/freshness checks remain before each write group.
+
+GitHub documents [reusable workflow attestation verification](https://docs.github.com/en/enterprise-cloud%40latest/actions/how-tos/secure-your-work/use-artifact-attestations/increase-security-rating#step-2-verifying-artifact-attestations-built-with-a-reusable-workflow).
+No signer allowlist, signing key, cache key or provenance predicate is weakened.
+The immutable product source S and current policy/signer source M remain distinct
+and bound. The public tag targets S; final-name attestations identify reviewed M.
+
+## Reuse and resource limits
+
+The preflight and gated job independently read metadata so approval cannot grant
+an unverified bundle. Within the gated job, raw native inputs and optional fresh
+health are downloaded once and reused between staging and writing. They remain
+untrusted data: each consumer verifies them rather than caching authority. No
+original closure is restored, rescanned, re-exported or re-uploaded in this ISO
+promotion path. Fresh complete CI or health is already mandatory. There is no
+SBOM regeneration. The original complete SPDX inventory is bound to the final ISO.
+
+The code directly verifies all final ISO bytes and retains signed root/NAR
+identity coverage, but it does **not** claim an additional NAR-payload restore or
+cache readback here. Cachix publication keeps its separate actual NAR checks.
+Existing ISO/asset caps, disk-headroom checks and command deadlines remain; no
+compression or existing timeout is raised. The standard artifact download occurs
+on an ephemeral hosted runner, never the workstation. Full-size download,
+staging/asset-snapshot peak disk, runtime and real reusable-signer/token behavior
+still require a separately authorized hosted qualification before activation.
+
+## Credentials and legacy isolation
+
+The native caller passes **no Decider private key** to the reusable workflow.
+The workflow_call secret declaration becomes optional to permit that keyless
+call. Legacy callers still pass DECIDER_KEY explicitly and their existing token
+actions still require it; absence grants no new credential or write capability.
+The native job uses only its existing repository GitHub token plus standard OIDC,
+with read access to actions and write access to release contents/attestations.
+It receives no Cachix, organization or package-write credential.
+
+With the flag disabled, existing legacy dispatch/schedule behavior is retained.
+A native request never falls back to legacy selection. Upon a later explicitly
+approved activation, the same flag excludes the old version-preparation,
+continuation and official-publication paths. Future native releases require
+VERSION to be committed through ordinary protected review before the selected
+CI product is built. There is no second version-bump controller.
+
+The distinct scheduled official-product refresh still needs its native consumer
+migration and coverage parity before ledger/recovery controllers can be retired.
+Historical records are preserved. Do not call this PR a completed production
+cutover, or enable it merely because unit/PR checks pass. The GitHub Free gate's
+accepted sole-maintainer and unobserved remove/restore limitations are unchanged;
+no present findings are accepted.
+
+## Activation and rollback
+
+Before activation: independently review this exact head; obtain successful fresh
+signed main qualification; separately approve/configure the exact findings
+review environment and qualify its real token/approval path; complete native
+consumer/protection migration and full-size release qualification. A findings
+acceptance must be a separate explicit human action. The run's maximum thirty-day
+approval window, no automatic renewal and independent evidence expiry still apply.
+
+Rollback changes no history or release assets: after coordinated approval, keep
+or return the native flag to false and stop new native invocations. An already
+published immutable version is never rewritten. Re-enabling a legacy path is not
+a risk waiver: its current checks still run and may reject ambiguous history.
