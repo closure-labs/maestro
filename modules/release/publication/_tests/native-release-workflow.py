@@ -107,7 +107,7 @@ class ReleaseWorkflow(unittest.TestCase):
         stage=next(i for i,s in enumerate(steps) if s.get('run','').endswith('release:native:stage-reviewed'))
         writer=next(i for i,s in enumerate(steps) if s.get('run','').endswith('release:native:publish'))
         attest=[i for i,s in enumerate(steps) if s.get('uses','').startswith('actions/attest@')]
-        self.assertEqual(len(attest),2);self.assertTrue(download<stage<min(attest)<writer)
+        self.assertEqual(len(attest),3);self.assertTrue(download<stage<min(attest)<writer)
         self.assertEqual(steps[download]['with']['artifact-ids'],'${{ needs.native_review.outputs.media_artifact_id }}')
         self.assertEqual(steps[download]['with']['run-id'],'${{ needs.native_review.outputs.media_run }}')
         self.assertNotIn('NATIVE_DIRECTORY',steps[stage].get('env',{}))
@@ -115,6 +115,8 @@ class ReleaseWorkflow(unittest.TestCase):
         self.assertIn('/native-health',steps[writer]['env']['NATIVE_HEALTH_DIRECTORY'])
         self.assertEqual(steps[attest[1]]['with']['sbom-path'],'${{ runner.temp }}/native-candidate/maestro-system.spdx.json')
         self.assertEqual(steps[attest[0]]['with']['subject-path'],steps[writer]['env']['NATIVE_RELEASE_ISO'])
+        self.assertEqual(steps[attest[2]]['with'],{'subject-path':'${{ runner.temp }}/native-release-assets/native-release-staging.json'})
+        self.assertTrue(attest[1]<attest[2]<writer)
 
     def test_real_stage_wrapper_allows_verified_auto_staging_and_preserves_health_directory(self):
         with tempfile.TemporaryDirectory() as temp:

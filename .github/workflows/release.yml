@@ -515,6 +515,10 @@ jobs:
         with:
           subject-path: ${{ runner.temp }}/maestro-v${{ needs.native_review.outputs.version }}.iso
           sbom-path: ${{ runner.temp }}/native-candidate/maestro-system.spdx.json
+      - name: Attest the existing exact native release staging receipt
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: ${{ runner.temp }}/native-release-assets/native-release-staging.json
       - name: Revalidate evidence review and final attestations before release writes
         env:
           NATIVE_DIRECTORY: ${{ runner.temp }}/native-candidate
