@@ -31,6 +31,15 @@ class NativeHealth(unittest.TestCase):
         self.fresh_findings=[]
         self.create_report()
 
+    def test_schedule_is_valid_health_provenance_but_untrusted_events_still_reject(self):
+        for event in ('schedule','workflow_dispatch'):
+            self.runPatch={'event':event}
+            with patch.object(health.native,'api',side_effect=self.api):
+                self.assertEqual(health.trusted(20,1),self.health_revision)
+            self.verify()
+        self.runPatch={'event':'pull_request'}
+        with patch.object(health.native,'api',side_effect=self.api),self.assertRaises(ValueError):health.trusted(20,1)
+
     def create_report(self):
         def scan(env):
             self.case.scan(env);report=self.case.output/'security-result.json';fresh=json.loads(report.read_text())
@@ -125,7 +134,7 @@ class NativeHealth(unittest.TestCase):
     def test_failed_fork_wrong_attempt_or_workflow_producer_rejects(self):
         for patch_value in ({'conclusion':'failure'},{'run_attempt':2},{'path':'.github/workflows/ci.yml'},
                             {'head_sha':'b'*40},{'head_repository':{'full_name':'attacker/maestro'}},
-                            {'event':'schedule'},{'event':'workflow_run'},{'event':'pull_request'}):
+                            {'event':'workflow_run'},{'event':'pull_request'}):
             self.runPatch=patch_value
             with self.subTest(patch_value=patch_value),self.assertRaises(ValueError):self.verify()
 

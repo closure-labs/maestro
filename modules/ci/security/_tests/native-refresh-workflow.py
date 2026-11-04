@@ -4,6 +4,7 @@
 import json
 from pathlib import Path
 import subprocess
+import re
 import unittest
 
 ROOT=Path(__file__).resolve().parents[4]
@@ -40,6 +41,39 @@ class RefreshWorkflow(unittest.TestCase):
         self.assertEqual(upload['with']['name'],'maestro-native-health');self.assertEqual(upload['with']['path'],'security-report')
         attest=next(s for s in job['steps'] if s.get('uses','').startswith('actions/attest@'))
         self.assertEqual(attest['with']['subject-path'],'security-report/native-health.json')
+
+    def test_scheduled_native_switch_is_explicit_and_excludes_legacy_jobs(self):
+        data=workflow('security.yml');job=data['jobs']['native_refresh']
+        self.assertIn("github.event_name == 'schedule' && vars.MAESTRO_NATIVE_REFRESH_ENABLED == 'true'",job['if'])
+        self.assertIn("github.event_name != 'schedule' || vars.MAESTRO_NATIVE_REFRESH_ENABLED != 'true'",data['jobs']['dependencies']['if'])
+        self.assertNotIn('MAESTRO_NATIVE_REFRESH_ENABLED',data['jobs']['release_candidates']['if'])
+        step=next(s for s in job['steps'] if 'run' in s)
+        self.assertEqual(step['env']['MAESTRO_NATIVE_REFRESH_ENABLED'],"${{ vars.MAESTRO_NATIVE_REFRESH_ENABLED || 'false' }}")
+        self.assertEqual(step['env']['NATIVE_REFRESH_SELECT_CURRENT_MAIN'],"${{ github.event_name == 'schedule' && 'true' || 'false' }}")
+        spec=(ROOT/'secretspec.toml').read_text()
+        line=next(l for l in spec.splitlines() if l.startswith('MAESTRO_NATIVE_REFRESH_ENABLED ='))
+        self.assertIn('default = "false"',line)
+
+    def test_schedule_routes_one_rolling_refresh_and_retains_official_product_coverage(self):
+        data=workflow('security.yml')
+        for event,enabled,native_input,policy_input,expected in [
+            ('schedule','false',False,False,(True,False)),
+            ('schedule','true',False,False,(False,True)),
+            ('workflow_dispatch','false',True,False,(False,True)),
+            ('workflow_dispatch','false',False,False,(True,False)),
+            ('workflow_dispatch','true',True,True,(False,False))]:
+            values={'github.event_name':event,'github.repository':'closure-labs/maestro',
+                'github.ref':'refs/heads/main','vars.MAESTRO_NATIVE_REFRESH_ENABLED':enabled,
+                'inputs.native_refresh':native_input,'inputs.policy_only':policy_input}
+            def condition(name):
+                expression=data['jobs'][name]['if']
+                expression=re.sub(r'(?:github|vars|inputs)\.[A-Za-z_.]+',lambda m:repr(values[m.group()]),expression)
+                expression=expression.replace('&&',' and ').replace('||',' or ').replace('true','True').replace('false','False')
+                return eval(expression,{'__builtins__':{}})
+            with self.subTest(event=event,enabled=enabled):
+                self.assertEqual(condition('dependencies'),expected[0])
+                self.assertEqual(condition('release_candidates'),event=='schedule' or not (native_input or policy_input))
+                self.assertEqual(condition('native_refresh'),expected[1])
 
     def test_both_consumers_keep_disabled_activation_and_exact_health_pair(self):
         for filename,name in [('publication.yml','native_publish'),('consumer-probe.yml','native_consumer')]:

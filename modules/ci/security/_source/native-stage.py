@@ -93,12 +93,14 @@ def download(row, target, names, budget, limit):
                 raise ValueError('Missing allowlisted artifact files')
 
 
-def _stage(directory, run, attempt, revision, origin, refresh=False):
+def _stage(directory, run, attempt, revision, origin, refresh=False, discover_origin=False):
     if directory.exists() or type(run) is not int or run <= 0 or type(attempt) is not int or attempt <= 0 or not re.fullmatch('[0-9a-f]{40}', revision):
         raise ValueError('New staging directory and exact producer required')
     directory.mkdir(parents=True); budget = [0]
     try:
         download(select(run, revision, 'maestro-ci-result'), directory, {'ci-result.json':'ci-result.json'}, budget, CAP)
+        if discover_origin and (directory/'ci-result.json').stat().st_size>4*1024**2:
+            raise ValueError('Bounded boot-source scheduling metadata required')
         result = json.loads((directory / 'ci-result.json').read_text())
         if result['producer']['GITHUB_RUN_ATTEMPT'] != str(attempt):
             raise ValueError('Changed current producer attempt')
@@ -109,10 +111,31 @@ def _stage(directory, run, attempt, revision, origin, refresh=False):
                       {n:n for n in ('findings.json','source-policy.json','effective-policy.json','critical-applicability.json')})
         download(select(run, revision, 'maestro-security-report'), directory, report, budget, CAP)
         if result['boot']['disposition'] == 'verified-retained':
-            if origin is None:raise ValueError('Explicit original boot producer required')
-            run_id, old_attempt, old_revision = origin
+            if origin is None and discover_origin:
+                # Only locate immutable proof bytes. Native verification below
+                # still requires the signed, directly executed original proof.
+                hint=result['boot'].get('origin',{})
+                if not isinstance(hint,dict):raise ValueError('Retained boot-source hint must be an object')
+                run_id,old_revision=hint.get('runId'),hint.get('revision')
+                if (type(run_id) is not int or run_id<=0 or not isinstance(old_revision,str)
+                    or not re.fullmatch(r'[0-9a-f]{40}',old_revision)
+                    or ('runAttempt' in hint and (type(hint['runAttempt']) is not int or hint['runAttempt']<=0))):
+                    raise ValueError('Exact retained boot-source hint required')
+                old_attempt=None
+            elif origin is None:raise ValueError('Explicit original boot producer required')
+            else:run_id,old_attempt,old_revision=origin
             download(select(run_id, old_revision, 'maestro-ci-result'), directory, {'ci-result.json':'original-ci-result.json'}, budget, CAP)
+            if discover_origin and (directory/'original-ci-result.json').stat().st_size>4*1024**2:
+                raise ValueError('Bounded original boot-source metadata required')
             old = json.loads((directory / 'original-ci-result.json').read_text())
+            if old_attempt is None:
+                producer=old.get('producer',{});value=producer.get('GITHUB_RUN_ATTEMPT','')
+                if (not isinstance(value,str) or not re.fullmatch(r'[1-9][0-9]*',value)
+                    or producer.get('GITHUB_REPOSITORY')!=REPO or producer.get('GITHUB_SHA')!=old_revision
+                    or producer.get('GITHUB_RUN_ID')!=str(run_id)
+                    or result['boot']['origin'].get('runAttempt',int(value))!=int(value)):
+                    raise ValueError('Original boot proof producer differs from scheduling hint')
+                old_attempt=int(value);origin=(run_id,old_attempt,old_revision)
             if old['producer']['GITHUB_RUN_ATTEMPT'] != str(old_attempt):
                 raise ValueError('Changed original producer attempt')
             download(select(run_id, old_revision, 'maestro-installer-boot-log'), directory, {'qemu-boot.log':'original-boot.log'}, budget, CAP)
@@ -128,6 +151,7 @@ def _stage(directory, run, attempt, revision, origin, refresh=False):
         # selected document hash. There is no latest/historical decision choice.
         download(select(state['evidence_run_id'], None, 'maestro-evidence'), directory,
                  {n:n for n in documents}, budget, CAP)
+        return origin
     except BaseException:
         shutil.rmtree(directory)
         raise
@@ -137,8 +161,8 @@ def stage(directory, run, attempt, revision, origin):
     return _stage(directory, run, attempt, revision, origin)
 
 
-def stage_refresh(directory, run, attempt, revision, origin):
-    return _stage(directory, run, attempt, revision, origin, refresh=True)
+def stage_refresh(directory, run, attempt, revision, origin, discover_origin=False):
+    return _stage(directory, run, attempt, revision, origin, refresh=True, discover_origin=discover_origin)
 
 
 def stage_health(directory, run, revision):

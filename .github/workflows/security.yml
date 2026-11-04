@@ -49,7 +49,7 @@ concurrency:
 jobs:
   dependencies:
     name: Rescan latest trusted inventories
-    if: github.event_name != 'workflow_dispatch' || (inputs.policy_only != true && inputs.native_refresh != true)
+    if: (github.event_name != 'schedule' || vars.MAESTRO_NATIVE_REFRESH_ENABLED != 'true') && (github.event_name != 'workflow_dispatch' || (inputs.policy_only != true && inputs.native_refresh != true))
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
@@ -135,8 +135,8 @@ jobs:
           retention-days: 90
 
   native_refresh:
-    name: Trial exact native inventory refresh without publication
-    if: github.event_name == 'workflow_dispatch' && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && inputs.native_refresh == true && inputs.policy_only != true
+    name: Refresh exact native inventory without publication
+    if: github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && ((github.event_name == 'workflow_dispatch' && inputs.native_refresh == true && inputs.policy_only != true) || (github.event_name == 'schedule' && vars.MAESTRO_NATIVE_REFRESH_ENABLED == 'true'))
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
@@ -156,6 +156,8 @@ jobs:
       - name: Restore original closure once and refresh independently fresh databases
         env:
           GH_TOKEN: ${{ github.token }}
+          MAESTRO_NATIVE_REFRESH_ENABLED: ${{ vars.MAESTRO_NATIVE_REFRESH_ENABLED || 'false' }}
+          NATIVE_REFRESH_SELECT_CURRENT_MAIN: ${{ github.event_name == 'schedule' && 'true' || 'false' }}
           NATIVE_RUN: ${{ inputs.native_run }}
           NATIVE_ATTEMPT: ${{ inputs.native_attempt }}
           NATIVE_REVISION: ${{ inputs.native_revision || github.sha }}
