@@ -126,3 +126,31 @@ attestation and gate receipts to terminal. Missing approval, changed context or
 expired evidence must fail; a successful qualification is not permission to turn
 on a publisher. Production activation and any review-check replacement remain
 separate confirmed actions.
+
+## Inactive release-specific staging route
+
+`release:native:review` produces the existing bounded findings review for the
+`release` destination on the protected, first-attempt manual
+`release-publication.yml` run. Approving that findings gate explicitly accepts
+the displayed high/critical risks for that one release; code review does not.
+`release:native:stage-reviewed` (the existing stage command with
+`--findings-review`) independently verifies that same release-specific environment
+approval before touching ISO/media bytes. A flag, cache approval, qualification
+approval or local staging receipt cannot satisfy the gate. The writer must verify
+the current release approval independently before publication.
+
+The original `release:native:stage` remains strict and rejects blocking findings.
+The reviewed staging route changes only this unused library path: verified,
+explicitly accepted findings may proceed to **local** staging. It does not waive
+signatures, freshness, current policy, scanner health, complete coverage, boot or
+ISO-byte integrity. Access/approval/main checks run again after staging; a late
+revocation aborts before output is committed. Staging receipts remain
+`authorization:false` and `publicationReady:false`.
+
+No workflow caller, schedule, destination permission, credential, environment or
+activation flag is changed here. The next reviewed consumer change must wire
+native metadata review, the protected human gate, exact original ISO download,
+reviewed local staging, standard final-name attestation and the existing native
+release writer into `release-publication.yml`. It must keep the legacy path until
+explicit cutover approval, verify all failure paths, and qualify full-size runner
+headroom in hosted CI. Current findings remain unaccepted.
