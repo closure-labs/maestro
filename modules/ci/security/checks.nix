@@ -29,6 +29,7 @@
           PYTHONDONTWRITEBYTECODE=1 python3 ./modules/ci/security/_tests/native-risk.py
           PYTHONDONTWRITEBYTECODE=1 python3 ./modules/release/publication/_tests/native-release-stage.py
           PYTHONDONTWRITEBYTECODE=1 python3 ./modules/release/publication/_tests/native-release-publish.py
+          PYTHONDONTWRITEBYTECODE=1 python3 ./modules/release/publication/_tests/native-release-workflow.py
           PYTHONDONTWRITEBYTECODE=1 python3 ./modules/ci/security/_tests/native-stage.py
           PYTHONDONTWRITEBYTECODE=1 python3 ./modules/ci/security/_tests/native-refresh-inputs.py
           PYTHONDONTWRITEBYTECODE=1 python3 ./modules/ci/security/_tests/native-refresh.py
