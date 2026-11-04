@@ -66,6 +66,19 @@ class Diagnostics(unittest.TestCase):
         self.assertEqual(record.call_args.args[0]['httpStatus'], 401)
         self.assertNotIn('credential-secret', json.dumps(record.call_args.args[0]) + output.getvalue())
 
+    def test_known_selection_failures_are_bounded_and_unknown_details_stay_private(self):
+        cases = [('Ambiguous concurrent security decisions require explicit reconciliation', 'security-graph-ambiguous'),
+                 ('Unverified continuation wakeup', 'continuation-wakeup-unverified'),
+                 ('Ambiguous concurrent security decisions require explicit reconciliation secret-sentinel', 'native-command-failed')]
+        for message, reason in cases:
+            with self.subTest(reason=reason), patch.object(diagnostics, 'record', return_value='safe-summary') as record, redirect_stderr(io.StringIO()) as output:
+                def fail():
+                    raise ValueError(message)
+                self.assertEqual(common.run(fail), 2)
+                self.assertEqual(record.call_args.args[0]['reason'], reason)
+                self.assertEqual(record.call_args.args[0]['status'], 'blocked')
+                self.assertNotIn('secret-sentinel', json.dumps(record.call_args.args[0]) + output.getvalue())
+
     def test_duplicate_occurrences_keep_exact_bytes_and_one_object(self):
         with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {
             'MAESTRO_CI_DIAGNOSTICS': 'true', 'RUNNER_TEMP': temp
