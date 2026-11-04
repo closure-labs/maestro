@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Verify retained installer boot beside the ISO already downloaded for refreshed
+  evidence; hand off its exact same-attempt result instead of downloading the
+  media again in the boot job, preserving original byte and provenance checks.
+
 - Prepare standard release-signer attestation of the existing native staging
   receipt for later immutable retention and official-product refresh.
 
