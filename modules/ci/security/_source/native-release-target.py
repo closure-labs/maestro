@@ -77,6 +77,26 @@ def resolve(path,tag,publication_revision,policy_revision,*,api=native.api,verif
             and matches[0].get('state')=='uploaded' and matches[0].get('size')==len(raw)
             and type(matches[0].get('size')) is int and matches[0].get('digest')=='sha256:'+digest,
             'Receipt is not the exact published release asset')
+    records=receipt.get('assets')
+    require(isinstance(records,dict) and 0<len(records)<=24 and NAME not in records,
+            'Complete signed payload asset inventory required')
+    remote={}
+    for asset in assets:
+        require(isinstance(asset,dict) and isinstance(asset.get('name'),str) and asset['name'] not in remote,
+                'Duplicate or malformed published asset')
+        remote[asset['name']]=asset
+    require(set(remote)==set(records)|{NAME},'Published assets differ from signed complete release inventory')
+    for name,record in records.items():
+        require(isinstance(name,str) and re.fullmatch(r'[A-Za-z0-9_.+-]+',name)
+                and isinstance(record,dict) and set(record)=={'sha256','size'}
+                and isinstance(record.get('sha256'),str) and re.fullmatch(r'[0-9a-f]{64}',record['sha256'])
+                and type(record.get('size')) is int and 0<record['size']<2147483648,
+                'Invalid bounded signed payload descriptor')
+        actual=remote[name]
+        require(type(actual.get('id')) is int and actual['id']>0 and actual.get('state')=='uploaded'
+                and type(actual.get('size')) is int and actual['size']==record['size']
+                and actual.get('digest')=='sha256:'+record['sha256'],
+                'Published payload descriptor differs from signed release bytes')
     for revision in {ref['sha'],publication_revision}:
         if revision!=policy_revision:
             relation=api('compare/'+revision+'...'+policy_revision+'?per_page=1')

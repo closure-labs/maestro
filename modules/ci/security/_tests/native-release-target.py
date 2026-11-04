@@ -23,11 +23,15 @@ class Target(unittest.TestCase):
             sourceRevision=S,sourceRun=7,sourceAttempt=2,policyRevision=M,tag='v1.2.3',version='1.2.3',
             isoBytesVerified=True,narBytesVerified=False,isoSha256='d'*64,
             mediaProducer=dict(runId=8,runAttempt=1,revision='e'*40),verdict={'riskAcceptance':'not trusted by locator'})
+        self.receipt['assets']={name:dict(sha256='f'*64,size=100) for name in
+            ('maestro-v1.2.3.iso.part-01','maestro-v1.2.3.iso.sha256','maestro-v1.2.3.spdx.json.gz',
+             'maestro-v1.2.3.spdx.json.gz.sha256','maestro-v1.2.3.cdx.json.gz','maestro-v1.2.3.cdx.json.gz.sha256')}
         self.release=dict(id=3,tag_name='v1.2.3',draft=False,prerelease=False,assets=[])
         self.write();self.change_main=False;self.change_tag=False;self.proof='valid';self.relation=True
     def write(self,raw=None):
         raw=raw or json.dumps(self.receipt).encode();self.path.write_bytes(raw)
         self.release['assets']=[dict(id=9,name=target.NAME,state='uploaded',size=len(raw),digest='sha256:'+hashlib.sha256(raw).hexdigest())]
+        self.release['assets'] += [dict(id=20+i,name=name,state='uploaded',size=row['size'],digest='sha256:'+row['sha256']) for i,(name,row) in enumerate(self.receipt['assets'].items())]
     def api(self,p):
         self.calls.append(p)
         if p=='git/ref/heads/main':
@@ -77,6 +81,22 @@ class Target(unittest.TestCase):
         for assets in ([],original*2,[dict(original[0],digest='sha256:'+'0'*64)],[dict(original[0],size=1)],[dict(original[0],state='new')]):
             self.release['assets']=assets
             with self.subTest(assets=assets),self.assertRaises(ValueError):self.run_target()
+    def test_missing_added_duplicate_or_mutated_payload_asset_rejects(self):
+        original=copy.deepcopy(self.release['assets']);payload=original[1]
+        variants=[original[:1]+original[2:],original+[dict(payload,name='extra.bin')],original+[payload]]
+        variants += [[original[0],dict(payload,**change),*original[2:]] for change in
+            (dict(digest='sha256:'+'0'*64),dict(size=101),dict(size=True),dict(state='new'))]
+        for assets in variants:
+            self.release['assets']=assets
+            with self.subTest(assets=assets),self.assertRaises(ValueError):self.run_target()
+    def test_unbound_or_malformed_signed_payload_inventory_rejects(self):
+        original=copy.deepcopy(self.receipt['assets'])
+        for assets in ({},{'unexpected':dict(sha256='bad',size=10)},
+                {'unexpected':dict(sha256='f'*64,size=True)}):
+            self.receipt['assets']=assets;self.write()
+            with self.subTest(assets=assets),self.assertRaises(ValueError):self.run_target()
+        self.receipt['assets']=original
+
     def test_main_and_tag_races_reject(self):
         self.change_main=True
         with self.assertRaises(ValueError):self.run_target()

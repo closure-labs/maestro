@@ -19,6 +19,9 @@ The existing native command downloads at most 1 MiB of the one fixed staging
 receipt asset using its numeric GitHub asset ID (90-second transfer deadline).
 It checks transfer length/digest, then authenticates the exact existing release
 signer, subject, stable tag, asset, source/signer ancestry and main/tag races.
+The complete published asset names, sizes and GitHub SHA-256 digests must also
+match the signed payload inventory; missing, duplicate, added or changed public
+assets reject. This authenticates descriptors, not remote ISO/NAR payload bytes.
 No ISO, SBOM or closure is downloaded merely to locate the product.
 
 The verified tuple enters the unchanged complete native inventory verifier.
