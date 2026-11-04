@@ -35,7 +35,8 @@ class ReleasePublish(unittest.TestCase):
         self.calls.append('provenance-and-spdx')
     def reconcile(self,repo,product,directory,tag,revision,publish,authorize):
         self.calls.append('reconcile');self.assertTrue(publish)
-        self.assertEqual(set(product['assets']),set(self.receipt['assets']))
+        self.assertEqual(set(product['assets']),set(self.receipt['assets'])|{'native-release-staging.json'})
+        self.assertEqual((directory/'native-release-staging.json').read_bytes(),(self.case.output/'native-release-staging.json').read_bytes())
         self.assertEqual(product['revision'],self.case.bundle['receipt']['sourceRevision'])
         for name,digest in product['assets'].items():self.assertEqual(pub.native.file_hash(directory/name),digest)
         for phase in ('tag','draft','upload','publish'):
@@ -54,7 +55,12 @@ class ReleasePublish(unittest.TestCase):
             state['rebuild']=lambda:pub.risk.context(self.case.bundle,[],files,'release',123)
             self.case.bundle['_riskAcceptance']=state
             return writer.publish(self.case.bundle,self.case.output,self.final,self.case.case.policy_path,
-                publication=pub,assets=SimpleNamespace(reconcile=self.reconcile),execute=kwargs.pop('execute',self.attest),**kwargs)
+                publication=pub,assets=SimpleNamespace(reconcile=self.reconcile),execute=kwargs.pop('execute',self.attest),verify_receipt=kwargs.pop('verify_receipt',self.verify_receipt),**kwargs)
+    def verify_receipt(self,native,path,revision):
+        self.assertEqual(path.name,'native-release-staging.json')
+        self.assertEqual(path.read_bytes(),(self.case.output/path.name).read_bytes())
+        self.assertEqual(revision,self.case.bundle['receipt'].get('policyRevision',self.case.bundle['receipt']['sourceRevision']))
+
     def changed(self):
         (self.case.output/'native-release-staging.json').write_text(json.dumps(self.receipt))
     def test_direct_release_writer_cannot_bypass_the_findings_gate(self):
@@ -82,7 +88,7 @@ class ReleasePublish(unittest.TestCase):
         with self.assertRaises(ValueError):self.publish()
         self.assertEqual(self.calls,[])
     def test_mismatched_staging_producer_revision_and_version_reject(self):
-        for key,value in [('sourceRun',999),('sourceAttempt',2),('sourceAttempt',True),('sourceRevision','f'*40),('policyRevision','e'*40),('version','9.9.9'),('authorization',True)]:
+        for key,value in [('sourceRun',999),('sourceAttempt',2),('sourceAttempt',True),('sourceRevision','f'*40),('policyRevision','e'*40),('version','9.9.9'),('authorization',True),('narBytesVerified',True),('mediaProducer',{}),('mediaProducer',dict(runId=True,runAttempt=1,revision='a'*40))]:
             previous=self.receipt.get(key)
             with self.subTest(key=key):
                 self.receipt[key]=value;self.changed()
@@ -140,6 +146,36 @@ class ReleasePublish(unittest.TestCase):
         def failed(*args):raise ValueError('upload denied')
         with patch.object(self,'reconcile',side_effect=failed),self.assertRaises(ValueError):self.publish()
         self.assertFalse(list(self.case.root.glob('.native-release-writer-*')))
+    def test_missing_or_invalid_receipt_attestation_blocks_all_mutations(self):
+        for proof in ([],[{'verificationResult':{'statement':{'predicateType':'https://slsa.dev/provenance/v1',
+                'subject':[{'name':'native-release-staging.json','digest':{'sha256':'0'*64}}]}}}]):
+            with self.subTest(proof=proof),patch.object(pub.native,'response',return_value=proof),self.assertRaises(ValueError):
+                self.publish(verify_receipt=None)
+        self.assertEqual(self.calls,[]);self.assertEqual(self.published,[])
+
+    def test_receipt_verifier_pins_policy_signer_and_exact_predicate_and_name(self):
+        path=self.case.output/'native-release-staging.json';revision='b'*40
+        good={'predicateType':'https://slsa.dev/provenance/v1','subject':[{'name':path.name,'digest':{'sha256':pub.native.file_hash(path)}}]}
+        def response(*args):
+            self.assertEqual(args[args.index('--source-digest')+1],revision)
+            self.assertEqual(args[args.index('--signer-digest')+1],revision)
+            self.assertEqual(args[args.index('--source-ref')+1],'refs/heads/main')
+            self.assertEqual(args[args.index('--signer-workflow')+1],'closure-labs/maestro/.github/workflows/release.yml')
+            self.assertIn('--deny-self-hosted-runners',args)
+            return [{'verificationResult':{'statement':good}}]
+        with patch.object(pub.native,'response',side_effect=response):writer.receipt_attestation(pub.native,path,revision)
+        for changed in (dict(good,predicateType='unsupported'),dict(good,subject=[{'name':'other.json','digest':{'sha256':pub.native.file_hash(path)}}])):
+            with self.subTest(changed=changed),patch.object(pub.native,'response',return_value=[{'verificationResult':{'statement':changed}}]),self.assertRaises(ValueError):
+                writer.receipt_attestation(pub.native,path,revision)
+
+    def test_receipt_signature_transport_failure_and_mutation_fail_closed(self):
+        def failed(*args):raise subprocess.CalledProcessError(1,args)
+        with self.assertRaises(subprocess.CalledProcessError):self.publish(verify_receipt=failed)
+        def changed(native,path,revision):path.write_bytes(b'changed after verification')
+        with self.assertRaises(ValueError):self.publish(verify_receipt=changed)
+        self.assertEqual(self.calls,[]);self.assertEqual(self.published,[])
+        self.assertFalse(list(self.case.root.glob('.native-release-writer-*')))
+
     def test_real_final_name_verifier_requires_provenance_and_exact_spdx_predicate(self):
         gh=self.case.case.case.bin/'gh'
         gh.write_text('#!'+sys.executable+'\n'+"""import json,sys,os
@@ -159,9 +195,9 @@ print(json.dumps([{'verificationResult':{'statement':{'subject':[{'name':iso.nam
         def execute(args,**kwargs):
             self.assertEqual(args,['maestro-ci-release-attestations'])
             return subprocess.run([shutil.which('bash'),str(ROOT/'modules/release/publication/_source/release-attestations.sh')],**kwargs)
-        self.assertEqual(self.publish(execute=execute)['status'],'published')
+        self.assertEqual(self.publish(execute=execute,verify_receipt=None)['status'],'published')
         self.published.clear()
-        with patch.dict(self.env,FORGE_SPDX='true'),self.assertRaises(subprocess.CalledProcessError):self.publish(execute=execute)
+        with patch.dict(self.env,FORGE_SPDX='true'),self.assertRaises(subprocess.CalledProcessError):self.publish(execute=execute,verify_receipt=None)
         self.assertEqual(self.published,[])
 
     def test_partial_release_cli_identity_rejects_before_network(self):

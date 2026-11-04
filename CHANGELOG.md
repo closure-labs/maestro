@@ -11,6 +11,9 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Prepare immutable release retention of the existing staging receipt, requiring
+  its exact standard release-signer attestation before any native release write.
+
 - Prepare an explicit release-specific human findings-review route for native
   local ISO staging, retaining strict standalone staging and all integrity checks.
 

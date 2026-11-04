@@ -11,7 +11,22 @@ import stat
 import tempfile
 
 
-def publish(bundle,directory,iso,policy_path,*,publication=None,assets=None,execute=None):
+def receipt_attestation(native,path,revision):
+    verified=native.response('attestation','verify',str(path),'--repo',native.REPO,
+        '--signer-workflow',native.REPO+'/.github/workflows/release.yml',
+        '--source-ref','refs/heads/main','--source-digest',revision,'--signer-digest',revision,
+        '--deny-self-hosted-runners','--predicate-type','https://slsa.dev/provenance/v1','--format','json')
+    digest=native.file_hash(path)
+    native.require(isinstance(verified,list) and any(isinstance(row,dict) and
+        isinstance(row.get('verificationResult'),dict) and
+        isinstance(row['verificationResult'].get('statement'),dict) and
+        row['verificationResult']['statement'].get('predicateType')=='https://slsa.dev/provenance/v1' and
+        any(isinstance(subject,dict) and subject.get('name')==path.name and subject.get('digest',{}).get('sha256')==digest
+            for subject in row['verificationResult']['statement'].get('subject',[])) for row in verified),
+        'Exact signed native release receipt required')
+
+
+def publish(bundle,directory,iso,policy_path,*,publication=None,assets=None,execute=None,verify_receipt=None):
     # Imported lazily: every caller must first pass native consume()'s mandatory
     # evidence and explicit findings-risk verdict. A staging receipt is data.
     if publication is None:
@@ -48,6 +63,12 @@ def publish(bundle,directory,iso,policy_path,*,publication=None,assets=None,exec
         and receipt.get('policyRevision',revision)==policy_revision and receipt.get('version')==version and receipt.get('tag')==tag
         and receipt.get('isoSha256')==digest and receipt.get('isoBytesVerified') is True,
         'Staging receipt differs from verified product identity')
+    media=bundle['receipt'].get('bootOrigin') or dict(runId=bundle['receipt']['runId'],
+        runAttempt=bundle['receipt']['runAttempt'],revision=revision)
+    retained_media=receipt.get('mediaProducer')
+    require(isinstance(retained_media,dict) and retained_media==media
+        and all(type(retained_media.get(k)) is int for k in ('runId','runAttempt'))
+        and receipt.get('narBytesVerified') is False,'Receipt media identity or byte-verification claim differs')
     records=receipt.get('assets');require(isinstance(records,dict),'Exact staged asset inventory required')
     parts=sorted(name for name in records if re.fullmatch(re.escape(filename)+r'\.part-[0-9]{2}',name))
     require(0<len(parts)<=18 and parts==[filename+'.part-'+f'{n:02d}' for n in range(1,len(parts)+1)],'Exact installer part sequence required')
@@ -67,7 +88,7 @@ def publish(bundle,directory,iso,policy_path,*,publication=None,assets=None,exec
     require(total<=32*1024**3+256*1024**2,'Aggregate release assets exceed bound')
     # A private snapshot prevents candidate files being swapped between their
     # byte check and the existing upload CLI. No ISO/closure re-export occurs.
-    require(shutil.disk_usage(directory.parent).free>=total+256*1024**2,'Insufficient private asset snapshot headroom')
+    require(shutil.disk_usage(directory.parent).free>=total+len(raw)+256*1024**2,'Insufficient private asset snapshot headroom')
     if assets is None:assets=publication.module('native_assets','MAESTRO_PUBLICATION_ASSETS_SOURCE','../../../release/publication/_source/publication-assets.py')
     execute=execute or native.operations.run
     policy_digest=native.file_hash(policy_path)
@@ -84,6 +105,13 @@ def publish(bundle,directory,iso,policy_path,*,publication=None,assets=None,exec
                     remaining-=len(block);out.write(block)
                 require(not source.read(1),'Release asset grew')
             require(native.file_hash(frozen/name)==row['sha256'],'Staged release asset digest differs')
+        # Retain the exact bounded receipt, not a regenerated equivalent. Its
+        # signature is independently required before any public mutation.
+        public_receipt=frozen/manifest.name
+        public_receipt.write_bytes(raw)
+        receipt_digest=hashlib.sha256(raw).hexdigest()
+        (verify_receipt or receipt_attestation)(native,public_receipt,policy_revision)
+        require(native.file_hash(public_receipt)==receipt_digest,'Receipt changed during signature verification')
         joined=hashlib.sha256()
         for name in parts:
             with (frozen/name).open('rb') as source:
@@ -117,7 +145,9 @@ def publish(bundle,directory,iso,policy_path,*,publication=None,assets=None,exec
             env=dict(os.environ,SOURCE_SHA=policy_revision,RELEASE_TAG=tag,RUNNER_TEMP=str(iso.parent.resolve())))
         require(native.file_hash(iso)==digest,'ISO changed during final-name attestation verification')
         authorize()
-        product=dict(repository=native.REPO,revision=revision,assets={name:row['sha256'] for name,row in records.items()})
+        require(native.file_hash(public_receipt)==receipt_digest,'Signed receipt changed before publication')
+        product=dict(repository=native.REPO,revision=revision,
+            assets={**{name:row['sha256'] for name,row in records.items()},manifest.name:receipt_digest})
         result=assets.reconcile(native.REPO,product,frozen,tag,revision,True,authorize)
         authorize()
         return dict(result,authorization=False,sourceRevision=revision,policyRevision=policy_revision,
