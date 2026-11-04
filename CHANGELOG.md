@@ -11,8 +11,9 @@ correspond to published GitHub tags.
 
 ### Changed
 
-- Prepare immutable release retention of the existing staging receipt, requiring
-  its exact standard release-signer attestation before any native release write.
+- Prepare inactive native versioned release promotion through direct jobs in the existing
+  release signer, with fresh findings review, exact original ISO/SBOM evidence
+  and no closure restore, rescan, re-export or historical decision selection.
 
 - Prepare an explicit release-specific human findings-review route for native
   local ISO staging, retaining strict standalone staging and all integrity checks.
@@ -24,6 +25,9 @@ correspond to published GitHub tags.
 - Prepare explicit immutable-product/current-policy native verification so a
   reviewed risk decision can promote its exact artifact without requalification;
   keep the original strict default and all active callers unchanged.
+
+- Prepare immutable release retention and authenticated retry readback of the
+  existing staging receipt, with fresh findings approval for every invocation.
 
 - Prepare an opt-in verified, versioned ISO handoff for standard GitHub release
   attestations without an extra ISO copy, public upload or publisher activation.

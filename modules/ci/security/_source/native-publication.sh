@@ -5,8 +5,9 @@ args=("$@" --run "${NATIVE_RUN:?}" --attempt "${NATIVE_ATTEMPT:?}" --revision "$
 [[ -z ${NATIVE_DIRECTORY:-} ]] || args+=(--directory "$NATIVE_DIRECTORY")
 if [[ -n ${NATIVE_HEALTH_RUN:-} ]]; then
   args+=(--health-run "$NATIVE_HEALTH_RUN" --health-attempt "${NATIVE_HEALTH_ATTEMPT:?}")
+  [[ -z ${NATIVE_HEALTH_DIRECTORY:-} ]] || args+=(--health-directory "$NATIVE_HEALTH_DIRECTORY")
 else
-  [[ -z ${NATIVE_HEALTH_ATTEMPT:-} ]]
+  [[ -z ${NATIVE_HEALTH_ATTEMPT:-} && -z ${NATIVE_HEALTH_DIRECTORY:-} ]]
 fi
 if [[ -n ${NATIVE_BOOT_ORIGIN_RUN:-} ]]; then
   args+=(--boot-origin-run "$NATIVE_BOOT_ORIGIN_RUN" --boot-origin-attempt "${NATIVE_BOOT_ORIGIN_ATTEMPT:?}" --boot-origin-revision "${NATIVE_BOOT_ORIGIN_REVISION:?}")

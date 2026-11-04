@@ -60,7 +60,7 @@ class ReleaseGraph(unittest.TestCase):
     def test_candidate_builds_have_no_distribution_credentials(self):
         for filename in ['ci.yml', 'release.yml']:
             for name, job in jobs(filename).items():
-                if name == 'prepare':
+                if name in ('prepare','native_finalize'):
                     continue
                 for step in job.get('steps', []):
                     self.assertNotIn('CACHIX_MAESTRO_AUTH_TOKEN', step.get('env', {}))
@@ -99,11 +99,13 @@ class ReleaseGraph(unittest.TestCase):
             source = source.removeprefix('${{ ').removesuffix(' }}')
             for key in sorted(values, key=len, reverse=True):
                 source = source.replace(key, repr(values[key]))
+            source=source.replace(' != true',' != True').replace(' == true',' == True')
             return eval(source.replace('&&', 'and').replace('||', 'or'), {'__builtins__': {}}, {})
         for event in ('workflow_dispatch', 'schedule', 'push'):
             for mode in ('default', '', 'disabled', 'enabled'):
                 for configured in ('false', 'true'):
-                    values = {'github.repository': 'closure-labs/maestro', 'github.ref': 'refs/heads/main',
+                    values = {'vars.MAESTRO_NATIVE_RELEASE_ENABLED':'false','inputs.native_release':False,
+                              'github.repository': 'closure-labs/maestro', 'github.ref': 'refs/heads/main',
                               'github.event_name': event, 'inputs.transaction_trial': mode,
                               'inputs.candidate_run': '123', 'vars.MAESTRO_RELEASE_TRANSACTION_ENABLED': configured}
                     trial = event == 'workflow_dispatch' and mode in ('disabled', 'enabled')

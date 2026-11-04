@@ -28,7 +28,7 @@ class ReleasePublish(unittest.TestCase):
         self.calls=[];self.published=[]
     def attest(self,args,**kwargs):
         self.assertEqual(args,['maestro-ci-release-attestations']);self.assertTrue(kwargs['check'])
-        self.assertEqual(kwargs['env']['SOURCE_SHA'],self.case.bundle['receipt']['sourceRevision'])
+        self.assertEqual(kwargs['env']['SOURCE_SHA'],self.case.bundle['receipt'].get('policyRevision',self.case.bundle['receipt']['sourceRevision']))
         self.assertEqual(kwargs['env']['RELEASE_TAG'],'v3.2.0')
         root=Path(kwargs['cwd']);self.assertEqual((Path(kwargs['env']['RUNNER_TEMP'])/self.final.name).read_bytes(),self.final.read_bytes())
         self.assertEqual((root/'candidate/maestro-system.spdx.json').read_bytes(),(self.case.bundle['directory']/'maestro-system.spdx.json').read_bytes())
@@ -45,14 +45,16 @@ class ReleasePublish(unittest.TestCase):
     def publish(self,**kwargs):
         original=self.case.api
         def api(path):
-            value=original(path)
-            if path=='actions/runs/123':value=dict(value,path=pub.risk.WORKFLOWS['release'])
+            identity=int(self.env.get('GITHUB_RUN_ID','123'))
+            mapped=path.replace('actions/runs/'+str(identity),'actions/runs/123')
+            value=original(mapped)
+            if path=='actions/runs/'+str(identity):value=dict(value,id=identity,path=pub.risk.WORKFLOWS['release'])
             return value
         files={'VERSION':self.case.root/'risk-version'};files['VERSION'].write_text('3.2.0\n')
         with patch.dict(os.environ,self.env),patch.object(pub.native,'api',side_effect=api):
             state=pub.risk.plan(self.case.bundle,[],files,api,'release')
             os.environ['NATIVE_FINDINGS_CONTEXT_SHA256']=state['contextSha256']
-            state['rebuild']=lambda:pub.risk.context(self.case.bundle,[],files,'release',123)
+            state['rebuild']=lambda:pub.risk.context(self.case.bundle,[],files,'release',int(self.env.get('GITHUB_RUN_ID','123')))
             self.case.bundle['_riskAcceptance']=state
             return writer.publish(self.case.bundle,self.case.output,self.final,self.case.case.policy_path,
                 publication=pub,assets=SimpleNamespace(reconcile=self.reconcile),execute=kwargs.pop('execute',self.attest),verify_receipt=kwargs.pop('verify_receipt',self.verify_receipt),**kwargs)

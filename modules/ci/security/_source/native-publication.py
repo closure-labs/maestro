@@ -131,6 +131,30 @@ def store_metadata(paths):
             return json.load(out)
 
 
+
+def release_review_metadata(bundle):
+    """Bounded scheduling/display data, never approval or an ISO-byte claim."""
+    revision=bundle['receipt']['sourceRevision']
+    version=risk.contents(native.api,'VERSION',revision).decode().strip()
+    require(re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+',version),'Exact supported product version required')
+    writer=module('release_destination_preflight','MAESTRO_NATIVE_RELEASE_WRITER_SOURCE','../../../release/publication/_source/native-release-publish.py')
+    destination=writer.destination(native,'v'+version,revision,bundle['receipt'].get('policyRevision',revision),read_only=True)
+    media=bundle['receipt'].get('bootOrigin') or dict(runId=bundle['receipt']['runId'],
+        runAttempt=bundle['receipt']['runAttempt'],revision=revision)
+    require(type(media.get('runId')) is int and media['runId']>0
+        and type(media.get('runAttempt')) is int and media['runAttempt']>0
+        and isinstance(media.get('revision'),str) and re.fullmatch(r'[0-9a-f]{40}',media['revision']),
+        'Exact verified release media producer required')
+    loader=module('release_media_metadata','MAESTRO_NATIVE_STAGE_SOURCE','native-stage.py')
+    loader.api=native.api
+    artifact=loader.select(media['runId'],media['revision'],'maestro-installer')
+    require(type(artifact.get('id')) is int and artifact['id']>0
+        and type(artifact.get('size_in_bytes')) is int and 0<artifact['size_in_bytes']<=32*1024**3,
+        'Bounded exact original installer artifact required')
+    return dict(releaseVersion=version,mediaArtifactId=artifact['id'],mediaProducer=media,
+        releaseDestination=dict(tagExists=destination['tagExists'],requiresWritableReadback=destination['requiresWritableReadback']))
+
+
 def consume(bundle, policy_path, operation, transport=None, execute=native.operations.run, probe=None, restore=None, inspect=None, query=store_metadata, release=None, review_operation='publish'):
     require(bundle.get('inventoryOnly') is not True, 'Inventory identity is not current publication health')
     policy_digest = native.file_hash(policy_path)
@@ -149,6 +173,7 @@ def consume(bundle, policy_path, operation, transport=None, execute=native.opera
         if operation=='review':
             return dict(status='awaiting-explicit-findings-risk-review',authorization=False,publicationReady=False,
                 verdict=outcome,review=state,rawFindings=blocking['findings'],normalizedFindings=bundle['normalizedFindings'],
+                **(release_review_metadata(bundle) if target=='release' else {}),
                 notice=('This is a nonpublishing gate qualification only. Approval accepts no findings and authorizes no cache or release write.' if target=='qualify' else
                     'Approving findings-risk-review accepts the exact displayed vulnerability risk, including high/critical findings, for this publication only.'))
         state['rebuild']=lambda:risk.context(bundle,bound_json(bundle,'findings.json','findings'),files,target,state['context']['runId'])
@@ -306,10 +331,17 @@ def main():
             raise
         with Path(os.environ['GITHUB_OUTPUT']).open('a') as stream:
             stream.write('context_sha256='+result['review']['contextSha256']+'\n')
+            if args.review_operation=='release':
+                stream.write('release_version='+result['releaseVersion']+'\n')
+                stream.write('media_artifact_id='+str(result['mediaArtifactId'])+'\n')
+                for output,key in (('media_run','runId'),('media_attempt','runAttempt'),('media_revision','revision')):
+                    stream.write(output+'='+str(result['mediaProducer'][key])+'\n')
         with Path(os.environ['GITHUB_STEP_SUMMARY']).open('a') as stream:
             stream.write(('## Nonpublishing gate qualification\n' if args.review_operation=='qualify' else '## Explicit findings-risk review\n')+result['notice']+'\n\n')
             stream.write('Context SHA-256: `'+result['review']['contextSha256']+'`\n\n')
             stream.write('Review the immutable `maestro-findings-review` artifact for exact product, evidence, policy and finding identities.\n\n')
+            if result.get('releaseDestination',{}).get('requiresWritableReadback'):
+                stream.write('An exact tag exists; read-only preflight cannot establish draft visibility. The writer must authenticate destination readback and token eligibility before any write.\n\n')
             stream.write('```json\n'+json.dumps(result['verdict'],sort_keys=True)+'\n```\n')
         result={k:v for k,v in result.items() if k not in ('rawFindings','normalizedFindings')}
     result.update(authorization=False, sourceRevision=args.revision, sourceRun=args.run, sourceAttempt=args.attempt)
