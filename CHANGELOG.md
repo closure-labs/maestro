@@ -35,6 +35,9 @@ correspond to published GitHub tags.
   reviewed risk decision can promote its exact artifact without requalification;
   keep the original strict default and all active callers unchanged.
 
+- Prepare immutable release retention and authenticated retry readback of the
+  existing staging receipt, with fresh findings approval for every invocation.
+
 - Prepare an opt-in verified, versioned ISO handoff for standard GitHub release
   attestations without an extra ISO copy, public upload or publisher activation.
 
