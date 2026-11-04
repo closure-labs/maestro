@@ -137,6 +137,8 @@ def release_review_metadata(bundle):
     revision=bundle['receipt']['sourceRevision']
     version=risk.contents(native.api,'VERSION',revision).decode().strip()
     require(re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+',version),'Exact supported product version required')
+    writer=module('release_destination_preflight','MAESTRO_NATIVE_RELEASE_WRITER_SOURCE','../../../release/publication/_source/native-release-publish.py')
+    destination=writer.destination(native,'v'+version,revision,bundle['receipt'].get('policyRevision',revision),read_only=True)
     media=bundle['receipt'].get('bootOrigin') or dict(runId=bundle['receipt']['runId'],
         runAttempt=bundle['receipt']['runAttempt'],revision=revision)
     require(type(media.get('runId')) is int and media['runId']>0
@@ -149,7 +151,8 @@ def release_review_metadata(bundle):
     require(type(artifact.get('id')) is int and artifact['id']>0
         and type(artifact.get('size_in_bytes')) is int and 0<artifact['size_in_bytes']<=32*1024**3,
         'Bounded exact original installer artifact required')
-    return dict(releaseVersion=version,mediaArtifactId=artifact['id'],mediaProducer=media)
+    return dict(releaseVersion=version,mediaArtifactId=artifact['id'],mediaProducer=media,
+        releaseDestination=dict(tagExists=destination['tagExists'],requiresWritableReadback=destination['requiresWritableReadback']))
 
 
 def consume(bundle, policy_path, operation, transport=None, execute=native.operations.run, probe=None, restore=None, inspect=None, query=store_metadata, release=None, review_operation='publish'):
@@ -337,6 +340,8 @@ def main():
             stream.write(('## Nonpublishing gate qualification\n' if args.review_operation=='qualify' else '## Explicit findings-risk review\n')+result['notice']+'\n\n')
             stream.write('Context SHA-256: `'+result['review']['contextSha256']+'`\n\n')
             stream.write('Review the immutable `maestro-findings-review` artifact for exact product, evidence, policy and finding identities.\n\n')
+            if result.get('releaseDestination',{}).get('requiresWritableReadback'):
+                stream.write('An exact tag exists; read-only preflight cannot establish draft visibility. The writer must authenticate destination readback and token eligibility before any write.\n\n')
             stream.write('```json\n'+json.dumps(result['verdict'],sort_keys=True)+'\n```\n')
         result={k:v for k,v in result.items() if k not in ('rawFindings','normalizedFindings')}
     result.update(authorization=False, sourceRevision=args.revision, sourceRun=args.run, sourceAttempt=args.attempt)
