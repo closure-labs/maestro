@@ -32,6 +32,7 @@
           PYTHONDONTWRITEBYTECODE=1 python3 ./modules/ci/security/_tests/native-stage.py
           PYTHONDONTWRITEBYTECODE=1 python3 ./modules/ci/security/_tests/native-refresh-inputs.py
           PYTHONDONTWRITEBYTECODE=1 python3 ./modules/ci/security/_tests/native-refresh.py
+          PYTHONDONTWRITEBYTECODE=1 python3 ./modules/ci/security/_tests/native-release-target.py
           PYTHONDONTWRITEBYTECODE=1 python3 ./modules/ci/security/_tests/native-health.py
           PYTHONDONTWRITEBYTECODE=1 python3 ./modules/ci/security/_tests/native-refresh-workflow.py
           PYTHONDONTWRITEBYTECODE=1 python3 ./modules/ci/security/_tests/native-prepare.py

@@ -11,6 +11,9 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Prepare an inactive official-product locator using the existing signed release
+  staging receipt, with no ledger selection, new packet format or active caller.
+
 - Prepare an explicit release-specific human findings-review route for native
   local ISO staging, retaining strict standalone staging and all integrity checks.
 
