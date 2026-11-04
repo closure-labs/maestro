@@ -54,7 +54,9 @@ def run(main):
         result = {'schema': 1, 'status': 'blocked', 'error': str(error)}
         # Subprocess errors can contain argv. Keep credential-bearing exception
         # text out of the optional CI artifact and its public summary.
-        reasons = {'Expired or future native health': 'native-health-expired-or-future'}
+        reasons = {'Expired or future native health': 'native-health-expired-or-future',
+                   'Ambiguous concurrent security decisions require explicit reconciliation': 'security-graph-ambiguous',
+                   'Unverified continuation wakeup': 'continuation-wakeup-unverified'}
         for reason in ('repository', 'verifier', 'main', 'policy', 'ledger', 'product', 'inputs', 'membership'):
             key = 'verification-context-' + reason + '-changed'
             reasons[key] = key

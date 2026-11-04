@@ -36,7 +36,7 @@ concurrency:
 jobs:
   continuation:
     # Event fields route to verification; only exact-attempt API jobs prove work.
-    if: github.event_name == 'workflow_run' && (github.event.workflow_run.path == '.github/workflows/release-continuation.yml' || github.event.workflow_run.name == 'Continue Maestro release') && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_run' && (github.event.workflow_run.path == '.github/workflows/release-continuation.yml' || github.event.workflow_run.name == 'Continue Maestro release') && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:

@@ -143,7 +143,7 @@ class Proof(unittest.TestCase):
 
 
 class Workflow(unittest.TestCase):
-    def condition(self, job, event, continuation='skipped', meaningful=''):
+    def condition(self, job, event, continuation='skipped', meaningful='', overrides=None):
         text = (Path(__file__).resolve().parents[5] / '.github/workflows/decisions.yml').read_text()
         section = text.split('  ' + job + ':\n', 1)[1]
         expression = next(line.strip()[4:] for line in section.splitlines() if line.startswith('    if:'))
@@ -158,9 +158,20 @@ class Workflow(unittest.TestCase):
             'github.event.workflow_run.event': 'push',
             'needs.continuation.result': continuation,
             'needs.continuation.outputs.meaningful': meaningful}
+        values.update(overrides or {})
         expression = re.sub(r'(?:github|needs)\.[A-Za-z_.]+', lambda m: repr(values[m.group()]), expression)
         expression = expression.replace('!cancelled()', 'True').replace('&&', ' and ').replace('||', ' or ')
         return eval(expression, {'__builtins__': {}, 'fromJSON': json.loads, 'contains': lambda xs,x: x in xs})
+
+    def test_unsuccessful_continuations_do_not_start_verifier_or_consumers(self):
+        route = {'github.event.workflow_run.name': 'Continue Maestro release',
+                 'github.event.workflow_run.path': wakeup.WORKFLOW}
+        self.assertTrue(self.condition('continuation', 'workflow_run', overrides=route))
+        for conclusion in ('skipped', 'failure', 'cancelled', 'timed_out', 'neutral', 'action_required', ''):
+            with self.subTest(conclusion=conclusion):
+                event = dict(route, **{'github.event.workflow_run.conclusion': conclusion})
+                for job in ('continuation', 'health', 'reconcile'):
+                    self.assertFalse(self.condition(job, 'workflow_run', overrides=event))
 
     def test_manual_schedule_push_and_other_native_completions_bypass_gate(self):
         for job in ('health', 'reconcile'):
