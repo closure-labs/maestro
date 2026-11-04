@@ -243,7 +243,7 @@ def selected(directory,run,attempt,revision,origin=None,*,policy_revision=None,
         fetch=None
         if health_directory is None:
             health_directory=Path(os.environ['RUNNER_TEMP'])/'native-health'
-            fetch=lambda health_revision:loader.stage_health(health_directory,health_run,health_revision)
+            fetch=lambda health_revision:loader.stage_health(health_directory,health_run,health_revision,product=(run,attempt,revision))
         health=module('native_health','MAESTRO_NATIVE_HEALTH_SOURCE','native-health.py')
         with native.verified_inventory(directory,run,attempt,revision,policy,origin,policy_revision=policy_revision) as original:
             with health.verified(original,health_directory,health_run,health_attempt,native.common.config(policy),fetch=fetch) as bundle:

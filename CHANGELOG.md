@@ -11,6 +11,9 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Prepare native scheduled shipped-product refresh using standard release
+  selection and same-invocation exact-producer health reuse, behind both native flags.
+
 - Prepare an explicit native official-release refresh route using signed existing
   release receipts, original boot/inventory verification and one fresh scan.
 

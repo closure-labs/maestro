@@ -2,7 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 set -euo pipefail
 args=(--output "${SECURITY_OUTPUT:-security-report}")
-if [[ -n ${NATIVE_OFFICIAL_RELEASE_TAG:-} ]]; then
+if [[ ${NATIVE_REFRESH_SELECT_OFFICIAL:-false} == true ]]; then
+  [[ ${NATIVE_REFRESH_SELECT_CURRENT_MAIN:-false} != true && -z ${NATIVE_OFFICIAL_RELEASE_TAG:-} ]]
+  [[ -z ${NATIVE_RUN:-} && -z ${NATIVE_ATTEMPT:-} && -z ${NATIVE_REVISION:-} ]]
+  args+=(--select-official-release)
+elif [[ -n ${NATIVE_OFFICIAL_RELEASE_TAG:-} ]]; then
   [[ ${NATIVE_REFRESH_SELECT_CURRENT_MAIN:-false} != true && -z ${NATIVE_RUN:-} && -z ${NATIVE_ATTEMPT:-} ]]
   [[ -z ${NATIVE_REVISION:-} || ${NATIVE_REVISION} == "${GITHUB_SHA:?}" ]]
   args+=(--official-tag "$NATIVE_OFFICIAL_RELEASE_TAG" --official-publication-revision "${NATIVE_OFFICIAL_PUBLICATION_REVISION:?}")
