@@ -121,6 +121,10 @@ correspond to published GitHub tags.
 - Add a manual, nonpublishing native gate qualification path that cannot accept
   findings or access publication credentials.
 
+- Prepare a default-off scheduled native refresh of the exact protected-main CI
+  product, using original signed boot proofs and one existing closure restore
+  without historical decision selection, SBOM regeneration or closure re-export.
+
 ### Fixed
 
 - Reuse the native exact original/fresh evidence selector in inactive release

@@ -75,7 +75,7 @@ class NativeRefresh(unittest.TestCase):
         if self.change=='extra':(self.output/'original-closure.part').write_text('unexpected transport copy')
         if self.change=='missing':(self.output/'findings.json').unlink()
 
-    def run_refresh(self, scan=None):
+    def run_refresh(self, scan=None, scheduled=False):
         def download():self.calls.append('download');return self.case.root/'original-transport'
         def restore(path, manifest, roots):
             self.calls.append('restore');self.assertEqual(manifest,self.bundle['scans']['transport'])
@@ -83,7 +83,17 @@ class NativeRefresh(unittest.TestCase):
         def query(paths):
             self.calls.append('query');return {p: ('changed' if self.change=='nar' else h) for p,h in paths.items()}
         with patch.dict(os.environ,self.env):
-            return refresh.refresh(self.bundle,self.output,self.case.cfg,download,restore,query,scan or self.scan,self.api)
+            return refresh.refresh(self.bundle,self.output,self.case.cfg,download,restore,query,scan or self.scan,self.api,scheduled=scheduled)
+
+    def test_scheduled_refresh_requires_both_explicit_route_and_enabled_policy(self):
+        self.env['GITHUB_EVENT_NAME']='schedule'
+        with self.assertRaises(ValueError):self.run_refresh(scheduled=True)
+        self.assertEqual(self.calls,[])
+        self.env['MAESTRO_NATIVE_REFRESH_ENABLED']='true'
+        with self.assertRaises(ValueError):self.run_refresh()
+        self.assertEqual(self.calls,[])
+        self.run_refresh(scheduled=True)
+        self.assertEqual(self.calls,['download','restore','query','scan'])
 
     def test_one_original_restore_one_scan_no_reexport_or_inventory_copy(self):
         result=self.run_refresh()
@@ -158,6 +168,61 @@ class NativeRefresh(unittest.TestCase):
             result=refresh.refresh(self.bundle,self.output,self.case.cfg,lambda:self.case.root/'transport',
                 lambda *args:None,lambda paths:dict(paths),api=self.api)
         self.assertFalse(result['authorization'])
+
+
+class MainSelection(unittest.TestCase):
+    def setUp(self):
+        self.sha='a'*40;self.run=dict(id=7,run_attempt=2,workflow_id=30,path=refresh.native.WORKFLOW,
+            head_sha=self.sha,head_branch='main',event='push',status='completed',conclusion='success',
+            repository=dict(id=1127149753,full_name=refresh.native.REPO),head_repository=dict(id=1127149753,full_name=refresh.native.REPO))
+        self.rows=[self.run];self.changed=False;self.paths=[]
+        self.env=dict(GITHUB_REPOSITORY=refresh.native.REPO,GITHUB_REF='refs/heads/main',GITHUB_SHA=self.sha,
+            GITHUB_EVENT_NAME='schedule',MAESTRO_NATIVE_REFRESH_ENABLED='true')
+    def api(self,path):
+        self.paths.append(path)
+        if path=='branches/main':return dict(protected=True,commit=dict(sha=self.sha))
+        if path=='actions/workflows/ci.yml':return dict(id=30,path=refresh.native.WORKFLOW,state='active')
+        if path.startswith('actions/workflows/ci.yml/runs?'):return dict(total_count=len(self.rows),workflow_runs=self.rows)
+        if path=='actions/runs/7/attempts/2':return self.run
+        if path=='git/ref/heads/main':return dict(object=dict(sha='b'*40 if self.changed else self.sha))
+        raise AssertionError('Unexpected non-selection endpoint '+path)
+    def select(self):
+        with patch.dict(os.environ,self.env),patch.object(refresh.native,'api',side_effect=self.api):
+            return refresh.select_current_main(self.api)
+    def test_exact_current_main_producer_needs_no_ledger_or_latest_choice(self):
+        self.assertEqual(self.select(),(7,2,self.sha))
+        self.assertFalse(any('decisions' in p or 'artifacts' in p for p in self.paths))
+    def test_missing_ambiguous_old_or_untrusted_producer_does_not_fall_back(self):
+        original=self.run.copy()
+        for rows in ([],[None],[original,original], [dict(original,head_sha='b'*40)],
+                     [dict(original,event='pull_request')],[dict(original,workflow_id=31)],
+                     [dict(original,conclusion='failure')],[dict(original,run_attempt=True)],
+                     [dict(original,head_repository=dict(id=3,full_name=refresh.native.REPO))]):
+            with self.subTest(rows=rows):
+                self.rows=rows
+                with self.assertRaises(ValueError):self.select()
+    def test_real_wrapper_keeps_automatic_and_explicit_identities_separate(self):
+        import tempfile,subprocess,sys,json
+        with tempfile.TemporaryDirectory() as temp:
+            script=Path(temp)/'arguments.py';script.write_text('import sys,json; print(json.dumps(sys.argv[1:]))')
+            env=dict(os.environ,**self.env,NATIVE_REFRESH_SELECT_CURRENT_MAIN='true',NATIVE_POLICY_REVISION=self.sha,
+                NATIVE_RUN='',NATIVE_ATTEMPT='',NATIVE_REVISION=self.sha,MAESTRO_NATIVE_REFRESH_SOURCE=str(script))
+            args=['bash',str(fixture.ROOT/'modules/ci/security/_source/native-refresh.sh')]
+            result=subprocess.run(args,env=env,capture_output=True,text=True,timeout=10)
+            self.assertEqual(result.returncode,0,result.stderr)
+            values=json.loads(result.stdout);self.assertIn('--select-current-main',values);self.assertNotIn('--run',values)
+            for changed in (dict(NATIVE_RUN='7'),dict(NATIVE_REVISION='b'*40)):
+                result=subprocess.run(args,env=dict(env,**changed),capture_output=True,text=True,timeout=10)
+                self.assertNotEqual(result.returncode,0)
+
+    def test_disabled_policy_unprotected_context_and_main_race_reject(self):
+        for key,value in [('MAESTRO_NATIVE_REFRESH_ENABLED','false'),('GITHUB_REF','refs/pull/1/merge'),
+                          ('GITHUB_EVENT_NAME','pull_request'),('GITHUB_SHA','bad')]:
+            previous=self.env[key];self.env[key]=value
+            with self.subTest(key=key),self.assertRaises(ValueError):self.select()
+            self.env[key]=previous
+        self.changed=True
+        with self.assertRaises(ValueError):self.select()
 
 
 if __name__=='__main__':unittest.main()

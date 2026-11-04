@@ -31,6 +31,42 @@ REPORTS = {'grype-version.json','cargo-audit-version.txt','scanner-check.grype.j
     'inputs.sha256','source-policy.json','security-result.json','new-high-critical.json'}
 
 
+
+def select_current_main(api=native.api):
+    """One exact protected main producer; metadata schedules verification only."""
+    revision=os.environ.get('GITHUB_SHA','')
+    require(os.environ.get('GITHUB_REPOSITORY')==native.REPO
+        and os.environ.get('GITHUB_REF')=='refs/heads/main'
+        and os.environ.get('GITHUB_EVENT_NAME') in ('schedule','workflow_dispatch')
+        and os.environ.get('MAESTRO_NATIVE_REFRESH_ENABLED')=='true'
+        and re.fullmatch(r'[0-9a-f]{40}',revision), 'Native current-main refresh remains disabled or unprotected')
+    branch=api('branches/main')
+    require(branch.get('protected') is True and branch.get('commit',{}).get('sha')==revision,
+            'Refresh policy/main changed before selection')
+    workflow=api('actions/workflows/ci.yml')
+    require(type(workflow.get('id')) is int and workflow['id']>0
+        and workflow.get('path')==native.WORKFLOW and workflow.get('state')=='active','Exact active CI workflow required')
+    rows=api('actions/workflows/ci.yml/runs?branch=main&event=push&status=success&head_sha='+revision+'&per_page=100')
+    runs=rows.get('workflow_runs')
+    require(isinstance(runs,list) and type(rows.get('total_count')) is int
+        and rows['total_count']==len(runs) and len(runs)<100
+        and all(isinstance(r,dict) for r in runs),'Bounded complete current-main CI inventory required')
+    candidates=[r for r in runs if r.get('head_sha')==revision]
+    require(len(candidates)==1,'One successful exact-current-main CI producer required; no historical fallback')
+    run=candidates[0];identity=run.get('id');attempt=run.get('run_attempt')
+    require(type(identity) is int and identity>0 and type(attempt) is int and attempt>0
+        and run.get('workflow_id')==workflow['id'] and run.get('path')==native.WORKFLOW
+        and run.get('head_branch')=='main' and run.get('event')=='push'
+        and run.get('status')=='completed' and run.get('conclusion')=='success'
+        and all((run.get(key) or {}).get('full_name')==native.REPO
+                and (run.get(key) or {}).get('id')==1127149753
+                for key in ('repository','head_repository')), 'Untrusted scheduled CI producer')
+    # The actual consumer verifies this exact attempt, all artifacts and signatures.
+    native.trusted_run(identity,attempt,revision)
+    require(api('git/ref/heads/main')['object']['sha']==revision,'Main changed during refresh selection')
+    return identity,attempt,revision
+
+
 def identities(paths):
     # Only the sixty explicit roots, not another recursive closure inventory.
     def cap():resource.setrlimit(resource.RLIMIT_FSIZE, (16 * 1024**2, 16 * 1024**2))
@@ -46,7 +82,7 @@ def identities(paths):
     return {path: value['narHash'] for path, value in data.items()}
 
 
-def refresh(bundle, output, cfg, transport, restore, query=identities, scan=None, api=native.api):
+def refresh(bundle, output, cfg, transport, restore, query=identities, scan=None, api=native.api, scheduled=False):
     """Called only with a frozen verified_inventory context, never a receipt file."""
     require(bundle.get('inventoryOnly') is True, 'Explicit authenticated inventory purpose required')
     require(native.common.canonical_hash(cfg) == bundle['policyHash'], 'Original scope/freshness policy changed')
@@ -54,7 +90,9 @@ def refresh(bundle, output, cfg, transport, restore, query=identities, scan=None
     policy_revision = bundle['receipt'].get('policyRevision',revision)
     require(os.environ.get('GITHUB_REPOSITORY') == native.REPO
             and os.environ.get('GITHUB_REF') == 'refs/heads/main'
-            and os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch'
+            and (os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch' or
+                 (scheduled is True and os.environ.get('GITHUB_EVENT_NAME') == 'schedule'
+                  and os.environ.get('MAESTRO_NATIVE_REFRESH_ENABLED') == 'true'))
             and os.environ.get('GITHUB_SHA') == policy_revision, 'Protected exact-source refresh required')
     run, attempt = int(os.environ['GITHUB_RUN_ID']), int(os.environ['GITHUB_RUN_ATTEMPT'])
     require(run > 0 and attempt > 0, 'Positive fresh producer identity required')
@@ -155,8 +193,9 @@ def refresh(bundle, output, cfg, transport, restore, query=identities, scan=None
 
 def main():
     cli=argparse.ArgumentParser(description=__doc__)
-    cli.add_argument('--run',type=int,required=True);cli.add_argument('--attempt',type=int,required=True)
-    cli.add_argument('--revision',required=True);cli.add_argument('--output',type=Path,required=True)
+    cli.add_argument('--select-current-main',action='store_true',help='Opt-in exact protected-main CI selection; never select historical decisions')
+    cli.add_argument('--run',type=int);cli.add_argument('--attempt',type=int)
+    cli.add_argument('--revision');cli.add_argument('--output',type=Path,required=True)
     cli.add_argument('--policy-revision',help='Explicit current scanner/policy source; immutable product source is unchanged')
     cli.add_argument('--boot-origin-run',type=int);cli.add_argument('--boot-origin-attempt',type=int)
     cli.add_argument('--boot-origin-revision');args=cli.parse_args()
@@ -164,17 +203,25 @@ def main():
     origin=(args.boot_origin_run,args.boot_origin_attempt,args.boot_origin_revision)
     require(all(v is None for v in origin) or all(v is not None for v in origin),'Complete original boot identity required')
     origin=None if all(v is None for v in origin) else origin
+    if args.select_current_main:
+        require(all(v is None for v in (args.run,args.attempt,args.revision,origin)), 'Conflicting automatic/manual refresh identities')
+        require(args.policy_revision==os.environ.get('GITHUB_SHA'), 'Scheduled refresh requires exact current policy')
+        args.run,args.attempt,args.revision=select_current_main()
+    else:
+        require(type(args.run) is int and args.run>0 and type(args.attempt) is int and args.attempt>0
+            and isinstance(args.revision,str) and re.fullmatch(r'[0-9a-f]{40}',args.revision), 'Exact explicit refresh producer required')
     stage=module('refresh_stage',os.environ.get('MAESTRO_NATIVE_STAGE_SOURCE',Path(__file__).with_name('native-stage.py')))
     distribution=module('refresh_distribution',os.environ.get('MAESTRO_DISTRIBUTION_CACHE_SOURCE',Path(__file__).parents[2]/'graph/_source/distribution-cache.py'))
     policy=Path(os.environ['MAESTRO_NATIVE_PREPARE_POLICY'])
     with native.operations.budget(2400),tempfile.TemporaryDirectory(prefix='maestro-refresh-',dir=os.environ.get('RUNNER_TEMP')) as temp:
         root=Path(temp);directory=root/'original'
         print('Native refresh: stage exact original CI evidence',file=sys.stderr,flush=True)
-        stage.stage_refresh(directory,args.run,args.attempt,args.revision,origin)
+        origin=stage.stage_refresh(directory,args.run,args.attempt,args.revision,origin,discover_origin=args.select_current_main)
         print('Native refresh: authenticate original CI and boot proof',file=sys.stderr,flush=True)
         with native.verified_inventory(directory,args.run,args.attempt,args.revision,policy,origin,policy_revision=args.policy_revision) as bundle:
             result=refresh(bundle,args.output,native.common.config(policy),
-                lambda:stage.transport(args.run,args.revision,root/'closure'),distribution.restore)
+                lambda:stage.transport(args.run,args.revision,root/'closure'),distribution.restore,
+                scheduled=args.select_current_main and os.environ.get('GITHUB_EVENT_NAME')=='schedule')
     print(json.dumps(dict(status='fresh-health-produced',authorization=False,publicationReady=False,
         sourceRevision=result['sourceRevision'],originalProducer=result['originalProducer'],producer=result['producer']),sort_keys=True))
 

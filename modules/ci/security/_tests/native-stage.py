@@ -73,6 +73,41 @@ class ArtifactStage(unittest.TestCase):
         with patch.object(stage,'api',return_value={'artifacts':[row]}):self.assertEqual(stage.select(7,'b'*40,'report')['id'],1)
 
 
+class DiscoveredBoot(unittest.TestCase):
+    def test_original_attempt_is_bound_to_immutable_proof_not_assumed_latest(self):
+        result=dict(producer=dict(GITHUB_RUN_ATTEMPT='1'),boot=dict(disposition='verified-retained',origin=dict(runId=8,revision='b'*40)))
+        proof=dict(producer=dict(GITHUB_REPOSITORY=stage.REPO,GITHUB_RUN_ID='8',GITHUB_RUN_ATTEMPT='2',GITHUB_SHA='b'*40))
+        self.exercise(result,proof,(8,2,'b'*40))
+        for changed in (dict(proof['producer'],GITHUB_RUN_ID='9'),dict(proof['producer'],GITHUB_RUN_ATTEMPT='0'),
+                        dict(proof['producer'],GITHUB_SHA='c'*40)):
+            with self.subTest(producer=changed),self.assertRaises(ValueError):self.exercise(result,dict(producer=changed),None)
+        with self.assertRaises(ValueError):self.exercise(dict(result,boot=dict(result['boot'],origin=dict(runId=8,revision='b'*40,runAttempt=1))),proof,None)
+    def test_executed_boot_needs_no_original_proof_and_bad_hint_rejects(self):
+        result=dict(producer=dict(GITHUB_RUN_ATTEMPT='1'),boot=dict(disposition='executed'))
+        self.exercise(result,{},None)
+        for hint in (None,{},dict(runId=True,revision='b'*40),dict(runId=8,revision='b'*40,runAttempt=True)):
+            with self.subTest(hint=hint),self.assertRaises(ValueError):
+                self.exercise(dict(result,boot=dict(disposition='verified-retained',origin=hint)),{},None)
+    def test_discovered_boot_metadata_is_bounded_before_parsing(self):
+        result=dict(producer=dict(GITHUB_RUN_ATTEMPT='1'),boot=dict(disposition='verified-retained',origin=dict(runId=8,revision='b'*40)))
+        proof=dict(producer=dict(GITHUB_REPOSITORY=stage.REPO,GITHUB_RUN_ID='8',GITHUB_RUN_ATTEMPT='2',GITHUB_SHA='b'*40))
+        for current,original in ((dict(result,padding='x'*(4*1024**2)),proof),(result,dict(proof,padding='x'*(4*1024**2)))):
+            with self.assertRaises(ValueError):self.exercise(current,original,None)
+    def exercise(self,result,proof,expected):
+        with tempfile.TemporaryDirectory() as temp:
+            directory=Path(temp)/'stage';selected=[]
+            def select(run,revision,name):selected.append(name);return (run,name)
+            def download(row,target,names,budget,limit):
+                for source,destination in names.items():
+                    value=result if row==(7,'maestro-ci-result') else proof if row==(8,'maestro-ci-result') else dict(evidenceFiles={}) if row[1]=='maestro-inventory-binding' else dict(source_commit='a'*40,evidence_run_id=7) if row[1]=='maestro-qualification-state' else {}
+                    (target/destination).write_text(json.dumps(value))
+            with patch.object(stage,'select',side_effect=select),patch.object(stage,'download',side_effect=download):
+                actual=stage.stage_refresh(directory,7,1,'a'*40,None,discover_origin=True)
+                self.assertEqual(actual,expected)
+                self.assertEqual(selected.count('maestro-ci-result'),2 if result['boot']['disposition']=='verified-retained' else 1)
+                self.assertNotIn('maestro-distribution-transport',selected)
+
+
 class StagePurpose(unittest.TestCase):
     def test_health_stages_one_exact_small_artifact_without_original_inventory_or_transport(self):
         with tempfile.TemporaryDirectory() as temporary:
