@@ -21,8 +21,8 @@ def resolve(path,tag,publication_revision,policy_revision,*,api=native.api,verif
     """Return a scheduling tuple only after exact receipt signature/release binding.
 
     The caller must still authenticate original CI, full inventory and boot, then
-    restore/check real NAR bytes and scan with fresh databases. No caller exists
-    yet: the release writer must first retain/attest its existing staging receipt.
+    restore/check real NAR bytes and scan with fresh databases. The release writer
+    must first retain/attest its existing staging receipt; no legacy fallback.
     """
     require(isinstance(tag,str) and re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+',tag),'Exact version tag required')
     require(all(isinstance(s,str) and re.fullmatch(r'[0-9a-f]{40}',s)
@@ -77,6 +77,26 @@ def resolve(path,tag,publication_revision,policy_revision,*,api=native.api,verif
             and matches[0].get('state')=='uploaded' and matches[0].get('size')==len(raw)
             and type(matches[0].get('size')) is int and matches[0].get('digest')=='sha256:'+digest,
             'Receipt is not the exact published release asset')
+    records=receipt.get('assets')
+    require(isinstance(records,dict) and 0<len(records)<=24 and NAME not in records,
+            'Complete signed payload asset inventory required')
+    remote={}
+    for asset in assets:
+        require(isinstance(asset,dict) and isinstance(asset.get('name'),str) and asset['name'] not in remote,
+                'Duplicate or malformed published asset')
+        remote[asset['name']]=asset
+    require(set(remote)==set(records)|{NAME},'Published assets differ from signed complete release inventory')
+    for name,record in records.items():
+        require(isinstance(name,str) and re.fullmatch(r'[A-Za-z0-9_.+-]+',name)
+                and isinstance(record,dict) and set(record)=={'sha256','size'}
+                and isinstance(record.get('sha256'),str) and re.fullmatch(r'[0-9a-f]{64}',record['sha256'])
+                and type(record.get('size')) is int and 0<record['size']<2147483648,
+                'Invalid bounded signed payload descriptor')
+        actual=remote[name]
+        require(type(actual.get('id')) is int and actual['id']>0 and actual.get('state')=='uploaded'
+                and type(actual.get('size')) is int and actual['size']==record['size']
+                and actual.get('digest')=='sha256:'+record['sha256'],
+                'Published payload descriptor differs from signed release bytes')
     for revision in {ref['sha'],publication_revision}:
         if revision!=policy_revision:
             relation=api('compare/'+revision+'...'+policy_revision+'?per_page=1')
@@ -88,3 +108,39 @@ def resolve(path,tag,publication_revision,policy_revision,*,api=native.api,verif
         mediaProducer=media,isoSha256=receipt['isoSha256'],releaseId=release['id'],tag=tag,
         receiptSha256=digest,authorization=False,publicationReady=False,inventoryVerified=False,
         narBytesVerified=False,isoBytesVerified=False,findingsAccepted=False)
+
+
+def fetch(tag,publication_revision,policy_revision,*,api=native.api,verify=native.response,execute=native.operations.run,discover_signer=False):
+    """Download only the exact bounded public receipt; no ISO/closure payload."""
+    import resource
+    require(isinstance(tag,str) and re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+',tag),'Exact version tag required')
+    require(isinstance(policy_revision,str) and re.fullmatch(r'[0-9a-f]{40}',policy_revision)
+            and ((discover_signer is True and publication_revision is None) or
+                 (isinstance(publication_revision,str) and re.fullmatch(r'[0-9a-f]{40}',publication_revision))),
+            'Exact signer/current policy revisions required')
+    release=api('releases/tags/'+tag)
+    assets=release.get('assets');require(isinstance(assets,list) and len(assets)<=100,'Bounded release asset inventory required')
+    rows=[a for a in assets if isinstance(a,dict) and a.get('name')==NAME]
+    require(len(rows)==1,'One exact published staging receipt required')
+    row=rows[0]
+    require(type(row.get('id')) is int and row['id']>0 and type(row.get('size')) is int
+            and 0<row['size']<=CAP and row.get('state')=='uploaded'
+            and isinstance(row.get('digest'),str) and re.fullmatch(r'sha256:[0-9a-f]{64}',row['digest']),
+            'Bounded exact release receipt descriptor required')
+    with tempfile.TemporaryDirectory(prefix='maestro-official-receipt-') as temp:
+        path=Path(temp)/NAME
+        def cap():resource.setrlimit(resource.RLIMIT_FSIZE,(CAP,CAP))
+        with path.open('xb') as out,tempfile.TemporaryFile() as err:
+            execute(['gh','api','--method','GET','-H','Accept: application/octet-stream',
+                     f'repos/{native.REPO}/releases/assets/{row["id"]}'],stdout=out,stderr=err,
+                    check=True,timeout=90,preexec_fn=cap)
+            require(out.tell()==row['size'] and err.tell()<=CAP,'Receipt transfer differs from bounded descriptor')
+        require('sha256:'+native.file_hash(path)==row['digest'],'Downloaded receipt digest changed')
+        if discover_signer:
+            hint=native.load_json(path)
+            publication_revision=hint.get('policyRevision',hint.get('sourceRevision'))
+            # Scheduling hint only: resolve still verifies the exact signature,
+            # signer workflow/source, release asset and reviewed main ancestry.
+        result=resolve(path,tag,publication_revision,policy_revision,api=api,verify=verify)
+        require(result['releaseId']==release.get('id'),'Release changed during receipt transfer')
+        return result

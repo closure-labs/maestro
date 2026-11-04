@@ -7,11 +7,14 @@ consumer and uploads retained product evidence again. Rolling native refresh is
 already prepared separately; it does not cover a shipped version that differs
 from main. Keep this coverage until its replacement is reviewed and qualified.
 
-This change adds one private, unused locator and negative fixtures. It reuses the
+The locator preparation adds one private verifier and negative fixtures. It reuses the
 existing `native-release-staging.json` produced by native ISO staging. There is
 no new descriptor schema, ledger, registry packet, approval record, workflow,
-credential, repository variable or controller. No task or package invokes it.
-All existing gates, writers and scheduling behavior are unchanged.
+credential, repository variable or controller. It is not directly exposed as a task or package.
+All existing gates, writers and scheduling behavior are unchanged. The separately
+prepared [explicit official refresh route](official-refresh-route.md) is the only
+opt-in caller; it still requires reviewed producer integration and separate trial
+authorization. No automatic schedule invokes the locator.
 
 The locator accepts one explicit version tag, receipt file, publication signer
 revision and current policy revision. It freezes at most 1 MiB of regular receipt

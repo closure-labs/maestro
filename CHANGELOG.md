@@ -18,6 +18,9 @@ correspond to published GitHub tags.
   release signer, with fresh findings review, exact original ISO/SBOM evidence
   and no closure restore, rescan, re-export or historical decision selection.
 
+- Prepare an explicit native official-release refresh route using signed existing
+  release receipts, original boot/inventory verification and one fresh scan.
+
 - Prepare an explicit release-specific human findings-review route for native
   local ISO staging, retaining strict standalone staging and all integrity checks.
 
@@ -39,6 +42,9 @@ correspond to published GitHub tags.
   temporary parallel flake/comparison experiment after recorded parity, and
   bind signed version 2 results to the original complete audit. Keep strict
   historical proof validation, installer boot, scanners and publication policy.
+
+- Prepare native scheduled shipped-product refresh using standard release
+  selection and same-invocation exact-producer health reuse, behind both native flags.
 
 - Bind retained boot receipts to the original media source commit and run,
   keeping later inventory artifact assembly provenance separate.

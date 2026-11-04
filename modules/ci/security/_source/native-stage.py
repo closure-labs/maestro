@@ -25,16 +25,18 @@ def api(path):
         return json.load(out)
 
 
-def select(run, revision, name):
+def select(run, revision, name, alternate=None):
     rows = []
     for page in range(1, 11):
         response = api(f'actions/runs/{run}/artifacts?per_page=100&page={page}')
         values = response['artifacts']
-        rows.extend(v for v in values if v['name'] == name)
+        rows.extend(v for v in values if v['name'] in (name,alternate))
         if len(values) < 100:
             break
     else:
         raise ValueError('Artifact inventory exceeds bound')
+    preferred=[v for v in rows if alternate is not None and v['name']==alternate]
+    rows=preferred if preferred else [v for v in rows if v['name']==name]
     if len(rows) != 1:
         raise ValueError('Missing or ambiguous exact artifact: ' + name)
     row = rows[0]
@@ -165,14 +167,22 @@ def stage_refresh(directory, run, attempt, revision, origin, discover_origin=Fal
     return _stage(directory, run, attempt, revision, origin, refresh=True, discover_origin=discover_origin)
 
 
-def stage_health(directory, run, revision):
+def stage_health(directory, run, revision, product=None):
     if directory.exists() or type(run) is not int or run <= 0 or not re.fullmatch('[0-9a-f]{40}', revision):
         raise ValueError('New directory and exact fresh-health producer required')
     directory.mkdir(parents=True)
     try:
         names=('native-health.json','security-result.json','inputs.sha256','findings.json',
                'source-policy.json','effective-policy.json','critical-applicability.json')
-        download(select(run,revision,'maestro-native-health'),directory,{n:n for n in names},[0],CAP)
+        alternate=None
+        if product is not None:
+            identity,attempt,source=product
+            if type(identity) is not int or identity<=0 or type(attempt) is not int or attempt<=0 or not re.fullmatch('[0-9a-f]{40}',source):
+                raise ValueError('Exact original product required for scoped health selection')
+            alternate=f'maestro-native-health-{identity}-{attempt}-{source}'
+        row=(select(run,revision,'maestro-native-health',alternate=alternate) if alternate is not None
+             else select(run,revision,'maestro-native-health'))
+        download(row,directory,{n:n for n in names},[0],CAP)
     except BaseException:
         shutil.rmtree(directory);raise
 
