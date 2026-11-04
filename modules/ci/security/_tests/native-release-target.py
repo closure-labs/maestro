@@ -92,8 +92,8 @@ class Target(unittest.TestCase):
         with self.assertRaises(ValueError):self.run_target()
         self.path.unlink();self.path.symlink_to('/dev/null')
         with self.assertRaises(OSError):self.run_target()
-    def test_no_active_workflow_package_or_task_calls_locator(self):
-        for folder in ('.github/workflows','modules/ci/security/_lib'):
+    def test_workflows_do_not_execute_private_locator_directly(self):
+        for folder in ('.github/workflows',):
             for path in (ROOT/folder).rglob('*'):
                 if path.is_file():self.assertNotIn('native-release-target',path.read_text())
 

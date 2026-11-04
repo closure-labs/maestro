@@ -11,6 +11,9 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Prepare an explicit native official-release refresh route using signed existing
+  release receipts, original boot/inventory verification and one fresh scan.
+
 - Prepare an inactive official-product locator using the existing signed release
   staging receipt, with no ledger selection, new packet format or active caller.
 

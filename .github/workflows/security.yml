@@ -34,6 +34,14 @@ on:
         description: Original executed-boot source SHA
         type: string
         default: ''
+      native_official_tag:
+        description: Optional exact native official release tag; requires its signed staging receipt and signer revision
+        type: string
+        default: ''
+      native_official_publication_revision:
+        description: Exact reviewed release signer SHA for native_official_tag
+        type: string
+        default: ''
       policy_only:
         description: Check GitHub policy without rescanning inventories
         type: boolean
@@ -49,7 +57,7 @@ concurrency:
 jobs:
   dependencies:
     name: Rescan latest trusted inventories
-    if: (github.event_name != 'schedule' || vars.MAESTRO_NATIVE_REFRESH_ENABLED != 'true') && (github.event_name != 'workflow_dispatch' || (inputs.policy_only != true && inputs.native_refresh != true))
+    if: (github.event_name != 'schedule' || vars.MAESTRO_NATIVE_REFRESH_ENABLED != 'true') && (github.event_name != 'workflow_dispatch' || (inputs.policy_only != true && inputs.native_refresh != true && inputs.native_official_tag == '' && inputs.native_official_publication_revision == ''))
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
@@ -91,7 +99,7 @@ jobs:
 
   release_candidates:
     name: Refresh retained official product evidence
-    if: github.event_name != 'workflow_dispatch' || (inputs.policy_only != true && inputs.native_refresh != true)
+    if: github.event_name != 'workflow_dispatch' || (inputs.policy_only != true && inputs.native_refresh != true && inputs.native_official_tag == '' && inputs.native_official_publication_revision == '')
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     permissions:
@@ -157,6 +165,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           MAESTRO_NATIVE_REFRESH_ENABLED: ${{ vars.MAESTRO_NATIVE_REFRESH_ENABLED || 'false' }}
+          NATIVE_OFFICIAL_RELEASE_TAG: ${{ inputs.native_official_tag }}
+          NATIVE_OFFICIAL_PUBLICATION_REVISION: ${{ inputs.native_official_publication_revision }}
           NATIVE_REFRESH_SELECT_CURRENT_MAIN: ${{ github.event_name == 'schedule' && 'true' || 'false' }}
           NATIVE_RUN: ${{ inputs.native_run }}
           NATIVE_ATTEMPT: ${{ inputs.native_attempt }}

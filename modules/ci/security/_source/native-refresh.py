@@ -67,6 +67,25 @@ def select_current_main(api=native.api):
     return identity,attempt,revision
 
 
+def official_product(tag,signer,policy):
+    require(os.environ.get('GITHUB_REPOSITORY')==native.REPO
+        and os.environ.get('GITHUB_REF')=='refs/heads/main'
+        and os.environ.get('GITHUB_EVENT_NAME')=='workflow_dispatch'
+        and policy==os.environ.get('GITHUB_SHA') and isinstance(signer,str)
+        and re.fullmatch(r'[0-9a-f]{40}',signer),'Explicit protected official refresh required')
+    locator=module('official_refresh_target',os.environ.get('MAESTRO_NATIVE_RELEASE_TARGET_SOURCE',Path(__file__).with_name('native-release-target.py')))
+    return locator.fetch(tag,signer,policy)
+
+
+def official_binding(bundle,target):
+    receipt=bundle['receipt']
+    media=receipt.get('bootOrigin') or dict(runId=receipt['runId'],runAttempt=receipt['runAttempt'],revision=receipt['sourceRevision'])
+    require((receipt['runId'],receipt['runAttempt'],receipt['sourceRevision'])==
+        (target['runId'],target['runAttempt'],target['revision']) and media==target['mediaProducer']
+        and bundle['result']['boot']['isoSha256']==target['isoSha256'],
+        'Verified official inventory/media differs from published native release')
+
+
 def identities(paths):
     # Only the sixty explicit roots, not another recursive closure inventory.
     def cap():resource.setrlimit(resource.RLIMIT_FSIZE, (16 * 1024**2, 16 * 1024**2))
@@ -191,8 +210,10 @@ def refresh(bundle, output, cfg, transport, restore, query=identities, scan=None
         raise
 
 
-def main():
+def run():
     cli=argparse.ArgumentParser(description=__doc__)
+    cli.add_argument('--official-tag',help='Explicit stable native release; requires its exact signed public receipt')
+    cli.add_argument('--official-publication-revision',help='Exact reviewed release signer revision')
     cli.add_argument('--select-current-main',action='store_true',help='Opt-in exact protected-main CI selection; never select historical decisions')
     cli.add_argument('--run',type=int);cli.add_argument('--attempt',type=int)
     cli.add_argument('--revision');cli.add_argument('--output',type=Path,required=True)
@@ -203,7 +224,15 @@ def main():
     origin=(args.boot_origin_run,args.boot_origin_attempt,args.boot_origin_revision)
     require(all(v is None for v in origin) or all(v is not None for v in origin),'Complete original boot identity required')
     origin=None if all(v is None for v in origin) else origin
-    if args.select_current_main:
+    target=None
+    require((args.official_tag is None)==(args.official_publication_revision is None),'Complete official tag/signer identity required')
+    if args.official_tag is not None:
+        require(not args.select_current_main and all(v is None for v in (args.run,args.attempt,args.revision,origin)),
+            'Conflicting official/current/manual refresh identities')
+        print('Native refresh: resolve exact signed official release receipt',file=sys.stderr,flush=True)
+        target=official_product(args.official_tag,args.official_publication_revision,args.policy_revision)
+        args.run,args.attempt,args.revision=(target[k] for k in ('runId','runAttempt','revision'))
+    elif args.select_current_main:
         require(all(v is None for v in (args.run,args.attempt,args.revision,origin)), 'Conflicting automatic/manual refresh identities')
         require(args.policy_revision==os.environ.get('GITHUB_SHA'), 'Scheduled refresh requires exact current policy')
         args.run,args.attempt,args.revision=select_current_main()
@@ -213,17 +242,23 @@ def main():
     stage=module('refresh_stage',os.environ.get('MAESTRO_NATIVE_STAGE_SOURCE',Path(__file__).with_name('native-stage.py')))
     distribution=module('refresh_distribution',os.environ.get('MAESTRO_DISTRIBUTION_CACHE_SOURCE',Path(__file__).parents[2]/'graph/_source/distribution-cache.py'))
     policy=Path(os.environ['MAESTRO_NATIVE_PREPARE_POLICY'])
-    with native.operations.budget(2400),tempfile.TemporaryDirectory(prefix='maestro-refresh-',dir=os.environ.get('RUNNER_TEMP')) as temp:
+    with tempfile.TemporaryDirectory(prefix='maestro-refresh-',dir=os.environ.get('RUNNER_TEMP')) as temp:
         root=Path(temp);directory=root/'original'
         print('Native refresh: stage exact original CI evidence',file=sys.stderr,flush=True)
-        origin=stage.stage_refresh(directory,args.run,args.attempt,args.revision,origin,discover_origin=args.select_current_main)
+        origin=stage.stage_refresh(directory,args.run,args.attempt,args.revision,origin,discover_origin=args.select_current_main or target is not None)
         print('Native refresh: authenticate original CI and boot proof',file=sys.stderr,flush=True)
         with native.verified_inventory(directory,args.run,args.attempt,args.revision,policy,origin,policy_revision=args.policy_revision) as bundle:
+            if target is not None:official_binding(bundle,target)
             result=refresh(bundle,args.output,native.common.config(policy),
                 lambda:stage.transport(args.run,args.revision,root/'closure'),distribution.restore,
                 scheduled=args.select_current_main and os.environ.get('GITHUB_EVENT_NAME')=='schedule')
     print(json.dumps(dict(status='fresh-health-produced',authorization=False,publicationReady=False,
         sourceRevision=result['sourceRevision'],originalProducer=result['originalProducer'],producer=result['producer']),sort_keys=True))
+
+
+def main():
+    # Include receipt/producer selection in the existing whole-command deadline.
+    with native.operations.budget(2400):return run()
 
 
 if __name__=='__main__':

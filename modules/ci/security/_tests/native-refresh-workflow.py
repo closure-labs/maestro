@@ -64,7 +64,8 @@ class RefreshWorkflow(unittest.TestCase):
             ('workflow_dispatch','true',True,True,(False,False))]:
             values={'github.event_name':event,'github.repository':'closure-labs/maestro',
                 'github.ref':'refs/heads/main','vars.MAESTRO_NATIVE_REFRESH_ENABLED':enabled,
-                'inputs.native_refresh':native_input,'inputs.policy_only':policy_input}
+                'inputs.native_refresh':native_input,'inputs.policy_only':policy_input,
+                'inputs.native_official_tag':'','inputs.native_official_publication_revision':''}
             def condition(name):
                 expression=data['jobs'][name]['if']
                 expression=re.sub(r'(?:github|vars|inputs)\.[A-Za-z_.]+',lambda m:repr(values[m.group()]),expression)
@@ -74,6 +75,20 @@ class RefreshWorkflow(unittest.TestCase):
                 self.assertEqual(condition('dependencies'),expected[0])
                 self.assertEqual(condition('release_candidates'),event=='schedule' or not (native_input or policy_input))
                 self.assertEqual(condition('native_refresh'),expected[1])
+
+    def test_official_refresh_is_explicit_keyless_and_never_falls_back_to_legacy(self):
+        data=workflow('security.yml');inputs=data['on']['workflow_dispatch']['inputs']
+        for name in ('native_official_tag','native_official_publication_revision'):self.assertEqual(inputs[name]['default'],'')
+        for name in ('dependencies','release_candidates'):
+            for field in ('native_official_tag','native_official_publication_revision'):
+                self.assertIn("inputs."+field+" == ''",data['jobs'][name]['if'])
+        job=data['jobs']['native_refresh'];self.assertNotIn('environment',job)
+        self.assertEqual(job['permissions'],{'contents':'read','actions':'read','attestations':'write','id-token':'write','artifact-metadata':'write'})
+        step=next(s for s in job['steps'] if 'run' in s)
+        self.assertEqual(step['env']['NATIVE_OFFICIAL_RELEASE_TAG'],'${{ inputs.native_official_tag }}')
+        self.assertEqual(step['env']['NATIVE_OFFICIAL_PUBLICATION_REVISION'],'${{ inputs.native_official_publication_revision }}')
+        for forbidden in ('secrets.','ci:decision:','CACHIX','DECIDER'):
+            self.assertNotIn(forbidden,json.dumps(job))
 
     def test_both_consumers_keep_disabled_activation_and_exact_health_pair(self):
         for filename,name in [('publication.yml','native_publish'),('consumer-probe.yml','native_consumer')]:
