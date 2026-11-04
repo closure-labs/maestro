@@ -63,7 +63,10 @@ class Publication(unittest.TestCase):
         return bundle
 
     def api(self,path):
-        if path=='':return dict(id=pub.risk.REPO_ID,full_name='closure-labs/maestro',private=False,visibility='public')
+        if path.startswith('releases?per_page=100&page='):return []
+        if path.startswith('git/matching-refs/tags/'):return []
+        if path.startswith('contents/.github?ref='):return [dict(name='workflows',path='.github/workflows',type='dir',sha='f'*40)]
+        if path=='':return dict(id=pub.risk.REPO_ID,full_name='closure-labs/maestro',private=False,visibility='public',default_branch='main')
         if path=='actions/runs/123':return dict(id=123,run_attempt=1,head_sha=fixture.SHA,head_branch='main',
             event='workflow_dispatch',path=pub.risk.WORKFLOWS['publish'],repository=dict(id=pub.risk.REPO_ID),
             status='in_progress',created_at=dt.datetime.now(dt.timezone.utc).isoformat())
