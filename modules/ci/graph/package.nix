@@ -50,6 +50,7 @@
             ./_tests/test_results.py
             ./_tests/test_inventory_scan.py
             ./_tests/test_boot_downloads.py
+            ./_tests/test_local_boot_handoff.py
             ./_tests/test_verdict.py
             ./_tests/test_signing.py
             ./_tests/test_summary.py
@@ -65,6 +66,7 @@
         export MAESTRO_BOOT_EVIDENCE_SOURCE=${../../features/installer/_source/boot-evidence.py}
         export MAESTRO_INVENTORY_VERIFIER_SOURCE=${../../features/installer/_source/verify-inventory.sh}
         export MAESTRO_BOOT_COMMAND_SOURCE=${../../features/installer/_source/boot-media.sh}
+        export MAESTRO_LOCAL_BOOT_RESULT_SOURCE=${../../features/installer/_source/verify-local-boot-result.py}
         export MAESTRO_DISTRIBUTION_CACHE_SOURCE=${./_source/distribution-cache.py}
         export MAESTRO_DECISION_CORE=${../authority/_source/decisions}
         export MAESTRO_TEST_MEASUREMENT_SOURCE=${../checks/_source/measure-phase.sh}

@@ -3,6 +3,7 @@
 in {
   tasks = {
     "ci:boot:evidence".exec = runFlakePackage "maestro-ci-boot-evidence" "";
+    "ci:boot:verify-local-result".exec = runFlakePackage "maestro-ci-verify-local-boot-result" "";
     "ci:build:installer".exec = runFlakePackage "maestro-ci-build-installer" "";
     "ci:qualification:restore".exec = runFlakePackage "maestro-ci-qualification-restore" "";
     "ci:qualification:resolve".exec = runFlakePackage "maestro-ci-resolve-qualification" "";
