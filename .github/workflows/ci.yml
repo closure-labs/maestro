@@ -489,21 +489,23 @@ jobs:
           MAESTRO_CI_MEASURE_PHASE: inventory
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:inventory:assets
 
-      - name: Download exact qualified evidence and distribution transport
+      - name: Download exact qualified evidence before choosing transport
         if: fromJSON(needs.route.outputs.plan).qualification.mode == 'reuse'
         env:
           GH_TOKEN: ${{ github.token }}
           CANDIDATE_RUN: ${{ fromJSON(needs.route.outputs.plan).qualification.evidence_run_id }}
           CANDIDATE_WORKFLOW: .github/workflows/ci.yml
           CANDIDATE_REQUIRED: 'true'
+          QUALIFICATION_METADATA_ONLY: 'true'
           DECISION_DIRECTORY: qualified-distribution
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:download
 
-      - name: Authenticate original producer and restore exact outputs for rescanning
+      - name: Authenticate producer and prefer exact Nix cache outputs before transport
         if: fromJSON(needs.route.outputs.plan).qualification.mode == 'reuse'
         env:
           GH_TOKEN: ${{ github.token }}
           SECURITY_INVENTORY: reused-evidence
+          QUALIFICATION_CACHE_FIRST: 'true'
         run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:qualification:restore
 
       - name: Download immutable qualification state
