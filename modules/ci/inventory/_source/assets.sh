@@ -56,7 +56,9 @@ nix path-info "$sbomnix_out" "$xo_out" "$xo_supply_out"
 if [[ $QUALIFICATION_MODE == refresh-evidence ]]; then
   maestro-ci-verify-inventory reused-media "$(jq -er .artifact_source_commit reused-media/maestro-qualification-state.json)"
   [[ $(jq -er .media_input reused-media/maestro-qualification-state.json) == "${EXPECTED_MEDIA_INPUT:?}" ]]
-  mv reused-media/result-installer result-installer
+  # Keep regular original paths for the unchanged retained-boot verifier;
+  # both names share the same bytes without copying a multi-GiB ISO.
+  cp -al -- reused-media/result-installer result-installer
 else
   [[ $(sha256sum installer-transfer/manifest.json | cut -d' ' -f1) == "${INSTALLER_MANIFEST_SHA256:?}" ]]
   iso_out=$(jq -er '.targets | map(select(.attribute == "packages.x86_64-linux.installer-iso")) | map(.outputs.out) | unique | select(length == 1) | .[0]' installer-transfer/manifest.json)

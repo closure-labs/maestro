@@ -10,6 +10,15 @@
       fileset = lib.fileset.unions [../../ci/graph/_source/bindings.py ../../ci/graph/_source/transfer.py];
     };
   in {
+    packages.maestro-ci-verify-local-boot-result = pkgs.writeShellApplication {
+      name = "maestro-ci-verify-local-boot-result";
+      runtimeInputs = [pkgs.python3];
+      text = ''
+        export PYTHONDONTWRITEBYTECODE=1
+        export PYTHONPATH=${pythonSource}
+        exec python3 ${./_source/verify-local-boot-result.py}
+      '';
+    };
     packages.maestro-ci-boot-evidence = pkgs.writeShellApplication {
       name = "maestro-ci-boot-evidence";
       runtimeInputs = [pkgs.python3 config.packages.maestro-ci-verify-inventory];

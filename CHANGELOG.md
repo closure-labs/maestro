@@ -16,6 +16,10 @@ correspond to published GitHub tags.
   phase, subject, exit and HTTP status labels; preserve rejection and omit raw
   commands, stderr, credentials and any authorization.
 
+- Verify retained installer boot beside the ISO already downloaded for refreshed
+  evidence; hand off its exact same-attempt result instead of downloading the
+  media again in the boot job, preserving original byte and provenance checks.
+
 - Prefer exact authenticated Nix cache outputs during CI qualification reuse,
   downloading the original closure artifact only when substitution is unavailable;
   retain fresh scanning, producer authentication and complete NAR verification.
