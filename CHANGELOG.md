@@ -11,6 +11,11 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Fix the canonical repository-root lookup before native findings review, and
+  retain bounded native findings-review failure receipts with fixed verification
+  phase, subject, exit and HTTP status labels; preserve rejection and omit raw
+  commands, stderr, credentials and any authorization.
+
 - Verify retained installer boot beside the ISO already downloaded for refreshed
   evidence; hand off its exact same-attempt result instead of downloading the
   media again in the boot job, preserving original byte and provenance checks.

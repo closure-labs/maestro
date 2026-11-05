@@ -46,20 +46,65 @@ def file_hash(path):
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
+def failure_context(error):
+    """Fixed labels only: never serialize argv, stderr or exception text."""
+    value = {}
+    phase = getattr(error, 'native_phase', None)
+    if phase in ('github-read', 'attestation-verification'):
+        value['phase'] = phase
+        if type(getattr(error, 'returncode', None)) is int:
+            value['exitCode'] = error.returncode
+        endpoint = getattr(error, 'native_endpoint', None)
+        if endpoint in ('current-main', 'source-ancestry', 'protected-source', 'run-metadata', 'environment', 'reviewer-access', 'repository'):
+            value['githubEndpoint'] = endpoint
+        subject = getattr(error, 'native_subject', None)
+        if subject in ('product.json', 'scans.json', 'ci-result.json', 'original-ci-result.json'):
+            value['evidenceSubject'] = subject
+        status = getattr(error, 'native_http_status', None)
+        if type(status) is int and 100 <= status <= 599:
+            value['httpStatus'] = status
+    return value
+
+
 def response(*args):
     # Fixed GET/verification calls only. Spool rather than buffer CLI output;
     # kernel file limits bound both stdout and stderr, including failed calls.
     def limit():
         resource.setrlimit(resource.RLIMIT_FSIZE, (MAX_RESPONSE, MAX_RESPONSE))
     with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
-        operations.run(['gh', *args], stdout=out, stderr=err, check=True, timeout=90, preexec_fn=limit)
+        try:
+            operations.run(['gh', *args], stdout=out, stderr=err, check=True, timeout=90, preexec_fn=limit)
+        except subprocess.CalledProcessError as error:
+            if args[:1] == ('api',):
+                error.native_phase = 'github-read'
+                path = args[3] if len(args) == 4 and args[1:3] == ('--method', 'GET') else ''
+                prefix = 'repos/' + REPO + '/'
+                if path == 'repos/' + REPO:
+                    error.native_endpoint = 'repository'
+                elif path.startswith(prefix):
+                    relative = path[len(prefix):]
+                    for start, label in (('git/ref/heads/main', 'current-main'), ('compare/', 'source-ancestry'),
+                                         ('contents/', 'protected-source'), ('actions/runs/', 'run-metadata'),
+                                         ('environments/', 'environment'), ('collaborators/', 'reviewer-access')):
+                        if relative.startswith(start):
+                            error.native_endpoint = label
+                            break
+            elif args[:2] == ('attestation', 'verify'):
+                error.native_phase = 'attestation-verification'
+                error.native_subject = Path(args[2]).name
+            err.seek(0)
+            match = re.search(rb'\bHTTP ([1-5][0-9]{2})\b', err.read(4096))
+            if match:
+                error.native_http_status = int(match[1])
+            raise
         require(out.tell() <= MAX_RESPONSE and err.tell() <= MAX_RESPONSE, 'Oversized verification response')
         out.seek(0)
         return json.load(out)
 
 
 def api(path):
-    return response('api', '--method', 'GET', 'repos/' + REPO + '/' + path)
+    endpoint = 'repos/' + REPO + ('/' + path if path else '')
+    return response('api', '--method', 'GET', endpoint)
 
 
 def attest(path, revision):

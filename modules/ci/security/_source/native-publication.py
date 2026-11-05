@@ -356,5 +356,5 @@ if __name__ == '__main__':
         emit(dict(status='blocked', authorization=False, verdict=error.outcome), error=True)
         sys.exit(2)
     except (ValueError, KeyError, TypeError, OSError, subprocess.SubprocessError, MemoryError, RecursionError) as error:
-        emit(dict(status='blocked', authorization=False, error=type(error).__name__), error=True)
+        emit(dict(status='blocked', authorization=False, error=type(error).__name__, **native.failure_context(error)), error=True)
         sys.exit(2)

@@ -186,6 +186,46 @@ else:raise AssertionError('Unexpected write/registry command')
         self.state.pop('mainAfter');self.state['policy']=dict(self.cfg,maxEvidenceAgeHours=99)
         self.assertNotEqual(self.invoke(policy_revision=policy_revision).returncode,0)
 
+    def test_real_findings_runtime_uses_canonical_root_and_preserves_nested_reads(self):
+        spec=importlib.util.spec_from_file_location('risk_root_contract',SOURCE.with_name('native-risk.py'))
+        risk=importlib.util.module_from_spec(spec);spec.loader.exec_module(risk)
+        code="""import datetime,json,sys
+assert sys.argv[1:4]==['api','--method','GET']
+path=sys.argv[4]
+if path=='repos/closure-labs/maestro':
+ value=dict(id=1127149753,full_name='closure-labs/maestro',private=False,visibility='public')
+elif path=='repos/closure-labs/maestro/actions/runs/123':
+ value=dict(id=123,run_attempt=1,head_sha='a'*40,head_branch='main',event='workflow_dispatch',
+  path='.github/workflows/publication.yml',repository=dict(id=1127149753),status='in_progress',
+  created_at=datetime.datetime.now(datetime.timezone.utc).isoformat())
+elif path=='repos/closure-labs/maestro/git/ref/heads/main':value=dict(object=dict(sha='a'*40))
+else:
+ sys.stderr.write('HTTP 404: noncanonical endpoint');sys.exit(17)
+print(json.dumps(value))
+"""
+        (self.bin/'gh').write_text('#!'+sys.executable+'\n'+code)
+        env=dict(PATH=str(self.bin)+os.pathsep+os.environ['PATH'],GITHUB_RUN_ID='123',GITHUB_RUN_ATTEMPT='1',
+            GITHUB_REPOSITORY='closure-labs/maestro',GITHUB_REF='refs/heads/main',GITHUB_EVENT_NAME='workflow_dispatch',GITHUB_SHA=SHA)
+        with patch.dict(os.environ,env):
+            self.assertEqual(risk.runtime(prepare.api,SHA,'qualify'),123)
+            with self.assertRaises(subprocess.CalledProcessError):prepare.api('/')
+
+    def test_real_signature_failure_preserves_exit_and_only_fixed_diagnostics(self):
+        (self.bin/'gh').write_text('#!'+sys.executable+'\nimport sys\nsys.stderr.write("fixture-private-url (HTTP 403)\\n")\nsys.exit(17)\n')
+        with patch.dict(os.environ,PATH=str(self.bin)+os.pathsep+os.environ['PATH']):
+            for subject,expected in (('original-ci-result.json','original-ci-result.json'),('fixture-private-name',None)):
+                with self.assertRaises(subprocess.CalledProcessError) as caught:
+                    prepare.response('attestation','verify','/private/'+subject)
+                error=caught.exception
+                self.assertEqual(error.returncode,17)
+                context=prepare.failure_context(error)
+                self.assertEqual(context['phase'],'attestation-verification')
+                self.assertEqual(context['exitCode'],17);self.assertEqual(context['httpStatus'],403)
+                self.assertEqual(context.get('evidenceSubject'),expected)
+                encoded=json.dumps(context)
+                self.assertNotIn('private',encoded);self.assertNotIn('stderr',encoded);self.assertNotIn('cmd',encoded)
+        self.assertEqual(prepare.failure_context(ValueError('fixture-private-data')), {})
+
     def blocked(self, write=True):
         result=self.invoke(write);self.assertEqual(result.returncode,2,result.stdout+result.stderr);self.assertEqual(result.stdout,'')
 

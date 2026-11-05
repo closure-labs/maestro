@@ -157,6 +157,22 @@ class Publication(unittest.TestCase):
             self.assertEqual(result.returncode,2,result.stdout+result.stderr)
             self.assertIn('"error": "ValueError"',result.stderr)
 
+    def test_real_failed_reader_retains_safe_receipt_and_remains_blocked(self):
+        (self.case.bin/'gh').write_text('#!'+sys.executable+'\nimport sys\nsys.stderr.write("fixture-sensitive-data (HTTP 403)\\n")\nsys.exit(17)\n')
+        output=self.case.root/'failure.json'
+        env=dict(os.environ,PATH=str(self.case.bin)+os.pathsep+os.environ['PATH'],
+            MAESTRO_NATIVE_PREPARE_POLICY=str(self.case.policy),NATIVE_RESULT_FILE=str(output),
+            GH_TOKEN='fixture-sensitive-data')
+        result=subprocess.run([sys.executable,str(ROOT/'modules/ci/security/_source/native-publication.py'),
+            'review','--review-operation','qualify','--directory',str(self.case.bundle),
+            '--run','7','--attempt','1','--revision',fixture.SHA],
+            env=env,capture_output=True,text=True,timeout=10)
+        self.assertEqual(result.returncode,2)
+        value=json.loads(output.read_text())
+        self.assertEqual(value,dict(status='blocked',authorization=False,error='CalledProcessError',
+            phase='github-read',githubEndpoint='current-main',exitCode=17,httpStatus=403))
+        self.assertNotIn('fixture-sensitive-data',result.stdout+result.stderr+output.read_text())
+
     def test_low_medium_clear_without_granting_authority(self):
         self.findings=[self.finding('low'),self.finding('medium','b')];bundle=self.bundle()
         with patch.dict(os.environ,self.env),patch.object(pub.native,'api',side_effect=self.api):

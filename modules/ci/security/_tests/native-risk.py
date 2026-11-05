@@ -227,6 +227,12 @@ class Risk(unittest.TestCase):
                     self.assertIn("--option 'packages:pkgs!' ''",step['run'])
         self.assertIsNone(re.fullmatch(pattern,"nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' \"${TASK}\""))
         pre=data['jobs']['native_review']
+        retained=next(s for s in pre['steps'] if s.get('uses','').startswith('actions/upload-artifact@'))
+        self.assertEqual(retained['if'],'always()')
+        self.assertIn('native-findings-diagnostic.json',retained['with']['path'])
+        for step in pre['steps']:
+            if step.get('id') in ('review','qualification_review'):
+                self.assertEqual(step['env']['NATIVE_RESULT_FILE'],'${{ runner.temp }}/native-findings-diagnostic.json')
         selection={step['id']:step for step in pre['steps'] if step.get('id') in ('review','qualification_review')}
         self.assertIn('inputs.native_qualification_only == true',selection['qualification_review']['if'])
         self.assertTrue(selection['qualification_review']['run'].endswith('ci:native:review-qualification'))
