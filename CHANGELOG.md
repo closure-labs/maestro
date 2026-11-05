@@ -11,7 +11,8 @@ correspond to published GitHub tags.
 
 ### Changed
 
-- Retain bounded native findings-review failure receipts with fixed verification
+- Fix the canonical repository-root lookup before native findings review, and
+  retain bounded native findings-review failure receipts with fixed verification
   phase, subject, exit and HTTP status labels; preserve rejection and omit raw
   commands, stderr, credentials and any authorization.
 

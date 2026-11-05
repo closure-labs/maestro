@@ -55,7 +55,7 @@ def failure_context(error):
         if type(getattr(error, 'returncode', None)) is int:
             value['exitCode'] = error.returncode
         endpoint = getattr(error, 'native_endpoint', None)
-        if endpoint in ('current-main', 'source-ancestry', 'protected-source', 'run-metadata', 'environment', 'reviewer-access'):
+        if endpoint in ('current-main', 'source-ancestry', 'protected-source', 'run-metadata', 'environment', 'reviewer-access', 'repository'):
             value['githubEndpoint'] = endpoint
         subject = getattr(error, 'native_subject', None)
         if subject in ('product.json', 'scans.json', 'ci-result.json', 'original-ci-result.json'):
@@ -79,7 +79,9 @@ def response(*args):
                 error.native_phase = 'github-read'
                 path = args[3] if len(args) == 4 and args[1:3] == ('--method', 'GET') else ''
                 prefix = 'repos/' + REPO + '/'
-                if path.startswith(prefix):
+                if path == 'repos/' + REPO:
+                    error.native_endpoint = 'repository'
+                elif path.startswith(prefix):
                     relative = path[len(prefix):]
                     for start, label in (('git/ref/heads/main', 'current-main'), ('compare/', 'source-ancestry'),
                                          ('contents/', 'protected-source'), ('actions/runs/', 'run-metadata'),
@@ -101,7 +103,8 @@ def response(*args):
 
 
 def api(path):
-    return response('api', '--method', 'GET', 'repos/' + REPO + '/' + path)
+    endpoint = 'repos/' + REPO + ('/' + path if path else '')
+    return response('api', '--method', 'GET', endpoint)
 
 
 def attest(path, revision):
