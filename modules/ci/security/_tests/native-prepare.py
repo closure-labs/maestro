@@ -186,6 +186,22 @@ else:raise AssertionError('Unexpected write/registry command')
         self.state.pop('mainAfter');self.state['policy']=dict(self.cfg,maxEvidenceAgeHours=99)
         self.assertNotEqual(self.invoke(policy_revision=policy_revision).returncode,0)
 
+    def test_real_signature_failure_preserves_exit_and_only_fixed_diagnostics(self):
+        (self.bin/'gh').write_text('#!'+sys.executable+'\nimport sys\nsys.stderr.write("fixture-private-url (HTTP 403)\\n")\nsys.exit(17)\n')
+        with patch.dict(os.environ,PATH=str(self.bin)+os.pathsep+os.environ['PATH']):
+            for subject,expected in (('original-ci-result.json','original-ci-result.json'),('fixture-private-name',None)):
+                with self.assertRaises(subprocess.CalledProcessError) as caught:
+                    prepare.response('attestation','verify','/private/'+subject)
+                error=caught.exception
+                self.assertEqual(error.returncode,17)
+                context=prepare.failure_context(error)
+                self.assertEqual(context['phase'],'attestation-verification')
+                self.assertEqual(context['exitCode'],17);self.assertEqual(context['httpStatus'],403)
+                self.assertEqual(context.get('evidenceSubject'),expected)
+                encoded=json.dumps(context)
+                self.assertNotIn('private',encoded);self.assertNotIn('stderr',encoded);self.assertNotIn('cmd',encoded)
+        self.assertEqual(prepare.failure_context(ValueError('fixture-private-data')), {})
+
     def blocked(self, write=True):
         result=self.invoke(write);self.assertEqual(result.returncode,2,result.stdout+result.stderr);self.assertEqual(result.stdout,'')
 

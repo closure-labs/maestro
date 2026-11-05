@@ -245,6 +245,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           NATIVE_RISK_REVIEW_FILE: ${{ runner.temp }}/native-findings-review.json
+          NATIVE_RESULT_FILE: ${{ runner.temp }}/native-findings-diagnostic.json
           MAESTRO_NATIVE_PUBLICATION_ENABLED: ${{ vars.MAESTRO_NATIVE_PUBLICATION_ENABLED }}
           NATIVE_RUN: ${{ inputs.native_run }}
           NATIVE_HEALTH_RUN: ${{ inputs.native_health_run }}
@@ -262,6 +263,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           NATIVE_RISK_REVIEW_FILE: ${{ runner.temp }}/native-findings-review.json
+          NATIVE_RESULT_FILE: ${{ runner.temp }}/native-findings-diagnostic.json
           MAESTRO_NATIVE_PUBLICATION_ENABLED: ${{ vars.MAESTRO_NATIVE_PUBLICATION_ENABLED }}
           NATIVE_RUN: ${{ inputs.native_run }}
           NATIVE_HEALTH_RUN: ${{ inputs.native_health_run }}
@@ -278,7 +280,9 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: maestro-findings-review
-          path: ${{ runner.temp }}/native-findings-review.json
+          path: |
+            ${{ runner.temp }}/native-findings-review.json
+            ${{ runner.temp }}/native-findings-diagnostic.json
           if-no-files-found: error
           retention-days: 30
 

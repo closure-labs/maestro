@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Retain bounded native findings-review failure receipts with fixed verification
+  phase, subject, exit and HTTP status labels; preserve rejection and omit raw
+  commands, stderr, credentials and any authorization.
+
 - Prefer exact authenticated Nix cache outputs during CI qualification reuse,
   downloading the original closure artifact only when substitution is unavailable;
   retain fresh scanning, producer authentication and complete NAR verification.
