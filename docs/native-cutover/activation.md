@@ -1,6 +1,12 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Native cache/public-consumer cutover: staged, not activated
 
+The current sole-maintainer code-review proposal is described in
+[sole-maintainer review](sole-maintainer-review.md). It defers the four immediate
+Phase A GitHub review settings below, keeps the App authority gate, and documents
+the later independently reviewed transition when another maintainer joins.
+Neither this note nor that proposal changes live settings.
+
 This draft migrates the rolling cache publisher and public cache probe to exact
 native CI data. It does not select a security leaf, import ledger acceptance or
 create a decision record. It does not activate settings, a writer or a workflow
