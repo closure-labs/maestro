@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Propose an exact-head sole-maintainer code self-review acknowledgement for Dale,
+  guarded by live team and repository maintainer inventories; retain independent
+  decision review and document transition to independent review when the team grows.
+
 - Fix the canonical repository-root lookup before native findings review, and
   retain bounded native findings-review failure receipts with fixed verification
   phase, subject, exit and HTTP status labels; preserve rejection and omit raw

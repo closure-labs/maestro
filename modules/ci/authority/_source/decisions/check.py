@@ -97,7 +97,7 @@ def check_pr(repository, number, expected_bot, target_sha=None, github=None, *, 
     if sensitive:
         # Governance changes can be authored by humans. Their review is still
         # exact-head/current-maintainer; bot authorship applies only to proposals.
-        authority.approval(api, repository, number, head)
+        authority.approval(api, repository, number, head, allow_sole_self_review=not proposals)
         for path in proposals:
             proposal = authority.document_at(api, repository, path, head)
             if authority.proposal_path(proposal) != path:
@@ -120,7 +120,7 @@ def check_pr(repository, number, expected_bot, target_sha=None, github=None, *, 
     if sensitive:
         # Packet/tree verification can take time. Never retain an earlier live
         # review or role decision across that work.
-        authority.approval(api, repository, number, head)
+        authority.approval(api, repository, number, head, allow_sole_self_review=not proposals)
     latest = api(endpoint)
     if latest.get('head', {}).get('sha') != head or latest.get('state') != 'open':
         raise authority.AuthorityError('PR changed while authority was being evaluated')

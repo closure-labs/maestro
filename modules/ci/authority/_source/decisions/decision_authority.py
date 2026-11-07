@@ -28,6 +28,9 @@ REPOSITORY = re.compile(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+')
 APPROVER_ORG = 'closure-labs'
 APPROVER_TEAM = 'super-admins'
 APPROVER_TEAM_ID = 20196962
+SOLE_REVIEW_REPOSITORY = 'closure-labs/maestro'
+SOLE_REVIEW_LOGIN = 'declarative-dale'
+SOLE_REVIEW_ID = 52590374
 # Complete four-profile ledgers exceed 8 MiB; keep an explicit immutable-blob cap.
 MAX_PROPOSAL_BYTES = 16 * 1024**2
 MAX_API_BYTES = 24 * 1024**2
@@ -461,7 +464,36 @@ def eligible(api, repository, user, members=None):
     return permission.get('role_name', permission.get('permission')) in ('maintain', 'admin')
 
 
-def approval(api, repository, number, head, members=None):
+def sole_maintainer(api, repository, members):
+    """Authenticate the complete live roster, never infer solitude from team size."""
+    if repository != SOLE_REVIEW_REPOSITORY or members != {SOLE_REVIEW_LOGIN: SOLE_REVIEW_ID}:
+        raise HumanDecisionRequired('Sole-maintainer self-review is unavailable')
+    rows = collection(api, f'repos/{repository}/collaborators?affiliation=all')
+    identities, logins, maintainers = set(), set(), set()
+    for user in rows:
+        if (not isinstance(user, dict) or user.get('type') not in ('User', 'Bot')
+                or type(user.get('id')) is not int or user['id'] < 1
+                or not isinstance(user.get('login'), str) or not user['login']
+                or user['id'] in identities or user['login'].lower() in logins
+                or user.get('role_name') not in ('read', 'triage', 'write', 'maintain', 'admin')):
+            raise AuthorityError('Incomplete or ambiguous repository maintainer inventory')
+        identities.add(user['id']); logins.add(user['login'].lower())
+        if user['type'] == 'User' and user['role_name'] in ('maintain', 'admin'):
+            maintainers.add((user['login'].lower(), user['id']))
+    if maintainers != {(SOLE_REVIEW_LOGIN, SOLE_REVIEW_ID)}:
+        raise HumanDecisionRequired('Independent review required when another repository maintainer joins')
+    return rows
+
+
+def self_review_command(review):
+    body = review.get('body')
+    if not isinstance(body, str):
+        return None
+    match = re.fullmatch(r'/maestro (self-review|revoke-self-review) ([0-9a-f]{40})', body.strip())
+    return match.groups() if match else None
+
+
+def approval(api, repository, number, head, members=None, *, allow_sole_self_review=False):
     author = api(f'repos/{repository}/pulls/{number}').get('user')
     if not isinstance(author, dict) or not isinstance(author.get('login'), str):
         raise AuthorityError('Cannot authenticate PR author for independent human approval')
@@ -474,7 +506,16 @@ def approval(api, repository, number, head, members=None):
                 or not isinstance(review.get('user'), dict)):
             raise AuthorityError('Invalid authenticated PR review record')
         if review.get('state') not in ('APPROVED', 'CHANGES_REQUESTED', 'DISMISSED'):
-            continue
+            if not (allow_sole_self_review and repository == SOLE_REVIEW_REPOSITORY
+                    and author.get('type') == 'User' and author.get('id') == SOLE_REVIEW_ID
+                    and author['login'].lower() == SOLE_REVIEW_LOGIN
+                    and review['user'].get('type') == 'User'
+                    and review['user'].get('id') == SOLE_REVIEW_ID
+                    and isinstance(review['user'].get('login'), str)
+                    and review['user']['login'].lower() == SOLE_REVIEW_LOGIN
+                    and review.get('state') == 'COMMENTED'
+                    and self_review_command(review) is not None):
+                continue
         user = review['user']
         if user.get('type') == 'Bot':
             continue
@@ -486,9 +527,26 @@ def approval(api, repository, number, head, members=None):
         if user_id not in latest or latest[user_id]['id'] < review['id']:
             latest[user_id] = review
     accepted = []
+    self_roster = None
+    self_review_id = None
     for review in latest.values():
-        if (review['user']['login'].lower() == author['login'].lower()
-                or (type(author.get('id')) is int and review['user']['id'] == author['id'])):
+        is_author = (review['user']['login'].lower() == author['login'].lower()
+                     or (type(author.get('id')) is int and review['user']['id'] == author['id']))
+        if is_author:
+            if not (allow_sole_self_review and repository == SOLE_REVIEW_REPOSITORY
+                    and author.get('type') == 'User' and author.get('id') == SOLE_REVIEW_ID
+                    and author['login'].lower() == SOLE_REVIEW_LOGIN
+                    and review['user']['id'] == SOLE_REVIEW_ID
+                    and review['user']['login'].lower() == SOLE_REVIEW_LOGIN
+                    and review['state'] == 'COMMENTED'
+                    and self_review_command(review) == ('self-review', head)
+                    and review.get('commit_id') == head):
+                continue
+            if not eligible(api, repository, review['user'], members):
+                continue
+            self_roster = sole_maintainer(api, repository, members)
+            self_review_id = review['id']
+            accepted.append(review)
             continue
         if not eligible(api, repository, review['user'], members):
             continue
@@ -503,6 +561,9 @@ def approval(api, repository, number, head, members=None):
         raise AuthorityError('Super Admins membership changed during authorization')
     if not eligible(api, repository, selected['user'], members):
         raise HumanDecisionRequired('Selected Super Admin approval is no longer eligible')
+    if selected['id'] == self_review_id:
+        if approver_members(api) != members or sole_maintainer(api, repository, members) != self_roster:
+            raise AuthorityError('Sole-maintainer roster changed during self-review authorization')
     return selected
 
 
