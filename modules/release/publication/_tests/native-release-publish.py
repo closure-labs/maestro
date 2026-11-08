@@ -71,6 +71,19 @@ class ReleasePublish(unittest.TestCase):
                 publication=pub,assets=SimpleNamespace(reconcile=self.reconcile),execute=self.attest)
         self.assertEqual(self.published,[]);self.assertEqual(self.calls,[])
 
+    def test_qualification_receipt_rejected_even_with_fresh_production_review(self):
+        self.receipt.update(status='nonpublishing-release-qualification-assets',findingsAccepted=False)
+        self.changed()
+        with self.assertRaises(ValueError):self.publish()
+        self.assertEqual(self.calls,[]);self.assertEqual(self.published,[])
+
+    def test_direct_writer_rejects_qualification_context(self):
+        self.case.bundle['_riskAcceptance']={'context':{'operation':'release-qualify'}}
+        with patch.dict(os.environ,self.env),self.assertRaises(ValueError):
+            writer.publish(self.case.bundle,self.case.output,self.final,self.case.case.policy_path,
+                publication=pub,assets=SimpleNamespace(reconcile=self.reconcile),execute=self.attest)
+        self.assertEqual(self.calls,[]);self.assertEqual(self.published,[])
+
     def test_exact_staged_bytes_final_provenance_and_each_live_write_boundary(self):
         result=self.publish();self.assertEqual(self.calls,['provenance-and-spdx','reconcile'])
         self.assertEqual(self.published,['tag','draft','upload','publish'])

@@ -165,7 +165,7 @@ def consume(bundle, policy_path, operation, transport=None, execute=native.opera
         outcome = policy_verdict(bundle, source_policy, blocking)
     if operation in ('publish','release','release-stage') and not os.environ.get('NATIVE_FINDINGS_CONTEXT_SHA256') and outcome['status']!='clear':
         raise MandatoryVerdictError(outcome)
-    if operation in ('review','publish','release','release-stage','qualify'):
+    if operation in ('review','publish','release','release-stage','qualify','release-qualify'):
         root=Path(os.environ.get('MAESTRO_SYSTEM_ROOT',os.getcwd()))
         files={name:root/name for name in RISK_POLICY_FILES}
         target=review_operation if operation=='review' else ('release' if operation=='release-stage' else operation)
@@ -173,15 +173,16 @@ def consume(bundle, policy_path, operation, transport=None, execute=native.opera
         if operation=='review':
             return dict(status='awaiting-explicit-findings-risk-review',authorization=False,publicationReady=False,
                 verdict=outcome,review=state,rawFindings=blocking['findings'],normalizedFindings=bundle['normalizedFindings'],
-                **(release_review_metadata(bundle) if target=='release' else {}),
-                notice=('This is a nonpublishing gate qualification only. Approval accepts no findings and authorizes no cache or release write.' if target=='qualify' else
+                **(release_review_metadata(bundle) if target in ('release','release-qualify') else {}),
+                notice=('Approval permits only nonpublishing local ISO staging and creation/readback of persistent GitHub provenance and SPDX attestations. It accepts no findings and authorizes no tag, release or cache payload write.' if target=='release-qualify' else
+                    'This is a nonpublishing gate qualification only. Approval accepts no findings and authorizes no cache or release write.' if target in ('qualify','release-qualify') else
                     'Approving findings-risk-review accepts the exact displayed vulnerability risk, including high/critical findings, for this publication only.'))
         state['rebuild']=lambda:risk.context(bundle,bound_json(bundle,'findings.json','findings'),files,target,state['context']['runId'])
         bundle['_riskAcceptance']=state
         proof=risk.approval(native.api,state)
-        if operation=='qualify':
+        if operation in ('qualify','release-qualify'):
             fresh(bundle,policy_path,policy_digest)
-            return dict(status='nonpublishing-findings-gate-qualified',authorization=False,publicationReady=False,
+            return dict(status=('nonpublishing-release-staging-qualified' if operation=='release-qualify' else 'nonpublishing-findings-gate-qualified'),authorization=False,publicationReady=False,
                 findingsAccepted=False,verdict=outcome,review=proof)
         outcome.update(status='clear',riskAcceptance=proof)
     if outcome['status'] != 'clear':
@@ -290,7 +291,7 @@ def emit(result, error=False):
 def main():
     cli = argparse.ArgumentParser(description=__doc__)
     cli.add_argument('operation', choices=('check', 'probe', 'publish', 'release', 'review', 'qualify'))
-    cli.add_argument('--review-operation',choices=('publish','release','qualify'),default='publish')
+    cli.add_argument('--review-operation',choices=('publish','release','qualify','release-qualify'),default='publish')
     cli.add_argument('--directory', type=Path)
     cli.add_argument('--release-directory',type=Path);cli.add_argument('--release-iso',type=Path)
     cli.add_argument('--run', type=int, required=True); cli.add_argument('--attempt', type=int, required=True)
@@ -331,13 +332,13 @@ def main():
             raise
         with Path(os.environ['GITHUB_OUTPUT']).open('a') as stream:
             stream.write('context_sha256='+result['review']['contextSha256']+'\n')
-            if args.review_operation=='release':
+            if args.review_operation in ('release','release-qualify'):
                 stream.write('release_version='+result['releaseVersion']+'\n')
                 stream.write('media_artifact_id='+str(result['mediaArtifactId'])+'\n')
                 for output,key in (('media_run','runId'),('media_attempt','runAttempt'),('media_revision','revision')):
                     stream.write(output+'='+str(result['mediaProducer'][key])+'\n')
         with Path(os.environ['GITHUB_STEP_SUMMARY']).open('a') as stream:
-            stream.write(('## Nonpublishing gate qualification\n' if args.review_operation=='qualify' else '## Explicit findings-risk review\n')+result['notice']+'\n\n')
+            stream.write(('## Nonpublishing gate qualification\n' if args.review_operation in ('qualify','release-qualify') else '## Explicit findings-risk review\n')+result['notice']+'\n\n')
             stream.write('Context SHA-256: `'+result['review']['contextSha256']+'`\n\n')
             stream.write('Review the immutable `maestro-findings-review` artifact for exact product, evidence, policy and finding identities.\n\n')
             if result.get('releaseDestination',{}).get('requiresWritableReadback'):

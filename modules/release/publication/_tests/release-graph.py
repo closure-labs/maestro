@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 """Release job eligibility against GitHub's inherited job-status semantics."""
+import copy
 import json
 import os
 from pathlib import Path
@@ -26,6 +27,18 @@ def ancestors(graph, job):
     return set(needs).union(*(ancestors(graph, parent) for parent in needs))
 
 
+def without_cancelled_override(expression):
+    # Remove the status conjunct wherever it appears, not an assumed prefix.
+    terms = ' '.join(expression.split()).split(' && ')
+    if terms.count('!cancelled()') != 1:
+        raise ValueError('Expected exactly one explicit cancellation override')
+    terms.remove('!cancelled()')
+    result = ' && '.join(terms)
+    if re.search(r'\b(?:always|cancelled|failure|success)\(\)', result):
+        raise ValueError('Another status function would defeat the inherited-status mutation')
+    return result
+
+
 def eligible(graph, job, states, overrides=None, cancelled=False, expression=None):
     expression = ' '.join((expression or graph[job]['if']).split())
     # GitHub adds success() unless a status-check function is present. Include
@@ -36,6 +49,7 @@ def eligible(graph, job, states, overrides=None, cancelled=False, expression=Non
     values = {
         'github.ref': 'refs/heads/main', 'github.event_name': 'workflow_dispatch',
         'inputs.release_candidate': True, 'inputs.release_request_id': '42',
+        'inputs.native_release_qualification_only': False,
         'vars.MAESTRO_RELEASE_CONTINUATION_ENABLED': 'true',
         'needs.context.outputs.ready': 'true', 'needs.context.outputs.already_published': 'false',
     }
@@ -57,16 +71,108 @@ def eligible(graph, job, states, overrides=None, cancelled=False, expression=Non
 
 
 class ReleaseGraph(unittest.TestCase):
+    def assert_distribution_boundary(self, filename, name, job):
+        # Classify every job. A new environment-bearing job must be reviewed,
+        # never silently skipped by a job-name-only exemption.
+        known = {
+            'ci.yml': {'incoming_secret_scan', 'route', 'audit', 'equivalence', 'retained',
+                       'appliance', 'installer', 'qualification', 'boot', 'security',
+                       'signing', 'release_signal', 'verdict'},
+            'release.yml': {'prepare', 'context', 'security', 'release', 'native_review',
+                            'native_finalize', 'native_qualification_review', 'native_qualification'},
+        }
+        self.assertIn(filename, known)
+        self.assertIn(name, known[filename], 'New jobs need an explicit distribution-boundary classification')
+        self.assertNotIn('CACHIX_MAESTRO_AUTH_TOKEN', json.dumps(job))
+        gated = {('release.yml', 'native_finalize'): 'native_review',
+                 ('release.yml', 'native_qualification'): 'native_qualification_review'}
+        if (filename, name) in gated:
+            self.assertEqual(job.get('environment', {}).get('name'), 'findings-risk-review')
+            self.assertEqual(job.get('needs'), gated[filename, name])
+            self.assertNotIn('secrets.', json.dumps(job))
+            permissions = {'actions': 'read', 'contents': 'write', 'attestations': 'write',
+                           'artifact-metadata': 'write', 'id-token': 'write'}
+            if name == 'native_qualification':
+                permissions['contents'] = 'read'
+                self.assertEqual(' '.join(job['if'].split()),
+                    "inputs.native_release_qualification_only == true && needs.native_qualification_review.result == 'success' && "
+                    "inputs.native_release != true && github.repository == 'closure-labs/maestro' && "
+                    "github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'")
+                for forbidden in ('DECIDER', 'CACHIX', 'MAESTRO_NATIVE_RELEASE_ENABLED'):
+                    self.assertNotIn(forbidden, json.dumps(job))
+                self.assertNotIn('uses', job)
+                prefix = "nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' "
+                tasks = [step['run'] for step in job.get('steps', []) if 'run' in step]
+                self.assertEqual(tasks, [prefix + 'release:native:stage-qualification', prefix + 'release:native:verify-qualification'])
+                actions = [step for step in job.get('steps', []) if 'uses' in step]
+                expected = [
+                    ('step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2', {'egress-policy'}),
+                    ('actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1', {'ref', 'persist-credentials'}),
+                    ('$/.github/actions/setup-nix', set()),
+                    ('actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333', {'github-token', 'artifact-ids', 'run-id', 'path'}),
+                    ('actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6', {'subject-path'}),
+                    ('actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6', {'subject-path', 'sbom-path'}),
+                    ('actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9', {'name', 'path', 'if-no-files-found', 'retention-days'}),
+                ]
+                self.assertEqual([(step['uses'], set(step.get('with', {}))) for step in actions], expected)
+                self.assertIs(actions[1]['with']['persist-credentials'], False)
+                self.assertEqual(actions[3]['with']['github-token'], '${{ github.token }}')
+            self.assertEqual(job.get('permissions'), permissions)
+        else:
+            self.assertNotIn('environment', job)
+
     def test_candidate_builds_have_no_distribution_credentials(self):
         for filename in ['ci.yml', 'release.yml']:
             for name, job in jobs(filename).items():
-                if name in ('prepare','native_finalize'):
-                    continue
-                for step in job.get('steps', []):
-                    self.assertNotIn('CACHIX_MAESTRO_AUTH_TOKEN', step.get('env', {}))
-                self.assertNotIn('environment', job)
+                with self.subTest(filename=filename, job=name):
+                    self.assert_distribution_boundary(filename, name, job)
         self.assertNotIn('publish', CI)
         self.assertNotIn('advance', RELEASE)
+
+    def test_qualification_boundary_rejects_gate_permission_secret_and_writer_mutations(self):
+        original = RELEASE['native_qualification']
+        changes = [lambda j: j.pop('environment'),
+                   lambda j: j['environment'].update(name='release'),
+                   lambda j: j['permissions'].update(contents='write'),
+                   lambda j: j['permissions'].update(actions='write'),
+                   lambda j: j.update(needs='native_review'),
+                   lambda j: j['env'].update(UNEXPECTED='${{ secrets.DECIDER_KEY }}'),
+                   lambda j: j['env'].update(CACHIX_MAESTRO_AUTH_TOKEN='fixture'),
+                   lambda j: j.update(**{'if': j['if'].replace('inputs.native_release_qualification_only == true', 'true')}),
+                   lambda j: j.update(**{'if': j['if'] + ' || true'}),
+                   lambda j: j['steps'].append({'run': 'release:native:publish'}),
+                   lambda j: j['steps'].append({'uses': 'unexpected/action@main'}),
+                   lambda j: j['steps'][1]['with'].update(token='${{ github.token }}'),
+                   lambda j: j['steps'][1]['with'].update(**{'persist-credentials': True}),
+                   lambda j: next(step for step in j['steps'] if 'run' in step).update(run='unexpected; ' + next(step['run'] for step in j['steps'] if 'run' in step))]
+        for index, change in enumerate(changes):
+            job = copy.deepcopy(original); change(job)
+            with self.subTest(mutation=index), self.assertRaises(AssertionError):
+                self.assert_distribution_boundary('release.yml', 'native_qualification', job)
+        for filename, name in [('release.yml', 'unreviewed_gate'), ('ci.yml', 'native_qualification')]:
+            with self.subTest(filename=filename, job=name), self.assertRaises(AssertionError):
+                self.assert_distribution_boundary(filename, name, original)
+        with self.assertRaises(AssertionError):
+            self.assert_distribution_boundary('release.yml', 'unknown_ungated', {'steps': [], 'permissions': {'contents': 'write'}})
+        for key in ('env', 'steps'):
+            job = copy.deepcopy(CI['security'])
+            if key == 'env':job.setdefault('env', {})['CACHIX_MAESTRO_AUTH_TOKEN'] = 'fixture'
+            else:job.setdefault('steps', []).append({'env': {'CACHIX_MAESTRO_AUTH_TOKEN': 'fixture'}})
+            with self.subTest(cache_scope=key), self.assertRaises(AssertionError):
+                self.assert_distribution_boundary('ci.yml', 'security', job)
+
+    def test_status_override_mutation_is_order_independent_and_fail_closed(self):
+        states = dict.fromkeys(RELEASE, 'success') | {'prepare': 'skipped'}
+        expression = without_cancelled_override(RELEASE['security']['if'])
+        for source in ('!cancelled() && ' + expression, expression + ' && !cancelled()'):
+            self.assertTrue(eligible(RELEASE, 'security', states, expression=source))
+            mutated = without_cancelled_override(source)
+            self.assertEqual(mutated, expression)
+            self.assertIn('inputs.native_release_qualification_only != true', mutated)
+            self.assertFalse(eligible(RELEASE, 'security', states, expression=mutated))
+        for source in (expression, '!cancelled() && !cancelled() && ' + expression,
+                       '!cancelled() && always() && ' + expression):
+            with self.assertRaises(ValueError):without_cancelled_override(source)
 
     def test_publication_uses_separate_controller_and_same_fifo(self):
         for filename in ['publication.yml', 'release-publication.yml']:
@@ -146,7 +252,7 @@ class ReleaseGraph(unittest.TestCase):
         states = dict.fromkeys(CI, 'success') | {'audit': 'skipped'}
         self.assertIn('audit', ancestors(CI, 'release_signal'))
         self.assertTrue(eligible(CI, 'release_signal', states))
-        without_override = ' '.join(CI['release_signal']['if'].split()).removeprefix('!cancelled() && ')
+        without_override = without_cancelled_override(CI['release_signal']['if'])
         self.assertFalse(eligible(CI, 'release_signal', states, expression=without_override))
         for state in ['failure', 'cancelled', 'skipped', None]:
             with self.subTest(verdict=state):
@@ -164,9 +270,10 @@ class ReleaseGraph(unittest.TestCase):
             with self.subTest(job=job):
                 self.assertIn('prepare', ancestors(RELEASE, job))
                 self.assertTrue(eligible(RELEASE, job, states))
-                without_override = ' '.join(RELEASE[job]['if'].split()).removeprefix('!cancelled() && ')
+                without_override = without_cancelled_override(RELEASE[job]['if'])
                 self.assertFalse(eligible(RELEASE, job, states, expression=without_override))
                 self.assertFalse(eligible(RELEASE, job, states, cancelled=True))
+                self.assertFalse(eligible(RELEASE, job, states, {'inputs.native_release_qualification_only': True}))
                 for state in ['failure', 'cancelled', 'skipped', None]:
                     self.assertFalse(eligible(RELEASE, job, states | {'context': state}))
                 for output in [{'needs.context.outputs.ready': 'false'},

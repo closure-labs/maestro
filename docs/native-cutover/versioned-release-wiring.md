@@ -103,3 +103,68 @@ Rollback changes no history or release assets: after coordinated approval, keep
 or return the native flag to false and stop new native invocations. An already
 published immutable version is never rewritten. Re-enabling a legacy path is not
 a risk waiver: its current checks still run and may reject ambiguous history.
+
+## Proposed nonpublishing full-size qualification
+
+The explicit manual `native_release_qualification_only=true` input is mutually
+exclusive with `native_release=true`; specifying both starts neither route.
+It requires no production activation flag. Every existing job explicitly excludes
+qualification. The production orchestration and publication queue names remain
+unchanged for normal runs; qualification uses a per-run separate queue.
+`publication.yml`'s existing read-only findings-gate qualification is unchanged.
+
+This is **not a purely read-only hosted trial**: after separately authorized
+configuration and dispatch, the human qualification gate permits local staging
+and creation of persistent GitHub SLSA/SPDX attestations for the final-name ISO.
+The summary explicitly states that it accepts no findings. The qualification
+jobs have contents read and Actions read; only the staging/attestation job has
+attestations, artifact-metadata and OIDC write. They receive no App private key
+or cache credential. There is no tag/release/cache payload writer, version
+mutation, closure restore, rescan, or upload of ISO/parts/release packets.
+Only bounded measurement/result receipts are uploaded.
+
+The `release-qualify` purpose and `nonpublishing-release-staging-qualification`
+context are distinct from both production risk review and the old gate-only
+qualification. First-attempt protected-main identity, exact original/health
+producer selection, policy bytes, freshness, signed inventory/boot evidence,
+current eligible human reviewer and context digest remain mandatory. Full actual
+ISO bytes are snapshotted, signature-verified and compared to inventory and boot,
+then passed through the existing splitter and original compressed SBOM staging.
+The final-name ISO is a hard-linked private snapshot, not an unverified download.
+
+The qualification-only route deliberately permits **local staging** when the
+vulnerability verdict is blocked. It never changes that verdict to clear, adds
+risk acceptance, or waives evidence/integrity failures. This is a narrow policy
+change requiring explicit code review, not acceptance of current high/critical
+findings. Mixed reviewed/qualification flags reject before evidence operations.
+Receipts use `nonpublishing-release-qualification-assets`, incompatible with the
+production writer even if a separate production approval exists. Direct writer
+calls reject the qualification purpose. A later production publication still
+needs its own exact approval, evidence and ordinary staging receipt.
+
+The hosted trial would create two final-name attestations using the unchanged
+pinned action and release.yml signer. `release:native:verify-qualification`
+independently reloads verified evidence and the qualification gate, rehashes the
+ISO, and runs the existing read-only final-name provenance/SPDX verifier with
+protected policy SHA and exact original SPDX inventory. A late main, approval,
+access or freshness change rejects the result. It cannot enter the publisher.
+A successful result explicitly remains `authorization:false`,
+`publicationReady:false`, `findingsAccepted:false`.
+
+Staging records elapsed monotonic seconds, ISO/staged asset sizes, disk-free
+samples at phase boundaries and a bounded 100 ms sampler's minimum observed
+free space. These are observations on the shared runner filesystem, **not an
+exact peak**, and exclude initial download, tool setup and subsequent attestation
+runtime. Keep hosted logs and runner/job timing alongside them. The existing
+32 GiB ISO cap, 3x ISO plus 256 MiB headroom check, asset sizes and timeouts are
+unchanged. No full-size trial has been run by preparing or testing this patch.
+
+Before any trial: review/merge the exact proposal, wait for fresh signed hosted
+CI at that head, confirm exact producer/attempt/source and media retention,
+separately approve the findings environment configuration if still absent,
+then explicitly approve a hosted invocation including its persistent attestation
+writes. Review its complete terminal evidence before considering activation.
+This route does not exercise release destination writer-token eligibility,
+public tag/release mutation, writable draft visibility, cache writes, or the
+production writer's additional asset snapshot disk peak. Those remain separate
+qualification/review gaps, not claims made by this nonpublishing trial.

@@ -68,6 +68,7 @@ REPO_ID = 1127149753
 REVIEWER_ID = 52590374
 WORKFLOWS = {'publish': '.github/workflows/publication.yml',
              'qualify': '.github/workflows/publication.yml',
+             'release-qualify': '.github/workflows/release.yml',
              'release': '.github/workflows/release.yml'}
 
 
@@ -130,6 +131,7 @@ def environment(api):
 def context(bundle, findings, files, operation, run):
     revision=bundle['receipt'].get('policyRevision',bundle['receipt']['sourceRevision'])
     return dict(schemaVersion=2,kind=('nonpublishing-findings-gate-qualification' if operation=='qualify'
+        else 'nonpublishing-release-staging-qualification' if operation=='release-qualify'
         else 'per-publication-findings-risk-review'),repositoryId=REPO_ID,
         runId=run,runAttempt=1,workflow=WORKFLOWS[operation],operation=operation,
         policyRevision=revision,productProducer=bundle['receipt'],

@@ -237,8 +237,8 @@ EXPECTED_PUBLICATION_GROUP="$expected_publication_group" yq -e \
    .concurrency.cancel-in-progress == false' \
   "$TEST_ROOT/.github/workflows/publication.yml" >/dev/null \
   || fail "the durable rolling publication queue is not configured"
-yq -e \
-  '.concurrency.group == "maestro-release" and .concurrency.cancel-in-progress == false' \
+EXPECTED_RELEASE_GROUP="\${{ inputs.native_release_qualification_only == true && format('maestro-release-qualification-{0}', github.run_id) || 'maestro-release' }}" yq -e \
+  '.concurrency.group == strenv(EXPECTED_RELEASE_GROUP) and .concurrency.cancel-in-progress == false' \
   "$TEST_ROOT/.github/workflows/release.yml" >/dev/null \
   || fail "release orchestration and durable publication do not use distinct queues"
 yq -e '.concurrency.group == "maestro-publication" and .concurrency.queue == "max" and .concurrency.cancel-in-progress == false' \
