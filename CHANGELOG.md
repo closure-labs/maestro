@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Add an explicit nonpublishing native release qualification route for exact ISO
+  staging, final-name attestation readback, and bounded hosted disk/runtime
+  measurements. Qualification accepts no findings and cannot publish a release.
+
 - Refresh the pinned Xen Orchestra package source from XO 6.9.1 to 6.10.0,
   including its upstream Nixpkgs dependency; retain the appliance base pin and
   require fresh hosted build, boot, and security evidence before release.

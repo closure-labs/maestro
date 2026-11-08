@@ -276,6 +276,115 @@ class ReleaseStage(unittest.TestCase):
         self.assertFalse(self.output.exists())
         self.assertFalse(list(self.root.glob('.maestro-release-*')))
 
+    def qualification_findings(self):
+        self.reviewed_findings()
+        files={name:self.case.policy_root/name for name in pub.RISK_POLICY_FILES}
+        self.env['NATIVE_FINDINGS_CONTEXT_SHA256']=pub.risk.digest(pub.risk.context(self.bundle,self.case.findings,files,'release-qualify',123))
+
+    def test_qualification_stages_exact_bytes_without_accepting_blocking_findings(self):
+        self.qualification_findings()
+        final=self.root/'maestro-v3.2.0.iso'
+        result=self.stage(qualification_only=True,final_iso=final)
+        self.assertEqual(result['status'],'nonpublishing-release-qualification-assets')
+        self.assertEqual(result['qualification']['kind'],'nonpublishing-release-staging-qualification')
+        self.assertEqual(result['verdict']['status'],'blocked')
+        self.assertNotIn('riskAcceptance',result['verdict'])
+        for key in ('authorization','publicationReady','findingsAccepted','finalNameAttestationsCreated'):
+            self.assertIs(result[key],False)
+        self.assertEqual(final.read_bytes(),self.iso.read_bytes())
+        self.assertEqual(result['measurements']['isoBytes'],self.iso.stat().st_size)
+        self.assertEqual(len(result['measurements']['diskSamples']),3)
+        self.assertEqual(self.calls,['trusted','attest','split'])
+        # Even reusing this in-memory review cannot authorize strict staging.
+        with patch.dict(os.environ,self.env),patch.object(pub.native,'api',side_effect=self.api),self.assertRaises(pub.MandatoryVerdictError):
+            pub.consume(self.bundle,self.case.policy_path,'check')
+
+    def test_qualification_readback_verifies_signatures_without_a_writer(self):
+        self.qualification_findings();final=self.root/'maestro-v3.2.0.iso'
+        self.stage(qualification_only=True,final_iso=final)
+        self.env['NATIVE_RESULT_FILE']=str(self.root/'qualification-result.json')
+        calls=[]
+        def verify(args,**kwargs):
+            self.assertEqual(args,['maestro-ci-release-attestations'])
+            self.assertEqual((Path(kwargs['cwd'])/final.name).read_bytes(),final.read_bytes())
+            self.assertEqual(kwargs['env']['SOURCE_SHA'],self.bundle['receipt']['sourceRevision'])
+            calls.append('verify')
+        with patch.dict(os.environ,self.env),patch.object(pub.native,'api',side_effect=self.api):
+            result=release.verify_qualification(self.bundle,self.output,final,'3.2.0',self.case.policy_path,execute=verify)
+        self.assertEqual(calls,['verify']);self.assertTrue(result['finalNameAttestationsVerified'])
+        self.assertEqual(result['verdict']['status'],'blocked');self.assertFalse(result['findingsAccepted'])
+        self.assertFalse(result['authorization']);self.assertFalse(result['publicationReady'])
+
+    def test_qualification_readback_rejects_changed_bytes_receipt_and_signature(self):
+        self.qualification_findings();final=self.root/'maestro-v3.2.0.iso'
+        self.stage(qualification_only=True,final_iso=final)
+        path=self.output/'native-release-staging.json';raw=path.read_text();iso=final.read_bytes()
+        self.env['NATIVE_RESULT_FILE']=str(self.root/'qualification-result.json')
+        for failure in ('iso','receipt','signature'):
+            if failure=='iso':final.write_bytes(b'changed')
+            if failure=='receipt':path.write_text(raw.replace('nonpublishing-release-qualification-assets','staged-native-release-assets'))
+            def verify(*args,**kwargs):raise ValueError('bad signature')
+            with patch.dict(os.environ,self.env),patch.object(pub.native,'api',side_effect=self.api),self.subTest(failure=failure),self.assertRaises(ValueError):
+                release.verify_qualification(self.bundle,self.output,final,'3.2.0',self.case.policy_path,execute=verify)
+            self.assertFalse(Path(self.env['NATIVE_RESULT_FILE']).exists())
+            path.write_text(raw);final.write_bytes(iso)
+
+    def test_qualification_rejects_production_context_missing_gate_and_rerun(self):
+        self.reviewed_findings();final=self.root/'maestro-v3.2.0.iso'
+        with self.assertRaises(ValueError):self.stage(qualification_only=True,final_iso=final)
+        self.qualification_findings()
+        for key,value in [('NATIVE_FINDINGS_CONTEXT_SHA256',''),('GITHUB_RUN_ATTEMPT','2')]:
+            old=self.env.get(key)
+            self.env[key]=value
+            with self.assertRaises(ValueError):self.stage(qualification_only=True,final_iso=final)
+            if old is None:self.env.pop(key)
+            else:self.env[key]=old
+        self.assertFalse(final.exists());self.assertFalse(self.output.exists());self.assertEqual(self.calls,[])
+
+    def test_qualification_context_cannot_authorize_reviewed_staging(self):
+        self.qualification_findings()
+        with self.assertRaises(ValueError):self.stage(findings_review=True)
+        self.assertEqual(self.calls,[])
+
+    def test_qualification_context_cannot_authorize_cache_or_release_consumer(self):
+        self.qualification_findings();final=self.root/'maestro-v3.2.0.iso'
+        self.stage(qualification_only=True,final_iso=final)
+        qualification=self.bundle['_riskAcceptance']
+        for operation in ('publish','release'):
+            self.bundle['_riskAcceptance']=qualification
+            with patch.dict(os.environ,self.env),patch.object(pub.native,'api',side_effect=self.api),self.subTest(operation=operation),self.assertRaises(ValueError):
+                pub.consume(self.bundle,self.case.policy_path,operation,
+                    execute=lambda *a,**k:self.fail('writer reached'),
+                    probe=lambda *a:self.fail('destination reached'),
+                    restore=lambda *a:self.fail('closure restore reached'))
+
+    def test_qualification_rejects_mixed_mode_and_missing_final_subject(self):
+        with self.assertRaises(ValueError):self.stage(qualification_only=True,findings_review=True)
+        with self.assertRaises(ValueError):self.stage(qualification_only=True)
+        self.assertEqual(self.calls,[])
+
+    def test_qualification_preserves_iso_signature_main_and_gate_failures(self):
+        for failure in ('iso','signature','main','reviewer','attempt'):
+            self.qualification_findings();original_api=self.api;changed=[False]
+            def api(path):
+                if changed[0] and failure=='main' and path=='git/ref/heads/main':return dict(object=dict(sha='f'*40))
+                if changed[0] and failure=='attempt' and path=='actions/runs/123':return dict(original_api(path),run_attempt=2)
+                return original_api(path)
+            def execute(args,**kwargs):
+                result=self.execute(args,**kwargs);changed[0]=True
+                if failure=='reviewer':self.revoked=True
+                return result
+            raw=self.iso.read_bytes()
+            if failure=='iso':self.iso.write_bytes(b'bad')
+            def attest(*args):
+                if failure=='signature':raise ValueError('invalid signature')
+            final=self.root/'maestro-v3.2.0.iso'
+            with patch.dict(os.environ,self.env),patch.object(pub.native,'api',side_effect=api),self.subTest(failure=failure),self.assertRaises(ValueError):
+                release.stage(self.bundle,self.iso,self.media,self.output,'3.2.0',self.case.policy_path,
+                    execute=execute,attest=attest,trusted=lambda *a:None,qualification_only=True,final_iso=final)
+            self.iso.write_bytes(raw);self.revoked=False
+            self.assertFalse(final.exists());self.assertFalse(self.output.exists())
+
     def reused_inventory(self):
         self.bundle['binding']['isoSha256']=None
         self.bundle['result'].update(inventoryTransferSha256='e'*64,

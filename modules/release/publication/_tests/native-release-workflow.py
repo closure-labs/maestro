@@ -26,7 +26,7 @@ class ReleaseWorkflow(unittest.TestCase):
         self.assertNotIn('native_publish',legacy['jobs'])
         for enabled,native,expected_prepare,expected_review in [('false',False,True,False),
             ('false',True,False,False),('true',True,False,True),('true',False,False,False)]:
-            values={'vars.MAESTRO_NATIVE_RELEASE_ENABLED':enabled,'inputs.native_release':native,
+            values={'vars.MAESTRO_NATIVE_RELEASE_ENABLED':enabled,'inputs.native_release':native,'inputs.native_release_qualification_only':False,
                 'github.event_name':'workflow_dispatch','github.repository':'closure-labs/maestro','github.ref':'refs/heads/main',
                 'inputs.native_run':'7','inputs.native_revision':'a'*40,'inputs.release_request_run_id':'','inputs.release_candidate_run_id':''}
             def check(name):
@@ -60,7 +60,7 @@ class ReleaseWorkflow(unittest.TestCase):
         self.assertEqual(set(data['on']['workflow_call']['inputs']),{'release_request_run_id','release_candidate_run_id'})
         for forbidden in ('secrets.','DECIDER','CACHIX','ci:decision:','release:retain','ci:security:scan','nix copy'):
             self.assertNotIn(forbidden,json.dumps(job))
-        self.assertEqual(data['concurrency']['group'],'maestro-release')
+        self.assertEqual(data['concurrency']['group'],"${{ inputs.native_release_qualification_only == true && format('maestro-release-qualification-{0}', github.run_id) || 'maestro-release' }}")
         self.assertEqual(job['concurrency'],dict(group='maestro-publication',queue='max',**{'cancel-in-progress':False}))
         script=(ROOT/'modules/release/publication/_source/release-attestations.sh').read_text()
         self.assertIn('--signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml"',script)
@@ -84,7 +84,7 @@ class ReleaseWorkflow(unittest.TestCase):
     def test_native_direct_route_cannot_start_legacy_version_or_packet_jobs(self):
         data=workflow('release.yml')
         for enabled,native in [('false',False),('false',True),('true',False),('true',True)]:
-            values={'vars.MAESTRO_NATIVE_RELEASE_ENABLED':enabled,'inputs.native_release':native,
+            values={'vars.MAESTRO_NATIVE_RELEASE_ENABLED':enabled,'inputs.native_release':native,'inputs.native_release_qualification_only':False,
                 'github.event_name':'workflow_dispatch','github.repository':'closure-labs/maestro','github.ref':'refs/heads/main',
                 'inputs.release_request_run_id':'','inputs.release_candidate_run_id':'',
                 'needs.native_review.result':'success','needs.prepare.result':'success','inputs.event_continuation':False,
@@ -117,6 +117,37 @@ class ReleaseWorkflow(unittest.TestCase):
         self.assertEqual(steps[attest[0]]['with']['subject-path'],steps[writer]['env']['NATIVE_RELEASE_ISO'])
         self.assertEqual(steps[attest[2]]['with'],{'subject-path':'${{ runner.temp }}/native-release-assets/native-release-staging.json'})
         self.assertTrue(attest[1]<attest[2]<writer)
+
+    def test_qualification_excludes_all_production_jobs_and_has_no_public_writer(self):
+        data=workflow('release.yml');jobs=data['jobs']
+        self.assertFalse(data['on']['workflow_dispatch']['inputs']['native_release_qualification_only']['default'])
+        for name,job in jobs.items():
+            if name not in ('native_qualification_review','native_qualification'):
+                self.assertIn('inputs.native_release_qualification_only != true',job['if'])
+        for name in ('native_qualification_review','native_qualification'):
+            job=jobs[name];raw=json.dumps(job)
+            self.assertIn('inputs.native_release_qualification_only == true',job['if'])
+            self.assertIn('inputs.native_release != true',job['if'])
+            for forbidden in ('MAESTRO_NATIVE_RELEASE_ENABLED','secrets.','DECIDER','CACHIX',
+                'release:native:publish','release:native:stage-reviewed','ci:decision:',
+                'create-github-app-token','maestro-publication'):
+                self.assertNotIn(forbidden,raw)
+            self.assertEqual(job['permissions']['contents'],'read')
+        preflight=jobs['native_qualification_review']
+        self.assertEqual(set(preflight['permissions'].values()),{'read'})
+        job=jobs['native_qualification'];steps=job['steps']
+        self.assertEqual(job['permissions'],{'actions':'read','contents':'read','attestations':'write','artifact-metadata':'write','id-token':'write'})
+        self.assertEqual(job['environment']['name'],'findings-risk-review')
+        self.assertEqual(job['needs'],'native_qualification_review')
+        stage=next(i for i,s in enumerate(steps) if s.get('run','').endswith('release:native:stage-qualification'))
+        attest=[i for i,s in enumerate(steps) if s.get('uses','').startswith('actions/attest@')]
+        verify=next(i for i,s in enumerate(steps) if s.get('run','').endswith('release:native:verify-qualification'))
+        self.assertEqual(len(attest),2);self.assertTrue(stage<min(attest)<max(attest)<verify)
+        self.assertEqual(steps[attest[0]]['with']['subject-path'],steps[attest[1]]['with']['subject-path'])
+        self.assertIn('/native-candidate/',steps[attest[1]]['with']['sbom-path'])
+        # Upload only small receipts, never qualification media/parts or a release packet.
+        upload=steps[-1]['with'];self.assertEqual(upload['name'],'maestro-native-release-qualification')
+        self.assertNotIn('*.iso',upload['path']);self.assertNotIn('prepared',upload['path'])
 
     def test_real_stage_wrapper_allows_verified_auto_staging_and_preserves_health_directory(self):
         with tempfile.TemporaryDirectory() as temp:

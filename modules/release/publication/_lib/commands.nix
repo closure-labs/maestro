@@ -22,7 +22,7 @@ in {
       + ''
         export MAESTRO_NATIVE_RELEASE_STAGE_SOURCE=${../_source/native-release-stage.py}
       '';
-    runtimeInputs = commonInputs ++ [pkgs.python3 commands.release-stage];
+    runtimeInputs = commonInputs ++ [pkgs.python3 commands.release-stage commands.release-attestations];
     source = ../_source/native-release-stage.sh;
   };
   publication-inspect = mkCommand {

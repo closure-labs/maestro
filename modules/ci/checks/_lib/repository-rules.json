@@ -290,7 +290,7 @@
   {
     "kind": "contains",
     "path": ".github/workflows/release.yml",
-    "needle": "group: maestro-release",
+    "needle": "|| 'maestro-release'",
     "message": "Release orchestration must not hold the publication queue while qualifying artifacts"
   },
   {

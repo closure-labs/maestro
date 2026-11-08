@@ -4,6 +4,10 @@ name: Release Maestro
 on:
   workflow_dispatch:
     inputs:
+      native_release_qualification_only:
+        description: Nonpublishing full-size staging and attestation trial; accepts no findings or production activation
+        type: boolean
+        default: false
       native_release:
         description: Opt-in native versioned release; requires separately enabled flag and fresh explicit findings-risk approval
         type: boolean
@@ -68,7 +72,7 @@ on:
         type: string
 
 concurrency:
-  group: maestro-release
+  group: ${{ inputs.native_release_qualification_only == true && format('maestro-release-qualification-{0}', github.run_id) || 'maestro-release' }}
   queue: max
   cancel-in-progress: false
 
@@ -78,7 +82,7 @@ permissions:
 jobs:
   prepare:
     if: >-
-      vars.MAESTRO_NATIVE_RELEASE_ENABLED != 'true' && inputs.native_release != true &&
+      inputs.native_release_qualification_only != true && vars.MAESTRO_NATIVE_RELEASE_ENABLED != 'true' && inputs.native_release != true &&
       github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' &&
       inputs.release_request_run_id == '' && inputs.release_candidate_run_id == ''
     name: Merge the release version through protected main
@@ -167,7 +171,7 @@ jobs:
     name: Bind authoritative release continuation context
     needs: prepare
     if: >-
-      !cancelled() && vars.MAESTRO_NATIVE_RELEASE_ENABLED != 'true' && inputs.native_release != true &&
+      inputs.native_release_qualification_only != true && !cancelled() && vars.MAESTRO_NATIVE_RELEASE_ENABLED != 'true' && inputs.native_release != true &&
       ((needs.prepare.result == 'success' && inputs.event_continuation != true && needs.prepare.outputs.restarted != 'true') ||
        (contains(fromJSON('["workflow_run","workflow_dispatch"]'), github.event_name) && github.ref == 'refs/heads/main' &&
         inputs.release_request_run_id != '' && inputs.release_candidate_run_id != ''))
@@ -208,7 +212,7 @@ jobs:
     name: Verify and rescan release candidate
     needs: context
     if: >-
-      !cancelled() && needs.context.result == 'success' &&
+      inputs.native_release_qualification_only != true && !cancelled() && needs.context.result == 'success' &&
       needs.context.outputs.ready == 'true' && needs.context.outputs.already_published != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -291,7 +295,7 @@ jobs:
     name: Prepare immutable official product for human approval
     needs: [context, security]
     if: >-
-      !cancelled() && needs.context.result == 'success' && needs.security.result == 'success' &&
+      inputs.native_release_qualification_only != true && !cancelled() && needs.context.result == 'success' && needs.security.result == 'success' &&
       needs.context.outputs.ready == 'true' && needs.context.outputs.already_published != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -396,7 +400,7 @@ jobs:
           retention-days: 90
 
   native_review:
-    if: vars.MAESTRO_NATIVE_RELEASE_ENABLED == 'true' && inputs.native_release == true && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.native_run != '' && inputs.native_revision != ''
+    if: inputs.native_release_qualification_only != true && vars.MAESTRO_NATIVE_RELEASE_ENABLED == 'true' && inputs.native_release == true && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.native_run != '' && inputs.native_revision != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     outputs:
@@ -453,7 +457,7 @@ jobs:
       group: maestro-publication
       queue: max
       cancel-in-progress: false
-    if: needs.native_review.result == 'success' && inputs.native_release == true && vars.MAESTRO_NATIVE_RELEASE_ENABLED == 'true' && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
+    if: inputs.native_release_qualification_only != true && needs.native_review.result == 'success' && inputs.native_release == true && vars.MAESTRO_NATIVE_RELEASE_ENABLED == 'true' && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     environment:
@@ -534,4 +538,143 @@ jobs:
           name: maestro-native-release-result
           path: ${{ runner.temp }}/native-release-result.json
           if-no-files-found: ignore
+          retention-days: 30
+
+  native_qualification_review:
+    if: inputs.native_release_qualification_only == true && inputs.native_release != true && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.native_run != '' && inputs.native_revision != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      context_sha256: ${{ steps.review.outputs.context_sha256 }}
+      version: ${{ steps.review.outputs.release_version }}
+      media_artifact_id: ${{ steps.review.outputs.media_artifact_id }}
+      media_run: ${{ steps.review.outputs.media_run }}
+      media_attempt: ${{ steps.review.outputs.media_attempt }}
+      media_revision: ${{ steps.review.outputs.media_revision }}
+    permissions:
+      actions: read
+      attestations: read
+      contents: read
+    steps:
+      - name: Monitor hosted runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2
+        with:
+          egress-policy: audit
+      - name: Checkout protected native controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up Nix
+        uses: $/.github/actions/setup-nix
+      - name: Prepare qualification context; accept no findings
+        id: review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NATIVE_RISK_REVIEW_FILE: ${{ runner.temp }}/native-findings-review.json
+          NATIVE_RUN: ${{ inputs.native_run }}
+          NATIVE_HEALTH_RUN: ${{ inputs.native_health_run }}
+          NATIVE_HEALTH_ATTEMPT: ${{ inputs.native_health_attempt }}
+          NATIVE_ATTEMPT: ${{ inputs.native_attempt }}
+          NATIVE_REVISION: ${{ inputs.native_revision }}
+          NATIVE_POLICY_REVISION: ${{ github.sha }}
+          NATIVE_BOOT_ORIGIN_RUN: ${{ inputs.native_boot_run }}
+          NATIVE_BOOT_ORIGIN_ATTEMPT: ${{ inputs.native_boot_attempt }}
+          NATIVE_BOOT_ORIGIN_REVISION: ${{ inputs.native_boot_revision }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:native:review-qualification
+      - name: Retain bounded native consumer receipt
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-findings-review
+          path: ${{ runner.temp }}/native-findings-review.json
+          if-no-files-found: error
+          retention-days: 30
+
+  native_qualification:
+    needs: native_qualification_review
+    name: Qualify exact full-size release bytes without publication
+    if: inputs.native_release_qualification_only == true && needs.native_qualification_review.result == 'success' && inputs.native_release != true && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    environment:
+      name: findings-risk-review
+      url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#summary
+    permissions:
+      actions: read
+      contents: read
+      attestations: write
+      artifact-metadata: write
+      id-token: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      NATIVE_FINDINGS_CONTEXT_SHA256: ${{ needs.native_qualification_review.outputs.context_sha256 }}
+      NATIVE_RUN: ${{ inputs.native_run }}
+      NATIVE_ATTEMPT: ${{ inputs.native_attempt }}
+      NATIVE_REVISION: ${{ inputs.native_revision }}
+      NATIVE_POLICY_REVISION: ${{ github.sha }}
+      NATIVE_HEALTH_RUN: ${{ inputs.native_health_run }}
+      NATIVE_HEALTH_ATTEMPT: ${{ inputs.native_health_attempt }}
+      NATIVE_BOOT_ORIGIN_RUN: ${{ inputs.native_boot_run }}
+      NATIVE_BOOT_ORIGIN_ATTEMPT: ${{ inputs.native_boot_attempt }}
+      NATIVE_BOOT_ORIGIN_REVISION: ${{ inputs.native_boot_revision }}
+    steps:
+      - name: Monitor hosted runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2
+        with:
+          egress-policy: audit
+      - name: Checkout protected release controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: $/.github/actions/setup-nix
+      - name: Download exact original executed-boot media artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          github-token: ${{ github.token }}
+          artifact-ids: ${{ needs.native_qualification_review.outputs.media_artifact_id }}
+          run-id: ${{ needs.native_qualification_review.outputs.media_run }}
+          path: ${{ runner.temp }}/native-media
+      - name: Verify qualification approval and stage exact ISO without accepting findings
+        env:
+          NATIVE_ISO: ${{ runner.temp }}/native-media/result-installer/iso/maestro-installer.iso
+          NATIVE_RELEASE_OUTPUT: ${{ runner.temp }}/native-release-assets
+          NATIVE_RELEASE_FINAL_ISO: ${{ runner.temp }}/maestro-v${{ needs.native_qualification_review.outputs.version }}.iso
+          NATIVE_RELEASE_VERSION: ${{ needs.native_qualification_review.outputs.version }}
+          NATIVE_MEDIA_RUN: ${{ needs.native_qualification_review.outputs.media_run }}
+          NATIVE_MEDIA_ATTEMPT: ${{ needs.native_qualification_review.outputs.media_attempt }}
+          NATIVE_MEDIA_REVISION: ${{ needs.native_qualification_review.outputs.media_revision }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:native:stage-qualification
+      - name: Attest the exact versioned installer with existing release signer
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: ${{ runner.temp }}/maestro-v${{ needs.native_qualification_review.outputs.version }}.iso
+      - name: Bind the original complete SPDX inventory to the exact versioned ISO
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: ${{ runner.temp }}/maestro-v${{ needs.native_qualification_review.outputs.version }}.iso
+          sbom-path: ${{ runner.temp }}/native-candidate/maestro-system.spdx.json
+      - name: Verify final-name provenance and SPDX without publishing
+        env:
+          NATIVE_DIRECTORY: ${{ runner.temp }}/native-candidate
+          NATIVE_HEALTH_DIRECTORY: ${{ inputs.native_health_run != '' && format('{0}/native-health', runner.temp) || '' }}
+          NATIVE_RESULT_FILE: ${{ runner.temp }}/native-release-qualification-result.json
+          NATIVE_ISO: ${{ runner.temp }}/native-media/result-installer/iso/maestro-installer.iso
+          NATIVE_RELEASE_OUTPUT: ${{ runner.temp }}/native-release-assets
+          NATIVE_RELEASE_FINAL_ISO: ${{ runner.temp }}/maestro-v${{ needs.native_qualification_review.outputs.version }}.iso
+          NATIVE_RELEASE_VERSION: ${{ needs.native_qualification_review.outputs.version }}
+          NATIVE_MEDIA_RUN: ${{ needs.native_qualification_review.outputs.media_run }}
+          NATIVE_MEDIA_ATTEMPT: ${{ needs.native_qualification_review.outputs.media_attempt }}
+          NATIVE_MEDIA_REVISION: ${{ needs.native_qualification_review.outputs.media_revision }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:native:verify-qualification
+      - name: Retain bounded non-authorizing staging measurements
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-native-release-qualification
+          path: |
+            ${{ runner.temp }}/native-release-assets/native-release-staging.json
+            ${{ runner.temp }}/native-release-qualification-result.json
+          if-no-files-found: error
           retention-days: 30
