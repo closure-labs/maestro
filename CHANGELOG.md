@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Refresh the pinned Xen Orchestra package source from XO 6.9.1 to 6.10.0,
+  including its upstream Nixpkgs dependency; retain the appliance base pin and
+  require fresh hosted build, boot, and security evidence before release.
+
 - Propose an exact-head sole-maintainer code self-review acknowledgement for Dale,
   guarded by live team and repository maintainer inventories; retain independent
   decision review and document transition to independent review when the team grows.

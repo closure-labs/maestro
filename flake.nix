@@ -24,6 +24,6 @@
     };
     import-tree.url = "github:vic/import-tree";
     nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0";
-    xen-orchestra-ce.url = "github:closure-labs/xo-nixpkg/cc71a6c82674a26557271b5d4e730e2f05a8cf03";
+    xen-orchestra-ce.url = "github:closure-labs/xo-nixpkg/02dc8719df57c5fb11707650579493d0c1060b0a";
   };
 }
