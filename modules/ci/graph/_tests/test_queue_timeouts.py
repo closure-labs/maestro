@@ -3,16 +3,26 @@
 """Keep the worst-case queue DAG inside its response budget, without skipping work."""
 import copy
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
+import shutil
+import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[4]
+WORKFLOW_INPUTS = {
+    'ci.yml': 'MAESTRO_CI_WORKFLOW',
+    'repository-secret-scan.yml': 'MAESTRO_QUEUE_SECRET_WORKFLOW',
+    'codeql.yml': 'MAESTRO_QUEUE_CODEQL_WORKFLOW',
+    'decision-authority.yml': 'MAESTRO_QUEUE_AUTHORITY_WORKFLOW',
+}
+RULESET = Path(os.environ.get('MAESTRO_QUEUE_RULESET', ROOT / 'modules/ci/authority/_source/github/main-ruleset.json'))
 
 
 def workflow(name):
-    return json.loads(subprocess.check_output(['yq', '-o=json', '.', str(ROOT / '.github/workflows' / name)], text=True))
+    return json.loads(subprocess.check_output(['yq', '-o=json', '.', str(Path(os.environ.get(WORKFLOW_INPUTS[name], ROOT / '.github/workflows' / name)))], text=True))
 
 
 def minutes(job):
@@ -56,7 +66,7 @@ class QueueTimeouts(unittest.TestCase):
     def setUp(self):
         self.jobs = workflow('ci.yml')['jobs']
         self.secret = max(minutes(j) for j in workflow('repository-secret-scan.yml')['jobs'].values())
-        policy = json.loads((ROOT / 'modules/ci/authority/_source/github/main-ruleset.json').read_text())
+        policy = json.loads(RULESET.read_text())
         self.limit = next(r for r in policy['rules'] if r['type'] == 'merge_queue')['parameters']['check_response_timeout_minutes']
 
     def test_bounded_queue_path_has_scheduling_margin(self):
@@ -90,6 +100,20 @@ class QueueTimeouts(unittest.TestCase):
         changed['route']['needs'] = 'verdict'
         with self.assertRaises(ValueError):
             longest_path(changed, self.secret)
+
+    def test_relocated_fixture_uses_explicit_packaged_inputs(self):
+        if os.environ.get('MAESTRO_QUEUE_RELOCATED_TEST'):
+            return
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / 'a/b/c/d/test_queue_timeouts.py'
+            target.parent.mkdir(parents=True)
+            shutil.copyfile(__file__, target)
+            environment = dict(os.environ, MAESTRO_QUEUE_RELOCATED_TEST='1', MAESTRO_QUEUE_RULESET=str(RULESET))
+            for name, variable in WORKFLOW_INPUTS.items():
+                environment[variable] = str(Path(os.environ.get(variable, ROOT / '.github/workflows' / name)))
+            result = subprocess.run(['python3', str(target)], env=environment,
+                                    capture_output=True, text=True, timeout=20)
+            self.assertEqual(result.returncode, 0, result.stderr)
 
 
 if __name__ == '__main__':
