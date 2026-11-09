@@ -241,9 +241,11 @@ EXPECTED_RELEASE_GROUP="\${{ inputs.native_release_qualification_only == true &&
   '.concurrency.group == strenv(EXPECTED_RELEASE_GROUP) and .concurrency.cancel-in-progress == false' \
   "$TEST_ROOT/.github/workflows/release.yml" >/dev/null \
   || fail "release orchestration and durable publication do not use distinct queues"
-yq -e '.concurrency.group == "maestro-publication" and .concurrency.queue == "max" and .concurrency.cancel-in-progress == false' \
-  "$TEST_ROOT/.github/workflows/release-publication.yml" >/dev/null \
-  || fail "official and rolling publication do not share the durable queue"
+yq -e '.jobs.native_finalize.concurrency.group == "maestro-publication" and .jobs.native_finalize.concurrency.queue == "max" and .jobs.native_finalize.concurrency.cancel-in-progress == false' \
+  "$TEST_ROOT/.github/workflows/release.yml" >/dev/null \
+  || fail "native release and cache publication do not share the durable queue"
+[[ ! -e "$TEST_ROOT/.github/workflows/release-publication.yml" && ! -e "$TEST_ROOT/.github/workflows/release-continuation.yml" ]] \
+  || fail "retired publication controllers are still active"
 yq -e \
   '.on.workflow_dispatch.inputs.release_candidate.type == "boolean" and
    .on.workflow_dispatch.inputs.release_candidate.default == false and
@@ -293,9 +295,12 @@ grep -Fq 'contains(fromJSON' \
 grep -Fq 'if: fromJSON(steps.graph.outputs.route_plan).qualification.required' \
   "$TEST_ROOT/.github/workflows/ci.yml" \
   || fail "installer state upload does not consume the authoritative route plan"
-grep -Fq "'' ci:decision:publication" \
+yq -e '.jobs.native_publish.needs == "native_review" and .jobs.native_publish.environment.name == "findings-risk-review"' \
+  "$TEST_ROOT/.github/workflows/publication.yml" >/dev/null \
+  || fail "native cache publication does not require the human findings gate"
+grep -Fq "'' ci:native:publication" \
   "$TEST_ROOT/.github/workflows/publication.yml" \
-  || fail "publication does not require live human admission"
+  || fail "native cache publication bypasses its declared gated publisher"
 grep -Fq 'name: maestro-qualification-state' \
   "$TEST_ROOT/.github/workflows/ci.yml" \
   || fail "installer workflow does not publish its immutable state pointer"
@@ -362,10 +367,12 @@ if grep -Fq 'inputs:' \
 fi
 grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-dev\.[0-9]+)?$' "$TEST_ROOT/VERSION" \
   || fail "repository version is not a stable or development semantic version"
-grep -Fq ".#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:stage" "$TEST_ROOT/.github/workflows/release.yml" \
+grep -Fq ".#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:native:stage-reviewed" "$TEST_ROOT/.github/workflows/release.yml" \
   || fail "release workflow does not split oversized installer assets through its declared task"
 grep -Fq '2147483648' "$TEST_ROOT/modules/release/publication/_source/release-split.sh" \
   || fail "release staging does not enforce GitHub's per-asset size limit"
+# Historical operator libraries remain audit-compatible; active native workflow
+# gates and immutable staging are asserted separately above and below.
 grep -Fq 'Release tag %s already exists without a GitHub release.' \
   "$TEST_ROOT/modules/release/publication/_source/release-manager.sh" \
   || fail "release preparation does not reject pre-existing unpublished tags"
@@ -407,13 +414,17 @@ grep -Fq 'maestro-ci-verify-inventory candidate "$ARTIFACT_SOURCE_COMMIT"' \
 grep -Fq -- '--signer-workflow "$signer_workflow"' \
   "$TEST_ROOT/modules/features/installer/_source/verify-inventory.sh" \
   || fail "release verification does not constrain the signer workflow"
-grep -Fq 'sbom-path: candidate/maestro-system.spdx.json' \
+# shellcheck disable=SC2016
+grep -Fq 'sbom-path: ${{ runner.temp }}/native-candidate/maestro-system.spdx.json' \
   "$TEST_ROOT/.github/workflows/release.yml" \
   || fail "versioned release filename is not bound to the SPDX SBOM"
-grep -Fq ".#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:prepare" \
+yq -e '.jobs.native_finalize.needs == "native_review" and .jobs.native_finalize.environment.name == "findings-risk-review" and .jobs.prepare == null' \
+  "$TEST_ROOT/.github/workflows/release.yml" >/dev/null \
+  || fail "native release bypasses exact review or restores legacy version mutation"
+grep -Fq "'' release:native:publish" \
   "$TEST_ROOT/.github/workflows/release.yml" \
-  || fail "release version changes bypass protected main"
-yq -o=json '.jobs.release.steps' "$TEST_ROOT/.github/workflows/release.yml" | jq -e '
+  || fail "native release bypasses its declared gated publisher"
+yq -o=json '.jobs.native_finalize.steps' "$TEST_ROOT/.github/workflows/release.yml" | jq -e '
   any(.[]; (.uses // "") | test("^actions/download-artifact@[0-9a-f]{40}$"))
 ' >/dev/null \
   || fail "release publication does not use an immutable artifact downloader"

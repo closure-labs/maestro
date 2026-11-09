@@ -36,7 +36,7 @@ MAX_REVIEW_BYTES = 64 * 1024**2
 RISK_POLICY_FILES=(
     '.github/CODEOWNERS', 'VERSION', '.github/workflows/publication.yml',
     '.github/workflows/consumer-probe.yml',
-    '.github/workflows/release.yml', '.github/workflows/release-publication.yml',
+    '.github/workflows/release.yml',
     'modules/ci/authority/_source/decision-policy.json',
     'modules/ci/security/_source/security-policy.json',
     'modules/ci/security/_source/native-risk.py',

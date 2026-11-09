@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Inactive native release routing, signer identity, and bounded real CLI outputs."""
+"""Native-only release routing, signer identity, and bounded real CLI outputs."""
 import json
 import os
 from pathlib import Path
@@ -20,22 +20,20 @@ def workflow(name):
 
 class ReleaseWorkflow(unittest.TestCase):
     def test_default_off_direct_native_route_cannot_fall_back_to_version_mutation(self):
-        data=workflow('release.yml');legacy=workflow('release-publication.yml')
+        data=workflow('release.yml')
         self.assertFalse(data['on']['workflow_dispatch']['inputs']['native_release']['default'])
-        self.assertNotIn('native_release',legacy['on']['workflow_dispatch']['inputs'])
-        self.assertNotIn('native_publish',legacy['jobs'])
-        for enabled,native,expected_prepare,expected_review in [('false',False,True,False),
-            ('false',True,False,False),('true',True,False,True),('true',False,False,False)]:
+        self.assertEqual(set(data['jobs']), {'native_review','native_finalize','native_qualification_review','native_qualification'})
+        for name in ('release-publication.yml','release-continuation.yml'):
+            self.assertFalse((ROOT/'.github/workflows'/name).exists())
+        for enabled,native,expected_review in [('false',False,False),('false',True,False),('true',True,True),('true',False,False)]:
             values={'vars.MAESTRO_NATIVE_RELEASE_ENABLED':enabled,'inputs.native_release':native,'inputs.native_release_qualification_only':False,
                 'github.event_name':'workflow_dispatch','github.repository':'closure-labs/maestro','github.ref':'refs/heads/main',
-                'inputs.native_run':'7','inputs.native_revision':'a'*40,'inputs.release_request_run_id':'','inputs.release_candidate_run_id':''}
-            def check(name):
-                expression=' '.join(data['jobs'][name]['if'].split())
-                expression=re.sub(r'(?:vars|inputs|github)\.[A-Za-z0-9_.]+',lambda m:repr(values[m.group()]),expression)
-                expression=expression.replace('&&',' and ').replace('||',' or ').replace('true','True').replace('false','False')
-                return eval(expression,{'__builtins__':{}})
+                'inputs.native_run':'7','inputs.native_revision':'a'*40}
+            expression=' '.join(data['jobs']['native_review']['if'].split())
+            expression=re.sub(r'(?:vars|inputs|github)\.[A-Za-z0-9_.]+',lambda m:repr(values[m.group()]),expression)
+            expression=expression.replace('&&',' and ').replace('||',' or ').replace('true','True').replace('false','False')
             with self.subTest(enabled=enabled,native=native):
-                self.assertEqual(check('prepare'),expected_prepare);self.assertEqual(check('native_review'),expected_review)
+                self.assertEqual(eval(expression,{'__builtins__':{}}),expected_review)
 
     def test_preflight_has_no_writer_secret_and_exports_proof_derived_media(self):
         job=workflow('release.yml')['jobs']['native_review']
@@ -56,8 +54,7 @@ class ReleaseWorkflow(unittest.TestCase):
         self.assertEqual(job['environment']['name'],'findings-risk-review')
         self.assertEqual(job['permissions'],{'contents':'write','actions':'read','attestations':'write',
             'artifact-metadata':'write','id-token':'write'})
-        self.assertTrue(data['on']['workflow_call']['secrets']['DECIDER_KEY']['required'])
-        self.assertEqual(set(data['on']['workflow_call']['inputs']),{'release_request_run_id','release_candidate_run_id'})
+        self.assertNotIn('workflow_call',data['on'])
         for forbidden in ('secrets.','DECIDER','CACHIX','ci:decision:','release:retain','ci:security:scan','nix copy'):
             self.assertNotIn(forbidden,json.dumps(job))
         self.assertEqual(data['concurrency']['group'],"${{ inputs.native_release_qualification_only == true && format('maestro-release-qualification-{0}', github.run_id) || 'maestro-release' }}")
@@ -65,41 +62,28 @@ class ReleaseWorkflow(unittest.TestCase):
         script=(ROOT/'modules/release/publication/_source/release-attestations.sh').read_text()
         self.assertIn('--signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml"',script)
 
-    def test_reusable_permission_ceilings_include_every_job_even_when_skipped(self):
-        data=workflow('release.yml');rank={'none':0,'read':1,'write':2};required={}
-        for job in data['jobs'].values():
-            for scope,level in job.get('permissions',data['permissions']).items():
-                required[scope]=max(required.get(scope,0),rank[level])
-        callers=[]
+    def test_retired_reusable_controller_has_no_active_callers(self):
+        self.assertNotIn('workflow_call',workflow('release.yml')['on'])
         for path in (ROOT/'.github/workflows').glob('*.yml'):
             for job in workflow(path.name)['jobs'].values():
-                if job.get('uses') in ('$/.github/workflows/release.yml','./.github/workflows/release.yml'):
-                    callers.append(job)
-        self.assertEqual(len(callers),1)
-        for caller in callers:
-            for scope,level in required.items():
-                self.assertGreaterEqual(rank[caller['permissions'].get(scope,'none')],level,scope)
-        self.assertEqual(callers[0]['secrets']['DECIDER_KEY'],'${{ secrets.DECIDER_KEY }}')
+                self.assertNotIn(job.get('uses'), ('$/.github/workflows/release.yml','./.github/workflows/release.yml'))
 
     def test_native_direct_route_cannot_start_legacy_version_or_packet_jobs(self):
         data=workflow('release.yml')
+        for name in ('prepare','context','security','release'):
+            self.assertNotIn(name,data['jobs'])
+        for name in ('bump','event_continuation','release_request_run_id','release_candidate_run_id'):
+            self.assertNotIn(name,data['on']['workflow_dispatch']['inputs'])
         for enabled,native in [('false',False),('false',True),('true',False),('true',True)]:
-            values={'vars.MAESTRO_NATIVE_RELEASE_ENABLED':enabled,'inputs.native_release':native,'inputs.native_release_qualification_only':False,
-                'github.event_name':'workflow_dispatch','github.repository':'closure-labs/maestro','github.ref':'refs/heads/main',
-                'inputs.release_request_run_id':'','inputs.release_candidate_run_id':'',
-                'needs.native_review.result':'success','needs.prepare.result':'success','inputs.event_continuation':False,
-                'needs.prepare.outputs.restarted':'false'}
-            def check(name):
-                expression=' '.join(data['jobs'][name]['if'].split())
+            for reviewed in ('success','failure','skipped'):
+                values={'vars.MAESTRO_NATIVE_RELEASE_ENABLED':enabled,'inputs.native_release':native,'inputs.native_release_qualification_only':False,
+                    'github.event_name':'workflow_dispatch','github.repository':'closure-labs/maestro','github.ref':'refs/heads/main',
+                    'needs.native_review.result':reviewed}
+                expression=' '.join(data['jobs']['native_finalize']['if'].split())
                 expression=re.sub(r'(?:vars|inputs|github|needs)\.[A-Za-z0-9_.]+',lambda m:repr(values[m.group()]),expression)
-                expression=expression.replace('!cancelled()','True').replace('&&',' and ').replace('||',' or ').replace('true','True').replace('false','False')
-                return eval(expression,{'__builtins__':{},'contains':lambda xs,x:x in xs,'fromJSON':json.loads})
-            with self.subTest(enabled=enabled,native=native):
-                self.assertEqual(check('prepare'),enabled=='false' and native is False)
-                self.assertEqual(check('context'),enabled=='false' and native is False)
-                self.assertEqual(check('native_finalize'),enabled=='true' and native is True)
-                values['needs.native_review.result']='failure';self.assertFalse(check('native_finalize'))
-        self.assertIn("vars.MAESTRO_NATIVE_RELEASE_ENABLED != 'true'",workflow('release-continuation.yml')['jobs']['resolve']['if'])
+                expression=expression.replace('&&',' and ').replace('||',' or ').replace('true','True').replace('false','False')
+                with self.subTest(enabled=enabled,native=native,reviewed=reviewed):
+                    self.assertEqual(eval(expression,{'__builtins__':{}}),enabled=='true' and native is True and reviewed=='success')
 
     def test_one_exact_media_download_stage_attestation_and_writer_sequence(self):
         job=workflow('release.yml')['jobs']['native_finalize'];steps=job['steps']

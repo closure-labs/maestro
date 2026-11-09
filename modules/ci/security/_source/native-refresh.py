@@ -37,9 +37,8 @@ def select_current_main(api=native.api):
     revision=os.environ.get('GITHUB_SHA','')
     require(os.environ.get('GITHUB_REPOSITORY')==native.REPO
         and os.environ.get('GITHUB_REF')=='refs/heads/main'
-        and os.environ.get('GITHUB_EVENT_NAME') in ('schedule','workflow_dispatch')
-        and os.environ.get('MAESTRO_NATIVE_REFRESH_ENABLED')=='true'
-        and re.fullmatch(r'[0-9a-f]{40}',revision), 'Native current-main refresh remains disabled or unprotected')
+        and os.environ.get('GITHUB_EVENT_NAME')=='schedule'
+        and re.fullmatch(r'[0-9a-f]{40}',revision), 'Native current-main refresh requires a protected schedule')
     branch=api('branches/main')
     require(branch.get('protected') is True and branch.get('commit',{}).get('sha')==revision,
             'Refresh policy/main changed before selection')
@@ -89,8 +88,7 @@ def official_binding(bundle,target):
 def scheduled_official(policy,api=native.api):
     require(os.environ.get('GITHUB_REPOSITORY')==native.REPO and os.environ.get('GITHUB_REF')=='refs/heads/main'
         and os.environ.get('GITHUB_EVENT_NAME')=='schedule' and os.environ.get('GITHUB_SHA')==policy
-        and os.environ.get('MAESTRO_NATIVE_REFRESH_ENABLED')=='true'
-        and os.environ.get('MAESTRO_NATIVE_RELEASE_ENABLED')=='true','Scheduled official refresh remains disabled')
+,'Scheduled official refresh requires protected main')
     latest=api('releases/latest')
     require(type(latest.get('id')) is int and latest['id']>0 and latest.get('draft') is False
         and latest.get('prerelease') is False and isinstance(latest.get('tag_name'),str)
@@ -162,8 +160,7 @@ def refresh(bundle, output, cfg, transport, restore, query=identities, scan=None
     require(os.environ.get('GITHUB_REPOSITORY') == native.REPO
             and os.environ.get('GITHUB_REF') == 'refs/heads/main'
             and (os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch' or
-                 (scheduled is True and os.environ.get('GITHUB_EVENT_NAME') == 'schedule'
-                  and os.environ.get('MAESTRO_NATIVE_REFRESH_ENABLED') == 'true'))
+                 (scheduled is True and os.environ.get('GITHUB_EVENT_NAME') == 'schedule'))
             and os.environ.get('GITHUB_SHA') == policy_revision, 'Protected exact-source refresh required')
     run, attempt = int(os.environ['GITHUB_RUN_ID']), int(os.environ['GITHUB_RUN_ATTEMPT'])
     require(run > 0 and attempt > 0, 'Positive fresh producer identity required')
@@ -264,10 +261,10 @@ def refresh(bundle, output, cfg, transport, restore, query=identities, scan=None
 
 def run():
     cli=argparse.ArgumentParser(description=__doc__)
-    cli.add_argument('--select-official-release',action='store_true',help='Both-flags-protected scheduled shipped-product refresh')
+    cli.add_argument('--select-official-release',action='store_true',help='Protected scheduled shipped-product refresh')
     cli.add_argument('--official-tag',help='Explicit stable native release; requires its exact signed public receipt')
     cli.add_argument('--official-publication-revision',help='Exact reviewed release signer revision')
-    cli.add_argument('--select-current-main',action='store_true',help='Opt-in exact protected-main CI selection; never select historical decisions')
+    cli.add_argument('--select-current-main',action='store_true',help='Scheduled exact protected-main CI selection; never select historical decisions')
     cli.add_argument('--run',type=int);cli.add_argument('--attempt',type=int)
     cli.add_argument('--revision');cli.add_argument('--output',type=Path,required=True)
     cli.add_argument('--policy-revision',help='Explicit current scanner/policy source; immutable product source is unchanged')

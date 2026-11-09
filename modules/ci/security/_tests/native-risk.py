@@ -199,7 +199,7 @@ class Risk(unittest.TestCase):
         self.assertFalse(data['on']['workflow_dispatch']['inputs']['native_qualification_only']['default'])
         self.assertIn('maestro-publication-qualification',data['concurrency']['group'])
         self.assertIn("|| 'maestro-publication'",data['concurrency']['group'])
-        for name in ('publish','native_publish'):
+        for name in ('native_publish',):
             self.assertIn('inputs.native_qualification_only != true',data['jobs'][name]['if'])
         job=data['jobs']['native_qualify'];encoded=json.dumps(job)
         self.assertIn('inputs.native_qualification_only == true',job['if'])

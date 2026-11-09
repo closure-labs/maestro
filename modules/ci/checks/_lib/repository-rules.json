@@ -68,7 +68,7 @@
   {
     "kind": "contains",
     "path": ".github/workflows/release.yml",
-    "needle": ".#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:stage",
+    "needle": ".#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:native:stage-reviewed",
     "message": "Release staging must use its isolated declared devenv task"
   },
   {
@@ -86,8 +86,8 @@
   {
     "kind": "contains",
     "path": ".github/workflows/release.yml",
-    "needle": ".#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:prepare",
-    "message": "Release version changes must use the isolated protected devenv task"
+    "needle": ".#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:native:review",
+    "message": "Native release selection must use the isolated exact-product review task"
   },
   {
     "kind": "contains",
@@ -97,9 +97,9 @@
   },
   {
     "kind": "contains",
-    "path": ".github/workflows/release.yml",
-    "needle": "EXPECTED_AUTHOR: cl-decider",
-    "message": "Version automation must validate the scoped App identity"
+    "path": ".github/workflows/decision-authority.yml",
+    "needle": "ci:decision:check",
+    "message": "Maintainer authority must retain independent App-bound verification"
   },
   {
     "kind": "contains",
@@ -218,8 +218,8 @@
   {
     "kind": "contains",
     "path": ".github/workflows/publication.yml",
-    "needle": "ci:decision:publication",
-    "message": "Rolling publication must require live immutable-candidate admission"
+    "needle": "ci:native:publication",
+    "message": "Cache publication must use native exact-product findings admission"
   },
   {
     "kind": "contains",
@@ -277,13 +277,13 @@
   },
   {
     "kind": "contains",
-    "path": ".github/workflows/release-publication.yml",
+    "path": ".github/workflows/release.yml",
     "needle": "group: maestro-publication",
     "message": "Versioned publication must use the shared publication queue"
   },
   {
     "kind": "contains",
-    "path": ".github/workflows/release-publication.yml",
+    "path": ".github/workflows/release.yml",
     "needle": "queue: max",
     "message": "Versioned publication must retain every pending run in the shared FIFO queue"
   },

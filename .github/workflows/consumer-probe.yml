@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       native_run:
-        description: Exact successful current-main CI producer
+        description: Optional exact CI producer; empty verifies the latest official release
         type: string
         default: ''
       native_attempt:
@@ -37,52 +37,44 @@ on:
         description: Full original executed-boot source SHA
         type: string
         default: ''
-      proposal_hash:
-        description: Exact active accepted product proposal; empty selects the newest
-        type: string
-        default: ''
 permissions:
   contents: read
 concurrency:
   group: public-consumer-verification
   cancel-in-progress: false
 jobs:
-  consumer:
-    if: vars.MAESTRO_NATIVE_PUBLICATION_ENABLED != 'true' && github.ref == 'refs/heads/main'
+  official_consumer:
+    if: github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.native_run == ''))
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 60
+    permissions:
+      actions: read
+      attestations: read
+      contents: read
     steps:
-      - name: Checkout protected consumer code
+      - name: Checkout protected official consumer
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
           persist-credentials: false
       - name: Set up Nix
         uses: $/.github/actions/setup-nix
-      - name: Verify public downloads and signatures in a disposable store
+      - name: Verify signed official release assets and cold public cache bytes
         env:
           GH_TOKEN: ${{ github.token }}
-          CANDIDATE_PROPOSAL_HASH: ${{ inputs.proposal_hash || '' }}
-        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:consumer-probe
-      - name: Retain exact public consumer result
+          NATIVE_RESULT_FILE: ${{ runner.temp }}/native-public-consumer-result.json
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:native:public-probe
+      - name: Retain bounded integrity-only consumer receipt
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: maestro-public-consumer-result
-          path: ${{ runner.temp }}/public-consumer-result.json
-          if-no-files-found: ignore
-          retention-days: 30
-      - name: Retain immutable decision byte reuse observations
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: maestro-decision-byte-reuse-${{ github.job }}
-          path: ${{ runner.temp }}/decision-git-blobs/*/observations.jsonl
+          name: maestro-native-public-consumer-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-public-consumer-result.json
           if-no-files-found: ignore
           retention-days: 30
 
   native_consumer:
-    if: vars.MAESTRO_NATIVE_PUBLICATION_ENABLED == 'true' && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.native_run != '' && inputs.native_revision != ''
+    if: github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.native_run != '' && inputs.native_revision != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     permissions:

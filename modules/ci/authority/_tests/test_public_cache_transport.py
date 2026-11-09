@@ -472,7 +472,7 @@ class PublicTransport(unittest.TestCase):
 
     def test_trial_requires_verified_destinations_and_preserves_gate_steps(self):
         workflow = json.loads(subprocess.check_output(
-            ['yq', '-o=json', '.', str(ROOT/'.github/workflows/publication.yml')], text=True))
+            ['yq', '-o=json', '.', str(ROOT/'modules/ci/authority/_tests/fixtures/retired-workflows/publication.yml')], text=True))
         trial = workflow['on']['workflow_dispatch']['inputs']['public_cache_transport_trial']
         self.assertEqual(trial['type'], 'boolean')
         self.assertIs(trial['default'], False)

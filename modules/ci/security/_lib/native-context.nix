@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 {publicCacheWorker}: ''
   export PYTHONDONTWRITEBYTECODE=1
+  export MAESTRO_NATIVE_PUBLIC_PROBE_SOURCE=${../_source/native-public-probe.py}
   export MAESTRO_DECISION_CORE=${../../authority/_source/decisions}
   export MAESTRO_NATIVE_PREPARE_SOURCE=${../_source/native-prepare.py}
   export MAESTRO_NATIVE_PREPARE_POLICY=${../../authority/_source/decision-policy.json}

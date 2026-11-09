@@ -404,7 +404,7 @@ class RecoveryContext(unittest.TestCase):
     def test_both_workflows_retain_receipts_after_cancellation(self):
         root = Path(__file__).resolve().parents[5]
         for filename, job in [('decisions.yml', 'reconcile'), ('decision-authority.yml', 'authority')]:
-            value = json.loads(subprocess.check_output(['yq', '-o=json', '.', str(root / '.github/workflows' / filename)], text=True))
+            value = json.loads(subprocess.check_output(['yq', '-o=json', '.', str(root / ('modules/ci/authority/_tests/fixtures/retired-workflows' if filename == 'decisions.yml' else '.github/workflows') / filename)], text=True))
             steps = [s for s in value['jobs'][job]['steps']
                      if s.get('with', {}).get('name') == 'maestro-security-recovery-receipts']
             self.assertEqual(len(steps), 1)

@@ -6,6 +6,7 @@ import re
 from pathlib import Path
 import sys
 import unittest
+import subprocess
 
 SOURCE = Path(__file__).resolve().parents[2] / '_source' / 'decisions'
 sys.path.insert(0, str(SOURCE))
@@ -144,7 +145,7 @@ class Proof(unittest.TestCase):
 
 class Workflow(unittest.TestCase):
     def condition(self, job, event, continuation='skipped', meaningful='', overrides=None):
-        text = (Path(__file__).resolve().parents[5] / '.github/workflows/decisions.yml').read_text()
+        text = (Path(__file__).resolve().parents[5] / 'modules/ci/authority/_tests/fixtures/retired-workflows/decisions.yml').read_text()
         section = text.split('  ' + job + ':\n', 1)[1]
         expression = next(line.strip()[4:] for line in section.splitlines() if line.startswith('    if:'))
         expression = expression.removeprefix('${{ ').removesuffix(' }}')
@@ -187,7 +188,7 @@ class Workflow(unittest.TestCase):
             self.assertTrue(self.condition(job, 'workflow_run', 'success', 'true'))
 
     def test_explicit_recovery_dispatch_still_reaches_guarded_reconciliation(self):
-        text = (Path(__file__).resolve().parents[5] / '.github/workflows/decisions.yml').read_text()
+        text = (Path(__file__).resolve().parents[5] / 'modules/ci/authority/_tests/fixtures/retired-workflows/decisions.yml').read_text()
         self.assertTrue(self.condition('reconcile', 'workflow_dispatch'))
         self.assertIn('      security_recovery:', text)
         self.assertIn("CANDIDATE_REQUIRED: ${{ inputs.security_recovery != '' && 'true' || 'false' }}", text)
@@ -196,7 +197,7 @@ class Workflow(unittest.TestCase):
 
     def test_only_continuations_are_gated_and_both_consumers_wait(self):
         root = Path(__file__).resolve().parents[5]
-        text = (root / '.github/workflows/decisions.yml').read_text()
+        text = (root / 'modules/ci/authority/_tests/fixtures/retired-workflows/decisions.yml').read_text()
         self.assertIn("github.event_name == 'workflow_run' && (github.event.workflow_run.path", text)
         self.assertEqual(text.count('needs: continuation'), 2)
         self.assertEqual(text.count("needs.continuation.result == 'skipped'"), 2)
@@ -205,6 +206,31 @@ class Workflow(unittest.TestCase):
         self.assertIn('workflow_dispatch:', text)
         self.assertIn("- cron: '37 * * * *'", text)
         self.assertNotIn('CANDIDATE_RUN_ATTEMPT', text)
+
+
+class NativeHealthWorkflow(unittest.TestCase):
+    def test_active_health_has_no_legacy_reconciliation_or_publication_authority(self):
+        root = Path(__file__).resolve().parents[5]
+        value = json.loads(subprocess.check_output(['yq', '-o=json', '.', str(root / '.github/workflows/decisions.yml')], text=True))
+        self.assertEqual(set(value['jobs']), {'health'})
+        job = value['jobs']['health']
+        self.assertNotIn('needs', job)
+        self.assertNotIn('environment', job)
+        self.assertEqual(value['on']['workflow_run']['workflows'], ['CI', 'Security maintenance', 'Release Maestro'])
+        self.assertEqual(value['on']['schedule'], [{'cron': '37 * * * *'}])
+        self.assertNotIn('inputs', value['on'].get('workflow_dispatch') or {})
+        self.assertEqual(value['permissions'], {'contents': 'read', 'actions': 'read'})
+        tasks = [step['run'].split()[-1] for step in job['steps'] if 'run' in step]
+        self.assertEqual(tasks, ['ci:decision:health'])
+        token, = [step['with'] for step in job['steps'] if 'create-github-app-token@' in step.get('uses', '')]
+        self.assertEqual({k:v for k,v in token.items() if k.startswith('permission-')}, {
+            'permission-contents': 'read', 'permission-actions': 'read',
+            'permission-pull-requests': 'read', 'permission-issues': 'write'})
+        authority = (root / '.github/workflows/decision-authority.yml').read_text()
+        self.assertIn('workflows: [Collect maintainer decision events]', authority)
+        self.assertIn('ci:decision:check', authority)
+        self.assertIn('permission-checks: write', authority)
+        self.assertNotIn('ci:decision:reconcile', authority)
 
 
 if __name__ == '__main__': unittest.main()

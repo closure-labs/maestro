@@ -230,7 +230,7 @@ class Checks(unittest.TestCase):
         review = api.reviews.pop()
         cfg = {'repository': REPO, 'botLogin': BOT}
         value = {'mergeStateStatus': 'CLEAN', 'autoMergeRequest': {'enabledAt': 'now'}}
-        workflow = (ROOT / '.github/workflows/decisions.yml').read_text()
+        workflow = (ROOT / 'modules/ci/authority/_tests/fixtures/retired-workflows/decisions.yml').read_text()
         self.assertIn('Continue Maestro release, Verify maintainer decision authority]', workflow)
         with mock.patch.object(reconciliation.authority, 'github_api', api), \
                 mock.patch.object(reconciliation, 'required_check'), \

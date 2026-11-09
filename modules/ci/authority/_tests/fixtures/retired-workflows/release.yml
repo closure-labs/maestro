@@ -1,0 +1,680 @@
+# SPDX-License-Identifier: Apache-2.0
+name: Release Maestro
+
+on:
+  workflow_dispatch:
+    inputs:
+      native_release_qualification_only:
+        description: Nonpublishing full-size staging and attestation trial; accepts no findings or production activation
+        type: boolean
+        default: false
+      native_release:
+        description: Opt-in native versioned release; requires separately enabled flag and fresh explicit findings-risk approval
+        type: boolean
+        default: false
+      native_run:
+        description: Exact successful CI producer of the selected immutable native product
+        type: string
+        default: ''
+      native_attempt:
+        description: Exact native producer attempt
+        type: string
+        default: '1'
+      native_revision:
+        description: Full exact qualified product source SHA
+        type: string
+        default: ''
+      native_health_run:
+        description: Optional exact successful native Security maintenance refresh run
+        type: string
+        default: ''
+      native_health_attempt:
+        description: Exact refresh attempt when supplying native_health_run
+        type: string
+        default: ''
+      native_boot_run:
+        description: Exact original executed-boot run, when boot was retained
+        type: string
+        default: ''
+      native_boot_attempt:
+        description: Exact original executed-boot attempt
+        type: string
+        default: ''
+      native_boot_revision:
+        description: Full original executed-boot source SHA
+        type: string
+        default: ''
+      event_continuation:
+        description: Opt-in event continuation pilot; requires reviewed repository enable variable
+        required: false
+        type: boolean
+        default: false
+      bump:
+        description: Automatic uses conventional commits; override only when release impact differs
+        required: true
+        type: choice
+        options:
+          - auto
+          - patch
+          - minor
+          - major
+        default: auto
+  workflow_call:
+    secrets:
+      DECIDER_KEY:
+        required: true
+    inputs:
+      release_request_run_id:
+        required: true
+        type: string
+      release_candidate_run_id:
+        required: true
+        type: string
+
+concurrency:
+  group: ${{ inputs.native_release_qualification_only == true && format('maestro-release-qualification-{0}', github.run_id) || 'maestro-release' }}
+  queue: max
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    if: >-
+      inputs.native_release_qualification_only != true && vars.MAESTRO_NATIVE_RELEASE_ENABLED != 'true' && inputs.native_release != true &&
+      github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' &&
+      inputs.release_request_run_id == '' && inputs.release_candidate_run_id == ''
+    name: Merge the release version through protected main
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
+    outputs:
+      run_id: ${{ steps.candidate.outputs.run_id }}
+      restarted: ${{ steps.candidate.outputs.restarted }}
+      source_sha: ${{ steps.version.outputs.source_sha }}
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout release source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: main
+
+      - name: Set up Nix
+        uses: $/.github/actions/setup-nix
+
+      - name: Refuse another pending release before version mutation
+        env:
+          EVENT_CONTINUATION: ${{ inputs.event_continuation || false }}
+          MAESTRO_RELEASE_CONTINUATION_ENABLED: ${{ vars.MAESTRO_RELEASE_CONTINUATION_ENABLED || 'false' }}
+          MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS: ${{ vars.MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS || '[]' }}
+          GH_TOKEN: ${{ github.token }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:pending
+
+      - name: Mint short-lived protected-queue token
+        id: queue-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.DECIDER_CLIENT }}
+          private-key: ${{ secrets.DECIDER_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-actions: write
+      - name: Calculate and merge the release version
+        id: version
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          EXPECTED_AUTHOR: cl-decider
+          MERGE_QUEUE_TOKEN: ${{ steps.queue-token.outputs.token }}
+          GH_TOKEN: ${{ steps.queue-token.outputs.token }}
+          REQUESTED_BUMP: ${{ inputs.bump }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:prepare
+
+      - name: Bind immutable event continuation request
+        if: inputs.event_continuation == true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAESTRO_RELEASE_CONTINUATION_ENABLED: ${{ vars.MAESTRO_RELEASE_CONTINUATION_ENABLED || 'false' }}
+          SOURCE_SHA: ${{ steps.version.outputs.source_sha }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:request
+
+      - name: Upload immutable request before dispatch
+        if: inputs.event_continuation == true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-release-request
+          path: maestro-release-request.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Dispatch immutable artifact resolution
+        id: candidate
+        env:
+          SOURCE_SHA: ${{ steps.version.outputs.source_sha }}
+          EVENT_CONTINUATION: ${{ inputs.event_continuation || false }}
+          MAESTRO_RELEASE_CONTINUATION_ENABLED: ${{ vars.MAESTRO_RELEASE_CONTINUATION_ENABLED || 'false' }}
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_BUMP: ${{ inputs.bump }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:dispatch
+
+  context:
+    name: Bind authoritative release continuation context
+    needs: prepare
+    if: >-
+      inputs.native_release_qualification_only != true && !cancelled() && vars.MAESTRO_NATIVE_RELEASE_ENABLED != 'true' && inputs.native_release != true &&
+      ((needs.prepare.result == 'success' && inputs.event_continuation != true && needs.prepare.outputs.restarted != 'true') ||
+       (contains(fromJSON('["workflow_run","workflow_dispatch"]'), github.event_name) && github.ref == 'refs/heads/main' &&
+        inputs.release_request_run_id != '' && inputs.release_candidate_run_id != ''))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      ready: ${{ inputs.release_request_run_id != '' && steps.request.outputs.ready || 'true' }}
+      already_published: ${{ steps.request.outputs.already_published || 'false' }}
+      run_id: ${{ steps.request.outputs.run_id || needs.prepare.outputs.run_id }}
+      source_sha: ${{ steps.request.outputs.source_sha || needs.prepare.outputs.source_sha }}
+      tag: ${{ steps.request.outputs.tag || needs.prepare.outputs.tag }}
+      version: ${{ steps.request.outputs.version || needs.prepare.outputs.version }}
+    steps:
+      - name: Checkout protected orchestration source
+        if: inputs.release_request_run_id != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Set up Nix
+        if: inputs.release_request_run_id != ''
+        uses: $/.github/actions/setup-nix
+      - name: Independently verify immutable request and candidate
+        id: request
+        if: inputs.release_request_run_id != ''
+        env:
+          MAESTRO_RELEASE_CONTINUATION_ENABLED: ${{ vars.MAESTRO_RELEASE_CONTINUATION_ENABLED || 'false' }}
+          MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS: ${{ vars.MAESTRO_RELEASE_RETIRED_REQUEST_RUN_IDS || '[]' }}
+          RELEASE_REQUEST_RUN_ID: ${{ inputs.release_request_run_id }}
+          RELEASE_CANDIDATE_RUN_ID: ${{ inputs.release_candidate_run_id }}
+          GH_TOKEN: ${{ github.token }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:continuation
+
+  security:
+    name: Verify and rescan release candidate
+    needs: context
+    if: >-
+      inputs.native_release_qualification_only != true && !cancelled() && needs.context.result == 'success' &&
+      needs.context.outputs.ready == 'true' && needs.context.outputs.already_published != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+      attestations: read
+    steps:
+      - name: Checkout exact release source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ needs.context.outputs.source_sha }}
+
+      - name: Set up Nix
+        uses: $/.github/actions/setup-nix
+
+      - name: Download tested installer state
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          github-token: ${{ github.token }}
+          name: maestro-qualification-state
+          path: candidate-state
+          run-id: ${{ needs.context.outputs.run_id }}
+
+      - name: Resolve immutable installer inventory
+        id: inventory
+        env:
+          SOURCE_SHA: ${{ needs.context.outputs.source_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:inventory
+
+      - name: Download tested supply evidence
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          github-token: ${{ github.token }}
+          name: maestro-evidence
+          path: candidate
+          run-id: ${{ steps.inventory.outputs.artifact_run_id }}
+
+      - name: Verify builder checksums, state, and attestations
+        env:
+          RELEASE_INVENTORY_MODE: evidence
+          ARTIFACT_RUN_ID: ${{ steps.inventory.outputs.artifact_run_id }}
+          ARTIFACT_SOURCE_COMMIT: ${{ steps.inventory.outputs.artifact_source_commit }}
+          MEDIA_INPUT: ${{ steps.inventory.outputs.media_input }}
+          EVIDENCE_INPUT: ${{ steps.inventory.outputs.evidence_input }}
+          GH_TOKEN: ${{ github.token }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:verify
+
+      - name: Download exact qualification evidence and distribution transport
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN: ${{ needs.context.outputs.run_id }}
+          CANDIDATE_WORKFLOW: .github/workflows/ci.yml
+          CANDIDATE_REQUIRED: 'true'
+          DECISION_DIRECTORY: qualified-distribution
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:download
+
+      - name: Authenticate and restore exact candidate outputs before rescanning
+        env:
+          GH_TOKEN: ${{ github.token }}
+          QUALIFICATION_SOURCE_SHA: ${{ needs.context.outputs.source_sha }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:qualification:restore
+
+      - name: Rescan release inventories
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:security:scan
+
+      - name: Upload release scan results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-release-security-report
+          path: security-report
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: Prepare immutable official product for human approval
+    needs: [context, security]
+    if: >-
+      inputs.native_release_qualification_only != true && !cancelled() && needs.context.result == 'success' && needs.security.result == 'success' &&
+      needs.context.outputs.ready == 'true' && needs.context.outputs.already_published != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      actions: read
+      contents: read
+      artifact-metadata: write
+      attestations: write
+      id-token: write
+    steps:
+      - name: Checkout exact protected release source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ needs.context.outputs.source_sha }}
+      - uses: $/.github/actions/setup-nix
+      - name: Download tested installer state
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          github-token: ${{ github.token }}
+          name: maestro-qualification-state
+          path: candidate-state
+          run-id: ${{ needs.context.outputs.run_id }}
+      - name: Resolve immutable installer inventory
+        id: inventory
+        env:
+          SOURCE_SHA: ${{ needs.context.outputs.source_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:inventory
+      - name: Download tested installer and original inventories
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          github-token: ${{ github.token }}
+          name: maestro-installer
+          path: candidate
+          run-id: ${{ steps.inventory.outputs.artifact_run_id }}
+      - name: Verify exact qualified media and attestations
+        env:
+          ARTIFACT_RUN_ID: ${{ steps.inventory.outputs.artifact_run_id }}
+          ARTIFACT_SOURCE_COMMIT: ${{ steps.inventory.outputs.artifact_source_commit }}
+          MEDIA_INPUT: ${{ steps.inventory.outputs.media_input }}
+          EVIDENCE_INPUT: ${{ steps.inventory.outputs.evidence_input }}
+          GH_TOKEN: ${{ github.token }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:verify
+      - name: Download exact qualification evidence and distribution transport
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN: ${{ needs.context.outputs.run_id }}
+          CANDIDATE_WORKFLOW: .github/workflows/ci.yml
+          CANDIDATE_REQUIRED: 'true'
+          DECISION_DIRECTORY: qualified-distribution
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:download
+      - name: Authenticate and restore exact candidate outputs before preparing release bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          QUALIFICATION_SOURCE_SHA: ${{ needs.context.outputs.source_sha }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:qualification:restore
+      - name: Rescan the complete candidate distribution
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:security:scan
+      - name: Stage exact versioned product bytes
+        env:
+          ARTIFACT_RUN_ID: ${{ steps.inventory.outputs.artifact_run_id }}
+          ARTIFACT_SOURCE_COMMIT: ${{ steps.inventory.outputs.artifact_source_commit }}
+          MEDIA_INPUT: ${{ steps.inventory.outputs.media_input }}
+          EVIDENCE_INPUT: ${{ steps.inventory.outputs.evidence_input }}
+          RELEASE_TAG: ${{ needs.context.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.context.outputs.version }}
+          SOURCE_SHA: ${{ needs.context.outputs.source_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:stage
+      - name: Bind native observations and immutable release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.context.outputs.source_sha }}
+          DECISION_PRODUCER_WORKFLOW: .github/workflows/release.yml
+          DECISION_RELEASE_DIRECTORY: release
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:candidate
+      - name: Attest prepared product and native observations
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            security-report/scans.json
+            security-report/product.json
+      - name: Retain the exact prepared release packet
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:retain
+      - name: Attest the exact versioned installer filename
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: ${{ runner.temp }}/maestro-${{ needs.context.outputs.tag }}.iso
+      - name: Bind the complete SPDX inventory to versioned media
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: ${{ runner.temp }}/maestro-${{ needs.context.outputs.tag }}.iso
+          sbom-path: candidate/maestro-system.spdx.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-release-product
+          path: prepared
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90
+
+  native_review:
+    if: inputs.native_release_qualification_only != true && vars.MAESTRO_NATIVE_RELEASE_ENABLED == 'true' && inputs.native_release == true && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.native_run != '' && inputs.native_revision != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      context_sha256: ${{ steps.review.outputs.context_sha256 }}
+      version: ${{ steps.review.outputs.release_version }}
+      media_artifact_id: ${{ steps.review.outputs.media_artifact_id }}
+      media_run: ${{ steps.review.outputs.media_run }}
+      media_attempt: ${{ steps.review.outputs.media_attempt }}
+      media_revision: ${{ steps.review.outputs.media_revision }}
+    permissions:
+      actions: read
+      attestations: read
+      contents: read
+    steps:
+      - name: Monitor hosted runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2
+        with:
+          egress-policy: audit
+      - name: Checkout protected native controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up Nix
+        uses: $/.github/actions/setup-nix
+      - name: Prepare exact findings for explicit human risk review
+        id: review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NATIVE_RISK_REVIEW_FILE: ${{ runner.temp }}/native-findings-review.json
+          NATIVE_RUN: ${{ inputs.native_run }}
+          NATIVE_HEALTH_RUN: ${{ inputs.native_health_run }}
+          NATIVE_HEALTH_ATTEMPT: ${{ inputs.native_health_attempt }}
+          NATIVE_ATTEMPT: ${{ inputs.native_attempt }}
+          NATIVE_REVISION: ${{ inputs.native_revision }}
+          NATIVE_POLICY_REVISION: ${{ github.sha }}
+          NATIVE_BOOT_ORIGIN_RUN: ${{ inputs.native_boot_run }}
+          NATIVE_BOOT_ORIGIN_ATTEMPT: ${{ inputs.native_boot_attempt }}
+          NATIVE_BOOT_ORIGIN_REVISION: ${{ inputs.native_boot_revision }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:native:review
+      - name: Retain bounded native consumer receipt
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-findings-review
+          path: ${{ runner.temp }}/native-findings-review.json
+          if-no-files-found: error
+          retention-days: 30
+
+  native_finalize:
+    needs: native_review
+    name: Stage attest and publish exact reviewed native release
+    concurrency:
+      group: maestro-publication
+      queue: max
+      cancel-in-progress: false
+    if: inputs.native_release_qualification_only != true && needs.native_review.result == 'success' && inputs.native_release == true && vars.MAESTRO_NATIVE_RELEASE_ENABLED == 'true' && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    environment:
+      name: findings-risk-review
+      url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#summary
+    permissions:
+      actions: read
+      contents: write
+      attestations: write
+      artifact-metadata: write
+      id-token: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      MAESTRO_NATIVE_RELEASE_ENABLED: ${{ vars.MAESTRO_NATIVE_RELEASE_ENABLED || 'false' }}
+      NATIVE_FINDINGS_CONTEXT_SHA256: ${{ needs.native_review.outputs.context_sha256 }}
+      NATIVE_RUN: ${{ inputs.native_run }}
+      NATIVE_ATTEMPT: ${{ inputs.native_attempt }}
+      NATIVE_REVISION: ${{ inputs.native_revision }}
+      NATIVE_POLICY_REVISION: ${{ github.sha }}
+      NATIVE_HEALTH_RUN: ${{ inputs.native_health_run }}
+      NATIVE_HEALTH_ATTEMPT: ${{ inputs.native_health_attempt }}
+      NATIVE_BOOT_ORIGIN_RUN: ${{ inputs.native_boot_run }}
+      NATIVE_BOOT_ORIGIN_ATTEMPT: ${{ inputs.native_boot_attempt }}
+      NATIVE_BOOT_ORIGIN_REVISION: ${{ inputs.native_boot_revision }}
+    steps:
+      - name: Monitor hosted runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2
+        with:
+          egress-policy: audit
+      - name: Checkout protected release controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: $/.github/actions/setup-nix
+      - name: Download exact original executed-boot media artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          github-token: ${{ github.token }}
+          artifact-ids: ${{ needs.native_review.outputs.media_artifact_id }}
+          run-id: ${{ needs.native_review.outputs.media_run }}
+          path: ${{ runner.temp }}/native-media
+      - name: Verify findings approval and stage exact ISO bytes once
+        env:
+          NATIVE_ISO: ${{ runner.temp }}/native-media/result-installer/iso/maestro-installer.iso
+          NATIVE_RELEASE_OUTPUT: ${{ runner.temp }}/native-release-assets
+          NATIVE_RELEASE_FINAL_ISO: ${{ runner.temp }}/maestro-v${{ needs.native_review.outputs.version }}.iso
+          NATIVE_RELEASE_VERSION: ${{ needs.native_review.outputs.version }}
+          NATIVE_MEDIA_RUN: ${{ needs.native_review.outputs.media_run }}
+          NATIVE_MEDIA_ATTEMPT: ${{ needs.native_review.outputs.media_attempt }}
+          NATIVE_MEDIA_REVISION: ${{ needs.native_review.outputs.media_revision }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:native:stage-reviewed
+      - name: Attest the exact versioned installer with existing release signer
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: ${{ runner.temp }}/maestro-v${{ needs.native_review.outputs.version }}.iso
+      - name: Bind the original complete SPDX inventory to the exact versioned ISO
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: ${{ runner.temp }}/maestro-v${{ needs.native_review.outputs.version }}.iso
+          sbom-path: ${{ runner.temp }}/native-candidate/maestro-system.spdx.json
+      - name: Attest the existing exact native release staging receipt
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: ${{ runner.temp }}/native-release-assets/native-release-staging.json
+      - name: Revalidate evidence review and final attestations before release writes
+        env:
+          NATIVE_DIRECTORY: ${{ runner.temp }}/native-candidate
+          NATIVE_HEALTH_DIRECTORY: ${{ inputs.native_health_run != '' && format('{0}/native-health', runner.temp) || '' }}
+          NATIVE_RELEASE_DIRECTORY: ${{ runner.temp }}/native-release-assets
+          NATIVE_RELEASE_ISO: ${{ runner.temp }}/maestro-v${{ needs.native_review.outputs.version }}.iso
+          NATIVE_RESULT_FILE: ${{ runner.temp }}/native-release-result.json
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:native:publish
+      - name: Retain bounded native release result
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-native-release-result
+          path: ${{ runner.temp }}/native-release-result.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+  native_qualification_review:
+    if: inputs.native_release_qualification_only == true && inputs.native_release != true && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.native_run != '' && inputs.native_revision != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      context_sha256: ${{ steps.review.outputs.context_sha256 }}
+      version: ${{ steps.review.outputs.release_version }}
+      media_artifact_id: ${{ steps.review.outputs.media_artifact_id }}
+      media_run: ${{ steps.review.outputs.media_run }}
+      media_attempt: ${{ steps.review.outputs.media_attempt }}
+      media_revision: ${{ steps.review.outputs.media_revision }}
+    permissions:
+      actions: read
+      attestations: read
+      contents: read
+    steps:
+      - name: Monitor hosted runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2
+        with:
+          egress-policy: audit
+      - name: Checkout protected native controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Set up Nix
+        uses: $/.github/actions/setup-nix
+      - name: Prepare qualification context; accept no findings
+        id: review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NATIVE_RISK_REVIEW_FILE: ${{ runner.temp }}/native-findings-review.json
+          NATIVE_RUN: ${{ inputs.native_run }}
+          NATIVE_HEALTH_RUN: ${{ inputs.native_health_run }}
+          NATIVE_HEALTH_ATTEMPT: ${{ inputs.native_health_attempt }}
+          NATIVE_ATTEMPT: ${{ inputs.native_attempt }}
+          NATIVE_REVISION: ${{ inputs.native_revision }}
+          NATIVE_POLICY_REVISION: ${{ github.sha }}
+          NATIVE_BOOT_ORIGIN_RUN: ${{ inputs.native_boot_run }}
+          NATIVE_BOOT_ORIGIN_ATTEMPT: ${{ inputs.native_boot_attempt }}
+          NATIVE_BOOT_ORIGIN_REVISION: ${{ inputs.native_boot_revision }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:native:review-qualification
+      - name: Retain bounded native consumer receipt
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-findings-review
+          path: ${{ runner.temp }}/native-findings-review.json
+          if-no-files-found: error
+          retention-days: 30
+
+  native_qualification:
+    needs: native_qualification_review
+    name: Qualify exact full-size release bytes without publication
+    if: inputs.native_release_qualification_only == true && needs.native_qualification_review.result == 'success' && inputs.native_release != true && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    environment:
+      name: findings-risk-review
+      url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#summary
+    permissions:
+      actions: read
+      contents: read
+      attestations: write
+      artifact-metadata: write
+      id-token: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      NATIVE_FINDINGS_CONTEXT_SHA256: ${{ needs.native_qualification_review.outputs.context_sha256 }}
+      NATIVE_RUN: ${{ inputs.native_run }}
+      NATIVE_ATTEMPT: ${{ inputs.native_attempt }}
+      NATIVE_REVISION: ${{ inputs.native_revision }}
+      NATIVE_POLICY_REVISION: ${{ github.sha }}
+      NATIVE_HEALTH_RUN: ${{ inputs.native_health_run }}
+      NATIVE_HEALTH_ATTEMPT: ${{ inputs.native_health_attempt }}
+      NATIVE_BOOT_ORIGIN_RUN: ${{ inputs.native_boot_run }}
+      NATIVE_BOOT_ORIGIN_ATTEMPT: ${{ inputs.native_boot_attempt }}
+      NATIVE_BOOT_ORIGIN_REVISION: ${{ inputs.native_boot_revision }}
+    steps:
+      - name: Monitor hosted runner
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2
+        with:
+          egress-policy: audit
+      - name: Checkout protected release controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: $/.github/actions/setup-nix
+      - name: Download exact original executed-boot media artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          github-token: ${{ github.token }}
+          artifact-ids: ${{ needs.native_qualification_review.outputs.media_artifact_id }}
+          run-id: ${{ needs.native_qualification_review.outputs.media_run }}
+          path: ${{ runner.temp }}/native-media
+      - name: Verify qualification approval and stage exact ISO without accepting findings
+        env:
+          NATIVE_ISO: ${{ runner.temp }}/native-media/result-installer/iso/maestro-installer.iso
+          NATIVE_RELEASE_OUTPUT: ${{ runner.temp }}/native-release-assets
+          NATIVE_RELEASE_FINAL_ISO: ${{ runner.temp }}/maestro-v${{ needs.native_qualification_review.outputs.version }}.iso
+          NATIVE_RELEASE_VERSION: ${{ needs.native_qualification_review.outputs.version }}
+          NATIVE_MEDIA_RUN: ${{ needs.native_qualification_review.outputs.media_run }}
+          NATIVE_MEDIA_ATTEMPT: ${{ needs.native_qualification_review.outputs.media_attempt }}
+          NATIVE_MEDIA_REVISION: ${{ needs.native_qualification_review.outputs.media_revision }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:native:stage-qualification
+      - name: Attest the exact versioned installer with existing release signer
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: ${{ runner.temp }}/maestro-v${{ needs.native_qualification_review.outputs.version }}.iso
+      - name: Bind the original complete SPDX inventory to the exact versioned ISO
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: ${{ runner.temp }}/maestro-v${{ needs.native_qualification_review.outputs.version }}.iso
+          sbom-path: ${{ runner.temp }}/native-candidate/maestro-system.spdx.json
+      - name: Verify final-name provenance and SPDX without publishing
+        env:
+          NATIVE_DIRECTORY: ${{ runner.temp }}/native-candidate
+          NATIVE_HEALTH_DIRECTORY: ${{ inputs.native_health_run != '' && format('{0}/native-health', runner.temp) || '' }}
+          NATIVE_RESULT_FILE: ${{ runner.temp }}/native-release-qualification-result.json
+          NATIVE_ISO: ${{ runner.temp }}/native-media/result-installer/iso/maestro-installer.iso
+          NATIVE_RELEASE_OUTPUT: ${{ runner.temp }}/native-release-assets
+          NATIVE_RELEASE_FINAL_ISO: ${{ runner.temp }}/maestro-v${{ needs.native_qualification_review.outputs.version }}.iso
+          NATIVE_RELEASE_VERSION: ${{ needs.native_qualification_review.outputs.version }}
+          NATIVE_MEDIA_RUN: ${{ needs.native_qualification_review.outputs.media_run }}
+          NATIVE_MEDIA_ATTEMPT: ${{ needs.native_qualification_review.outputs.media_attempt }}
+          NATIVE_MEDIA_REVISION: ${{ needs.native_qualification_review.outputs.media_revision }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:native:verify-qualification
+      - name: Retain bounded non-authorizing staging measurements
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-native-release-qualification
+          path: |
+            ${{ runner.temp }}/native-release-assets/native-release-staging.json
+            ${{ runner.temp }}/native-release-qualification-result.json
+          if-no-files-found: error
+          retention-days: 30
