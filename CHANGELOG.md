@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Start complete repository validation alongside CI planning, then bind its
+  same-attempt evidence to the authoritative graph before any release gates.
+  Retain phase timings to profile validation without repeating checks.
+
 - Retire legacy hosted release/continuation and proposal reconciliation routes.
   Preserve native daily security refresh, hourly health reporting, maintainer
   authority and historical decisions; verify official signed release assets and

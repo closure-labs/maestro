@@ -130,13 +130,42 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
+  audit_checks:
+    name: Execute repository validation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Nix
+        uses: $/.github/actions/setup-nix
+      - name: Validate repository
+        env:
+          MAESTRO_CI_AUDIT_MANIFEST: ${{ runner.temp }}/maestro-audit/audit.json
+          MAESTRO_CI_AUDIT_TIMINGS: ${{ runner.temp }}/maestro-audit/timings.json
+          MAESTRO_NIX_EVENTS_DIR: ${{ runner.temp }}/maestro-audit/nix-events
+        run: nix run --accept-flake-config .#devenv -- tasks run --option 'packages:pkgs!' '' ci:repository-audit
+
+      - name: Retain native audit manifest and timings
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-audit-raw-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/maestro-audit/
+          if-no-files-found: ignore
+          retention-days: 30
+
   audit:
     name: Repository checks
-    needs: route
+    needs: [route, audit_checks]
     outputs:
       reference_sha256: ${{ steps.reference.outputs.manifest_sha256 }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 20
     permissions:
       contents: read
       actions: read
@@ -152,12 +181,11 @@ jobs:
         with:
           name: maestro-ci-graph
           path: ci-graph
-      - name: Validate repository
-        env:
-          MAESTRO_CI_AUDIT_MANIFEST: ${{ runner.temp }}/maestro-audit/audit.json
-          MAESTRO_CI_AUDIT_TIMINGS: ${{ runner.temp }}/maestro-audit/timings.json
-          MAESTRO_NIX_EVENTS_DIR: ${{ runner.temp }}/maestro-audit/nix-events
-        run: nix run --accept-flake-config .#devenv -- tasks run --option 'packages:pkgs!' '' ci:repository-audit
+      - name: Download same-attempt completed validation
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: maestro-audit-raw-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/maestro-audit
 
       - name: Bind complete audit reference to this candidate and attempt
         id: reference
