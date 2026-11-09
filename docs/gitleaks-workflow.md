@@ -17,6 +17,14 @@ repository settings change or synthetic check publisher is needed.
 
 The official Linux x64 CLI is pinned to 8.30.1 and archive SHA-256
 `551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb`.
+Both installer paths retry transient HTTPS download failures at most four times,
+with two-second backoff, a 180-second retry window, and bounded connection and
+transfer times. Permanent HTTP failures, archive checksum mismatches, unexpected
+CLI versions and scan failures are not retried or accepted. No alternate source
+or unverified cache is used. Secretspec keeps its fixed-output source hash and
+has a bounded five-retry transport budget; Nix can still substitute verified
+fixed-output results instead of fetching again.
+
 PRs scan `base.sha..head.sha`; merge groups scan `base_sha..head_sha` with a
 complete checkout and verified identities. Complete graph traversal includes
 side-branch commits, deleted incoming secrets and merge-only additions.
