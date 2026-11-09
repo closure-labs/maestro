@@ -40,8 +40,8 @@ class Scheduled(unittest.TestCase):
                 with self.subTest(change=change),self.assertRaises(ValueError):refresh.reuse_same_product(self.product,json.dumps(dict(self.reuse,**change)))
             for raw in ('{"runId":7,"runId":7}',' '*4097,'{"runId":NaN}'):
                 with self.assertRaises(ValueError):refresh.reuse_same_product(self.product,raw)
-    def test_both_flags_and_protected_schedule_required_before_any_read(self):
-        for change in (dict(GITHUB_EVENT_NAME='workflow_dispatch'),dict(MAESTRO_NATIVE_RELEASE_ENABLED='false'),dict(MAESTRO_NATIVE_REFRESH_ENABLED='false'),dict(GITHUB_REF='refs/heads/topic')):
+    def test_protected_schedule_required_before_any_read(self):
+        for change in (dict(GITHUB_EVENT_NAME='workflow_dispatch'),dict(GITHUB_REF='refs/heads/topic')):
             with patch.dict(os.environ,dict(self.env,**change)),self.assertRaises(ValueError):refresh.scheduled_official(P,api=lambda p:(_ for _ in ()).throw(AssertionError('No read')))
     def test_standard_latest_release_selection_still_authenticates_exact_receipt(self):
         latest=dict(id=3,tag_name='v1.2.3',draft=False,prerelease=False);calls=[]
@@ -109,7 +109,7 @@ class Scheduled(unittest.TestCase):
             self.assertEqual(args[args.index('--source-digest')+1],'e'*40)
             raise ValueError('Signature does not bind hinted signer')
         with self.assertRaises(ValueError):target.fetch('v1.2.3',None,P,api=case.case.api,verify=verify,execute=case.execute,discover_signer=True)
-    def test_schedule_truth_table_replaces_only_activated_legacy_official_route(self):
+    def test_schedule_truth_table_has_native_only_official_route(self):
         import re
         data=workflow('security.yml')
         for rolling in ('false','true'):
@@ -126,15 +126,15 @@ class Scheduled(unittest.TestCase):
                         expression=re.sub(r'\btrue\b','True',expression);expression=re.sub(r'\bfalse\b','False',expression)
                         return eval(expression,{'__builtins__':{},'contains':lambda xs,x:x in xs,'fromJSON':json.loads})
                     with self.subTest(rolling=rolling,release=release,result=result):
-                        self.assertEqual(condition('release_candidates'),not(rolling=='true' and release=='true'))
-                        self.assertEqual(condition('native_official_refresh'),rolling=='true' and release=='true' and result in ('success','failure'))
-                        self.assertEqual(condition('native_refresh'),rolling=='true')
+                        self.assertNotIn('release_candidates', data['jobs'])
+                        self.assertEqual(condition('native_official_refresh'),result in ('success','failure'))
+                        self.assertEqual(condition('native_refresh'),True)
 
-    def test_native_job_dependency_and_both_flags_preserve_default_routing(self):
+    def test_native_job_dependency_preserves_same_run_reuse(self):
         data=workflow('security.yml');job=data['jobs']['native_official_refresh'];self.assertEqual(job['needs'],'native_refresh')
         self.assertIn('needs.native_refresh.result',job['if']);self.assertEqual(job['permissions'],data['jobs']['native_refresh']['permissions'])
         for flag in ('MAESTRO_NATIVE_RELEASE_ENABLED','MAESTRO_NATIVE_REFRESH_ENABLED'):
-            self.assertIn(flag,job['if']);self.assertIn(flag,data['jobs']['release_candidates']['if'])
+            self.assertNotIn(flag,json.dumps(job))
         step=next(s for s in job['steps'] if s.get('id')=='refresh')
         self.assertEqual(step['env']['NATIVE_REFRESH_SELECT_OFFICIAL'],'true')
         self.assertIn("needs.native_refresh.result == 'success'",step['env']['NATIVE_REFRESH_REUSE_PRODUCT'])

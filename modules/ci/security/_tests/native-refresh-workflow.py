@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Manual-only refresh uses ordinary read/sign/report jobs, never publication."""
+"""Native refresh preserves scheduled coverage without publication authority."""
 import json
 from pathlib import Path
 import subprocess
@@ -23,10 +23,10 @@ class RefreshWorkflow(unittest.TestCase):
         for guard in ("github.event_name == 'workflow_dispatch'","github.ref == 'refs/heads/main'",
                       "github.repository == 'closure-labs/maestro'",'inputs.native_refresh == true','inputs.policy_only != true'):
             self.assertIn(guard,job['if'])
-        self.assertEqual(job['timeout-minutes'],data['jobs']['dependencies']['timeout-minutes'])
+        self.assertEqual(job['timeout-minutes'],45)
         self.assertEqual(job['permissions'],{'contents':'read','actions':'read','attestations':'write',
             'id-token':'write','artifact-metadata':'write'})
-        for name in ('dependencies','release_candidates'):self.assertIn('inputs.native_refresh != true',data['jobs'][name]['if'])
+        for name in ('dependencies','release_candidates'):self.assertNotIn(name,data['jobs'])
         encoded=json.dumps(job)
         for forbidden in ('secrets.','DECIDER','CACHIX','ci:decision:','ci:native:publication','create-github-app-token'):
             self.assertNotIn(forbidden,encoded)
@@ -42,22 +42,20 @@ class RefreshWorkflow(unittest.TestCase):
         attest=next(s for s in job['steps'] if s.get('uses','').startswith('actions/attest@'))
         self.assertEqual(attest['with']['subject-path'],'security-report/native-health.json')
 
-    def test_scheduled_native_switch_is_explicit_and_excludes_legacy_jobs(self):
+    def test_scheduled_native_route_retains_daily_coverage_without_activation_flag(self):
         data=workflow('security.yml');job=data['jobs']['native_refresh']
-        self.assertIn("github.event_name == 'schedule' && vars.MAESTRO_NATIVE_REFRESH_ENABLED == 'true'",job['if'])
-        self.assertIn("github.event_name != 'schedule' || vars.MAESTRO_NATIVE_REFRESH_ENABLED != 'true'",data['jobs']['dependencies']['if'])
-        self.assertIn('MAESTRO_NATIVE_RELEASE_ENABLED',data['jobs']['release_candidates']['if'])
+        self.assertIn("github.event_name == 'schedule'",job['if'])
+        self.assertEqual(set(data['jobs']),{'native_refresh','native_official_refresh','policy'})
+        self.assertNotIn('MAESTRO_NATIVE_REFRESH_ENABLED',json.dumps(data))
         step=next(s for s in job['steps'] if 'run' in s)
-        self.assertEqual(step['env']['MAESTRO_NATIVE_REFRESH_ENABLED'],"${{ vars.MAESTRO_NATIVE_REFRESH_ENABLED || 'false' }}")
         self.assertEqual(step['env']['NATIVE_REFRESH_SELECT_CURRENT_MAIN'],"${{ github.event_name == 'schedule' && 'true' || 'false' }}")
-        spec=(ROOT/'secretspec.toml').read_text()
-        line=next(l for l in spec.splitlines() if l.startswith('MAESTRO_NATIVE_REFRESH_ENABLED ='))
-        self.assertIn('default = "false"',line)
+        self.assertNotIn('MAESTRO_NATIVE_REFRESH_ENABLED =',(ROOT/'secretspec.toml').read_text())
+        self.assertEqual(len(data['on']['schedule']),1)
 
     def test_schedule_routes_one_rolling_refresh_and_retains_official_product_coverage(self):
         data=workflow('security.yml')
         for event,enabled,native_input,policy_input,expected in [
-            ('schedule','false',False,False,(True,False)),
+            ('schedule','false',False,False,(False,True)),
             ('schedule','true',False,False,(False,True)),
             ('workflow_dispatch','false',True,False,(False,True)),
             ('workflow_dispatch','false',False,False,(True,False)),
@@ -72,16 +70,11 @@ class RefreshWorkflow(unittest.TestCase):
                 expression=expression.replace('&&',' and ').replace('||',' or ').replace('true','True').replace('false','False')
                 return eval(expression,{'__builtins__':{}})
             with self.subTest(event=event,enabled=enabled):
-                self.assertEqual(condition('dependencies'),expected[0])
-                self.assertEqual(condition('release_candidates'),event=='schedule' or not (native_input or policy_input))
                 self.assertEqual(condition('native_refresh'),expected[1])
 
     def test_official_refresh_is_explicit_keyless_and_never_falls_back_to_legacy(self):
         data=workflow('security.yml');inputs=data['on']['workflow_dispatch']['inputs']
         for name in ('native_official_tag','native_official_publication_revision'):self.assertEqual(inputs[name]['default'],'')
-        for name in ('dependencies','release_candidates'):
-            for field in ('native_official_tag','native_official_publication_revision'):
-                self.assertIn("inputs."+field+" == ''",data['jobs'][name]['if'])
         job=data['jobs']['native_refresh'];self.assertNotIn('environment',job)
         self.assertEqual(job['permissions'],{'contents':'read','actions':'read','attestations':'write','id-token':'write','artifact-metadata':'write'})
         step=next(s for s in job['steps'] if 'run' in s)
@@ -94,8 +87,10 @@ class RefreshWorkflow(unittest.TestCase):
         for filename,name in [('publication.yml','native_publish'),('consumer-probe.yml','native_consumer')]:
             data=workflow(filename)
             # Locate by command rather than depending on presentation job IDs.
-            jobs=[j for key,j in data['jobs'].items() if key==name and "vars.MAESTRO_NATIVE_PUBLICATION_ENABLED == 'true'" in j.get('if','')]
+            jobs=[j for key,j in data['jobs'].items() if key==name]
             self.assertEqual(len(jobs),1);job=jobs[0]
+            if name=='native_publish':self.assertIn("vars.MAESTRO_NATIVE_PUBLICATION_ENABLED == 'true'",job['if'])
+            else:self.assertNotIn('secrets.',json.dumps(job))
             self.assertIn("github.ref == 'refs/heads/main'",job['if'])
             self.assertIn("github.event_name == 'workflow_dispatch'",job['if'])
             step=next(s for s in job['steps'] if 'NATIVE_RUN' in s.get('env',{}))

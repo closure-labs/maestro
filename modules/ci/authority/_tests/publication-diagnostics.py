@@ -37,7 +37,7 @@ class Diagnostics(unittest.TestCase):
 
     def test_release_refreshes_same_scopes_before_assets_and_completion(self):
         workflow = json.loads(subprocess.check_output(
-            ['yq', '-o=json', '.', str(ROOT / '.github/workflows/release-publication.yml')], text=True))
+            ['yq', '-o=json', '.', str(ROOT / 'modules/ci/authority/_tests/fixtures/retired-workflows/release-publication.yml')], text=True))
         steps = workflow['jobs']['publish']['steps']
         indexed = {step['id']: (index, step) for index, step in enumerate(steps) if 'id' in step}
         for prefix in ('assets-', 'completion-'):
@@ -359,7 +359,7 @@ class Diagnostics(unittest.TestCase):
     def test_controllers_retain_execution_bound_diagnostics_on_success_and_failure(self):
         for name in ('publication.yml', 'release-publication.yml'):
             workflow = json.loads(subprocess.check_output(
-                ['yq', '-o=json', '.', str(ROOT / '.github/workflows' / name)], text=True))
+                ['yq', '-o=json', '.', str(ROOT / 'modules/ci/authority/_tests/fixtures/retired-workflows' / name)], text=True))
             job = workflow['jobs']['publish']
             self.assertEqual(job['env']['MAESTRO_CI_DIAGNOSTICS'], 'true')
             finalizer = next(step for step in job['steps'] if step.get('run', '').endswith(' release:diagnostics'))

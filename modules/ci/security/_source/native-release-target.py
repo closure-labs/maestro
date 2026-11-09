@@ -106,7 +106,7 @@ def resolve(path,tag,publication_revision,policy_revision,*,api=native.api,verif
             and api('git/ref/tags/'+tag).get('object')==ref,'Main or release tag changed during selection')
     return dict(runId=receipt['sourceRun'],runAttempt=receipt['sourceAttempt'],revision=ref['sha'],
         mediaProducer=media,isoSha256=receipt['isoSha256'],releaseId=release['id'],tag=tag,
-        receiptSha256=digest,authorization=False,publicationReady=False,inventoryVerified=False,
+        receiptSha256=digest,publicationRevision=publication_revision,assets=records,authorization=False,publicationReady=False,inventoryVerified=False,
         narBytesVerified=False,isoBytesVerified=False,findingsAccepted=False)
 
 

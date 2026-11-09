@@ -221,7 +221,8 @@ class SplitTransport(unittest.TestCase):
         consumers = [s for s in ci['qualification']['steps'] if s.get('env', {}).get('DECISION_DIRECTORY') == 'qualified-distribution']
         consumers += [s for job in workflow('release.yml')['jobs'].values() for s in job.get('steps', [])
                       if s.get('env', {}).get('DECISION_DIRECTORY') == 'qualified-distribution']
-        self.assertEqual(len(consumers), 3)
+        self.assertEqual(len(consumers), 1)
+        self.assertNotIn("DECISION_DIRECTORY", json.dumps(workflow("release.yml")))
         for step in consumers:
             self.assertTrue(step['run'].endswith(' ci:decision:download'))
             self.assertEqual(step['env']['CANDIDATE_REQUIRED'], 'true')

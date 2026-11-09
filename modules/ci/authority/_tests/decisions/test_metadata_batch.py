@@ -184,7 +184,7 @@ class MetadataBatch(unittest.TestCase):
             self.assertEqual(command.call_count, 9)
 
     def test_trial_workflow_and_native_inspector_prevent_partial_destination_writes(self):
-        workflow = json.loads(subprocess.check_output(['yq', '-o=json', '.', str(ROOT / '.github/workflows/publication.yml')], text=True))
+        workflow = json.loads(subprocess.check_output(['yq', '-o=json', '.', str(ROOT / 'modules/ci/authority/_tests/fixtures/retired-workflows/publication.yml')], text=True))
         trial = workflow['on']['workflow_dispatch']['inputs']['metadata_batch_trial']
         self.assertEqual(trial, {'description': 'Trial handoff metadata batching for the selected approved candidate; require verified destinations', 'type': 'boolean', 'default': False})
         env = workflow['jobs']['publish']['env']

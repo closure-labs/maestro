@@ -11,6 +11,11 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Retire legacy hosted release/continuation and proposal reconciliation routes.
+  Preserve native daily security refresh, hourly health reporting, maintainer
+  authority and historical decisions; verify official signed release assets and
+  cold cache integrity weekly without publication or findings acceptance.
+
 - Add an explicit nonpublishing native release qualification route for exact ISO
   staging, final-name attestation readback, and bounded hosted disk/runtime
   measurements. Qualification accepts no findings and cannot publish a release.

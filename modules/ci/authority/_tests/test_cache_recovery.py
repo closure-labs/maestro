@@ -293,7 +293,7 @@ class FreshRecovery(unittest.TestCase):
 
     def test_decision_workflow_selects_official_observations_for_risk_review(self):
         workflow = json.loads(subprocess.check_output(
-            ['yq', '-o=json', '.', str(ROOT / '.github/workflows/decisions.yml')], text=True))
+            ['yq', '-o=json', '.', str(ROOT / 'modules/ci/authority/_tests/fixtures/retired-workflows/decisions.yml')], text=True))
         selector = workflow['on']['workflow_dispatch']['inputs']['proposal_hash']
         self.assertEqual(selector['type'], 'string')
         self.assertEqual(selector['default'], '')
@@ -398,7 +398,7 @@ class RecoveryWorkflow(unittest.TestCase):
 
     def test_cache_only_routing_and_protected_native_execution_contract(self):
         workflow = json.loads(subprocess.check_output(
-            ['yq', '-o=json', '.', str(ROOT / '.github/workflows/publication.yml')], text=True))
+            ['yq', '-o=json', '.', str(ROOT / 'modules/ci/authority/_tests/fixtures/retired-workflows/publication.yml')], text=True))
         self.assertEqual(workflow['name'], 'Publish admitted Maestro candidate')
         selector = workflow['on']['workflow_dispatch']['inputs']['proposal_hash']
         self.assertEqual(selector['type'], 'string')

@@ -1,0 +1,389 @@
+# SPDX-License-Identifier: Apache-2.0
+name: Publish admitted Maestro candidate
+on:
+  workflow_run: # zizmor: ignore[dangerous-triggers] Trusted main controller; downloaded candidates are data only.
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      native_qualification_only:
+        description: Read-only findings gate qualification; accepts no findings and never publishes
+        type: boolean
+        default: false
+      native_run:
+        description: Exact successful CI producer of the selected immutable native product
+        type: string
+        default: ''
+      native_attempt:
+        description: Exact native producer attempt
+        type: string
+        default: '1'
+      native_revision:
+        description: Full exact qualified product source SHA
+        type: string
+        default: ''
+      native_health_run:
+        description: Optional exact successful native Security maintenance refresh run
+        type: string
+        default: ''
+      native_health_attempt:
+        description: Exact refresh attempt when supplying native_health_run
+        type: string
+        default: ''
+      native_boot_run:
+        description: Exact original executed-boot run, when boot was retained
+        type: string
+        default: ''
+      native_boot_attempt:
+        description: Exact original executed-boot attempt
+        type: string
+        default: ''
+      native_boot_revision:
+        description: Full original executed-boot source SHA
+        type: string
+        default: ''
+      candidate_run:
+        description: Completed protected candidate run; with proposal_hash use its exact fresh Security maintenance run
+        type: string
+        default: ''
+      proposal_hash:
+        description: Exact admitted official product for cache-only recovery; optional candidate_run supplies fresh observations
+        type: string
+        default: ''
+      verification_reuse_trial:
+        description: Trial gate-local verification reuse; require verified destinations
+        type: boolean
+        default: false
+      metadata_reuse_trial:
+        description: Trial authenticated metadata byte reuse; require verified destinations
+        type: boolean
+        default: false
+      metadata_batch_trial:
+        description: Trial handoff metadata batching for the selected approved candidate; require verified destinations
+        type: boolean
+        default: false
+      public_cache_transport_trial:
+        description: Trial bounded public-cache connection reuse; require verified destinations
+        type: boolean
+        default: false
+      readonly_preflight_trial:
+        description: Trial read-only preflight for the selected approved candidate; require verified destinations and keep the repository variable disabled
+        type: boolean
+        default: false
+  schedule:
+    - cron: '19 * * * *'
+permissions:
+  contents: read
+concurrency:
+  group: ${{ inputs.native_qualification_only && 'maestro-publication-qualification' || 'maestro-publication' }}
+  queue: max
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: inputs.native_qualification_only != true && vars.MAESTRO_NATIVE_PUBLICATION_ENABLED != 'true' && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && (github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.repository.full_name == github.repository && contains(fromJSON('["push","schedule","workflow_dispatch","workflow_run"]'), github.event.workflow_run.event)))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: publication
+    env:
+      MAESTRO_CI_DIAGNOSTICS: 'true'
+      MAESTRO_RELEASE_VERIFICATION_REUSE_ENABLED: ${{ (github.event_name == 'workflow_dispatch' && inputs.verification_reuse_trial) && 'true' || vars.MAESTRO_RELEASE_VERIFICATION_REUSE_ENABLED || 'false' }}
+      MAESTRO_DECISION_ONLY_REUSE_ENABLED: ${{ vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED || 'false' }}
+      MAESTRO_PACKET_METADATA_REUSE_ENABLED: ${{ (github.event_name == 'workflow_dispatch' && inputs.metadata_reuse_trial) && 'true' || vars.MAESTRO_PACKET_METADATA_REUSE_ENABLED || 'false' }}
+      MAESTRO_PACKET_METADATA_BATCH_ENABLED: ${{ (github.event_name == 'workflow_dispatch' && inputs.metadata_batch_trial) && 'true' || vars.MAESTRO_PACKET_METADATA_BATCH_ENABLED || 'false' }}
+      MAESTRO_PUBLIC_CACHE_TRANSPORT_REUSE_ENABLED: ${{ (github.event_name == 'workflow_dispatch' && inputs.public_cache_transport_trial) && 'true' || vars.MAESTRO_PUBLIC_CACHE_TRANSPORT_REUSE_ENABLED || 'false' }}
+      MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED: ${{ (github.event_name == 'workflow_dispatch' && inputs.readonly_preflight_trial) && 'true' || vars.MAESTRO_READONLY_PUBLICATION_PREFLIGHT_ENABLED || 'false' }}
+      PUBLICATION_REQUIRE_VERIFIED: ${{ (github.event_name == 'workflow_dispatch' && (inputs.verification_reuse_trial || inputs.metadata_reuse_trial || inputs.readonly_preflight_trial || inputs.metadata_batch_trial || inputs.public_cache_transport_trial)) && 'true' || 'false' }}
+      PUBLICATION_PURPOSE: ${{ inputs.proposal_hash != '' && 'release' || 'rolling' }}
+    permissions:
+      actions: read
+      packages: read
+      attestations: read
+      contents: read
+    steps:
+      - name: Monitor hosted runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2
+        with:
+          egress-policy: audit
+      - name: Checkout trusted controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Nix
+        uses: $/.github/actions/setup-nix
+      - name: Download completed protected candidate data
+        id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLICATION_METADATA_ONLY: 'true'
+          CANDIDATE_RUN: ${{ inputs.candidate_run || '' }}
+          CANDIDATE_PROPOSAL_HASH: ${{ inputs.proposal_hash || '' }}
+          CANDIDATE_RELEASE_ONLY: ${{ inputs.proposal_hash != '' && 'true' || 'false' }}
+          CANDIDATE_WORKFLOW: ${{ inputs.proposal_hash != '' && '.github/workflows/security.yml' || '.github/workflows/ci.yml' }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' ci:decision:download
+      - name: Reject locally unusable health before public inspection
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:health-preflight
+      - name: Create repository-scoped authority and journal token
+        id: authority
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.DECIDER_CLIENT }}
+          private-key: ${{ secrets.DECIDER_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: read
+          permission-administration: read
+          permission-members: read
+          permission-actions: read
+      - name: Verify live admission and exact distribution roots
+        env:
+          GH_TOKEN: ${{ steps.authority.outputs.token }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' ci:decision:publication
+      - name: Reserve exact official cache recovery identity
+        if: inputs.proposal_hash != ''
+        env:
+          GH_TOKEN: ${{ steps.authority.outputs.token }}
+          PUBLICATION_KEY: ${{ steps.candidate.outputs.release_tag }}
+          PUBLICATION_STEP: cache
+          PUBLICATION_STATE: pending
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:journal
+      - name: Mint independently scoped upstream authority reader
+        id: upstream
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.DECIDER_CLIENT }}
+          private-key: ${{ secrets.DECIDER_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: xo-nixpkg
+          permission-contents: read
+          permission-pull-requests: read
+          permission-members: read
+          permission-administration: read
+          permission-actions: read
+      - name: Inspect current public cache before closure materialization
+        id: cache
+        env:
+          PUBLICATION_DESTINATION: cache
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:inspect
+      - name: Restore authenticated qualified Nix closures without builders
+        if: steps.cache.outputs.status != 'verified'
+        env:
+          GH_TOKEN: ${{ steps.authority.outputs.token }}
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:distribution:restore
+      - name: Verify pinned upstream handoff against actual appliance exposure
+        env:
+          GH_TOKEN: ${{ steps.authority.outputs.token }}
+          XO_AUTHORITY_TOKEN: ${{ steps.upstream.outputs.token }}
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:decision:handoff
+      - name: Publish verified realized closures
+        env:
+          GH_TOKEN: ${{ steps.authority.outputs.token }}
+          XO_AUTHORITY_TOKEN: ${{ steps.upstream.outputs.token }}
+          REGISTRY_TOKEN: ${{ github.token }}
+          CACHIX_MAESTRO_AUTH_TOKEN: ${{ secrets.CACHIX_MAESTRO_AUTH_TOKEN }}
+          CACHIX_MAESTRO_PUBKEY: ${{ vars.CACHIX_MAESTRO_PUBKEY }}
+          PUBLICATION_CACHE_RECEIPT: ${{ runner.temp }}/cache-receipt.json
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' ci:publish
+      - name: Record freshly verified cache destination
+        env:
+          GH_TOKEN: ${{ steps.authority.outputs.token }}
+          PUBLICATION_KEY: ${{ inputs.proposal_hash != '' && steps.candidate.outputs.release_tag || '' }}
+          PUBLICATION_STEP: cache
+          PUBLICATION_STATE: complete
+          PUBLICATION_RECEIPT: ${{ runner.temp }}/cache-receipt.json
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --show-output --option 'packages:pkgs!' '' release:journal
+      - name: Retain immutable decision byte reuse observations
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-decision-byte-reuse-${{ github.job }}
+          path: ${{ runner.temp }}/decision-git-blobs/*/observations.jsonl
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Bind publication diagnostics to this execution
+        if: always()
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' release:diagnostics
+      - name: Retain complete publication diagnostics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-publication-diagnostics-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/publication-diagnostics/
+          if-no-files-found: error
+          retention-days: 30
+
+  native_review:
+    if: (vars.MAESTRO_NATIVE_PUBLICATION_ENABLED == 'true' || inputs.native_qualification_only == true) && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.native_run != '' && inputs.native_revision != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      context_sha256: ${{ steps.review.outputs.context_sha256 || steps.qualification_review.outputs.context_sha256 }}
+    permissions:
+      actions: read
+      attestations: read
+      pull-requests: read
+      contents: read
+    steps:
+      - name: Monitor hosted runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2
+        with:
+          egress-policy: audit
+      - name: Checkout protected native controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Set up Nix
+        uses: $/.github/actions/setup-nix
+      - name: Prepare exact findings for explicit human risk review
+        id: review
+        if: inputs.native_qualification_only != true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NATIVE_RISK_REVIEW_FILE: ${{ runner.temp }}/native-findings-review.json
+          NATIVE_RESULT_FILE: ${{ runner.temp }}/native-findings-diagnostic.json
+          MAESTRO_NATIVE_PUBLICATION_ENABLED: ${{ vars.MAESTRO_NATIVE_PUBLICATION_ENABLED }}
+          NATIVE_RUN: ${{ inputs.native_run }}
+          NATIVE_HEALTH_RUN: ${{ inputs.native_health_run }}
+          NATIVE_HEALTH_ATTEMPT: ${{ inputs.native_health_attempt }}
+          NATIVE_ATTEMPT: ${{ inputs.native_attempt }}
+          NATIVE_REVISION: ${{ inputs.native_revision }}
+          NATIVE_POLICY_REVISION: ${{ github.sha }}
+          NATIVE_BOOT_ORIGIN_RUN: ${{ inputs.native_boot_run }}
+          NATIVE_BOOT_ORIGIN_ATTEMPT: ${{ inputs.native_boot_attempt }}
+          NATIVE_BOOT_ORIGIN_REVISION: ${{ inputs.native_boot_revision }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:native:review
+      - name: Prepare read-only qualification context; accept no findings
+        id: qualification_review
+        if: inputs.native_qualification_only == true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NATIVE_RISK_REVIEW_FILE: ${{ runner.temp }}/native-findings-review.json
+          NATIVE_RESULT_FILE: ${{ runner.temp }}/native-findings-diagnostic.json
+          MAESTRO_NATIVE_PUBLICATION_ENABLED: ${{ vars.MAESTRO_NATIVE_PUBLICATION_ENABLED }}
+          NATIVE_RUN: ${{ inputs.native_run }}
+          NATIVE_HEALTH_RUN: ${{ inputs.native_health_run }}
+          NATIVE_HEALTH_ATTEMPT: ${{ inputs.native_health_attempt }}
+          NATIVE_ATTEMPT: ${{ inputs.native_attempt }}
+          NATIVE_REVISION: ${{ inputs.native_revision }}
+          NATIVE_POLICY_REVISION: ${{ github.sha }}
+          NATIVE_BOOT_ORIGIN_RUN: ${{ inputs.native_boot_run }}
+          NATIVE_BOOT_ORIGIN_ATTEMPT: ${{ inputs.native_boot_attempt }}
+          NATIVE_BOOT_ORIGIN_REVISION: ${{ inputs.native_boot_revision }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:native:review-qualification
+      - name: Retain bounded native consumer receipt
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-findings-review
+          path: |
+            ${{ runner.temp }}/native-findings-review.json
+            ${{ runner.temp }}/native-findings-diagnostic.json
+          if-no-files-found: error
+          retention-days: 30
+
+  native_publish:
+    needs: native_review
+    if: inputs.native_qualification_only != true && vars.MAESTRO_NATIVE_PUBLICATION_ENABLED == 'true' && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.native_run != '' && inputs.native_revision != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment:
+      name: findings-risk-review
+      url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#summary
+    permissions:
+      actions: read
+      attestations: read
+      pull-requests: read
+      contents: read
+    steps:
+      - name: Monitor hosted runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2
+        with:
+          egress-policy: audit
+      - name: Checkout protected native controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Set up Nix
+        uses: $/.github/actions/setup-nix
+      - name: Enforce native policy before any restore or selected cache write
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NATIVE_FINDINGS_CONTEXT_SHA256: ${{ needs.native_review.outputs.context_sha256 }}
+          NATIVE_RESULT_FILE: ${{ runner.temp }}/native-publication-result.json
+          MAESTRO_NATIVE_PUBLICATION_ENABLED: ${{ vars.MAESTRO_NATIVE_PUBLICATION_ENABLED }}
+          NATIVE_RUN: ${{ inputs.native_run }}
+          NATIVE_HEALTH_RUN: ${{ inputs.native_health_run }}
+          NATIVE_HEALTH_ATTEMPT: ${{ inputs.native_health_attempt }}
+          NATIVE_ATTEMPT: ${{ inputs.native_attempt }}
+          NATIVE_REVISION: ${{ inputs.native_revision }}
+          NATIVE_POLICY_REVISION: ${{ github.sha }}
+          NATIVE_BOOT_ORIGIN_RUN: ${{ inputs.native_boot_run }}
+          NATIVE_BOOT_ORIGIN_ATTEMPT: ${{ inputs.native_boot_attempt }}
+          NATIVE_BOOT_ORIGIN_REVISION: ${{ inputs.native_boot_revision }}
+          CACHIX_MAESTRO_AUTH_TOKEN: ${{ secrets.CACHIX_MAESTRO_AUTH_TOKEN }}
+          CACHIX_MAESTRO_PUBKEY: ${{ vars.CACHIX_MAESTRO_PUBKEY }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:native:publication
+      - name: Retain bounded native consumer receipt
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-native-consumer-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-publication-result.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+  native_qualify:
+    needs: native_review
+    if: inputs.native_qualification_only == true && github.repository == 'closure-labs/maestro' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.native_run != '' && inputs.native_revision != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment:
+      name: findings-risk-review
+      url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#summary
+    permissions:
+      actions: read
+      attestations: read
+      pull-requests: read
+      contents: read
+    steps:
+      - name: Monitor hosted runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2
+        with:
+          egress-policy: audit
+      - name: Checkout protected native controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Set up Nix
+        uses: $/.github/actions/setup-nix
+      - name: Verify gate mechanics without accepting risk or writing a destination
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NATIVE_FINDINGS_CONTEXT_SHA256: ${{ needs.native_review.outputs.context_sha256 }}
+          NATIVE_RESULT_FILE: ${{ runner.temp }}/native-qualification-result.json
+          MAESTRO_NATIVE_PUBLICATION_ENABLED: ${{ vars.MAESTRO_NATIVE_PUBLICATION_ENABLED }}
+          NATIVE_RUN: ${{ inputs.native_run }}
+          NATIVE_HEALTH_RUN: ${{ inputs.native_health_run }}
+          NATIVE_HEALTH_ATTEMPT: ${{ inputs.native_health_attempt }}
+          NATIVE_ATTEMPT: ${{ inputs.native_attempt }}
+          NATIVE_REVISION: ${{ inputs.native_revision }}
+          NATIVE_POLICY_REVISION: ${{ github.sha }}
+          NATIVE_BOOT_ORIGIN_RUN: ${{ inputs.native_boot_run }}
+          NATIVE_BOOT_ORIGIN_ATTEMPT: ${{ inputs.native_boot_attempt }}
+          NATIVE_BOOT_ORIGIN_REVISION: ${{ inputs.native_boot_revision }}
+        run: nix run --accept-flake-config .#devenv -- tasks run --mode single --option 'packages:pkgs!' '' ci:native:qualify
+      - name: Retain bounded native consumer receipt
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maestro-native-gate-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-qualification-result.json
+          if-no-files-found: ignore
+          retention-days: 30

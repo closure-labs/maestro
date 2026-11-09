@@ -20,56 +20,6 @@ def jobs(filename):
 CI, RELEASE = jobs('ci.yml'), jobs('release.yml')
 
 
-def ancestors(graph, job):
-    needs = graph[job].get('needs', [])
-    if isinstance(needs, str):
-        needs = [needs]
-    return set(needs).union(*(ancestors(graph, parent) for parent in needs))
-
-
-def without_cancelled_override(expression):
-    # Remove the status conjunct wherever it appears, not an assumed prefix.
-    terms = ' '.join(expression.split()).split(' && ')
-    if terms.count('!cancelled()') != 1:
-        raise ValueError('Expected exactly one explicit cancellation override')
-    terms.remove('!cancelled()')
-    result = ' && '.join(terms)
-    if re.search(r'\b(?:always|cancelled|failure|success)\(\)', result):
-        raise ValueError('Another status function would defeat the inherited-status mutation')
-    return result
-
-
-def eligible(graph, job, states, overrides=None, cancelled=False, expression=None):
-    expression = ' '.join((expression or graph[job]['if']).split())
-    # GitHub adds success() unless a status-check function is present. Include
-    # transitive dependencies: a successful verdict does not erase skipped audit.
-    if not re.search(r'\b(?:always|cancelled|failure|success)\(\)', expression):
-        if any(states.get(parent) != 'success' for parent in ancestors(graph, job)):
-            return False
-    values = {
-        'github.ref': 'refs/heads/main', 'github.event_name': 'workflow_dispatch',
-        'inputs.release_candidate': True, 'inputs.release_request_id': '42',
-        'inputs.native_release_qualification_only': False,
-        'vars.MAESTRO_RELEASE_CONTINUATION_ENABLED': 'true',
-        'needs.context.outputs.ready': 'true', 'needs.context.outputs.already_published': 'false',
-    }
-    values.update({f'needs.{name}.result': state for name, state in states.items()})
-    values.update(overrides or {})
-    results = []
-    for term in expression.split(' && '):
-        if term == '!cancelled()':
-            results.append(not cancelled)
-            continue
-        match = re.fullmatch(r"([\w.]+)\s*(==|!=)\s*('([^']*)'|true|false)", term)
-        if not match:
-            raise ValueError('Review eligibility contract for new expression: ' + term)
-        key, operator, literal, quoted = match.groups()
-        expected = quoted if literal.startswith("'") else literal == 'true'
-        equal = values.get(key) == expected
-        results.append(equal if operator == '==' else not equal)
-    return all(results)
-
-
 class ReleaseGraph(unittest.TestCase):
     def assert_distribution_boundary(self, filename, name, job):
         # Classify every job. A new environment-bearing job must be reviewed,
@@ -77,8 +27,8 @@ class ReleaseGraph(unittest.TestCase):
         known = {
             'ci.yml': {'incoming_secret_scan', 'route', 'audit', 'equivalence', 'retained',
                        'appliance', 'installer', 'qualification', 'boot', 'security',
-                       'signing', 'release_signal', 'verdict'},
-            'release.yml': {'prepare', 'context', 'security', 'release', 'native_review',
+                       'signing', 'verdict'},
+            'release.yml': {'native_review',
                             'native_finalize', 'native_qualification_review', 'native_qualification'},
         }
         self.assertIn(filename, known)
@@ -161,83 +111,32 @@ class ReleaseGraph(unittest.TestCase):
             with self.subTest(cache_scope=key), self.assertRaises(AssertionError):
                 self.assert_distribution_boundary('ci.yml', 'security', job)
 
-    def test_status_override_mutation_is_order_independent_and_fail_closed(self):
-        states = dict.fromkeys(RELEASE, 'success') | {'prepare': 'skipped'}
-        expression = without_cancelled_override(RELEASE['security']['if'])
-        for source in ('!cancelled() && ' + expression, expression + ' && !cancelled()'):
-            self.assertTrue(eligible(RELEASE, 'security', states, expression=source))
-            mutated = without_cancelled_override(source)
-            self.assertEqual(mutated, expression)
-            self.assertIn('inputs.native_release_qualification_only != true', mutated)
-            self.assertFalse(eligible(RELEASE, 'security', states, expression=mutated))
-        for source in (expression, '!cancelled() && !cancelled() && ' + expression,
-                       '!cancelled() && always() && ' + expression):
-            with self.assertRaises(ValueError):without_cancelled_override(source)
+    def test_retired_controllers_and_ci_callback_are_absent(self):
+        self.assertEqual(set(RELEASE), {'native_review','native_finalize','native_qualification_review','native_qualification'})
+        self.assertNotIn('release_signal', CI)
+        for filename in ('release-publication.yml','release-continuation.yml'):
+            self.assertFalse((ROOT/'.github/workflows'/filename).exists())
+        for filename in ('ci.yml','release.yml','publication.yml'):
+            text=(ROOT/'.github/workflows'/filename).read_text()
+            for command in ('release:signal','release:advance','release:pending','ci:decision:reconcile'):
+                self.assertNotIn(command,text)
 
-    def test_publication_uses_separate_controller_and_same_fifo(self):
-        for filename in ['publication.yml', 'release-publication.yml']:
-            document = json.loads(subprocess.check_output(
-                ['yq', '-o=json', '.', str(ROOT / '.github/workflows' / filename)], text=True))
-            group=document['concurrency']['group']
-            if filename=='publication.yml':
-                rules=json.loads((ROOT/'modules/ci/checks/_lib/repository-rules.json').read_text())
-                expected,=[row['needle'].removeprefix('group: ') for row in rules
-                    if row.get('path')=='.github/workflows/publication.yml' and row.get('needle','').startswith('group: ')]
-                self.assertEqual(group,expected)
-                choices=re.fullmatch(r"\$\{\{ inputs.native_qualification_only && '([^']+)' \|\| '([^']+)' \}\}",group)
-                self.assertIsNotNone(choices)
-                self.assertEqual(choices[2],'maestro-publication')
-                self.assertNotEqual(choices[1],choices[2])
-            else:
-                self.assertEqual(group,'maestro-publication')
-            self.assertEqual(document['concurrency']['queue'], 'max')
-            steps = document['jobs']['publish']['steps']
-            tasks = [step.get('run', '') for step in steps]
-            self.assertTrue(any('ci:decision:handoff' in value for value in tasks))
-            self.assertTrue(any('ci:distribution:restore' in value for value in tasks))
-        publisher = jobs('release-publication.yml')['publish']
-        self.assertEqual(publisher['environment'], 'release')
-        self.assertTrue(any('release:journal' in step.get('run', '') for step in publisher['steps']))
+    def test_native_writers_share_fifo_but_trials_are_separate(self):
+        publication=json.loads(subprocess.check_output(['yq','-o=json','.',str(ROOT/'.github/workflows/publication.yml')],text=True))
+        self.assertEqual(set(publication['jobs']), {'native_review','native_publish','native_qualify'})
+        self.assertNotIn('workflow_run',publication['on'])
+        self.assertEqual(publication['concurrency'], {'group':"${{ inputs.native_qualification_only && 'maestro-publication-qualification' || 'maestro-publication' }}",'queue':'max','cancel-in-progress':False})
+        self.assertEqual(RELEASE['native_finalize']['concurrency'], {'group':'maestro-publication','queue':'max','cancel-in-progress':False})
+        for job in (publication['jobs']['native_publish'],RELEASE['native_finalize']):
+            self.assertEqual(job['environment']['name'],'findings-risk-review')
+            self.assertEqual(job['needs'],'native_review')
+            self.assertNotIn('always()',job['if'])
+            self.assertNotIn('!cancelled()',job['if'])
+        self.assertEqual(publication['jobs']['native_qualify']['permissions']['contents'],'read')
 
-    def test_transaction_trials_are_readonly_and_explicitly_selected(self):
-        publisher = jobs('release-publication.yml')['publish']
-        def expression(source, values):
-            source = source.removeprefix('${{ ').removesuffix(' }}')
-            for key in sorted(values, key=len, reverse=True):
-                source = source.replace(key, repr(values[key]))
-            source=source.replace(' != true',' != True').replace(' == true',' == True')
-            return eval(source.replace('&&', 'and').replace('||', 'or'), {'__builtins__': {}}, {})
-        for event in ('workflow_dispatch', 'schedule', 'push'):
-            for mode in ('default', '', 'disabled', 'enabled'):
-                for configured in ('false', 'true'):
-                    values = {'vars.MAESTRO_NATIVE_RELEASE_ENABLED':'false','inputs.native_release':False,
-                              'github.repository': 'closure-labs/maestro', 'github.ref': 'refs/heads/main',
-                              'github.event_name': event, 'inputs.transaction_trial': mode,
-                              'inputs.candidate_run': '123', 'vars.MAESTRO_RELEASE_TRANSACTION_ENABLED': configured}
-                    trial = event == 'workflow_dispatch' and mode in ('disabled', 'enabled')
-                    verified = expression(publisher['env']['PUBLICATION_REQUIRE_VERIFIED'], values)
-                    self.assertEqual(verified, 'true' if trial else 'false')
-                    enabled = expression(publisher['env']['MAESTRO_RELEASE_TRANSACTION_ENABLED'], values)
-                    self.assertEqual(enabled, ('true' if mode == 'enabled' else 'false') if trial else configured)
-                    self.assertTrue(expression(publisher['if'], values))
-                    values['inputs.candidate_run'] = ''
-                    self.assertEqual(bool(expression(publisher['if'], values)), not trial)
-                    values.update({'env.PUBLICATION_REQUIRE_VERIFIED': verified,
-                                   'steps.cache.outputs.status': 'missing'})
-                    for step in publisher['steps']:
-                        command = step.get('run', '')
-                        if command.endswith((' ci:distribution:restore', ' release:advance')):
-                            self.assertEqual(bool(expression(step['if'], values)), not trial)
-                        if 'create-github-app-token@' in step.get('uses', '') and step['with']['repositories'] != 'xo-nixpkg':
-                            for permission in ('contents', 'pull-requests', 'actions'):
-                                self.assertEqual(expression(step['with']['permission-' + permission], values),
-                                                 'read' if trial else 'write')
-
-    def test_publishers_have_no_flakehub_steps_or_oidc_permission(self):
-        for filename in ('publication.yml', 'release-publication.yml'):
-            publisher = jobs(filename)['publish']
-            self.assertNotIn('id-token', publisher['permissions'])
-            self.assertNotIn('flakehub', json.dumps(publisher).lower())
+    def test_flakehub_remains_unsupported(self):
+        for filename in ('publication.yml','release.yml'):
+            self.assertNotIn('flakehub', json.dumps(jobs(filename)).lower())
         policy = json.loads((ROOT / 'modules/ci/authority/_source/github/security-policy.json').read_text())
         self.assertNotIn('flakehub-push', json.dumps(policy))
         self.assertNotIn('flakehub-push@', (ROOT / 'modules/ci/checks/contracts.nix').read_text())
@@ -247,41 +146,6 @@ class ReleaseGraph(unittest.TestCase):
             capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('Only cache publication inspection is supported', result.stderr)
-
-    def test_serial_candidate_signal_survives_skipped_overlap_ancestor(self):
-        states = dict.fromkeys(CI, 'success') | {'audit': 'skipped'}
-        self.assertIn('audit', ancestors(CI, 'release_signal'))
-        self.assertTrue(eligible(CI, 'release_signal', states))
-        without_override = without_cancelled_override(CI['release_signal']['if'])
-        self.assertFalse(eligible(CI, 'release_signal', states, expression=without_override))
-        for state in ['failure', 'cancelled', 'skipped', None]:
-            with self.subTest(verdict=state):
-                self.assertFalse(eligible(CI, 'release_signal', states | {'verdict': state}))
-        for key, value in [('github.ref', 'refs/heads/branch'), ('github.event_name', 'pull_request'),
-                           ('inputs.release_candidate', False), ('inputs.release_request_id', ''),
-                           ('vars.MAESTRO_RELEASE_CONTINUATION_ENABLED', 'false')]:
-            with self.subTest(key=key):
-                self.assertFalse(eligible(CI, 'release_signal', states, {key: value}))
-        self.assertFalse(eligible(CI, 'release_signal', states, cancelled=True))
-
-    def test_callback_scan_and_publication_survive_skipped_prepare(self):
-        states = dict.fromkeys(RELEASE, 'success') | {'prepare': 'skipped'}
-        for job in ['security', 'release']:
-            with self.subTest(job=job):
-                self.assertIn('prepare', ancestors(RELEASE, job))
-                self.assertTrue(eligible(RELEASE, job, states))
-                without_override = without_cancelled_override(RELEASE[job]['if'])
-                self.assertFalse(eligible(RELEASE, job, states, expression=without_override))
-                self.assertFalse(eligible(RELEASE, job, states, cancelled=True))
-                self.assertFalse(eligible(RELEASE, job, states, {'inputs.native_release_qualification_only': True}))
-                for state in ['failure', 'cancelled', 'skipped', None]:
-                    self.assertFalse(eligible(RELEASE, job, states | {'context': state}))
-                for output in [{'needs.context.outputs.ready': 'false'},
-                               {'needs.context.outputs.already_published': 'true'}]:
-                    self.assertFalse(eligible(RELEASE, job, states, output))
-        for state in ['failure', 'cancelled', 'skipped', None]:
-            with self.subTest(scan=state):
-                self.assertFalse(eligible(RELEASE, 'release', states | {'security': state}))
 
 
 unittest.main()

@@ -14,7 +14,7 @@ class Relay(unittest.TestCase):
             relay.validate((root / path).read_text())
         for event in ('pull_request_review:', 'pull_request_review_comment:', 'issue_comment:'):
             self.assertIn(event, relay.RELAY)
-        workflow = (root / '.github/workflows/decisions.yml').read_text()
+        workflow = (root / 'modules/ci/authority/_tests/fixtures/retired-workflows/decisions.yml').read_text()
         self.assertIn('Continue Maestro release, Verify maintainer decision authority]', workflow)
         self.assertIn('ref: main', workflow)
         self.assertIn("github.event.workflow_run.name != 'Verify maintainer decision authority'", workflow)

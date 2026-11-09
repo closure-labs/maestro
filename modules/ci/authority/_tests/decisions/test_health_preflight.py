@@ -164,7 +164,7 @@ class HealthPreflight(unittest.TestCase):
     def test_workflows_apply_filter_before_destination_probe_without_removing_final_gates(self):
         for filename in ('publication.yml', 'release-publication.yml'):
             workflow = json.loads(subprocess.check_output(['yq', '-o=json', '.',
-                                  str(ROOT / '.github/workflows' / filename)], text=True))
+                                  str(ROOT / 'modules/ci/authority/_tests/fixtures/retired-workflows' / filename)], text=True))
             steps = workflow['jobs']['publish']['steps']
             health = next(i for i, s in enumerate(steps) if s.get('run', '').endswith(' ci:decision:health-preflight'))
             inspect = next(i for i, s in enumerate(steps) if s.get('run', '').endswith(' release:inspect'))

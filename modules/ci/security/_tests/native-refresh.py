@@ -85,11 +85,8 @@ class NativeRefresh(unittest.TestCase):
         with patch.dict(os.environ,self.env):
             return refresh.refresh(self.bundle,self.output,self.case.cfg,download,restore,query,scan or self.scan,self.api,scheduled=scheduled)
 
-    def test_scheduled_refresh_requires_both_explicit_route_and_enabled_policy(self):
+    def test_scheduled_refresh_requires_explicit_protected_route(self):
         self.env['GITHUB_EVENT_NAME']='schedule'
-        with self.assertRaises(ValueError):self.run_refresh(scheduled=True)
-        self.assertEqual(self.calls,[])
-        self.env['MAESTRO_NATIVE_REFRESH_ENABLED']='true'
         with self.assertRaises(ValueError):self.run_refresh()
         self.assertEqual(self.calls,[])
         self.run_refresh(scheduled=True)
@@ -216,8 +213,8 @@ class MainSelection(unittest.TestCase):
                 self.assertNotEqual(result.returncode,0)
 
     def test_disabled_policy_unprotected_context_and_main_race_reject(self):
-        for key,value in [('MAESTRO_NATIVE_REFRESH_ENABLED','false'),('GITHUB_REF','refs/pull/1/merge'),
-                          ('GITHUB_EVENT_NAME','pull_request'),('GITHUB_SHA','bad')]:
+        for key,value in [('GITHUB_REF','refs/pull/1/merge'),
+                          ('GITHUB_EVENT_NAME','pull_request'),('GITHUB_EVENT_NAME','workflow_dispatch'),('GITHUB_SHA','bad')]:
             previous=self.env[key];self.env[key]=value
             with self.subTest(key=key),self.assertRaises(ValueError):self.select()
             self.env[key]=previous
