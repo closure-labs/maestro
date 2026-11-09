@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Correct one historical documentation false positive in secret scanning with an
+  exact path-and-public-prose match; preserve detection of substituted or adjacent
+  credentials and all other historical scan failures.
+
 - Retire legacy hosted release/continuation and proposal reconciliation routes.
   Preserve native daily security refresh, hourly health reporting, maintainer
   authority and historical decisions; verify official signed release assets and
