@@ -51,6 +51,7 @@
             ./_tests/test_inventory_scan.py
             ./_tests/test_boot_downloads.py
             ./_tests/test_local_boot_handoff.py
+            ./_tests/test_queue_timeouts.py
             ./_tests/test_verdict.py
             ./_tests/test_signing.py
             ./_tests/test_summary.py
