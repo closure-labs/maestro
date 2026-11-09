@@ -16,6 +16,9 @@ correspond to published GitHub tags.
   Workflow activation is separate; preparation accepts no findings and grants
   no publication authority.
 
+- Retry transient pinned Gitleaks and Secretspec download failures with bounded
+  backoff while preserving checksum, version and scanner failure boundaries.
+
 - Retire legacy hosted release/continuation and proposal reconciliation routes.
   Preserve native daily security refresh, hourly health reporting, maintainer
   authority and historical decisions; verify official signed release assets and
