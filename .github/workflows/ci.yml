@@ -136,6 +136,7 @@ jobs:
     timeout-minutes: 90
     permissions:
       contents: read
+      actions: read
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -145,6 +146,7 @@ jobs:
         uses: $/.github/actions/setup-nix
       - name: Validate repository
         env:
+          GH_TOKEN: ${{ github.token }}
           MAESTRO_CI_AUDIT_MANIFEST: ${{ runner.temp }}/maestro-audit/audit.json
           MAESTRO_CI_AUDIT_TIMINGS: ${{ runner.temp }}/maestro-audit/timings.json
           MAESTRO_NIX_EVENTS_DIR: ${{ runner.temp }}/maestro-audit/nix-events
