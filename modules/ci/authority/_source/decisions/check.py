@@ -14,6 +14,7 @@ from security_decisions import canonical_hash, load_json
 import decision_authority as authority
 import review_routing
 import recovery_context
+import codeql_findings
 from common import config, parser, emit, run, main_revision
 CHECK_NAME = 'Maintainer decision authority'
 COLLECTOR = '.github/workflows/decision-events.yml'
@@ -29,11 +30,14 @@ def governed(path):
     return path in GOVERNED_FILES or path.startswith(GOVERNED_PREFIXES)
 
 
-def post_check(repository, sha, conclusion, summary, app_id, api_post=None):
+def post_check(repository, sha, conclusion, summary, app_id, api_post=None, *, receipt=None):
     if not authority.SHA.fullmatch(sha):
         raise authority.AuthorityError('Check target must be an immutable SHA')
     body = {'name': CHECK_NAME, 'head_sha': sha, 'status': 'completed', 'conclusion': conclusion,
             'output': {'title': CHECK_NAME, 'summary': summary[:60000]}}
+    if receipt is not None:
+        body['external_id'] = f'codeql-v1:{receipt["run"]}:{receipt["attempt"]}:{receipt["digest"]}'
+        body['output']['summary'] += '\n<!-- maestro-codeql-receipt ' + json.dumps(receipt, sort_keys=True, separators=(',', ':')) + ' -->'
     if api_post is None:
         result = subprocess.run(['gh', 'api', '--method', 'POST', f'repos/{repository}/check-runs', '--input', '-'],
                                 input=json.dumps(body), text=True, capture_output=True, timeout=60)
@@ -94,10 +98,21 @@ def check_pr(repository, number, expected_bot, target_sha=None, github=None, *, 
     sensitive = sorted(path for path in paths if governed(path))
     proposals = sorted(path for path in paths if PROPOSAL.fullmatch(path))
     recoveries = []
+    # Read the reports once before requesting code approval, so the very first
+    # blocked check can show the findings command for one combined review.
+    findings_enabled = codeql_findings.enabled(api, repository, target_sha)
+    findings = (codeql_findings.prepare(api, repository, target_sha,
+                                      'pull_request' if target_sha == head else 'merge_group')
+                if findings_enabled else None)
+    reviews_before = codeql_findings.review_snapshot(api, repository, number) if findings_enabled else None
     if sensitive:
         # Governance changes can be authored by humans. Their review is still
         # exact-head/current-maintainer; bot authorship applies only to proposals.
-        authority.approval(api, repository, number, head, allow_sole_self_review=not proposals)
+        try:
+            authority.approval(api, repository, number, head, allow_sole_self_review=not proposals)
+        except authority.HumanDecisionRequired as error:
+            hint = codeql_findings.review_hint(repository, head, findings) if findings_enabled else ''
+            raise authority.HumanDecisionRequired(str(error) + ('. ' + hint if hint else '')) from error
         for path in proposals:
             proposal = authority.document_at(api, repository, path, head)
             if authority.proposal_path(proposal) != path:
@@ -121,6 +136,8 @@ def check_pr(repository, number, expected_bot, target_sha=None, github=None, *, 
         # Packet/tree verification can take time. Never retain an earlier live
         # review or role decision across that work.
         authority.approval(api, repository, number, head, allow_sole_self_review=not proposals)
+    if findings_enabled:
+        findings = codeql_findings.enforce(api, repository, number, head, target_sha, report=findings)
     latest = api(endpoint)
     if latest.get('head', {}).get('sha') != head or latest.get('state') != 'open':
         raise authority.AuthorityError('PR changed while authority was being evaluated')
@@ -143,8 +160,11 @@ def check_pr(repository, number, expected_bot, target_sha=None, github=None, *, 
                 raise authority.AuthorityError('Recovery queue graph differs from exact reviewed snapshot')
         if main_revision(cfg) != proposal['payload']['recovery']['mainRevision']:
             raise authority.AuthorityError('Security recovery graph snapshot changed')
-    return {'pullRequest': number, 'head': head, 'target': target_sha,
-            'governedPaths': sensitive, 'status': 'authorized' if sensitive else 'not-required'}
+    reviews_after = codeql_findings.review_snapshot(api, repository, number) if findings_enabled else None
+    if reviews_before != reviews_after:
+        raise authority.AuthorityError('Reviews changed during findings authorization')
+    return {'pullRequest': number, 'head': head, 'target': target_sha, 'reviewsSha256': reviews_after,
+            'codeql': findings, 'governedPaths': sensitive, 'status': 'authorized' if sensitive else 'not-required'}
 
 
 
@@ -187,6 +207,8 @@ def retired_queue_ref(run, repository, number, api):
 
 def collector_targets(run, repository, github=None, *, collector_run_id=None):
     api = github or authority.github_api
+    if isinstance(run, dict) and run.get('path') == codeql_findings.WORKFLOW:
+        return codeql_targets(run, repository, api)
     if (not isinstance(run, dict) or run.get('path') != COLLECTOR
             or run.get('repository', {}).get('full_name') != repository
             or run.get('status') != 'completed' or run.get('conclusion') != 'success'
@@ -245,6 +267,48 @@ def collector_targets(run, repository, github=None, *, collector_run_id=None):
     return sorted(set(targets))
 
 
+def codeql_targets(run, repository, api):
+    if (run.get('repository', {}).get('full_name') != repository
+            or run.get('status') not in ('in_progress', 'completed')
+            or (run.get('status') == 'completed' and run.get('conclusion') != 'success')
+            or run.get('event') not in ('pull_request', 'merge_group')
+            or not authority.SHA.fullmatch(run.get('head_sha', ''))):
+        raise authority.AuthorityError('Untrusted CodeQL completion signal')
+    if run['event'] == 'merge_group':
+        # Reuse the existing strict, live single-PR queue identity proof.
+        return collector_targets(dict(run, path=COLLECTOR, status='completed', conclusion='success'), repository, api)
+    pulls = run.get('pull_requests')
+    if not isinstance(pulls, list) or len(pulls) != 1:
+        raise authority.AuthorityError('CodeQL PR identity is missing or ambiguous')
+    number = pulls[0].get('number') if isinstance(pulls[0], dict) else None
+    if type(number) is not int or number < 1:
+        raise authority.AuthorityError('Invalid CodeQL PR identity')
+    live = api(f'repos/{repository}/pulls/{number}')
+    if live.get('state') != 'open' or live.get('head', {}).get('sha') != run['head_sha']:
+        return []  # An obsolete completion must not overwrite the current head.
+    return [(number, None)]
+
+
+def with_live_queue_targets(targets, repository, api):
+    """A review resumes both its PR and an already blocked live queue entry."""
+    result = list(targets)
+    for number, target in targets:
+        if target is not None:
+            continue
+        refs = api(f'repos/{repository}/git/matching-refs/heads/gh-readonly-queue/main/pr-{number}-')
+        if not isinstance(refs, list) or len(refs) > 1:
+            raise authority.AuthorityError('Ambiguous live queue refs for review wakeup')
+        for ref in refs:
+            name = ref.get('ref', '') if isinstance(ref, dict) else ''
+            match = QUEUE.fullmatch(name.removeprefix('refs/heads/'))
+            obj = ref.get('object', {})
+            if (not name.startswith('refs/heads/') or not match or int(match[1]) != number
+                    or obj.get('type') != 'commit' or not authority.SHA.fullmatch(obj.get('sha', ''))):
+                raise authority.AuthorityError('Invalid live queue review target')
+            result.append((number, obj['sha']))
+    return result
+
+
 def run_checks(repository, run_id, expected_bot, app_id, github=None, api_post=None):
     authority.validate_context(repository, expected_bot)
     if type(run_id) is not int or run_id < 1 or type(app_id) is not int or app_id < 1:
@@ -252,7 +316,8 @@ def run_checks(repository, run_id, expected_bot, app_id, github=None, api_post=N
     api = github or authority.github_api
     run = api(f'repos/{repository}/actions/runs/{run_id}')
     try:
-        targets = collector_targets(run, repository, api, collector_run_id=run_id)
+        targets = with_live_queue_targets(collector_targets(run, repository, api, collector_run_id=run_id),
+                                          repository, api)
     except ObsoleteQueueCollector as error:
         return {'schema': 1, 'collectorRun': run_id, 'status': 'obsolete',
                 'reason': str(error), 'checks': []}
@@ -260,6 +325,12 @@ def run_checks(repository, run_id, expected_bot, app_id, github=None, api_post=N
     for number, target in targets:
         pull = api(f'repos/{repository}/pulls/{number}')
         sha = target or pull.get('head', {}).get('sha', '')
+        if run.get('path') == codeql_findings.WORKFLOW:
+            if not codeql_findings.enabled(api, repository, sha):
+                continue  # Preparatory controller leaves legacy runs unchanged.
+            target_event = 'pull_request' if sha == pull.get('head', {}).get('sha') else 'merge_group'
+            codeql_findings.wait_for_analysis(api, repository, sha, target_event)
+        receipt = None
         try:
             result = check_pr(repository, number, expected_bot, target, api,
                               expected_head=pull.get('head', {}).get('sha', ''))
@@ -270,10 +341,16 @@ def run_checks(repository, run_id, expected_bot, app_id, github=None, api_post=N
             summary = ('Eligible human approval verified for governed changes.' if result['status'] == 'authorized'
                        else 'This PR does not change governed security or delivery controls.')
             conclusion = 'success'
+            report = result['codeql']
+            if report is not None:
+                summary += f' CodeQL findings: {report["count"]}; verified digest {report["digest"]}.'
+                receipt = {key: report[key] for key in ('run', 'attempt', 'digest', 'artifacts')}
+                receipt.update(schema=1, repository=repository, target=sha, head=result['head'],
+                               pullRequest=number, reviewsSha256=result['reviewsSha256'])
         except (authority.AuthorityError, ValueError, KeyError, TypeError) as error:
             result = {'pullRequest': number, 'target': sha, 'status': 'review-required', 'reason': str(error)}
             summary, conclusion = 'Maintainer decision required: ' + str(error), 'failure'
-        post_check(repository, sha, conclusion, summary, app_id, api_post)
+        post_check(repository, sha, conclusion, summary, app_id, api_post, receipt=receipt)
         outcomes.append(result)
     return {'schema': 1, 'collectorRun': run_id, 'checks': outcomes}
 

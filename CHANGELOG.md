@@ -11,6 +11,11 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Prepare bounded CodeQL findings and exact-attempt verdict helpers plus an
+  opt-in protected receipt producer, preserving unmarked legacy workflows.
+  Workflow activation is separate; preparation accepts no findings and grants
+  no publication authority.
+
 - Retire legacy hosted release/continuation and proposal reconciliation routes.
   Preserve native daily security refresh, hourly health reporting, maintainer
   authority and historical decisions; verify official signed release assets and

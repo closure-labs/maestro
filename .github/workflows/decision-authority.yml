@@ -2,8 +2,8 @@
 name: Verify maintainer decision authority
 on:
   workflow_run: # zizmor: ignore[dangerous-triggers] Metadata signal only; never execute triggering code.
-    workflows: [Collect maintainer decision events]
-    types: [completed]
+    workflows: [Collect maintainer decision events, CodeQL Advanced]
+    types: [in_progress, completed]
 permissions:
   contents: read
   actions: read
@@ -13,9 +13,14 @@ concurrency:
   cancel-in-progress: false
 jobs:
   authority:
-    if: github.repository == 'closure-labs/maestro' && github.event.workflow_run.conclusion == 'success'
+    if: >-
+      github.repository == 'closure-labs/maestro' &&
+      ((github.event.workflow_run.name == 'CodeQL Advanced' && github.event.action == 'in_progress' &&
+        contains(fromJSON('["pull_request","merge_group"]'), github.event.workflow_run.event)) ||
+       (github.event.workflow_run.name == 'Collect maintainer decision events' &&
+        github.event.action == 'completed' && github.event.workflow_run.conclusion == 'success'))
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

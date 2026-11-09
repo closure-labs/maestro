@@ -227,7 +227,8 @@ class NativeHealthWorkflow(unittest.TestCase):
             'permission-contents': 'read', 'permission-actions': 'read',
             'permission-pull-requests': 'read', 'permission-issues': 'write'})
         authority = (root / '.github/workflows/decision-authority.yml').read_text()
-        self.assertIn('workflows: [Collect maintainer decision events]', authority)
+        self.assertIn('workflows: [Collect maintainer decision events, CodeQL Advanced]', authority)
+        self.assertIn("github.event.action == 'in_progress'", authority)
         self.assertIn('ci:decision:check', authority)
         self.assertIn('permission-checks: write', authority)
         self.assertNotIn('ci:decision:reconcile', authority)

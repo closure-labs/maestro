@@ -5,6 +5,7 @@ import copy
 import importlib.util
 from pathlib import Path
 import unittest
+from unittest import mock
 spec = importlib.util.spec_from_file_location('sole_fixture', Path(__file__).with_name('test_check.py'))
 f = importlib.util.module_from_spec(spec); spec.loader.exec_module(f)
 mod, check, HEAD = f.mod.authority, f.mod, f.HEAD
@@ -36,6 +37,18 @@ class API(f.GitHub):
         return super().__call__(endpoint.replace('repos/' + REPO + '/', 'repos/' + f.REPO + '/'))
 
 class SoleReview(unittest.TestCase):
+    def setUp(self):
+        enabled = mock.patch.object(check.codeql_findings, 'enabled', return_value=True)
+        enabled.start(); self.addCleanup(enabled.stop)
+        prepared = mock.patch.object(check.codeql_findings, 'prepare',
+                                      return_value={'count': 0, 'digest': 'f' * 64, 'workflowChanged': False})
+        prepared.start(); self.addCleanup(prepared.stop)
+        # These fixtures isolate code self-review; findings remain independently
+        # reviewed, exercised with real eligibility in test_check.
+        patcher = mock.patch.object(check.codeql_findings, 'enforce',
+                                    return_value={'count': 0, 'digest': 'f' * 64, 'run': 42, 'attempt': 1, 'artifacts': []})
+        patcher.start()
+        self.addCleanup(patcher.stop)
     def approve(self, api):
         return mod.approval(api, REPO, 7, HEAD, allow_sole_self_review=True)
     def test_exact_self_review(self):

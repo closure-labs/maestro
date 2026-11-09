@@ -3,6 +3,7 @@
 from copy import deepcopy
 import re
 import unittest
+from unittest import mock
 from test_check import GitHub, mod, REPO, BOT, HEAD
 
 REPOSITORY = {'id': 91, 'full_name': REPO}
@@ -63,9 +64,21 @@ class API:
 
 
 class ReviewRouting(unittest.TestCase):
+    def setUp(self):
+        enabled = mock.patch.object(mod.codeql_findings, 'enabled', return_value=True)
+        enabled.start(); self.addCleanup(enabled.stop)
+        prepared = mock.patch.object(mod.codeql_findings, 'prepare',
+                                      return_value={'count': 0, 'digest': 'f' * 64, 'workflowChanged': False})
+        prepared.start(); self.addCleanup(prepared.stop)
+        # Measure review routing independently of report downloads, covered by
+        # test_codeql_findings. Each PR also checks its current queue ref.
+        patcher = mock.patch.object(mod.codeql_findings, 'enforce',
+                                    return_value={'count': 0, 'digest': 'f' * 64, 'run': 42, 'attempt': 1, 'artifacts': []})
+        patcher.start()
+        self.addCleanup(patcher.stop)
     def test_measured_gets_and_writes_for_one_five_ten_open_prs(self):
         for governed in (False, True):
-            per_pr = 26 if governed else 6
+            per_pr = 29 if governed else 9
             for count in (1, 5, 10):
                 baseline = API(count, governed, verified=False)
                 old = baseline.check()
@@ -83,7 +96,7 @@ class ReviewRouting(unittest.TestCase):
                 # reads remain, irrespective of how many unrelated PRs exist.
                 self.assertEqual(sum(call.endswith('/pulls/7') for call in targeted.calls), 7 if governed else 5)
                 if governed:
-                    self.assertEqual(sum('/reviews?' in call for call in targeted.calls), 2)
+                    self.assertEqual(sum('/reviews?' in call for call in targeted.calls), 4)
                     self.assertEqual(sum('/memberships/' in call for call in targeted.calls), 4)
 
     def test_missing_spoofed_capped_or_ambiguous_association_retains_global_checks(self):
