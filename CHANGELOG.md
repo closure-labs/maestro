@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Start complete repository validation alongside CI planning, then bind its
+  same-attempt evidence to the authoritative graph before any release gates.
+  Retain phase timings to profile validation without repeating checks.
+
 - Retry transient pinned Gitleaks and Secretspec download failures with bounded
   backoff while preserving checksum, version and scanner failure boundaries.
 
