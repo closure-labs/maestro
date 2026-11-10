@@ -77,6 +77,63 @@ class SecretInventoryTests(unittest.TestCase):
                 self.assertEqual(status, 1)
                 self.assertTrue(findings)
 
+    def test_exact_historical_prose_match_is_exempt_without_hiding_credentials(self):
+        document = 'docs/native-cutover/per-publication-findings-review.md'
+        prose = ('Fixtures cover missing/rejected/ambiguous approval, human identity and access,\n'
+                 'wrong/replaced environment or bypass settings, changed context, unsupported run\n')
+        status, findings = self.scan({document: prose})
+        self.assertEqual(status, 0)
+        self.assertEqual(findings, [])
+        cases = [
+            ('other.md', prose),
+            (document, prose.replace('wrong/replaced', KEY)),
+            (document, prose.replace('wrong/replaced', FAKE)),
+            (document, prose.replace('wrong/replaced', 'wrong/replaced' + KEY)),
+            (document, prose + 'api_key = "' + KEY + '"\n'),
+            (document, prose + 'token = "' + FAKE + '"\n'),
+        ]
+        for index, (path, content) in enumerate(cases):
+            with self.subTest(case=index):
+                for child in self.directory.iterdir():
+                    shutil.rmtree(child) if child.is_dir() else child.unlink()
+                status, findings = self.scan({path: content})
+                self.assertEqual(status, 1)
+                self.assertTrue(findings)
+
+    def test_historical_prose_does_not_hide_deleted_document_credentials(self):
+        def git(*args):
+            subprocess.run(['git', '-c', 'core.hooksPath=/dev/null', '-C', str(self.directory), *args],
+                           check=True, capture_output=True, text=True)
+        git('init', '--quiet')
+        git('config', 'user.name', 'Secret inventory fixture')
+        git('config', 'user.email', 'fixture@example.invalid')
+        document = 'docs/native-cutover/per-publication-findings-review.md'
+        target = self.directory / document
+        target.parent.mkdir(parents=True)
+        prose = ('Fixtures cover missing/rejected/ambiguous approval, human identity and access,\n'
+                 'wrong/replaced environment or bypass settings, changed context, unsupported run\n')
+        target.write_text(prose)
+        git('add', document)
+        git('commit', '--quiet', '-m', 'public documentation fixture')
+        status, findings = self.scan({}, mode='git')
+        self.assertEqual(status, 0)
+        self.assertEqual(findings, [])
+        # Git-mode Gitleaks scans added lines, not unchanged context. Re-add
+        # the document so the complete synthetic assignment enters the diff.
+        git('rm', '--quiet', document)
+        git('commit', '--quiet', '-m', 'remove public documentation fixture')
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(prose.replace('wrong/replaced', KEY))
+        git('add', document)
+        git('commit', '--quiet', '-m', 'synthetic scanner fixture')
+        target.write_text(prose)
+        git('add', document)
+        git('commit', '--quiet', '-m', 'remove synthetic fixture')
+        status, findings = self.scan({}, mode='git')
+        self.assertEqual(status, 1)
+        self.assertIn('generic-api-key', {rule for rule, _ in findings})
+        self.assertTrue(all(path == document for _, path in findings))
+
     def test_deleted_credentials_remain_detectable_in_git_history(self):
         def git(*args):
             subprocess.run(['git', '-c', 'core.hooksPath=/dev/null', '-C', str(self.directory), *args],

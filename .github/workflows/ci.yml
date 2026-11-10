@@ -52,7 +52,7 @@ jobs:
   route:
     name: Plan CI
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: ${{ github.event_name == 'merge_group' && 30 || 90 }}
     permissions:
       actions: read
       attestations: read
@@ -207,7 +207,7 @@ jobs:
     name: Check appliance equivalence and derivation propagation
     needs: route
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: ${{ github.event_name == 'merge_group' && 30 || 90 }}
     permissions:
       contents: read
     steps:
@@ -309,7 +309,7 @@ jobs:
     if: >-
       !cancelled() && needs.route.result == 'success' && fromJSON(needs.route.outputs.plan).qualification.required && needs.retained.outputs.reused != 'true' && (vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED != 'true' || contains(fromJSON('["success","skipped"]'), needs.retained.result)) && ((needs.route.outputs.graph_gating == 'true' && fromJSON(needs.route.outputs.graph_jobs).appliance.required) || (needs.route.outputs.graph_gating != 'true' && fromJSON(needs.route.outputs.plan).qualification.mode != 'reuse'))
     runs-on: ubuntu-24.04
-    timeout-minutes: 240
+    timeout-minutes: ${{ github.event_name == 'merge_group' && 120 || 240 }}
     permissions:
       actions: read
       attestations: read
@@ -363,7 +363,7 @@ jobs:
     if: >-
       !cancelled() && needs.route.result == 'success' && fromJSON(needs.route.outputs.plan).qualification.required && needs.retained.outputs.reused != 'true' && (vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED != 'true' || contains(fromJSON('["success","skipped"]'), needs.retained.result)) && needs.appliance.result == 'success' && ((needs.route.outputs.graph_gating == 'true' && fromJSON(needs.route.outputs.graph_jobs).installer.required) || (needs.route.outputs.graph_gating != 'true' && contains(fromJSON('["qualify-media","qualify-media-reuse-evidence"]'), fromJSON(needs.route.outputs.plan).qualification.mode)))
     runs-on: ubuntu-24.04
-    timeout-minutes: 240
+    timeout-minutes: ${{ github.event_name == 'merge_group' && 30 || 240 }}
     permissions:
       actions: read
       attestations: read
@@ -429,7 +429,7 @@ jobs:
        (needs.appliance.result == 'success' &&
         (fromJSON(needs.route.outputs.plan).qualification.mode == 'refresh-evidence' || needs.installer.result == 'success')))
     runs-on: ubuntu-24.04
-    timeout-minutes: 240
+    timeout-minutes: ${{ github.event_name == 'merge_group' && 60 || 240 }}
     permissions:
       actions: read
       attestations: read
@@ -677,7 +677,7 @@ jobs:
     if: >-
       !cancelled() && needs.route.result == 'success' && ((needs.route.outputs.graph_gating == 'true' && fromJSON(needs.route.outputs.graph_jobs).boot.required) || (needs.route.outputs.graph_gating != 'true' && fromJSON(needs.route.outputs.plan).qualification.required)) && needs.retained.outputs.reused != 'true' && (vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED != 'true' || contains(fromJSON('["success","skipped"]'), needs.retained.result)) && needs.qualification.result == 'success'
     runs-on: ubuntu-24.04
-    timeout-minutes: 240
+    timeout-minutes: ${{ github.event_name == 'merge_group' && 15 || 240 }}
     permissions:
       actions: read
       attestations: read
@@ -787,7 +787,7 @@ jobs:
       (vars.MAESTRO_DECISION_ONLY_REUSE_ENABLED != 'true' || contains(fromJSON('["success","skipped"]'), needs.retained.result)) &&
       needs.equivalence.result == 'success' && needs.audit.result == 'success' && needs.qualification.result == 'success' && needs.boot.result == 'success' && needs.qualification.outputs.scan_result == 'success'
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: ${{ github.event_name == 'merge_group' && 15 || 30 }}
     permissions:
       contents: read
       actions: read
@@ -965,7 +965,7 @@ jobs:
       contents: read
       actions: read
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: ${{ github.event_name == 'merge_group' && 15 || 20 }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

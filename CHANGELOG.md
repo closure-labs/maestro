@@ -11,6 +11,9 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Bound merge-queue stage timeouts to a 315-minute critical path and propose a
+  matching 360-minute queue response limit, preserving nonqueue build limits.
+
 - Start complete repository validation alongside CI planning, then bind its
   same-attempt evidence to the authoritative graph before any release gates.
   Retain phase timings to profile validation without repeating checks.
@@ -19,6 +22,11 @@ correspond to published GitHub tags.
   opt-in protected receipt producer, preserving unmarked legacy workflows.
   Workflow activation is separate; preparation accepts no findings and grants
   no publication authority.
+
+- Correct one historical documentation false positive in secret scanning with an
+  exact path-and-public-prose match; preserve detection of substituted or adjacent
+  credentials and all other historical scan failures.
+
 
 - Retry transient pinned Gitleaks and Secretspec download failures with bounded
   backoff while preserving checksum, version and scanner failure boundaries.

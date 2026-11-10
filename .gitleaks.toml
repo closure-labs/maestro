@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Generated security finding keys are SHA-256 identities, not credentials.
 # Preserve every built-in rule, including generic-api-key outside this exact
-# canonical ledger path AND complete serialized finding-key line.
+# canonical ledger path AND complete serialized finding-key line, plus one
+# exact historical public-prose match. Never exempt a whole documentation path.
 [extend]
 useDefault = true
 
@@ -15,3 +16,13 @@ regexTarget = "line"
 paths = ['''^automation/decisions/security/[a-f0-9]{64}\.json$''']
 # Gitleaks may retain the preceding newline in its line target.
 regexes = ['''^\n?          "key": "[a-f0-9]{64}",$''']
+
+[[rules.allowlists]]
+description = "Exact public prose split across lines in historical findings-review documentation"
+condition = "AND"
+regexTarget = "match"
+paths = ['''^docs/native-cutover/per-publication-findings-review\.md$''']
+# Gitleaks treats the comma after access as an assignment and the next prose
+# phrase as a key. Match the complete fixed scanner match, including its final
+# delimiter, so replacing the next line with a credential still fails closed.
+regexes = ['''^access,\nwrong/replaced $''']
