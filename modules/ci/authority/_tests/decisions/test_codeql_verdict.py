@@ -158,6 +158,40 @@ class Verdict(unittest.TestCase):
         with self.assertRaisesRegex(findings.authority.AuthorityError, 'cancelled'):
             mod.wait(api, REPO, HEAD, 42, 1, 'pull_request', sleep=lambda _: self.fail('unexpected sleep'))
 
+    def test_current_run_identity_reports_only_mismatched_fields(self):
+        for field, value, label in (('id', 99, 'id'), ('run_attempt', 2, 'attempt'),
+                                    ('head_sha', 'b' * 40, 'head'), ('event', 'push', 'event'),
+                                    ('repository', {'full_name': 'other/repo'}, 'repository')):
+            with self.subTest(field=field):
+                api = VerdictAPI(); api.runs[0][field] = value
+                with self.assertRaisesRegex(findings.authority.AuthorityError,
+                                            'identity mismatch: ' + label + '$'):
+                    mod.wait(api, REPO, HEAD, 42, 1, 'pull_request',
+                             sleep=lambda _: self.fail('unexpected sleep'))
+
+    def test_lifecycle_diagnostics_preserve_rejected_states(self):
+        for status, conclusion in [('queued', None), ('waiting', None), ('pending', None),
+                                   ('requested', None), ('completed', 'failure'),
+                                   ('completed', 'timed_out'), ('completed', 'cancelled'),
+                                   ('completed', 'neutral'), ('completed', 'skipped'),
+                                   ('completed', 'action_required'), ('completed', None)]:
+            with self.subTest(status=status, conclusion=conclusion):
+                api = VerdictAPI(); api.runs[0].update(status=status, conclusion=conclusion)
+                with self.assertRaisesRegex(findings.authority.AuthorityError,
+                                            'lifecycle rejected: status=' + status):
+                    mod.wait(api, REPO, HEAD, 42, 1, 'pull_request',
+                             sleep=lambda _: self.fail('unexpected sleep'))
+
+    def test_run_response_diagnostics_are_bounded_and_do_not_echo_data(self):
+        api = VerdictAPI()
+        for response in (None, [], 'secret', dict(api.runs[0], repository=None)):
+            with self.subTest(response=response), self.assertRaises(findings.authority.AuthorityError):
+                mod.require_current_run(response, REPO, HEAD, 42, 1, 'pull_request')
+        api.runs[0].update(status='secret' * 10000, conclusion='secret' * 10000)
+        with self.assertRaisesRegex(findings.authority.AuthorityError,
+                                    'status=unknown; conclusion=none-or-unknown$'):
+            mod.require_current_run(api.runs[0], REPO, HEAD, 42, 1, 'pull_request')
+
     def test_exact_queue_identity_and_replacement(self):
         api = VerdictAPI(); queue = 'b' * 40
         api.runs[0].update(head_sha=queue, event='merge_group', head_branch='gh-readonly-queue/main/pr-7-abcdef0')
