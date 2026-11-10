@@ -18,6 +18,9 @@ correspond to published GitHub tags.
   same-attempt evidence to the authoritative graph before any release gates.
   Retain phase timings to profile validation without repeating checks.
 
+- Retry transient pinned Gitleaks and Secretspec download failures with bounded
+  backoff while preserving checksum, version and scanner failure boundaries.
+
 - Retire legacy hosted release/continuation and proposal reconciliation routes.
   Preserve native daily security refresh, hourly health reporting, maintainer
   authority and historical decisions; verify official signed release assets and

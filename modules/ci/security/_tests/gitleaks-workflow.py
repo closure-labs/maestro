@@ -135,6 +135,98 @@ class RangeTests(unittest.TestCase):
             self.assertNotIn('DO-NOT-EXPOSE', result.stdout + result.stderr)
 
 
+class DownloadTests(unittest.TestCase):
+    """Exercise the actual installer body with a local synthetic release server."""
+    def test_transport_and_integrity_boundaries(self):
+        import hashlib
+        import http.server
+        import io
+        import tarfile
+        import threading
+
+        text = WORKFLOW.read_text()
+        marker = '      - name: Install checksum-pinned upstream Gitleaks\n        run: |\n'
+        scripts = []
+        for section in text.split(marker)[1:]:
+            lines = []
+            for line in section.splitlines():
+                if not line.startswith('          '):
+                    break
+                lines.append(line[10:])
+            scripts.append('\n'.join(lines) + '\n')
+        self.assertEqual(len(scripts), 2)
+        self.assertEqual(scripts[0], scripts[1])
+        for option in ['--retry 4', '--retry-delay 2', '--retry-max-time 180',
+                       '--connect-timeout 20', '--max-time 60', "--proto '=https'", '--tlsv1.2']:
+            self.assertIn(option, scripts[0])
+        self.assertNotIn('--retry-all-errors', scripts[0])
+        self.assertNotIn('--insecure', scripts[0])
+
+        def archive(version):
+            payload = ('#!' + shutil.which('bash') + '\nprintf "%s\\n" ' + version + '\n').encode()
+            output = io.BytesIO()
+            with tarfile.open(fileobj=output, mode='w:gz') as tar:
+                item = tarfile.TarInfo('gitleaks')
+                item.size, item.mode = len(payload), 0o755
+                tar.addfile(item, io.BytesIO(payload))
+            return output.getvalue()
+
+        body = archive('8.30.1')
+        state = {'statuses': [], 'calls': 0, 'body': body}
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+            def do_GET(self):
+                index = state['calls']
+                state['calls'] += 1
+                statuses = state['statuses']
+                status = statuses[min(index, len(statuses) - 1)]
+                payload = state['body'] if status == 200 else b'transient fixture'
+                self.send_response(status)
+                self.send_header('Content-Length', str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+        server = http.server.HTTPServer(('127.0.0.1', 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            cases = [
+                ('504 recovers', [504, 200], body, True, True, 2),
+                ('404 is permanent', [404], body, True, False, 1),
+                ('504 exhausts', [504], body, True, False, 5),
+                ('checksum rejects', [200], body, False, False, 1),
+                ('version rejects', [200], archive('0.0.0'), True, False, 1),
+            ]
+            for name, statuses, payload, correct_hash, succeeds, calls in cases:
+                with self.subTest(name=name), tempfile.TemporaryDirectory() as tmp:
+                    state.update(statuses=statuses, calls=0, body=payload)
+                    expected = hashlib.sha256(payload).hexdigest() if correct_hash else '0' * 64
+                    # Only endpoint, HTTPS transport and fixture digest change. Retry,
+                    # checksum, extraction and version control flow are the real body.
+                    script = scripts[0].replace(
+                        'https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz',
+                        f'http://127.0.0.1:{server.server_port}/release').replace(
+                        "--proto '=https'", "--proto '=http'").replace(
+                        '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb', expected)
+                    result = subprocess.run(['bash', '-c', script], env=dict(os.environ, RUNNER_TEMP=tmp),
+                        capture_output=True, text=True, timeout=45)
+                    self.assertEqual(result.returncode == 0, succeeds, result.stderr)
+                    self.assertEqual(state['calls'], calls)
+                    if not correct_hash:
+                        self.assertFalse((Path(tmp) / 'gitleaks/gitleaks').exists())
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join()
+
+    def test_secretspec_keeps_fixed_output_identity(self):
+        text = (ROOT / 'modules/features/development/_lib/secretspec.nix').read_text()
+        self.assertIn('version = "0.19.1";', text)
+        self.assertIn('sha256-mgtYglMvX/uxxofZKE+oBBlJlisF8U/BMQUPhscOHvw=', text)
+        self.assertIn('--retry 5 --retry-delay 2 --retry-max-time 180', text)
+        self.assertNotIn('--retry-all-errors', text)
+
+
 class WorkflowBoundaryTests(unittest.TestCase):
     def test_read_only_cli_without_candidate_execution_or_suppression(self):
         text = WORKFLOW.read_text()
