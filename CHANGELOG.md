@@ -11,8 +11,15 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Reuse successful exact-commit merge-queue repository audit evidence on main
+  after verifying GitHub run/attempt provenance, artifact digest, freshness and
+  all current graph output identities. Retain fresh preflight, formatting,
+  security scans, approval checks and protected-main signing; fall back to the
+  complete audit on a cache miss or failed verification.
+
 - Bound merge-queue stage timeouts to a 315-minute critical path and propose a
   matching 360-minute queue response limit, preserving nonqueue build limits.
+
 
 - Start complete repository validation alongside CI planning, then bind its
   same-attempt evidence to the authoritative graph before any release gates.
