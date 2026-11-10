@@ -16,10 +16,17 @@ correspond to published GitHub tags.
   findings and scanner identity, and automatically resumes the PR and queue;
   preserve independent eligibility, fresh analysis and all release risk gates.
 
+- Start complete repository validation alongside CI planning, then bind its
+  same-attempt evidence to the authoritative graph before any release gates.
+  Retain phase timings to profile validation without repeating checks.
+
 - Prepare bounded CodeQL findings and exact-attempt verdict helpers plus an
   opt-in protected receipt producer, preserving unmarked legacy workflows.
   Workflow activation is separate; preparation accepts no findings and grants
   no publication authority.
+
+- Retry transient pinned Gitleaks and Secretspec download failures with bounded
+  backoff while preserving checksum, version and scanner failure boundaries.
 
 - Retire legacy hosted release/continuation and proposal reconciliation routes.
   Preserve native daily security refresh, hourly health reporting, maintainer

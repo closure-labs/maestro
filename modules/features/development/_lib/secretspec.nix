@@ -13,6 +13,8 @@ stdenvNoCC.mkDerivation (finalAttrs: {
 
   src = fetchurl {
     url = "https://github.com/cachix/secretspec/releases/download/v${finalAttrs.version}/secretspec-x86_64-unknown-linux-gnu.tar.xz";
+    # Retry transient transport failures only; the fixed-output hash remains authoritative.
+    curlOpts = "--connect-timeout 20 --max-time 60 --retry 5 --retry-delay 2 --retry-max-time 180";
     hash = "sha256-mgtYglMvX/uxxofZKE+oBBlJlisF8U/BMQUPhscOHvw=";
   };
 

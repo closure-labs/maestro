@@ -92,7 +92,7 @@
         || (workflow
           == "repository-secret-scan.yml"
           && builtins.hashString "sha256" (read ".github/workflows/${workflow}")
-          == "0946f9882ae8242581c482895f9ff7b0b6c04f7a342ef9ed1a913231d0544b1f")
+          == "76a0e52066f0ebcca488ddd5a952cf9c0b257c405c20c259fab9b1faa6f1fbef")
         || builtins.all
         (line: (lib.hasInfix "--option 'packages:pkgs!' ''" line
           && (builtins.match

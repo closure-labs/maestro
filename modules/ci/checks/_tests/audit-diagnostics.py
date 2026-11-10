@@ -49,6 +49,12 @@ exit "${FAIL_TARGETS:-0}"
             summary = json.loads((evidence / 'timings.summary.json').read_text())
             self.assertEqual(summary['exitCode'], result.returncode)
             self.assertGreaterEqual(summary['elapsedSeconds'], 0)
+            phases = ['inventory-preflight', 'flake-checks', 'validation-targets']
+            expected_phases = phases[:phases.index(failure) + 1] if failure else phases
+            self.assertEqual([row['phase'] for row in summary['phases']], expected_phases)
+            for row in summary['phases']:
+                self.assertGreaterEqual(row['elapsedSeconds'], 0)
+            self.assertLessEqual(sum(row['elapsedSeconds'] for row in summary['phases']), summary['elapsedSeconds'])
             if failure:
                 self.assertNotEqual(result.returncode, 0)
                 self.assertEqual(summary['phase'], failure)
