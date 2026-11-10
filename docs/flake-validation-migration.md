@@ -65,3 +65,26 @@ Graph routing and historical publication consumers are separate staged work;
 this change does not activate native publication or delete historical records.
 The obsolete comparison command can be removed with the remaining graph/controller
 consumers after their reference checks, rather than inventing another controller.
+
+## Planning overlap and profiling
+
+The `audit_checks` job starts the complete repository audit at the same time as
+`route`. It never selects or skips obligations using planning output. The small
+`audit` join job requires both jobs to succeed, downloads the exact current-run
+and current-attempt raw audit, and uses the existing graph reference validator
+to bind all twenty obligations and output identities to the authoritative plan.
+Signing and verdict consumers still require `audit` and its bound reference.
+No cached test result or approval is introduced by this scheduling change.
+
+The raw audit survives failed validation for diagnosis. Its summary includes
+elapsed time for inventory preflight, full flake checks, and recording cached
+validation targets. The latter is not a second test execution. Resource limits
+remain unchanged: the real 15,983 MiB hosted runner currently permits one build
+job, protecting nested VM tests. Profile measured phase timings and VM memory
+before changing concurrency. A successful hosted comparison is needed before
+claiming a wall-clock saving; the extra binding runner startup and contention
+can offset some of the planning overlap.
+
+Artifact names include the run attempt, so partial reruns cannot silently bind
+previous-attempt audit bytes as fresh evidence. Rerun the complete workflow when
+an attempt changes. A failed planner or audit cannot authorize downstream gates.

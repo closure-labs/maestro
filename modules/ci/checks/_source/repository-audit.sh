@@ -21,12 +21,22 @@ fi
 
 audit_started=$(date +%s)
 audit_phase=inventory-preflight
+phase_started=$audit_started
+audit_phases='[]'
+record_phase() {
+  local now
+  now=$(date +%s)
+  audit_phases=$(jq -c --arg phase "$audit_phase" --argjson elapsedSeconds "$((now - phase_started))" \
+    '. + [{phase:$phase,elapsedSeconds:$elapsedSeconds}]' <<<"$audit_phases")
+  phase_started=$now
+}
 audit_summary() {
   local status=$?
+  record_phase
   if [[ -n ${MAESTRO_CI_AUDIT_TIMINGS:-} ]]; then
     jq -n --arg phase "$audit_phase" --argjson exitCode "$status" \
-      --argjson elapsedSeconds "$(( $(date +%s) - audit_started ))" \
-      '{schemaVersion:1,phase:$phase,exitCode:$exitCode,elapsedSeconds:$elapsedSeconds}' \
+      --argjson elapsedSeconds "$(( $(date +%s) - audit_started ))" --argjson phases "$audit_phases" \
+      '{schemaVersion:1,phase:$phase,exitCode:$exitCode,elapsedSeconds:$elapsedSeconds,phases:$phases}' \
       >"${MAESTRO_CI_AUDIT_TIMINGS%.json}.summary.json"
   fi
 }
@@ -35,6 +45,7 @@ if [[ -n ${MAESTRO_CI_AUDIT_TIMINGS:-} ]]; then
   mkdir -p "$(dirname "$MAESTRO_CI_AUDIT_TIMINGS")"
 fi
 MAESTRO_SYSTEM_ROOT="$repo_root" maestro-ci-security-inventory-preflight
+record_phase
 audit_phase=flake-checks
 nix flake check --accept-flake-config --print-build-logs \
   "$flake_ref" "$@"
@@ -49,6 +60,7 @@ fi
 # Retain the existing twenty-target identity/timing manifest using cached
 # realizations; this does not execute those checks a second time. Timings here
 # are realization-request latencies, not individual fresh test runtimes.
+record_phase
 audit_phase=validation-targets
 flake-plan-runner \
   --flake "$flake_ref" \

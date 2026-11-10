@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Start complete repository validation alongside CI planning, then bind its
+  same-attempt evidence to the authoritative graph before any release gates.
+  Retain phase timings to profile validation without repeating checks.
+
 - Prepare bounded CodeQL findings and exact-attempt verdict helpers plus an
   opt-in protected receipt producer, preserving unmarked legacy workflows.
   Workflow activation is separate; preparation accepts no findings and grants
