@@ -74,6 +74,34 @@ class SameCandidateComparison(unittest.TestCase):
             with self.assertRaises(FileNotFoundError):
                 comparison.read_bound_reference(root, self.graph, 'b' * 64, identity)
 
+    def test_reused_reference_retains_exact_source_and_byte_binding(self):
+        with tempfile.TemporaryDirectory() as work, patch.dict(os.environ, PRODUCER):
+            root = Path(work)
+            (root / 'audit.json').write_text(json.dumps(self.audit))
+            (root / 'timings.json').write_text('{"schemaVersion":1}')
+            reference = dict(schemaVersion=1, producer=PRODUCER, graphSha256=comparison.digest(self.graph),
+                             planSha256='b' * 64, auditSha256=comparison.file_digest(root / 'audit.json'),
+                             timingsSha256=comparison.file_digest(root / 'timings.json'))
+            reuse = dict(schemaVersion=1, mode='exact-queue-audit',
+                         sourceProducer=dict(PRODUCER, GITHUB_RUN_ID='9'),
+                         auditSha256=reference['auditSha256'], timingsSha256=reference['timingsSha256'])
+            (root / 'reuse.json').write_text(json.dumps(reuse))
+            reference['reuseSha256'] = comparison.file_digest(root / 'reuse.json')
+            path = root / 'reference.json'
+            path.write_text(json.dumps(reference))
+            comparison.read_bound_reference(root, self.graph, 'b' * 64, comparison.file_digest(path))
+            for change in [lambda r: r['sourceProducer'].update(GITHUB_SHA='f' * 40),
+                           lambda r: r['sourceProducer'].update(GITHUB_REPOSITORY='other/repo'),
+                           lambda r: r['sourceProducer'].update(GITHUB_RUN_ID='10'),
+                           lambda r: r.update(auditSha256='f' * 64)]:
+                changed = copy.deepcopy(reuse)
+                change(changed)
+                with self.assertRaises(ValueError):
+                    comparison.validate_reuse(changed, reference)
+            (root / 'reuse.json').write_text(json.dumps(reuse) + ' ')
+            with self.assertRaises(ValueError):
+                comparison.read_bound_reference(root, self.graph, 'b' * 64, comparison.file_digest(path))
+
     def test_timings_require_every_successful_obligation_without_conflicts(self):
         timing = dict(schemaVersion=1, plan='maestro-validation', results=[
             dict(attribute=t['attribute'], elapsedSeconds=0, status='success')

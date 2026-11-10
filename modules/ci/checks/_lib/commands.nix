@@ -34,9 +34,17 @@ in {
     runtimeInputs = commonInputs ++ [pkgs.cachix commands.decision-publication commands.decision-handoff];
     source = ../_source/cache-validation.sh;
   };
+  audit-reuse = pkgs.writeShellApplication {
+    name = "maestro-ci-audit-reuse";
+    runtimeInputs = [pkgs.python3 pkgs.git boundedGh];
+    text = ''
+      export PYTHONDONTWRITEBYTECODE=1
+      exec python3 ${../_source/audit-reuse.py}
+    '';
+  };
   repository-audit = mkCommand {
     name = "repository-audit";
-    runtimeInputs = commonInputs ++ [planRunner commands.security-inventory-preflight];
+    runtimeInputs = commonInputs ++ [planRunner commands.security-inventory-preflight commands.audit-reuse];
     source = ../_source/repository-audit.sh;
   };
   verdict = mkCommand {
