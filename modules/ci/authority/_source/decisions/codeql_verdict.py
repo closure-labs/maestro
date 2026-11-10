@@ -88,6 +88,31 @@ def verify(api, repository, sha, run_id, attempt, event):
     return findings.review_snapshot(api, repository, record['pullRequest']) == record['reviewsSha256']
 
 
+def require_current_run(current, repository, sha, run_id, attempt, event):
+    """Keep identity and lifecycle failures distinguishable without logging API bodies."""
+    findings.require(isinstance(current, dict), 'invalid verdict run response')
+    source = current.get('repository')
+    identities = {
+        'id': current.get('id') == run_id,
+        'attempt': current.get('run_attempt') == attempt,
+        'head': current.get('head_sha') == sha,
+        'event': current.get('event') == event,
+        'repository': isinstance(source, dict) and source.get('full_name') == repository,
+    }
+    mismatches = ','.join(name for name, matches in identities.items() if not matches)
+    findings.require(not mismatches, 'verdict run identity mismatch: ' + mismatches)
+    status, conclusion = current.get('status'), current.get('conclusion')
+    # Report only fixed vocabulary, never arbitrary response text or credentials.
+    safe_status = status if status in ('queued', 'requested', 'waiting', 'pending',
+                                      'in_progress', 'completed') else 'unknown'
+    safe_conclusion = conclusion if conclusion in ('success', 'failure', 'cancelled',
+                                                  'timed_out', 'neutral', 'skipped',
+                                                  'action_required', 'stale', 'startup_failure') else 'none-or-unknown'
+    findings.require(status in ('in_progress', 'completed')
+                     and (status != 'completed' or conclusion == 'success'),
+                     f'verdict run lifecycle rejected: status={safe_status}; conclusion={safe_conclusion}')
+
+
 def wait(api, repository, sha, run_id, attempt, event, *, seconds=4800, clock=time.monotonic, sleep=time.sleep):
     findings.require(repository == 'closure-labs/maestro' and authority.SHA.fullmatch(sha)
                      and type(run_id) is int and run_id > 0 and type(attempt) is int and attempt > 0,
@@ -103,12 +128,7 @@ def wait(api, repository, sha, run_id, attempt, event, *, seconds=4800, clock=ti
     deadline = clock() + seconds
     while True:
         current = api(f'repos/{repository}/actions/runs/{run_id}')
-        findings.require(current.get('id') == run_id and current.get('run_attempt') == attempt
-                         and current.get('head_sha') == sha and current.get('event') == event
-                         and current.get('repository', {}).get('full_name') == repository
-                         and current.get('status') in ('in_progress', 'completed')
-                         and (current.get('status') != 'completed' or current.get('conclusion') == 'success'),
-                         'verdict run failed, was cancelled or changed attempt')
+        require_current_run(current, repository, sha, run_id, attempt, event)
         try:
             findings.scan_jobs(api, repository, current)
         except findings.AnalysisPending:
