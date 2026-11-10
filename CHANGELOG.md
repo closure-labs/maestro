@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Start complete repository validation alongside CI planning, then bind its
+  same-attempt evidence to the authoritative graph before any release gates.
+  Retain phase timings to profile validation without repeating checks.
+
 - Correct one historical documentation false positive in secret scanning with an
   exact path-and-public-prose match; preserve detection of substituted or adjacent
   credentials and all other historical scan failures.
