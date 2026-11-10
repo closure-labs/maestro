@@ -51,6 +51,7 @@
             ./_tests/test_inventory_scan.py
             ./_tests/test_boot_downloads.py
             ./_tests/test_local_boot_handoff.py
+            ./_tests/test_queue_timeouts.py
             ./_tests/test_verdict.py
             ./_tests/test_signing.py
             ./_tests/test_summary.py
@@ -63,6 +64,10 @@
         export MAESTRO_VERDICT_SOURCE=${../checks/_source/verdict.sh}
         export MAESTRO_SIGNER_SOURCE=${../../features/installer/_source/sign-check.sh}
         export MAESTRO_CI_WORKFLOW=${../../../.github/workflows/ci.yml}
+        export MAESTRO_QUEUE_SECRET_WORKFLOW=${../../../.github/workflows/repository-secret-scan.yml}
+        export MAESTRO_QUEUE_CODEQL_WORKFLOW=${../../../.github/workflows/codeql.yml}
+        export MAESTRO_QUEUE_AUTHORITY_WORKFLOW=${../../../.github/workflows/decision-authority.yml}
+        export MAESTRO_QUEUE_RULESET=${../authority/_source/github/main-ruleset.json}
         export MAESTRO_BOOT_EVIDENCE_SOURCE=${../../features/installer/_source/boot-evidence.py}
         export MAESTRO_INVENTORY_VERIFIER_SOURCE=${../../features/installer/_source/verify-inventory.sh}
         export MAESTRO_BOOT_COMMAND_SOURCE=${../../features/installer/_source/boot-media.sh}
