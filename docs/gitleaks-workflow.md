@@ -34,7 +34,8 @@ ancestors; diverged PR bases remain valid.
 
 Configuration comes from the protected base, preserving all default rules and
 the existing exact canonical security-ledger path AND complete 64-hex digest
-line exception. No new exclusions, baseline, file-size skips, inline
+line exception and one exact historical public-prose match, described below.
+No broad exclusions, baseline, file-size skips, inline
 `gitleaks:allow` comments or candidate ignore file can suppress findings.
 External Git diff/textconv commands are disabled. Candidate files are read as
 data; no candidate scripts, local actions, Nix evaluation, App credentials or
@@ -81,3 +82,19 @@ are unchanged. Protected-main release paths retain their existing authority
 contracts; this change adds mandatory incoming scanning to the existing merge
 gate. Hosted CI must still establish real engine behavior and complete Nix
 validation before this implementation can be integrated.
+
+## Historical public-prose false positive
+
+The all-history audit also scans superseded documentation. Commit
+`4fb6203af288c0e9603f8a7068c200f802a96336` contains a line ending in `access,`
+followed by the ordinary prose `wrong/replaced environment`. Gitleaks interprets
+that comma and line break as an assignment. The generic rule exception matches
+only the exact scanner match `access,\nwrong/replaced ` and the exact
+`docs/native-cutover/per-publication-findings-review.md` path. It does not exempt
+that path, a whole first line, arbitrary words, or scanner findings generally.
+
+Fixtures require synthetic generic and service-specific credentials substituted
+on the following line, appended to the prose, or placed nearby to remain failures.
+The historical document and ledger are unchanged. Other historical findings,
+scanner errors and timeouts remain visible failures; this exception is not a
+historical clean-scan claim.

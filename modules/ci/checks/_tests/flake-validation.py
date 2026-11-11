@@ -114,7 +114,8 @@ if count + 1 == int(os.environ['FAKE_NIX_FAIL_AT']):
         self.assertNotIn('needs', jobs['audit_checks'])
         self.assertEqual(jobs['audit']['needs'], ['route', 'audit_checks'])
         self.assertNotIn('if', jobs['audit'])  # success of both producers is mandatory
-        self.assertEqual(jobs['audit_checks']['permissions'], {'contents': 'read'})
+        self.assertEqual(jobs['audit_checks']['permissions'], {'contents': 'read', 'actions': 'read'})
+        self.assertEqual(audit['env']['GH_TOKEN'], '${{ github.token }}')
         audit_runs = [step for job in jobs.values() for step in job.get('steps', [])
                       if 'ci:repository-audit' in step.get('run', '')]
         self.assertEqual(len(audit_runs), 1)

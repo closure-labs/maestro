@@ -19,6 +19,7 @@ class AuditDiagnostics(unittest.TestCase):
             binary = root / 'bin'
             binary.mkdir()
             for name, body in {
+                'maestro-ci-audit-reuse': 'exit 1',
                 'maestro-ci-security-inventory-preflight': 'exit "${FAIL_PREFLIGHT:-0}"',
                 'nix': 'printf \'%s\\0\' \"$@\" > \"$NIX_CALLS\"\nexit \"${FAIL_EVALUATION:-0}\"',
                 'flake-plan-runner': '''
@@ -49,7 +50,7 @@ exit "${FAIL_TARGETS:-0}"
             summary = json.loads((evidence / 'timings.summary.json').read_text())
             self.assertEqual(summary['exitCode'], result.returncode)
             self.assertGreaterEqual(summary['elapsedSeconds'], 0)
-            phases = ['inventory-preflight', 'flake-checks', 'validation-targets']
+            phases = ['inventory-preflight', 'queue-reuse-lookup', 'flake-checks', 'validation-targets']
             expected_phases = phases[:phases.index(failure) + 1] if failure else phases
             self.assertEqual([row['phase'] for row in summary['phases']], expected_phases)
             for row in summary['phases']:

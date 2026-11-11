@@ -46,6 +46,14 @@ if [[ -n ${MAESTRO_CI_AUDIT_TIMINGS:-} ]]; then
 fi
 MAESTRO_SYSTEM_ROOT="$repo_root" maestro-ci-security-inventory-preflight
 record_phase
+audit_phase=queue-reuse-lookup
+# Only a protected-main push may reuse authenticated exact-SHA queue evidence.
+# A miss runs the full audit; fresh preflight, graph binding and signing remain.
+if maestro-ci-audit-reuse; then
+  audit_phase=verified-queue-reuse
+  exit 0
+fi
+record_phase
 audit_phase=flake-checks
 nix flake check --accept-flake-config --print-build-logs \
   "$flake_ref" "$@"

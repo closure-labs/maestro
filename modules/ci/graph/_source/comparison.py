@@ -52,9 +52,26 @@ def read_bound_reference(directory, graph, plan_sha, expected_sha):
             'Complete validation used different graph or plan')
     for filename, field in [('audit.json', 'auditSha256'), ('timings.json', 'timingsSha256')]:
         require(file_digest(directory / filename) == reference.get(field), 'Changed complete-validation ' + filename)
+    if 'reuseSha256' in reference:
+        require(file_digest(directory / 'reuse.json') == reference['reuseSha256'],
+                'Changed exact-queue reuse provenance')
+        validate_reuse(json.loads((directory / 'reuse.json').read_text()), reference)
     audit = json.loads((directory / 'audit.json').read_text())
     validate_audit(audit, graph)
     return reference, audit
+
+
+def validate_reuse(reuse, reference):
+    current = producer()
+    source = reuse.get('sourceProducer', {})
+    require(reuse.get('schemaVersion') == 1 and reuse.get('mode') == 'exact-queue-audit'
+            and source.get('GITHUB_REPOSITORY') == current['GITHUB_REPOSITORY']
+            and source.get('GITHUB_SHA') == current['GITHUB_SHA']
+            and source.get('GITHUB_RUN_ID') != current['GITHUB_RUN_ID'],
+            'Reuse is not from the same immutable candidate')
+    require(reuse.get('auditSha256') == reference['auditSha256']
+            and reuse.get('timingsSha256') == reference['timingsSha256'],
+            'Reuse provenance differs from complete audit')
 
 
 def validate_timings(value, graph):
@@ -157,6 +174,10 @@ def main():
         reference = dict(schemaVersion=1, producer=producer(), graphSha256=digest(graph), planSha256=plan_sha,
                          auditSha256=file_digest(directory / 'audit.json'),
                          timingsSha256=file_digest(directory / 'timings.json'))
+        reuse = directory / 'reuse.json'
+        if reuse.exists():
+            validate_reuse(json.loads(reuse.read_text()), reference)
+            reference['reuseSha256'] = file_digest(reuse)
         path = directory / 'reference.json'
         write_json(path, reference)
         output_digest(path)
