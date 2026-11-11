@@ -25,9 +25,15 @@ correspond to published GitHub tags.
   same-attempt evidence to the authoritative graph before any release gates.
   Retain phase timings to profile validation without repeating checks.
 
+- Prepare bounded CodeQL findings and exact-attempt verdict helpers plus an
+  opt-in protected receipt producer, preserving unmarked legacy workflows.
+  Workflow activation is separate; preparation accepts no findings and grants
+  no publication authority.
+
 - Correct one historical documentation false positive in secret scanning with an
   exact path-and-public-prose match; preserve detection of substituted or adjacent
   credentials and all other historical scan failures.
+
 
 - Retry transient pinned Gitleaks and Secretspec download failures with bounded
   backoff while preserving checksum, version and scanner failure boundaries.

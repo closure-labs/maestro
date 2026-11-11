@@ -2,6 +2,7 @@
   inherit (import ../../../features/development/_lib/task-helpers.nix {}) withFlake runFlakePackage;
 in {
   tasks = {
+    "ci:codeql:verdict".exec = runFlakePackage "maestro-ci-codeql-verdict" "";
     "cache:doctor".exec = runFlakePackage "maestro-ci-cache-doctor" "";
     "ci:distribution:restore".exec = runFlakePackage "maestro-ci-distribution-restore" "";
     "ci:decision:continuation-wakeup".exec = runFlakePackage "maestro-ci-decision-continuation-wakeup" "";

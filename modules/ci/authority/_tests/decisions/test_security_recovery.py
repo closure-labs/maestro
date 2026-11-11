@@ -20,6 +20,16 @@ from test_check import GitHub as CheckGitHub, mod as checked, REPO, BOT, HEAD, M
 
 class SecurityRecovery(unittest.TestCase):
     def setUp(self):
+        enabled = patch.object(checked.codeql_findings, 'enabled', return_value=True)
+        enabled.start(); self.addCleanup(enabled.stop)
+        prepared = patch.object(checked.codeql_findings, 'prepare',
+                                      return_value={'count': 0, 'digest': 'f' * 64, 'workflowChanged': False})
+        prepared.start(); self.addCleanup(prepared.stop)
+        import codeql_findings
+        patcher = patch.object(codeql_findings, 'enforce',
+                                    return_value={'count': 0, 'digest': 'f' * 64, 'run': 42, 'attempt': 1, 'artifacts': []})
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.native = scan()
         self.native['profiles']['maestro']['securityContext'] = context()
         self.producer = dict(self.native['producer'], repository=CFG['repository'],

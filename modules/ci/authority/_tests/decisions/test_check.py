@@ -53,9 +53,35 @@ class GitHub(fixtures.GitHub):
 
 class Checks(unittest.TestCase):
     def setUp(self):
+        enabled = mock.patch.object(mod.codeql_findings, 'enabled', return_value=True)
+        enabled.start(); self.addCleanup(enabled.stop)
+        prepared = mock.patch.object(mod.codeql_findings, 'prepare',
+                                      return_value={'count': 0, 'digest': 'f' * 64, 'workflowChanged': False})
+        prepared.start(); self.addCleanup(prepared.stop)
+        findings = mock.patch.object(mod.codeql_findings, 'enforce',
+                                     return_value={'count': 0, 'digest': 'f' * 64, 'run': 42, 'attempt': 1, 'artifacts': []})
+        self.findings = findings.start()
+        self.addCleanup(findings.stop)
         patcher = mock.patch.object(mod, 'validate_proposal_packet', return_value={})
         self.packet_validator = patcher.start()
         self.addCleanup(patcher.stop)
+
+    def test_preparation_preserves_legacy_authority_without_new_gate_or_receipt(self):
+        api = GitHub(); api.files = [{'filename': '.github/workflows/ci.yml', 'status': 'modified'}]
+        with mock.patch.object(mod.codeql_findings, 'enabled', return_value=False):
+            result = mod.check_pr(REPO, 7, BOT, github=api)
+        self.assertEqual(result['status'], 'authorized')
+        self.assertIsNone(result['codeql'])
+        self.assertIsNone(result['reviewsSha256'])
+        self.findings.assert_not_called()
+
+    def test_unmarked_codeql_wakeup_does_not_add_a_legacy_gate(self):
+        api = GitHub(); api.collector['path'] = mod.codeql_findings.WORKFLOW
+        with mock.patch.object(mod.codeql_findings, 'enabled', return_value=False), \
+             mock.patch.object(mod, 'post_check') as post, \
+             mock.patch.object(mod.codeql_findings, 'wait_for_analysis') as wait:
+            self.assertEqual(mod.run_checks(REPO, 1, BOT, 123, api)['checks'], [])
+        post.assert_not_called(); wait.assert_not_called()
 
     def test_regular_pr_passes_without_approval(self):
         api = GitHub()
@@ -333,6 +359,91 @@ class Checks(unittest.TestCase):
         for path in ('.gitleaks.toml', 'gitleaks.toml', '.gitleaksignore'):
             self.assertTrue(mod.governed(path), path)
         self.assertFalse(mod.governed('docs/README.md'))
+
+
+class FindingsIntegration(unittest.TestCase):
+    def setUp(self):
+        enabled = mock.patch.object(mod.codeql_findings, 'enabled', return_value=True)
+        enabled.start(); self.addCleanup(enabled.stop)
+        report = {'count': 1, 'digest': 'f' * 64, 'workflowChanged': False, 'run': 42, 'attempt': 1, 'artifacts': []}
+        patcher = mock.patch.object(mod.codeql_findings, 'evidence', return_value=report)
+        patcher.start(); self.addCleanup(patcher.stop)
+        patcher = mock.patch.object(mod.codeql_findings, 'wait_for_analysis', return_value={})
+        patcher.start(); self.addCleanup(patcher.stop)
+        patcher = mock.patch.object(mod.codeql_findings, 'latest_run', return_value={'id': 42, 'run_attempt': 1})
+        patcher.start(); self.addCleanup(patcher.stop)
+
+    def api(self):
+        api = GitHub()
+        api.files = [{'filename': '.github/workflows/ci.yml', 'status': 'modified'}]
+        api.reviews[-1]['body'] = f'/maestro accept-codeql {HEAD} ' + 'f' * 64
+        return api
+
+    def test_first_blocked_check_displays_one_combined_approval_command(self):
+        api = self.api()
+        api.reviews = []
+        with self.assertRaises(mod.authority.HumanDecisionRequired) as blocked:
+            mod.check_pr(REPO, 7, BOT, github=api)
+        self.assertIn(f'/maestro accept-codeql {HEAD} ' + 'f' * 64, str(blocked.exception))
+
+    def test_single_live_approval_satisfies_both_gates(self):
+        result = mod.check_pr(REPO, 7, BOT, github=self.api())
+        self.assertEqual(result['status'], 'authorized')
+        self.assertEqual(result['codeql']['count'], 1)
+
+    def test_ordinary_approval_and_dismissal_do_not_satisfy_findings(self):
+        for mutate in (lambda a: a.reviews[-1].update(body='approved'),
+                       lambda a: a.reviews[-1].update(state='DISMISSED'),
+                       lambda a: a.reviews[-1].update(commit_id='e' * 40),
+                       lambda a: a.roles.update(maintainer='read')):
+            api = self.api(); mutate(api)
+            with self.subTest(mutation=mutate), self.assertRaises(mod.authority.AuthorityError):
+                mod.check_pr(REPO, 7, BOT, github=api)
+
+    def test_codeql_completion_targets_live_pr_only(self):
+        api = self.api()
+        run = dict(api.collector, path=mod.codeql_findings.WORKFLOW)
+        self.assertEqual(mod.collector_targets(run, REPO, api), [(7, None)])
+        run['head_sha'] = 'e' * 40
+        self.assertEqual(mod.collector_targets(run, REPO, api), [])
+        run.update(head_sha=HEAD, pull_requests=[])
+        with self.assertRaises(mod.authority.AuthorityError):
+            mod.collector_targets(run, REPO, api)
+
+    def test_review_wakes_current_queue_and_ambiguous_refs_block(self):
+        api = self.api()
+        ref = {'ref': 'refs/heads/gh-readonly-queue/main/pr-7-abcdef0',
+               'object': {'type': 'commit', 'sha': MERGE}}
+        api.queue_refs = [ref]
+        self.assertEqual(mod.with_live_queue_targets([(7, None)], REPO, api), [(7, None), (7, MERGE)])
+        api.queue_refs.append(ref)
+        with self.assertRaises(mod.authority.AuthorityError):
+            mod.with_live_queue_targets([(7, None)], REPO, api)
+
+    def test_codeql_pr_wakeup_uses_queue_event_for_queue_target(self):
+        api = self.api()
+        api.collector['path'] = mod.codeql_findings.WORKFLOW
+        api.queue_refs = [{'ref': 'refs/heads/gh-readonly-queue/main/pr-7-abcdef0',
+                           'object': {'type': 'commit', 'sha': MERGE}}]
+        results = [dict(target=target, head=HEAD, status='authorized', codeql=None,
+                        reviewsSha256=None) for target in (HEAD, MERGE)]
+        with mock.patch.object(mod, 'check_pr', side_effect=results), \
+                mock.patch.object(mod, 'post_check'), \
+                mock.patch.object(mod.codeql_findings, 'wait_for_analysis') as wait:
+            mod.run_checks(REPO, 1, BOT, 5384448, api)
+        self.assertEqual(wait.call_args_list, [mock.call(api, REPO, HEAD, 'pull_request'),
+                                              mock.call(api, REPO, MERGE, 'merge_group')])
+
+    def test_findings_failure_posts_app_bound_failure(self):
+        api = self.api()
+        api.reviews[-1]['body'] = 'ordinary approval'
+        calls = []
+        def post(endpoint, body):
+            calls.append(body)
+            return {'app': {'id': 5384448}}
+        mod.run_checks(REPO, 1, BOT, 5384448, api, post)
+        self.assertEqual(calls[0]['conclusion'], 'failure')
+        self.assertIn('/maestro accept-codeql', calls[0]['output']['summary'])
 
 
 if __name__ == '__main__':

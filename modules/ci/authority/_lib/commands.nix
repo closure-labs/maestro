@@ -170,6 +170,14 @@ in {
     runtimeInputs = commonInputs ++ [pkgs.python3 pkgs.oras];
     source = ../_source/decision-reconcile.sh;
   };
+  codeql-verdict = pkgs.writeShellApplication {
+    name = "maestro-ci-codeql-verdict";
+    runtimeInputs = [pkgs.python3 boundedGh];
+    text = ''
+      export PYTHONPATH=${../_source/decisions}
+      exec python3 ${../_source/decisions/codeql_verdict.py}
+    '';
+  };
   decision-check = mkCommand {
     name = "decision-check";
     prefix = ''
