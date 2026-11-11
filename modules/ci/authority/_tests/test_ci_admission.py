@@ -334,6 +334,43 @@ class Admission(unittest.TestCase):
         self.assertNotIn('write', codeql['analyze'].split('    strategy:', 1)[0])
         self.assertIn('upload-sarif@', codeql['publish'])
 
+    def test_codeql_uses_protected_toolchain_not_candidate_helpers(self):
+        workflow = TEMPLATES['.github/workflows/codeql.yml']
+        scanner = workflow.split('      - name: Checkout protected scanner toolchain', 1)[1].split('      - name: Initialize CodeQL', 1)[0]
+        self.assertIn('github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.sha', scanner)
+        self.assertIn('path: controller', scanner)
+        self.assertIn('uses: ./controller/.github/actions/setup-nix', scanner)
+        self.assertIn('working-directory: controller', scanner)
+        self.assertNotIn('uses: $/.github/actions/setup-nix', scanner)
+        self.assertNotIn('working-directory: candidate', scanner)
+        self.assertIn('source-root: candidate', workflow)
+        self.assertIn('name: codeql-${{ matrix.language }}-${{ github.run_attempt }}', workflow)
+        self.assertIn('checkout_path: candidate', workflow)
+        # Changing either candidate helper path cannot alter the protected
+        # checkout selected by this workflow. A workflow change is separately
+        # bound to findings acceptance in test_codeql_findings.
+        for candidate_helper in ('.github/actions/setup-nix/action.yml',
+                                 'modules/features/development/_source/codeql-rust-toolchain.sh'):
+            api = API(); api.human()
+            api.changed = [{'filename': candidate_helper, 'status': 'modified'}]
+            self.assertEqual(api.approve(), 'approved')
+
+    def test_required_codeql_context_is_pending_from_start_and_uses_native_verifier(self):
+        workflow = TEMPLATES['.github/workflows/codeql.yml']
+        verifier = workflow.split('  findings_verdict:\n', 1)[1].split('  publish:', 1)[0]
+        self.assertIn('name: Analyze (actions)', verifier)
+        self.assertNotIn('needs:', verifier)
+        self.assertIn('github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.sha', verifier)
+        self.assertIn('uses: $/.github/actions/setup-nix', verifier)
+        self.assertIn('ci:codeql:verdict', verifier)
+        self.assertNotIn('secrets.', verifier)
+        self.assertNotIn(': write', verifier)
+        self.assertIn("'Scan (actions)'", workflow)
+        authority = (ROOT / '.github/workflows/decision-authority.yml').read_text()
+        self.assertIn("github.event.action == 'in_progress'", authority)
+        self.assertIn("github.event.workflow_run.name == 'CodeQL Advanced'", authority)
+        self.assertIn("github.event.workflow_run.name == 'Collect maintainer decision events'", authority)
+
     def test_super_admin_draft_and_ready(self):
         for draft in (True, False):
             api = API(); api.human(); api.pull['draft'] = draft

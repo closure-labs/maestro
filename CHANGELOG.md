@@ -11,6 +11,11 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Gate all CodeQL findings through the existing protected-main maintainer
+  authority check. One exact-head human approval explicitly accepts the bound
+  findings and scanner identity, and automatically resumes the PR and queue;
+  preserve independent eligibility, fresh analysis and all release risk gates.
+
 - Reuse successful exact-commit merge-queue repository audit evidence on main
   after verifying GitHub run/attempt provenance, artifact digest, freshness and
   all current graph output identities. Retain fresh preflight, formatting,

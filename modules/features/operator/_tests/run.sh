@@ -187,19 +187,27 @@ grep -Fq 'sudo systemctl restart nix-daemon.service' \
 grep -Fq '[[ $substituters != *cache.flakehub.com* ]]' \
   "$TEST_ROOT/.github/actions/setup-nix/action.yml" \
   || fail "shared CI setup does not reject the authenticated FlakeHub cache"
+hosted_nix_policy="$TEST_ROOT/modules/features/operator/_tests/hosted-nix.jq"
 for workflow in "$TEST_ROOT"/.github/workflows/*.yml; do
-  yq -o=json '.jobs' "$workflow" | jq -e --arg workflow "${workflow##*/}" '
-    all(to_entries[];
-      .key as $job | .value |
-      if any(.steps[]?;
-        ((.run // "") | test("(^|[[:space:]])nix[[:space:]]")))
-      then any(.steps[]?; .uses == "$/.github/actions/setup-nix") or
-        ($workflow == "ci.yml" and $job == "retained" and
-         any(.steps[]?; .uses == "./controller/.github/actions/setup-nix") and
-         (.if | contains("github.event.pull_request.base.ref")))
-      else true end)
-  ' >/dev/null || fail "Nix job bypasses shared hosted configuration: $workflow"
+  yq -o=json '.jobs' "$workflow" |
+    jq -e --arg workflow "${workflow##*/}" -f "$hosted_nix_policy" >/dev/null ||
+    fail "Nix job bypasses shared hosted configuration: $workflow"
 done
+# A path-only allowlist must not admit candidate-controlled scanner setup.
+yq -o=json '.jobs' "$TEST_ROOT/.github/workflows/codeql.yml" >"$temporary/codeql-jobs.json"
+for mutation in \
+  '.analyze.steps |= map(if .with.path? == "controller" then .with.ref = "candidate" else . end)' \
+  '.analyze.steps |= map(if .with.path? == "controller" then .with["persist-credentials"] = true else . end)' \
+  '.analyze.steps |= map(if .uses? == "./controller/.github/actions/setup-nix" then .if = "always()" else . end)' \
+  '.analyze.steps |= map(if .["working-directory"]? == "controller" then .["working-directory"] = "candidate" else . end)'; do
+  if jq "$mutation" "$temporary/codeql-jobs.json" |
+    jq -e --arg workflow codeql.yml -f "$hosted_nix_policy" >/dev/null; then
+    fail "Protected CodeQL shared-Nix boundary accepted a tampered scanner"
+  fi
+done
+if jq -e --arg workflow other.yml -f "$hosted_nix_policy" "$temporary/codeql-jobs.json" >/dev/null; then
+  fail "Protected CodeQL shared-Nix exception accepted a different workflow"
+fi
 yq -e '.secretspec.enable == false and .secretspec.cachix_auth_token == false' \
   "$TEST_ROOT/devenv.yaml" >/dev/null || fail "public Devenv startup must be credential-free"
 yq -e '.secretspec.enable == true and .secretspec.provider == "keyring" and

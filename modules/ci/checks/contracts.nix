@@ -87,10 +87,11 @@
               grep -v '^---$'
           )
           # This exact local action belongs only to the isolated protected
-          # retained-evidence controller. All other actions remain pinned.
+          # retained-evidence or CodeQL scanner controller. All other actions remain pinned.
           for workflow in .github/workflows/*.yml; do
             owners=$(yq -r '.jobs | to_entries | .[] | select(.value.steps[].uses == "./controller/.github/actions/setup-nix") | .key' "$workflow")
-            if [[ -n "$owners" && ( "$workflow" != .github/workflows/ci.yml || "$owners" != retained ) ]]; then
+            if [[ -n "$owners" && ! ( "$workflow" == .github/workflows/ci.yml && "$owners" == retained ) &&
+                  ! ( "$workflow" == .github/workflows/codeql.yml && "$owners" == analyze ) ]]; then
               printf 'Local controller setup is outside its protected job: %s\n' "$workflow" >&2
               exit 1
             fi
