@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Let a normal eligible GitHub Approve review accept CodeQL findings after the
+  protected App has published the exact head-bound report. Keep approvals made
+  before the report, changed findings/scanners, and unverified reruns blocked.
+
 - Reuse successful exact-commit merge-queue repository audit evidence on main
   after verifying GitHub run/attempt provenance, artifact digest, freshness and
   all current graph output identities. Retain fresh preflight, formatting,

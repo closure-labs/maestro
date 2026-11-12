@@ -372,6 +372,8 @@ class FindingsIntegration(unittest.TestCase):
         patcher.start(); self.addCleanup(patcher.stop)
         patcher = mock.patch.object(mod.codeql_findings, 'latest_run', return_value={'id': 42, 'run_attempt': 1})
         patcher.start(); self.addCleanup(patcher.stop)
+        patcher = mock.patch.object(mod.codeql_findings, 'artifact_snapshot', return_value=[])
+        patcher.start(); self.addCleanup(patcher.stop)
 
     def api(self):
         api = GitHub()
@@ -385,6 +387,31 @@ class FindingsIntegration(unittest.TestCase):
         with self.assertRaises(mod.authority.HumanDecisionRequired) as blocked:
             mod.check_pr(REPO, 7, BOT, github=api)
         self.assertIn(f'/maestro accept-codeql {HEAD} ' + 'f' * 64, str(blocked.exception))
+
+    def test_report_ready_callback_precedes_missing_governance_approval(self):
+        api = self.api(); api.reviews = []
+        announce = mock.Mock()
+        with self.assertRaises(mod.authority.HumanDecisionRequired):
+            mod.check_pr(REPO, 7, BOT, github=api, report_ready=announce)
+        self.assertEqual(announce.call_count, 1)
+        self.assertEqual(announce.call_args.args[:2], (7, HEAD))
+        self.assertEqual(announce.call_args.args[2]['count'], 1)
+
+    def test_announcement_is_non_authorizing_and_duplicate_exact_report_is_reused(self):
+        api = self.api(); report = mod.codeql_findings.evidence()
+        calls = []
+        def post(endpoint, body):
+            calls.append(body)
+            return dict(body, id=81, app={'id': 5384448})
+        with mock.patch.object(mod.codeql_findings, 'ready_checks', return_value=[]):
+            mod.announce_report(REPO, 7, HEAD, report, 5384448, api, post)
+        self.assertEqual(calls[0]['conclusion'], 'neutral')
+        self.assertEqual(calls[0]['name'], 'CodeQL findings ready')
+        self.assertNotIn('maestro-codeql-receipt ', calls[0]['output']['summary'])
+        record = mod.codeql_findings.ready_record(REPO, 7, HEAD, report)
+        with mock.patch.object(mod.codeql_findings, 'ready_checks', return_value=[(81, None, record)]):
+            mod.announce_report(REPO, 7, HEAD, report, 5384448, api, post)
+        self.assertEqual(len(calls), 1)
 
     def test_single_live_approval_satisfies_both_gates(self):
         result = mod.check_pr(REPO, 7, BOT, github=self.api())
@@ -436,12 +463,13 @@ class FindingsIntegration(unittest.TestCase):
 
     def test_findings_failure_posts_app_bound_failure(self):
         api = self.api()
-        api.reviews[-1]['body'] = 'ordinary approval'
+        api.reviews[-1]['body'] = '/maestro accept-codeql wrong'
         calls = []
         def post(endpoint, body):
             calls.append(body)
             return {'app': {'id': 5384448}}
-        mod.run_checks(REPO, 1, BOT, 5384448, api, post)
+        with mock.patch.object(mod, 'announce_report'):
+            mod.run_checks(REPO, 1, BOT, 5384448, api, post)
         self.assertEqual(calls[0]['conclusion'], 'failure')
         self.assertIn('/maestro accept-codeql', calls[0]['output']['summary'])
 
