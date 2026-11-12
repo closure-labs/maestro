@@ -51,6 +51,42 @@ def post_check(repository, sha, conclusion, summary, app_id, api_post=None, *, r
     return response
 
 
+def announce_report(repository, number, head, report, app_id, api, api_post=None):
+    if not report['count'] and not report['workflowChanged']:
+        return
+    if app_id != codeql_findings.READY_APP_ID:
+        raise authority.AuthorityError('Unexpected findings-ready App identity')
+    record = codeql_findings.ready_record(repository, number, head, report)
+    existing = codeql_findings.ready_checks(api, repository, number, head)
+    if any(row[2] == record for row in existing):
+        return
+    if codeql_findings.artifact_snapshot(api, repository, report['run'], report['attempt'], head) != record['artifacts']:
+        raise authority.AuthorityError('Reports changed before findings-ready publication')
+    current = codeql_findings.latest_run(api, repository, head, 'pull_request')
+    if (current['id'], current['run_attempt']) != (report['run'], report['attempt']):
+        raise authority.AuthorityError('Analysis changed before findings-ready publication')
+    pull = api(f'repos/{repository}/pulls/{number}')
+    if pull.get('state') != 'open' or pull.get('head', {}).get('sha') != head:
+        raise authority.AuthorityError('PR changed before findings-ready publication')
+    body = {'name': codeql_findings.READY_CHECK, 'head_sha': head, 'status': 'completed', 'conclusion': 'neutral',
+            'external_id': f'codeql-ready-v1:{report["run"]}:{report["attempt"]}:{report["digest"]}',
+            'output': {'title': 'Authenticated findings ready for human review; no acceptance granted',
+                       'summary': codeql_findings.review_hint(repository, head, report) +
+                       '\n<!-- maestro-codeql-report-ready ' + codeql_findings.canonical(record).decode() + ' -->'}}
+    if api_post is None:
+        response = subprocess.run(['gh', 'api', '--method', 'POST', f'repos/{repository}/check-runs', '--input', '-'],
+                                  input=json.dumps(body), text=True, capture_output=True, timeout=60)
+        if response.returncode:
+            raise authority.AuthorityError('Could not publish findings-ready check')
+        response = json.loads(response.stdout)
+    else:
+        response = api_post(f'repos/{repository}/check-runs', body)
+    if (not isinstance(response, dict) or response.get('app', {}).get('id') != app_id
+            or type(response.get('id')) is not int or response['id'] <= 0
+            or any(response.get(key) != body[key] for key in ('name', 'head_sha', 'status', 'conclusion', 'external_id'))):
+        raise authority.AuthorityError('Findings-ready check was not posted by configured App')
+
+
 def tree(api, repository, sha):
     value = api(f'repos/{repository}/git/trees/{sha}?recursive=1')
     if not isinstance(value, dict) or value.get('truncated') is not False or not isinstance(value.get('tree'), list):
@@ -72,7 +108,7 @@ def validate_proposal_packet(proposal):
 
 
 @recovery_context.scoped('authority-check', reuse=False)
-def check_pr(repository, number, expected_bot, target_sha=None, github=None, *, expected_head=None):
+def check_pr(repository, number, expected_bot, target_sha=None, github=None, *, expected_head=None, report_ready=None):
     api = github or authority.github_api
     endpoint = f'repos/{repository}/pulls/{number}'
     pull = api(endpoint)
@@ -104,6 +140,8 @@ def check_pr(repository, number, expected_bot, target_sha=None, github=None, *, 
     findings = (codeql_findings.prepare(api, repository, target_sha,
                                       'pull_request' if target_sha == head else 'merge_group')
                 if findings_enabled else None)
+    if findings_enabled and target_sha == head and report_ready is not None:
+        report_ready(number, head, findings)
     reviews_before = codeql_findings.review_snapshot(api, repository, number) if findings_enabled else None
     if sensitive:
         # Governance changes can be authored by humans. Their review is still
@@ -333,7 +371,9 @@ def run_checks(repository, run_id, expected_bot, app_id, github=None, api_post=N
         receipt = None
         try:
             result = check_pr(repository, number, expected_bot, target, api,
-                              expected_head=pull.get('head', {}).get('sha', ''))
+                              expected_head=pull.get('head', {}).get('sha', ''),
+                              report_ready=lambda number, head, report: announce_report(
+                                  repository, number, head, report, app_id, api, api_post))
             sha = result['target']
             latest = api(f'repos/{repository}/pulls/{number}')
             if latest.get('head', {}).get('sha') != result['head'] or latest.get('state') != 'open':
@@ -347,6 +387,8 @@ def run_checks(repository, run_id, expected_bot, app_id, github=None, api_post=N
                 receipt = {key: report[key] for key in ('run', 'attempt', 'digest', 'artifacts')}
                 receipt.update(schema=1, repository=repository, target=sha, head=result['head'],
                                pullRequest=number, reviewsSha256=result['reviewsSha256'])
+                if 'acceptance' in report:
+                    receipt.update(schema=2, acceptance=report['acceptance'])
         except (authority.AuthorityError, ValueError, KeyError, TypeError) as error:
             result = {'pullRequest': number, 'target': sha, 'status': 'review-required', 'reason': str(error)}
             summary, conclusion = 'Maintainer decision required: ' + str(error), 'failure'

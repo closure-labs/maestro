@@ -55,9 +55,12 @@ class API:
                           run_id=42, run_attempt=1, head_sha=target, status='completed', conclusion='success')
                      for lang in mod.LANGUAGES]
         self.calls = []
+        self.checks = []
 
     def __call__(self, endpoint):
         self.calls.append(endpoint)
+        if '/check-runs?' in endpoint:
+            return {'total_count': len(self.checks), 'check_runs': self.checks}
         if '/actions/workflows/codeql.yml/runs?' in endpoint:
             return {'total_count': len(self.runs), 'workflow_runs': self.runs}
         if '/attempts/' in endpoint and '/jobs?' in endpoint:
@@ -122,6 +125,34 @@ class Findings(unittest.TestCase):
             with self.subTest(review=review), mock.patch.object(mod.authority, 'approval', return_value=review):
                 with self.assertRaises(mod.authority.AuthorityError):
                     api.enforce()
+
+    def test_blank_approval_accepts_only_earlier_authenticated_report(self):
+        api = API(True)
+        report = api.evidence()
+        record = mod.ready_record(REPO, 7, HEAD, report)
+        api.checks = [{'id': 55, 'name': mod.READY_CHECK, 'app': {'id': mod.READY_APP_ID},
+                       'head_sha': HEAD, 'status': 'completed', 'conclusion': 'neutral',
+                       'completed_at': '2026-11-09T06:02:00Z',
+                       'external_id': f'codeql-ready-v1:42:1:{report["digest"]}',
+                       'output': {'summary': '\n<!-- maestro-codeql-report-ready ' + mod.canonical(record).decode() + ' -->'}}]
+        review = {'id': 77, 'state': 'APPROVED', 'body': '', 'commit_id': HEAD, 'submitted_at': '2026-11-09T06:03:00Z'}
+        with mock.patch.object(mod.authority, 'approval', return_value=review):
+            self.assertEqual(api.enforce()['digest'], report['digest'])
+            review['body'] = None
+            self.assertEqual(api.enforce()['digest'], report['digest'])
+            review['body'] = 'Scope: /maestro accept-codeql wrong'
+            with self.assertRaises(mod.authority.AuthorityError): api.enforce()
+            review['body'] = ''
+            newer = copy.deepcopy(api.checks[0]); newer.update(id=56, completed_at=review['submitted_at'])
+            changed_record = dict(record, digest='e'*64)
+            newer['external_id'] = 'codeql-ready-v1:42:1:' + 'e'*64
+            newer['output']['summary'] = '\n<!-- maestro-codeql-report-ready ' + mod.canonical(changed_record).decode() + ' -->'
+            api.checks.append(newer)
+            with self.assertRaises(mod.authority.AuthorityError): api.enforce()
+            api.checks.pop()
+            for changed in ('2026-11-09T06:02:00Z', '2026-11-09T06:01:59Z'):
+                review['submitted_at'] = changed
+                with self.assertRaises(mod.authority.AuthorityError): api.enforce()
 
     def test_current_eligible_human_authority_is_not_cached(self):
         api = API(True)

@@ -20,10 +20,17 @@ unchanged or informational. Scanner changes also require explicit acceptance eve
 if their report is empty. This prevents silently weakening the findings gate by
 changing the analysis workflow, while allowing reviewed scanner upgrades.
 
-When findings need review, the failed authority check displays the authenticated
-run link, count, and exact acceptance command. Inspect that run's four CodeQL
-artifacts and the PR changes, then submit one normal GitHub **Approve** review
-with exactly the displayed command as its body:
+When findings need review, the protected App first publishes a separate neutral
+`CodeQL findings ready` check on the exact PR head. Its authenticated receipt binds
+the PR, findings and scanner digest, run attempt, and complete artifact identities.
+This check grants no authority and cannot release the required analysis verdict.
+Inspect the linked run's four CodeQL artifacts and the PR changes, then submit a
+normal GitHub **Approve** review. Its body may be blank; no command is required.
+
+The review must be submitted strictly after GitHub records that report-ready
+check's completion. Earlier approvals, including approvals in the same timestamp
+second, do not accept an unseen report. Submit a new approval after the check is
+visible. The displayed exact command remains a compatible explicit alternative:
 
     /maestro accept-codeql <current-PR-head-SHA> <findings-and-workflow-SHA256>
 
@@ -58,7 +65,10 @@ are bounds, not promised durations. If approval arrives after timeout, rerun all
 CodeQL jobs; failed-job-only reruns cannot reuse old-attempt reports. The authority also
 reevaluates the PR's current single-entry merge queue. The
 same review applies there only when its findings and scanner identity are
-identical. A changed head, changed finding, or changed scanner requires fresh
+identical to the original PR-head report accepted by that review. A newer
+report-ready check posted after approval cannot substitute for the original
+binding. Its original artifact identities are rechecked; fresh complete artifacts
+are independently authenticated for a rerun or queue attempt. A changed head, changed finding, or changed scanner requires fresh
 acceptance. An expired, missing, malformed, ambiguous or incomplete report never
 counts as a clean scan. Rerunning CodeQL requires fresh artifacts for all four
 languages; rerun all jobs rather than mixing old reports into a newer attempt.
@@ -72,6 +82,15 @@ SARIF text is not copied into public check summaries; the human reviews the
 existing analysis artifacts directly.
 
 ## Validation and rollout
+
+Normal approvals use a version-2 success receipt that carries the original
+report-ready binding and accepting review ID through the in-run verifier. The
+verifier rechecks the original report and artifacts as well as the fresh attempt.
+Existing explicit-command approvals retain version-1 receipts. Land both updated
+protected helpers together, then rebase/update candidate PRs onto that base before
+using normal approval: an older verifier rejects version-2 receipts. Publish the
+report-ready check and obtain a new later approval; the change does not reinterpret
+an approval submitted before that report existed.
 
 Deploy in two reviewed PRs: first land the parser/verdict package, opt-in App
 receipt producer and its wakeup on main; then activate the CodeQL workflow
