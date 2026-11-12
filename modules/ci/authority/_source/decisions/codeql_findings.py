@@ -294,13 +294,104 @@ def artifact_snapshot(api, repository, run_id, attempt, sha):
     return identities
 
 
+# Separate from successful authority receipts: this record announces data only.
+READY_CHECK = 'CodeQL findings ready'
+READY_APP_ID = 5384448
+READY_MARKER = re.compile(r'\n<!-- maestro-codeql-report-ready (\{[^\n]+\}) -->$')
+READY_KEYS = {'schema', 'repository', 'pullRequest', 'head', 'run', 'attempt', 'digest', 'artifacts'}
+
+
+def ready_record(repository, number, head, report):
+    value = {key: report[key] for key in ('run', 'attempt', 'digest', 'artifacts')}
+    value.update(schema=1, repository=repository, pullRequest=number, head=head)
+    # Normalize tuple-based parser output to the on-wire JSON representation.
+    return json.loads(canonical(value))
+
+
+def ready_checks(api, repository, number, head):
+    value = api(f'repos/{repository}/commits/{head}/check-runs?check_name=CodeQL%20findings%20ready&filter=all&per_page=100')
+    checks = value.get('check_runs') if isinstance(value, dict) else None
+    require(isinstance(checks, list) and type(value.get('total_count')) is int
+            and len(checks) == value['total_count'] and len(checks) <= 100,
+            'complete report-ready check inventory required')
+    rows, ids = [], set()
+    for check in checks:
+        if not isinstance(check, dict) or check.get('name') != READY_CHECK or check.get('app', {}).get('id') != READY_APP_ID:
+            continue
+        require(type(check.get('id')) is int and check['id'] > 0 and check['id'] not in ids
+                and check.get('head_sha') == head, 'invalid report-ready App identity')
+        ids.add(check['id'])
+        require(check.get('status') == 'completed' and check.get('conclusion') == 'neutral',
+                'report-ready check cannot grant authority')
+        summary = check.get('output', {}).get('summary')
+        require(isinstance(summary, str) and len(summary) <= 65536, 'invalid report-ready summary')
+        match = READY_MARKER.search(summary)
+        require(match is not None, 'missing report-ready binding')
+        record = json.loads(match[1], object_pairs_hook=unique_object)
+        require(isinstance(record, dict) and set(record) == READY_KEYS
+                and type(record['schema']) is int and record['schema'] == 1
+                and record['repository'] == repository and record['head'] == head
+                and type(record['pullRequest']) is int and record['pullRequest'] == number
+                and all(type(record[k]) is int and record[k] > 0 for k in ('run', 'attempt'))
+                and isinstance(record['digest'], str) and re.fullmatch(r'[0-9a-f]{64}', record['digest'])
+                and check.get('external_id') == f'codeql-ready-v1:{record["run"]}:{record["attempt"]}:{record["digest"]}',
+                'invalid report-ready binding')
+        artifacts = record['artifacts']
+        require(isinstance(artifacts, list) and len(artifacts) == len(LANGUAGES)
+                and all(isinstance(a, list) and len(a) == 2 and type(a[0]) is int and a[0] > 0
+                        and isinstance(a[1], str) and re.fullmatch(r'sha256:[0-9a-f]{64}', a[1]) for a in artifacts)
+                and len({a[0] for a in artifacts}) == len(artifacts), 'invalid report-ready artifacts')
+        rows.append((check['id'], timestamp(check.get('completed_at')), record))
+    return rows
+
+
+def ordinary_acceptance(api, repository, number, head, review, report):
+    require(type(review.get('id')) is int and review['id'] > 0, 'invalid approval identity')
+    submitted = timestamp(review.get('submitted_at'))
+    require(review.get('commit_id') == head, 'review head differs from report-ready head')
+    available = ready_checks(api, repository, number, head)
+    require(not any(row[1] == submitted for row in available), 'report and approval timestamp ordering is ambiguous')
+    rows = [row for row in available if row[1] < submitted]
+    require(rows, 'Approve after the protected findings-ready check is available')
+    # Latest pre-review report is the only unambiguous thing that approval can
+    # accept. A same-head scan with different findings cannot revive old consent.
+    newest = max(rows, key=lambda row: row[0])
+    require(newest[1] == max(row[1] for row in rows)
+            and all(row[2]['digest'] == newest[2]['digest'] for row in rows if row[1] == newest[1]),
+            'ambiguous report-ready ordering')
+    original = newest[2]
+    require(original['digest'] == report['digest'], 'findings or scanner changed since review')
+    require(artifact_snapshot(api, repository, original['run'], original['attempt'], head) == original['artifacts'],
+            'reviewed original reports changed or expired')
+    return newest
+
+
+def acceptance_binding(row, review):
+    return {'readyCheckId': row[0], 'readyCompletedAt': row[1].strftime('%Y-%m-%dT%H:%M:%SZ'),
+            'originalRecord': row[2], 'reviewId': review['id']}
+
+
+def verify_acceptance(api, repository, number, head, digest, binding):
+    require(isinstance(binding, dict) and set(binding) == {
+        'readyCheckId', 'readyCompletedAt', 'originalRecord', 'reviewId'}
+        and type(binding['readyCheckId']) is int and binding['readyCheckId'] > 0
+        and type(binding['reviewId']) is int and binding['reviewId'] > 0,
+        'invalid ordinary acceptance binding')
+    reviews = authority.collection(api, f'repos/{repository}/pulls/{number}/reviews')
+    matches = [r for r in reviews if isinstance(r, dict) and r.get('id') == binding['reviewId']]
+    require(len(matches) == 1 and matches[0].get('state') == 'APPROVED', 'ordinary approval changed')
+    row = ordinary_acceptance(api, repository, number, head, matches[0], {'digest': digest})
+    require(acceptance_binding(row, matches[0]) == binding, 'ordinary acceptance binding changed')
+
+
 def review_hint(repository, head, report):
     if not report['count'] and not report['workflowChanged']:
         return ''
     command = f'/maestro accept-codeql {head} {report["digest"]}'
     return (f'{report["count"]} CodeQL findings; analysis workflow changed: {report["workflowChanged"]}. '
             f'Review https://github.com/{repository}/actions/runs/{report["run"]}, then submit one '
-            f'exact-head Approve review accepting these results and scanner changes with body: {command}')
+            f'exact-head Approve review after the protected CodeQL findings ready check. A blank body is allowed. '
+            f'Explicit digest-bound alternative: {command}')
 
 
 def prepare(api, repository, target, event, loader=download):
@@ -323,11 +414,22 @@ def enforce(api, repository, number, head, target, loader=download, *, report=No
             except authority.HumanDecisionRequired as error:
                 raise authority.HumanDecisionRequired(str(error) + '. ' + hint) from error
             command = f'/maestro accept-codeql {head} {report["digest"]}'
-            require(review.get('state') == 'APPROVED' and isinstance(review.get('body'), str)
-                    and review['body'].strip() == command, hint)
+            require(review.get('state') == 'APPROVED' and 'body' in review
+                    and (review['body'] is None or isinstance(review['body'], str)), hint)
+            body = review['body'] or ''
+            accepted = None
+            if body.strip() != command:
+                require('/maestro accept-codeql' not in body, hint)
+                accepted = ordinary_acceptance(api, repository, number, head, review, report)
         current = latest_run(api, repository, target, event)
         require((current['id'], current['run_attempt']) == (report['run'], report['attempt']),
                 'analysis changed before authorization')
+        require(artifact_snapshot(api, repository, report['run'], report['attempt'], target)
+                == json.loads(canonical(report['artifacts'])), 'reports changed before authorization')
+        if hint and accepted is not None:
+            require(ordinary_acceptance(api, repository, number, head, review, report) == accepted,
+                    'report-ready binding changed during authorization')
+            report = dict(report, acceptance=acceptance_binding(accepted, review))
         return report
     except authority.AuthorityError:
         raise
