@@ -89,6 +89,51 @@ class Checks(unittest.TestCase):
         api.reviews = []
         self.assertEqual(mod.check_pr(REPO, 7, BOT, github=api)['status'], 'not-required')
 
+    def test_scanning_queue_and_review_events_stay_pending_then_recheck(self):
+        for event in ('merge_group', 'pull_request_review', 'codeql'):
+            for outcome in ('approved', 'dismissed', 'failed', 'timeout'):
+                with self.subTest(event=event, outcome=outcome):
+                    api = GitHub()
+                    api.files = [{'filename': '.github/workflows/ci.yml', 'status': 'modified'}]
+                    api.collector.update(event='merge_group', head_branch='gh-readonly-queue/main/pr-7-abcdef0',
+                                         head_sha=MERGE)
+                    if event == 'pull_request_review':
+                        api.collector.update(event=event, head_sha=HEAD, head_branch='feature', pull_requests=[])
+                        api.queue_refs = [{'ref': 'refs/heads/gh-readonly-queue/main/pr-7-abcdef0',
+                                           'object': {'type': 'commit', 'sha': MERGE}}]
+                    if event == 'codeql':
+                        api.collector['path'] = mod.codeql_findings.WORKFLOW
+                    calls, elapsed = [], [0]
+                    pending = mod.codeql_findings.AnalysisPending('CodeQL scanner jobs are still running')
+                    report = {'count': 0, 'digest': 'f' * 64, 'workflowChanged': False}
+                    def prepare(*args):
+                        if not elapsed[0] or outcome == 'timeout':
+                            raise pending
+                        if outcome == 'failed':
+                            raise mod.authority.AuthorityError('a current-attempt scanner failed')
+                        return report
+                    def sleep(seconds):
+                        elapsed[0] += seconds
+                        if outcome == 'dismissed':
+                            api.reviews.clear()
+                    def post(endpoint, body):
+                        calls.append(body)
+                        return {'app': {'id': 123}}
+                    real_wait = mod.await_check
+                    def wait(*args, **kwargs):
+                        return real_wait(*args, **kwargs, seconds=30, sleep=sleep, clock=lambda: elapsed[0])
+                    with mock.patch.object(mod.codeql_findings, 'prepare', side_effect=prepare), \
+                         mock.patch.object(mod, 'await_check', side_effect=wait):
+                        mod.run_checks(REPO, 1, BOT, 123, api, post)
+                    self.assertEqual(calls[0]['status'], 'in_progress')
+                    self.assertNotIn('conclusion', calls[0])
+                    self.assertNotIn('maestro-codeql-receipt', calls[0]['output']['summary'])
+                    self.assertEqual(calls[-1]['conclusion'], 'success' if outcome == 'approved' else 'failure')
+                    if outcome == 'approved':
+                        self.assertTrue(all(c.get('conclusion') != 'failure' for c in calls))
+                    if outcome == 'timeout':
+                        self.assertIn('timed out', calls[-1]['output']['summary'])
+
     def test_governance_requires_current_exact_human_review(self):
         api = GitHub()
         api.files = [{'filename': '.github/workflows/build.yml', 'status': 'modified'}]
@@ -454,12 +499,12 @@ class FindingsIntegration(unittest.TestCase):
                            'object': {'type': 'commit', 'sha': MERGE}}]
         results = [dict(target=target, head=HEAD, status='authorized', codeql=None,
                         reviewsSha256=None) for target in (HEAD, MERGE)]
-        with mock.patch.object(mod, 'check_pr', side_effect=results), \
+        with mock.patch.object(mod, 'check_pr', side_effect=results) as check, \
                 mock.patch.object(mod, 'post_check'), \
                 mock.patch.object(mod.codeql_findings, 'wait_for_analysis') as wait:
             mod.run_checks(REPO, 1, BOT, 5384448, api)
-        self.assertEqual(wait.call_args_list, [mock.call(api, REPO, HEAD, 'pull_request'),
-                                              mock.call(api, REPO, MERGE, 'merge_group')])
+        self.assertEqual([call.args[3] for call in check.call_args_list], [None, MERGE])
+        wait.assert_not_called()  # All events now retry the complete live authority check.
 
     def test_findings_failure_posts_app_bound_failure(self):
         api = self.api()

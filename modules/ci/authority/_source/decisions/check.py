@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+import time
 
 from security_decisions import canonical_hash, load_json
 
@@ -33,8 +34,10 @@ def governed(path):
 def post_check(repository, sha, conclusion, summary, app_id, api_post=None, *, receipt=None):
     if not authority.SHA.fullmatch(sha):
         raise authority.AuthorityError('Check target must be an immutable SHA')
-    body = {'name': CHECK_NAME, 'head_sha': sha, 'status': 'completed', 'conclusion': conclusion,
+    body = {'name': CHECK_NAME, 'head_sha': sha, 'status': 'completed' if conclusion else 'in_progress',
             'output': {'title': CHECK_NAME, 'summary': summary[:60000]}}
+    if conclusion is not None:
+        body['conclusion'] = conclusion
     if receipt is not None:
         body['external_id'] = f'codeql-v1:{receipt["run"]}:{receipt["attempt"]}:{receipt["digest"]}'
         body['output']['summary'] += '\n<!-- maestro-codeql-receipt ' + json.dumps(receipt, sort_keys=True, separators=(',', ':')) + ' -->'
@@ -347,6 +350,27 @@ def with_live_queue_targets(targets, repository, api):
     return result
 
 
+def await_check(repository, number, expected_bot, target, api, app_id, api_post,
+                *, expected_head, seconds=2700, sleep=time.sleep, clock=time.monotonic):
+    """Keep incomplete scans pending for every event, then recheck live authority."""
+    deadline = clock() + seconds
+    pending_posted = False
+    while True:
+        try:
+            return check_pr(repository, number, expected_bot, target, api,
+                            expected_head=expected_head,
+                            report_ready=lambda number, head, report: announce_report(
+                                repository, number, head, report, app_id, api, api_post))
+        except codeql_findings.AnalysisPending:
+            if clock() >= deadline:
+                raise authority.AuthorityError('timed out waiting for scanner jobs')
+            if not pending_posted:
+                post_check(repository, target or expected_head, None,
+                           'Waiting for current CodeQL scanner jobs; no authority granted.', app_id, api_post)
+                pending_posted = True
+            sleep(min(15, max(0, deadline - clock())))
+
+
 def run_checks(repository, run_id, expected_bot, app_id, github=None, api_post=None):
     authority.validate_context(repository, expected_bot)
     if type(run_id) is not int or run_id < 1 or type(app_id) is not int or app_id < 1:
@@ -366,14 +390,10 @@ def run_checks(repository, run_id, expected_bot, app_id, github=None, api_post=N
         if run.get('path') == codeql_findings.WORKFLOW:
             if not codeql_findings.enabled(api, repository, sha):
                 continue  # Preparatory controller leaves legacy runs unchanged.
-            target_event = 'pull_request' if sha == pull.get('head', {}).get('sha') else 'merge_group'
-            codeql_findings.wait_for_analysis(api, repository, sha, target_event)
         receipt = None
         try:
-            result = check_pr(repository, number, expected_bot, target, api,
-                              expected_head=pull.get('head', {}).get('sha', ''),
-                              report_ready=lambda number, head, report: announce_report(
-                                  repository, number, head, report, app_id, api, api_post))
+            result = await_check(repository, number, expected_bot, target, api, app_id, api_post,
+                                 expected_head=pull.get('head', {}).get('sha', ''))
             sha = result['target']
             latest = api(f'repos/{repository}/pulls/{number}')
             if latest.get('head', {}).get('sha') != result['head'] or latest.get('state') != 'open':
