@@ -11,6 +11,9 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Give cold qualification-output evaluation the same bounded 15-minute budget
+  as graph equivalence, without extending authentication or transfer deadlines.
+
 - Gate all CodeQL findings through the existing protected-main maintainer
   authority check. One exact-head human approval explicitly accepts the bound
   findings and scanner identity, and automatically resumes the PR and queue;
