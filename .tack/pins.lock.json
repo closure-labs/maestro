@@ -1,0 +1,26 @@
+{
+  "$declared": {
+    "tack": "github:manic-systems/tack/673997981720feebb3870645932b6cfe6657db9f",
+    "xo-nixpkg": "github:closure-labs/xo-nixpkg"
+  },
+  "tack": {
+    "type": "github",
+    "owner": "manic-systems",
+    "repo": "tack",
+    "rev": "673997981720feebb3870645932b6cfe6657db9f",
+    "narHash": "sha256-iRVnAKvQh5vC76QppovlxTklJf98EA+GYEY91loasy4=",
+    "lastModified": 1795748364,
+    "public": true
+  },
+  "xo-nixpkg": {
+    "type": "github",
+    "owner": "closure-labs",
+    "repo": "xo-nixpkg",
+    "rev": "03faa34fb4486ea8171022cb6ba06b5252089ffe",
+    "narHash": "sha256-VsHhN/Z8r2FtHLhBOkebkby+XHaEMbJ7cT3hxc3W7YA=",
+    "lastModified": 1793462423,
+    "public": true,
+    "tag": "v0.10.2",
+    "version": "0.10.2"
+  }
+}

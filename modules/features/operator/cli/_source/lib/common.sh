@@ -25,6 +25,7 @@ readonly MAESTRO_XO_PUBLIC_KEY="xen-orchestra-ce.cachix.org-1:WAOajkFLXWTaFiwMbL
 readonly MAESTRO_DEVENV_PUBLIC_KEY="devenv.cachix.org-1:w1cLUi8dv3hnoSPGAuibQv+f9TZLr6cv/Hm9XgU50cw="
 readonly MAESTRO_COMMUNITY_PUBLIC_KEY="nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
 readonly -a MAESTRO_TRACKED_PATHS=(
+  .tack
   AGENTS.md
   CHANGELOG.md
   README.md
@@ -34,6 +35,10 @@ readonly -a MAESTRO_TRACKED_PATHS=(
   host
   modules
 )
+
+maestro_tack() {
+  nix run --accept-flake-config --no-write-lock-file .#tack -- "$@"
+}
 
 maestro_print_error() {
   printf 'error: %s\n' "$1" >&2

@@ -2,12 +2,12 @@
   "schema": 1,
   "mode": "official",
   "repository": "closure-labs/xo-nixpkg",
-  "revision": "cc71a6c82674a26557271b5d4e730e2f05a8cf03",
+  "revision": "03faa34fb4486ea8171022cb6ba06b5252089ffe",
   "channel": "xo-latest",
-  "storePath": "/nix/store/7rgckrz7zf9l3rvidb4987gcxgi07a8i-xen-orchestra-ce-6.9.1",
-  "narHash": "sha256-xc1ppaaqEWgTOuKmIg/0+3mj8cd4BEmuncuJYx/+GfI=",
+  "storePath": "/nix/store/3hxxl14d3ic4gd9vpmaa8hhmcfl8rxxi-xen-orchestra-ce-6.10.0",
+  "narHash": "sha256-t2ihM4LkouBUanQrAa+HRb6cad6b7YaqfT5J/B+f4kE=",
   "packet": {
-    "reference": "ghcr.io/closure-labs/xo-nixpkg-products@sha256:ca805592bc175c1197752cf5fdb4dbb5d67c8134e3ae6496528eb96ae6bd92dd",
-    "sha256": "581aa355511f9b3774bead226735fbe4dc32ee6b5630753488c415ba7a737108"
+    "reference": "ghcr.io/closure-labs/xo-nixpkg-products@sha256:f5e867bd3f3ef0aca04903dc7abfa042c3c0024d7d0d8ae584d33dba0477c0c0",
+    "sha256": "e5bad76b7ee9022ceb8c730188047425a66f906d93431770ce21a9863846c9a6"
   }
 }

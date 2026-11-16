@@ -12,7 +12,8 @@
     installerQualification,
     ...
   }: let
-    planRunner = inputs.xen-orchestra-ce.packages.${system}.flake-plan-runner.override {nix = ciNix;};
+    xo = import ../../features/xo/_lib/package-input.nix;
+    planRunner = xo.packages.${system}.flake-plan-runner.override {nix = ciNix;};
     context = {
       inherit pkgs planRunner packerXenserver ciNix installerQualification;
       commands =
@@ -23,10 +24,10 @@
         flakeCacheConfig = config.flake-file.nixConfig;
       };
       devenv = inputs.devenv.packages.${system}.devenv;
-      applicabilityCommand = inputs.xen-orchestra-ce.packages.${system}.security-applicability;
+      applicabilityCommand = xo.packages.${system}.security-applicability;
       appliance = inputs.self.nixosConfigurations.maestro.config;
       lockFile = ../../../flake.lock;
-      packageSourceRoots = [inputs.nixpkgs.outPath inputs.xen-orchestra-ce.inputs.nixpkgs.outPath];
+      packageSourceRoots = [inputs.nixpkgs.outPath xo.nixpkgs.outPath];
       distributionRoots =
         map (target: (lib.attrByPath (lib.splitString "." target.attribute) null inputs.self).outPath)
         inputs.self.lib.ciPlans.${system}.publish.targets

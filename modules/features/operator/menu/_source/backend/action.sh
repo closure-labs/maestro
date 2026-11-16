@@ -50,13 +50,14 @@ load_state() {
 
 commit_lock_if_changed() {
   local message="$1"
+  local lock_file="$2"
 
-  if [ -z "$(git -C "$MAESTRO_SYSTEM_ROOT" status --short -- flake.lock)" ]; then
-    echo "No flake.lock changes were produced."
+  if [ -z "$(git -C "$MAESTRO_SYSTEM_ROOT" status --short -- "$lock_file")" ]; then
+    echo "No $lock_file changes were produced."
     return 1
   fi
 
-  maestro_tui_commit_paths "$message" flake.lock
+  maestro_tui_commit_paths "$message" "$lock_file"
 }
 
 prompt_yes_no() {
@@ -95,42 +96,14 @@ prompt_rebuild_policy() {
 
 update_input_and_prompt() {
   local commit_message="$1"
-  shift
+  local lock_file="$2"
+  shift 2
 
   "$@"
 
-  if commit_lock_if_changed "$commit_message"; then
+  if commit_lock_if_changed "$commit_message" "$lock_file"; then
     prompt_rebuild_policy
   fi
-}
-
-lock_rev_for() {
-  local node_name="$1"
-
-  awk -v node_name="$node_name" '
-    BEGIN {
-      in_node = 0
-      in_locked = 0
-    }
-    $0 ~ "^[[:space:]]*\"" node_name "\"[[:space:]]*:[[:space:]]*\\{" {
-      in_node = 1
-      next
-    }
-    in_node && $0 ~ /^[[:space:]]*"locked"[[:space:]]*:[[:space:]]*\{/ {
-      in_locked = 1
-      next
-    }
-    in_node && in_locked && $0 ~ /^[[:space:]]*"rev"[[:space:]]*:/ {
-      line = $0
-      sub(/^[[:space:]]*"rev"[[:space:]]*:[[:space:]]*"/, "", line)
-      sub(/",?[[:space:]]*$/, "", line)
-      print line
-      exit
-    }
-    in_node && in_locked && $0 ~ /^[[:space:]]*}[,]?[[:space:]]*$/ {
-      in_locked = 0
-    }
-  ' "$MAESTRO_SYSTEM_ROOT/flake.lock"
 }
 
 cleanup_unmanaged_users() {
@@ -384,29 +357,31 @@ case "$command_name" in
   update-nixpkgs)
     update_input_and_prompt \
       "Update nixpkgs input from maestro-menu" \
+      flake.lock \
       nix flake update nixpkgs
     ;;
   update-home-manager)
     update_input_and_prompt \
       "Update home-manager input from maestro-menu" \
+      flake.lock \
       nix flake update home-manager
     ;;
   update-determinate)
     update_input_and_prompt \
       "Update determinate input from maestro-menu" \
+      flake.lock \
       nix flake update determinate
     ;;
   update-xoa)
-    current_xoa_rev="$(lock_rev_for xen-orchestra-ce)"
-    echo "Current locked xen-orchestra-ce revision: ${current_xoa_rev:-unknown}"
-    echo "Refreshing the xo-nixpkg main input; the appliance selects its configured package channel."
     update_input_and_prompt \
-      "Update xen-orchestra-ce input from maestro-menu" \
-      nix flake update xen-orchestra-ce
+      "Update xo-nixpkg release pin from maestro-menu" \
+      .tack/pins.lock.json \
+      maestro_tack update xo-nixpkg
     ;;
   update-all)
     update_input_and_prompt \
       "Update flake inputs from maestro-menu" \
+      flake.lock \
       nix flake update
     ;;
   cleanup-unmanaged-users)

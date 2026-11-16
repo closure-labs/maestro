@@ -7,14 +7,15 @@ in {
     "ci:repository-audit:format" = {
       exec = withFlake ''
         cd "$DEVENV_ROOT"
+        # Tack regenerates its vendored resolver from upstream.
         if git rev-parse --show-toplevel >/dev/null 2>&1; then
-          mapfile -d $'\0' -t nix_files < <(git ls-files -z -- '*.nix')
+          mapfile -d $'\0' -t nix_files < <(git ls-files -z -- '*.nix' ':(exclude).tack/default.nix')
         else
           # jj workspaces do not expose .git. Ignore generated environment
           # state while retaining a useful local formatting check.
           mapfile -d $'\0' -t nix_files < <(
             find . \( -path './.devenv' -o -path './.direnv' \) -prune \
-              -o -type f -name '*.nix' -print0
+              -o -type f -name '*.nix' ! -path './.tack/default.nix' -print0
           )
         fi
         system="$(nix eval --impure --raw --expr builtins.currentSystem)"

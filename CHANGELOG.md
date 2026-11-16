@@ -36,6 +36,10 @@ correspond to published GitHub tags.
   findings and scanner identity, and automatically resumes the PR and queue;
   preserve independent eligibility, fresh analysis and all release risk gates.
 
+- Track xo-nixpkg project releases with Tack. The appliance defaults to the
+  pinned release's `latest` Xen Orchestra package, and `maestroctl update xoa`
+  refreshes the Tack lock.
+
 - Let a normal eligible GitHub Approve review accept CodeQL findings after the
   protected App has published the exact head-bound report. Keep approvals made
   before the report, changed findings/scanners, and unverified reruns blocked.

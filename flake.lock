@@ -540,22 +540,6 @@
         "url": "https://flakehub.com/f/NixOS/nixpkgs/0"
       }
     },
-    "nixpkgs_5": {
-      "locked": {
-        "lastModified": 1793341285,
-        "narHash": "sha256-Y1CiZ4SoBUjLQyQM/pY+rS2dXD3CHLPstF0lmOc73D4=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "1c89083e451e891152365b799595cf7790a43325",
-        "type": "github"
-      },
-      "original": {
-        "owner": "NixOS",
-        "ref": "nixos-unstable",
-        "repo": "nixpkgs",
-        "type": "github"
-      }
-    },
     "root": {
       "inputs": {
         "den": "den",
@@ -565,8 +549,7 @@
         "flake-parts": "flake-parts_3",
         "home-manager": "home-manager",
         "import-tree": "import-tree",
-        "nixpkgs": "nixpkgs_4",
-        "xen-orchestra-ce": "xen-orchestra-ce"
+        "nixpkgs": "nixpkgs_4"
       }
     },
     "rust-overlay": {
@@ -609,79 +592,6 @@
       "original": {
         "owner": "numtide",
         "repo": "treefmt-nix",
-        "type": "github"
-      }
-    },
-    "xen-orchestra-ce": {
-      "inputs": {
-        "nixpkgs": "nixpkgs_5",
-        "xo-latest": "xo-latest",
-        "xo-rolling": "xo-rolling",
-        "xo-stable": "xo-stable"
-      },
-      "locked": {
-        "lastModified": 1794074498,
-        "narHash": "sha256-ysIOrPIBwN5xdk09z/zK0Ez/i5x1QaA2aGMdtobz8t8=",
-        "owner": "closure-labs",
-        "repo": "xo-nixpkg",
-        "rev": "02dc8719df57c5fb11707650579493d0c1060b0a",
-        "type": "github"
-      },
-      "original": {
-        "owner": "closure-labs",
-        "repo": "xo-nixpkg",
-        "rev": "02dc8719df57c5fb11707650579493d0c1060b0a",
-        "type": "github"
-      }
-    },
-    "xo-latest": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1793289124,
-        "narHash": "sha256-Asai029Ja2rBGnkdjG/6W2QsUIh9meh4QBohArPwf20=",
-        "owner": "vatesfr",
-        "repo": "xen-orchestra",
-        "rev": "b477167b41f2ac401e7d8c852c139566b9fe756e",
-        "type": "github"
-      },
-      "original": {
-        "owner": "vatesfr",
-        "repo": "xen-orchestra",
-        "rev": "b477167b41f2ac401e7d8c852c139566b9fe756e",
-        "type": "github"
-      }
-    },
-    "xo-rolling": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1793990739,
-        "narHash": "sha256-+8u5VkuPubhKsoXVr1+Xg9hk/Bxtc+pWm4Wpi+Rj17I=",
-        "owner": "vatesfr",
-        "repo": "xen-orchestra",
-        "rev": "e4cc8df323e18c273fa9514555a040f3efc81675",
-        "type": "github"
-      },
-      "original": {
-        "owner": "vatesfr",
-        "repo": "xen-orchestra",
-        "rev": "e4cc8df323e18c273fa9514555a040f3efc81675",
-        "type": "github"
-      }
-    },
-    "xo-stable": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1791213531,
-        "narHash": "sha256-qHOzAYfLTe9xD2dP+DSxAyf+1FlDwwyOIsxz6iEa4Ec=",
-        "owner": "vatesfr",
-        "repo": "xen-orchestra",
-        "rev": "5999d53e0b6172820567a1caee67da798e5a673f",
-        "type": "github"
-      },
-      "original": {
-        "owner": "vatesfr",
-        "repo": "xen-orchestra",
-        "rev": "5999d53e0b6172820567a1caee67da798e5a673f",
         "type": "github"
       }
     }

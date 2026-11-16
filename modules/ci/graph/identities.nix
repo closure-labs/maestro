@@ -5,7 +5,7 @@
   ...
 }: let
   system = "x86_64-linux";
-  mkPlan = inputs.xen-orchestra-ce.lib.mkCiPlan;
+  mkPlan = (import ../../features/xo/_lib/package-input.nix).lib.mkCiPlan;
   targets = config.maestro.ci.targets;
   definitions =
     lib.mapAttrs (phase: name: {
@@ -111,7 +111,7 @@ in {
         homeManager = inputs.home-manager.outPath;
         importTree = inputs.import-tree.outPath;
         nixpkgs = inputs.nixpkgs.outPath;
-        xenOrchestra = inputs.xen-orchestra-ce.packages.${system}.latest.outPath;
+        xenOrchestra = inputs.self.packages.${system}.xen-orchestra-ce.outPath;
       };
       derivations = {
         installerIso = inputs.self.packages.${system}.installer-iso.drvPath;

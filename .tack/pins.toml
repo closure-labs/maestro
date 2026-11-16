@@ -1,0 +1,7 @@
+[inputs.xo-nixpkg]
+url = "github:closure-labs/xo-nixpkg"
+# v6.* tags identify Xen Orchestra versions, not xo-nixpkg releases.
+tag = "v0.{version}"
+
+[inputs.tack]
+url = "github:manic-systems/tack/673997981720feebb3870645932b6cfe6657db9f"

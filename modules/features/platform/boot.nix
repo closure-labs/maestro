@@ -3,11 +3,12 @@
     key = "modules/features/platform/boot/nixos";
     imports = [
       ({
-        inputs,
         lib,
         pkgs,
         ...
-      }: {
+      }: let
+        xoNixpkgs = (import ../xo/_lib/package-input.nix).nixpkgs;
+      in {
         i18n.defaultLocale = "en_US.UTF-8";
         i18n.extraLocaleSettings = {
           LC_TIME = "en_US.UTF-8";
@@ -46,7 +47,7 @@
         };
 
         environment.systemPackages = with pkgs; [
-          inputs.xen-orchestra-ce.inputs.nixpkgs.legacyPackages.${pkgs.stdenv.hostPlatform.system}.vim
+          xoNixpkgs.legacyPackages.${pkgs.stdenv.hostPlatform.system}.vim
           nano
           micro
           wget

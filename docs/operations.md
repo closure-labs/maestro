@@ -55,8 +55,9 @@ maestroctl update flake
 maestroctl update xoa
 ```
 
-An update changes `flake.lock`. Review the diff, apply the new generation, and
-record the lock-file update with `maestroctl commit`.
+Review `flake.lock` after a flake update and `.tack/pins.lock.json` after an
+XO update. Apply the new generation and record the lock-file update with
+`maestroctl commit`.
 
 ## Inspect logs
 

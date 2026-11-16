@@ -143,8 +143,8 @@ short-lived, root-readable credential file.
 - hypervisor: XCP-ng/Xen
 - operator: `maestro`
 - initial state version: `26.05`
-- direct XO package:
-  `inputs.xen-orchestra-ce.packages.x86_64-linux.latest`
+- XO package and CI tools come from the xo-nixpkg release in
+  `.tack/pins.lock.json`. Maestro selects the `latest` XO package by default.
 
 Guest file restore uses `maestro.xo.fileRestore.enable` (enabled by default).
 XO sends partition/list/archive requests to a trusted absolute helper. The
