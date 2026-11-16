@@ -52,7 +52,66 @@ class VerdictAPI(API):
         return mod.verify(self, REPO, HEAD, 42, attempt, 'pull_request')
 
 
+class OrdinaryVerdictAPI(VerdictAPI):
+    def __init__(self):
+        super().__init__()
+        self.original = copy.deepcopy(self.artifacts)
+        for artifact in self.original:
+            artifact['id'] += 100
+            artifact['workflow_run']['id'] = 41
+        original = dict(schema=1, repository=REPO, pullRequest=7, head=HEAD,
+                        run=41, attempt=1, digest=self.record['digest'],
+                        artifacts=[[a['id'], a['digest']] for a in self.original])
+        self.ready = [dict(id=90, app={'id': findings.READY_APP_ID}, name=findings.READY_CHECK,
+            head_sha=HEAD, status='completed', conclusion='neutral', completed_at='2026-11-09T06:02:00Z',
+            external_id='codeql-ready-v1:41:1:' + self.record['digest'],
+            output={'summary':'Ready\n<!-- maestro-codeql-report-ready ' + json.dumps(original) + ' -->'})]
+        self.reviews[0].update(body='', submitted_at='2026-11-09T06:03:00Z')
+        self.record.update(schema=2, acceptance=dict(readyCheckId=90,
+            readyCompletedAt='2026-11-09T06:02:00Z', originalRecord=original, reviewId=7),
+            reviewsSha256=findings.review_snapshot(self, REPO, 7))
+        self.publish()
+
+    def __call__(self, endpoint):
+        if hasattr(self, 'mutate'):
+            self.mutate(endpoint)
+        if 'check_name=CodeQL%20findings%20ready' in endpoint:
+            return copy.deepcopy({'total_count':len(self.ready), 'check_runs':self.ready})
+        if '/actions/runs/41/artifacts?' in endpoint:
+            return copy.deepcopy({'total_count':len(self.original), 'artifacts':self.original})
+        return super().__call__(endpoint)
+
+
 class Verdict(unittest.TestCase):
+    def test_normal_approval_preserves_original_binding_across_equivalent_rerun(self):
+        self.assertTrue(OrdinaryVerdictAPI().verify())
+
+    def test_original_reports_or_ready_receipt_changed_after_app_success_block(self):
+        for mutate in (lambda a:a.original[0].update(expired=True),
+                       lambda a:a.original[0].update(digest='sha256:'+'0'*64),
+                       lambda a:a.original.pop(),
+                       lambda a:a.ready.clear(),
+                       lambda a:a.ready[0].update(completed_at='2026-11-09T06:04:00Z'),
+                       lambda a:a.ready[0].update(app={'id':15368}),
+                       lambda a:a.ready[0].update(conclusion='success'),
+                       lambda a:a.record['acceptance'].update(reviewId=True)):
+            api=OrdinaryVerdictAPI();mutate(api);api.publish()
+            with self.subTest(mutate=mutate),self.assertRaises(findings.authority.AuthorityError):
+                api.verify()
+
+    def test_original_artifact_race_after_current_snapshot_blocks(self):
+        api=OrdinaryVerdictAPI()
+        def mutate(endpoint):
+            if '/actions/runs/42/artifacts?' in endpoint:
+                api.original[0]['expired']=True
+        api.mutate=mutate
+        with self.assertRaises(findings.authority.AuthorityError):api.verify()
+
+    def test_schema_two_cannot_omit_or_loosen_acceptance_shape(self):
+        for change in ({'schema':2}, {'schema':1,'acceptance':{}}, {'schema':2,'acceptance':None}):
+            api=VerdictAPI();api.record.update(change);api.publish()
+            with self.subTest(change=change),self.assertRaises(findings.authority.AuthorityError):api.verify()
+
     def test_current_receipt_unblocks_before_whole_workflow_completion(self):
         api = VerdictAPI()
         self.assertEqual(api.runs[0]['status'], 'in_progress')

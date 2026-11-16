@@ -37,12 +37,15 @@ def receipt(check, repository, sha, run_id, attempt):
     if not match:
         return None
     value = json.loads(match[1], object_pairs_hook=findings.unique_object)
-    findings.require(isinstance(value, dict) and set(value) == {
-        'schema', 'repository', 'target', 'head', 'pullRequest', 'run', 'attempt',
-        'digest', 'artifacts', 'reviewsSha256'}, 'invalid authority receipt shape')
+    fields = {'schema', 'repository', 'target', 'head', 'pullRequest', 'run', 'attempt',
+              'digest', 'artifacts', 'reviewsSha256'}
+    findings.require(isinstance(value, dict) and type(value.get('schema')) is int
+                     and ((value['schema'] == 1 and set(value) == fields)
+                          or (value['schema'] == 2 and set(value) == fields | {'acceptance'})),
+                     'invalid authority receipt shape')
     if value.get('run') != run_id or value.get('attempt') != attempt:
         return None  # A same-SHA earlier run/attempt never releases this verdict.
-    findings.require(type(value['schema']) is int and value['schema'] == 1
+    findings.require(type(value['schema']) is int and value['schema'] in (1, 2)
                      and value['repository'] == repository and value['target'] == sha
                      and type(value['run']) is int and type(value['attempt']) is int
                      and type(value['pullRequest']) is int and value['pullRequest'] > 0
@@ -52,6 +55,12 @@ def receipt(check, repository, sha, run_id, attempt):
                      and check.get('external_id') == f'codeql-v1:{run_id}:{attempt}:{value["digest"]}',
                      'authority receipt identity mismatch')
     return value
+
+
+def verify_acceptance(api, repository, record):
+    if record['schema'] == 2:
+        findings.verify_acceptance(api, repository, record['pullRequest'], record['head'],
+                                   record['digest'], record['acceptance'])
 
 
 def verify(api, repository, sha, run_id, attempt, event):
@@ -76,6 +85,7 @@ def verify(api, repository, sha, run_id, attempt, event):
         findings.require(branch.get('object', {}).get('sha') == sha, 'queue ref changed since authority decision')
     if findings.review_snapshot(api, repository, record['pullRequest']) != record['reviewsSha256']:
         return False  # Wait for fresh App evaluation of dismissal/edits/new reviews.
+    verify_acceptance(api, repository, record)
     findings.require(findings.artifact_snapshot(api, repository, run_id, attempt, sha) == record['artifacts'],
                      'analysis reports changed since authority decision')
     newest = latest_check(api, repository, sha)
@@ -85,6 +95,7 @@ def verify(api, repository, sha, run_id, attempt, event):
     # rerun-attempt races can never reuse this proof.
     final = findings.latest_run(api, repository, sha, event)
     findings.require((final['id'], final['run_attempt']) == (run_id, attempt), 'analysis changed before verdict')
+    verify_acceptance(api, repository, record)
     return findings.review_snapshot(api, repository, record['pullRequest']) == record['reviewsSha256']
 
 
