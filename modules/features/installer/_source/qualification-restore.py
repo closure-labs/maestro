@@ -13,6 +13,10 @@ import subprocess
 sys.path.insert(0, os.environ.get('MAESTRO_DECISION_CORE', str((Path(__file__).parent / '../../../ci/authority/_source/decisions'))))
 import common
 
+# Match graph equivalence: cold immutable-flake evaluation can exceed the
+# generic subprocess budget. This changes no authentication or copy deadline.
+EVALUATION_TIMEOUT = 900
+
 
 def expected_paths(root, include_installer=True):
     flake_ref = f'path:{root}'
@@ -22,15 +26,18 @@ def expected_paths(root, include_installer=True):
                        'Qualification checkout differs from immutable candidate')
         flake_ref = f'git+file:{root}?shallow=1&rev={revision}' 
     values = [common.command(['nix', 'eval', '--accept-flake-config', '--raw',
-                             f'{flake_ref}#nixosConfigurations.maestro.config.system.build.toplevel.outPath']).strip()]
+                             f'{flake_ref}#nixosConfigurations.maestro.config.system.build.toplevel.outPath'],
+                             timeout=EVALUATION_TIMEOUT).strip()]
     plan = common.load_json(root / 'modules/ci/graph/_lib/plans.json')['publish']['targets']
     for target in plan:
         values.append(common.command(['nix', 'eval', '--accept-flake-config', '--raw',
-                                      f'{flake_ref}#{target["attribute"]}.outPath']).strip())
+                                      f'{flake_ref}#{target["attribute"]}.outPath'],
+                                      timeout=EVALUATION_TIMEOUT).strip())
     if include_installer:
         import json
         manifest = json.loads(common.command(['nix', 'eval', '--accept-flake-config', '--json',
-                                              f'{flake_ref}#lib.ciInstallerQualification.x86_64-linux']))
+                                              f'{flake_ref}#lib.ciInstallerQualification.x86_64-linux'],
+                                              timeout=EVALUATION_TIMEOUT))
         values.extend(manifest['roots'].values())
     return set(values)
 

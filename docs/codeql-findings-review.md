@@ -1,10 +1,6 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # CodeQL findings review
 
-Preparation status: the legacy scanner workflow remains unmarked and unchanged.
-The protected producer and verifier below are available for the separately
-reviewed activation PR, which opts in with the exact protocol marker.
-
 `Maintainer decision authority` checks the complete CodeQL SARIF results for
 all four languages on the exact PR head and again on the exact merge-queue
 commit. The existing required analysis checks still enforce successful scans.
