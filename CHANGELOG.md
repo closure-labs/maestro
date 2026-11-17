@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Keep maintainer authority pending while current CodeQL scanners run for queue,
+  review and scanner events. Recheck live approval before granting authority and
+  fail closed on scan errors or the bounded wait deadline.
+
 - Give cold qualification-output evaluation the same bounded 15-minute budget
   as graph equivalence, without extending authentication or transfer deadlines.
 
