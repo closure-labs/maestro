@@ -222,9 +222,9 @@ verdict_timeout=$(yq -r '.jobs.verdict.timeout-minutes' "$TEST_ROOT/.github/work
 grep -Fq "fetch-depth: \${{ contains(fromJSON('[\"pull_request\",\"push\",\"merge_group\"]'), github.event_name) && '0' || '2' }}" \
   "$TEST_ROOT/.github/workflows/ci.yml" \
   || fail "route checkout lacks full event history or an immutable dispatch parent"
-route_outputs=$(yq -r '.jobs.route.outputs | keys | join(",")' \
+route_outputs=$(yq -r '.jobs.route.outputs | keys | sort | join(",")' \
   "$TEST_ROOT/.github/workflows/ci.yml")
-assert_eq "$route_outputs" plan,graph_jobs,graph_gating,graph_mode,graph_sha256
+assert_eq "$route_outputs" graph_mode,graph_sha256,plan
 # Use the reviewed queue definition rather than duplicating its expression.
 expected_publication_group=$(jq -er '
   [.[] | select(.kind == "contains" and .path == ".github/workflows/publication.yml"
