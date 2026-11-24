@@ -11,6 +11,10 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Accept the scanner's bounded observation fingerprints during native health
+  refreshes, and keep release credential-boundary fixtures compatible with
+  SHA-pinned Dependabot action updates.
+
 - Keep maintainer authority pending while current CodeQL scanners run for queue,
   review and scanner events. Recheck live approval before granting authority and
   fail closed on scan errors or the bounded wait deadline.

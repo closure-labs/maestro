@@ -28,7 +28,8 @@ INPUTS = ('maestro-system.cdx.json', 'xen-orchestra-supply.cdx.json', 'Cargo.loc
 REPORTS = {'grype-version.json','cargo-audit-version.txt','scanner-check.grype.json',
     'maestro-system.grype.json','grype-database.json','cargo-audit.json','rustsec-database.json',
     'findings.json','grype-findings.json','critical-applicability.json','effective-policy.json',
-    'inputs.sha256','source-policy.json','security-result.json','new-high-critical.json'}
+    'inputs.sha256','source-policy.json','security-result.json','new-high-critical.json',
+    'observation-fingerprints.json'}
 
 
 

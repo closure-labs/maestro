@@ -72,6 +72,8 @@ class NativeRefresh(unittest.TestCase):
             path=self.output/name;path.write_text(json.dumps(value))
             fresh['evidence'][key]=dict(sha256=refresh.native.file_hash(path),size=path.stat().st_size)
         (self.output/'security-result.json').write_text(json.dumps(fresh))
+        # The real normalizer emits these observations on every completed scan.
+        (self.output/'observation-fingerprints.json').write_text('{}\n')
         if self.change=='extra':(self.output/'original-closure.part').write_text('unexpected transport copy')
         if self.change=='missing':(self.output/'findings.json').unlink()
 
@@ -95,7 +97,8 @@ class NativeRefresh(unittest.TestCase):
     def test_one_original_restore_one_scan_no_reexport_or_inventory_copy(self):
         result=self.run_refresh()
         self.assertEqual(self.calls,['download','restore','query','scan'])
-        self.assertEqual({p.name for p in self.output.iterdir()},{'security-result.json','inputs.sha256','native-health.json',*refresh.native.PUBLICATION_FILES})
+        self.assertEqual({p.name for p in self.output.iterdir()},{'security-result.json','inputs.sha256','native-health.json',
+            'observation-fingerprints.json',*refresh.native.PUBLICATION_FILES})
         self.assertFalse(result['authorization']);self.assertFalse(result['publicationReady'])
         self.assertEqual(result['originalProducer']['runId'],7);self.assertEqual(result['producer']['runId'],20)
         self.assertEqual(result['originalProof']['scans.json']['sha256'],refresh.native.file_hash(self.case.bundle/'scans.json'))
