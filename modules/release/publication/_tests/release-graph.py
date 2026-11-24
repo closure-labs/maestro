@@ -56,15 +56,21 @@ class ReleaseGraph(unittest.TestCase):
                 self.assertEqual(tasks, [prefix + 'release:native:stage-qualification', prefix + 'release:native:verify-qualification'])
                 actions = [step for step in job.get('steps', []) if 'uses' in step]
                 expected = [
-                    ('step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2', {'egress-policy'}),
-                    ('actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1', {'ref', 'persist-credentials'}),
+                    ('step-security/harden-runner', {'egress-policy'}),
+                    ('actions/checkout', {'ref', 'persist-credentials'}),
                     ('$/.github/actions/setup-nix', set()),
-                    ('actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333', {'github-token', 'artifact-ids', 'run-id', 'path'}),
-                    ('actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6', {'subject-path'}),
-                    ('actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6', {'subject-path', 'sbom-path'}),
-                    ('actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9', {'name', 'path', 'if-no-files-found', 'retention-days'}),
+                    ('actions/download-artifact', {'github-token', 'artifact-ids', 'run-id', 'path'}),
+                    ('actions/attest', {'subject-path'}),
+                    ('actions/attest', {'subject-path', 'sbom-path'}),
+                    ('actions/upload-artifact', {'name', 'path', 'if-no-files-found', 'retention-days'}),
                 ]
-                self.assertEqual([(step['uses'], set(step.get('with', {}))) for step in actions], expected)
+                # Action updates must not break this credential-boundary check.
+                # Workflow policy separately verifies the approved action pins.
+                self.assertEqual([(step['uses'].split('@')[0], set(step.get('with', {}))) for step in actions],
+                                 expected)
+                for step in actions:
+                    if step['uses'] != '$/.github/actions/setup-nix':
+                        self.assertRegex(step['uses'], r'^[^@]+@[0-9a-f]{40}$')
                 self.assertIs(actions[1]['with']['persist-credentials'], False)
                 self.assertEqual(actions[3]['with']['github-token'], '${{ github.token }}')
             self.assertEqual(job.get('permissions'), permissions)
@@ -92,6 +98,7 @@ class ReleaseGraph(unittest.TestCase):
                    lambda j: j.update(**{'if': j['if'] + ' || true'}),
                    lambda j: j['steps'].append({'run': 'release:native:publish'}),
                    lambda j: j['steps'].append({'uses': 'unexpected/action@main'}),
+                   lambda j: j['steps'][0].update(uses='step-security/harden-runner@main'),
                    lambda j: j['steps'][1]['with'].update(token='${{ github.token }}'),
                    lambda j: j['steps'][1]['with'].update(**{'persist-credentials': True}),
                    lambda j: next(step for step in j['steps'] if 'run' in step).update(run='unexpected; ' + next(step['run'] for step in j['steps'] if 'run' in step))]
