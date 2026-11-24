@@ -156,6 +156,47 @@ print(open(os.environ['FIXTURE_NIX_RECORDS']).read())
 
 
 
+class Assembly(unittest.TestCase):
+    def test_assembly_reuses_only_the_exact_existing_installer_link(self):
+        source = Path(os.environ.get('MAESTRO_ASSEMBLY_SOURCE', ROOT / 'modules/ci/inventory/_source/assets.sh'))
+        for existing in ('absent', 'matching', 'conflicting', 'directory'):
+            with self.subTest(existing=existing), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory); bin = root / 'bin'; bin.mkdir()
+                iso = root / 'planned-iso'; iso.mkdir()
+                destination = root / 'result-installer'
+                if existing == 'matching': destination.symlink_to(iso, target_is_directory=True)
+                if existing == 'conflicting': destination.symlink_to(root / 'other-iso', target_is_directory=True)
+                if existing == 'directory': destination.mkdir()
+                for phase, targets in (
+                    ('appliance', [{'attribute': 'packages.x86_64-linux.' + name,
+                                    'outputs': {'out': str(root / name)}}
+                                   for name in ('sbomnix', 'xen-orchestra-ce', 'xen-orchestra-supply-protector')]),
+                    ('installer', [{'attribute': 'packages.x86_64-linux.installer-iso', 'outputs': {'out': str(iso)}}])):
+                    target = root / (phase + '-transfer'); target.mkdir()
+                    (target / 'manifest.json').write_text(json.dumps({'targets': targets}))
+                for name, body in {
+                    'git': 'printf "%s\\n" "$GITHUB_SHA"',
+                    'nix': 'case "$1" in eval) printf "%s\\n" "$MAESTRO_SYSTEM_ROOT/xen-orchestra-ce";; path-info) :;; *) exit 99;; esac',
+                    'maestro-ci-verify-state': 'touch "$MAESTRO_SYSTEM_ROOT/reached-inventory"; exit 73',
+                }.items():
+                    path = bin / name; path.write_text('#!' + shutil.which('bash') + '\n' + body + '\n'); path.chmod(0o700)
+                env = dict(os.environ, MAESTRO_SYSTEM_ROOT=str(root), RUNNER_TEMP=str(root / 'tmp'),
+                           PATH=str(bin) + os.pathsep + os.environ['PATH'], GITHUB_SHA='a'*40,
+                           MAESTRO_SPDX_SCHEMA='unused', QUALIFICATION_MODE='qualify-media-reuse-evidence',
+                           APPLIANCE_MANIFEST_SHA256=transfer.file_digest(root / 'appliance-transfer/manifest.json'),
+                           INSTALLER_MANIFEST_SHA256=transfer.file_digest(root / 'installer-transfer/manifest.json'),
+                           EXPECTED_EVIDENCE_INPUT='b'*64, EXPECTED_EVIDENCE_RUN_ID='7')
+                result = subprocess.run(['bash', str(source)], env=env, capture_output=True, text=True, timeout=10)
+                accepted = existing in ('absent', 'matching')
+                self.assertEqual((root / 'reached-inventory').exists(), accepted, result.stderr)
+                if accepted:
+                    self.assertEqual(result.returncode, 73, result.stderr)
+                    self.assertEqual(destination.readlink(), iso)
+                else:
+                    self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(list(iso.iterdir()), [])  # no accidental write through the output link
+
+
 class ConsolidatedWorkflow(unittest.TestCase):
     def test_one_inventory_scan_and_final_export_with_real_scan_outcome(self):
         jobs = json.loads(subprocess.check_output(['yq', '-o=json', '.jobs', str(WORKFLOW)], text=True))
