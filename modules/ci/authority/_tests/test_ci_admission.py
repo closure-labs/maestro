@@ -148,10 +148,11 @@ class Admission(unittest.TestCase):
             original.replace('persist-credentials: false', 'persist-credentials: true'),
             original.replace('uses: $/.github/actions/setup-nix', 'uses: ./evil'),
             original + '\n  malicious:\n    uses: evil/reusable@main\n',
-            original.replace('permission-contents: read', 'permission-contents: write'),
+            original.replace('attestations: read', 'attestations: write', 1),
             original.replace('run: nix run', 'run: echo ${{ secrets.DECIDER_KEY }}; nix run', 1),
         ]
         for candidate in mutations:
+            self.assertNotEqual(candidate, original, 'Privilege mutation must change the current workflow')
             api = API(); api.dependency(); api.candidate = candidate
             self.assertEqual(api.approve(), 'unsafe-dependency-workflow'); self.assertFalse(api.posts)
         api = API(); api.dependency()
@@ -310,7 +311,7 @@ class Admission(unittest.TestCase):
         protected = "github.ref == 'refs/heads/main'"
         events = "contains(fromJSON('[\"push\",\"schedule\",\"workflow_dispatch\"]'), github.event_name)"
         ci = jobs('.github/workflows/ci.yml')
-        self.assertEqual(TEMPLATES['.github/workflows/ci.yml'].count('secrets.'), 1)
+        self.assertNotIn('secrets.', TEMPLATES['.github/workflows/ci.yml'])
         self.assertNotIn('secrets.', TEMPLATES['.github/workflows/codeql.yml'])
         self.assertNotIn('secrets.', TEMPLATES['.github/workflows/decision-events.yml'])
         for path in POLICY['workflows']:
@@ -324,10 +325,8 @@ class Admission(unittest.TestCase):
         self.assertNotIn('write', ci['security'].split('    outputs:', 1)[0])
         self.assertNotIn('actions/attest@', ci['security'])
         self.assertIn('Attest native evidence', ci['signing'])
-        mint = ci['retained'].split('      - name: Mint protected-main', 1)[1].split('        id:', 1)[0]
-        self.assertNotIn('pull_request', mint)
-        self.assertIn(protected, mint)
-        self.assertIn("github.event_name == 'push'", mint)
+        self.assertNotIn('retained', ci)
+        self.assertNotIn('create-github-app-token@', TEMPLATES['.github/workflows/ci.yml'])
         codeql = jobs('.github/workflows/codeql.yml')
         self.assertIn('upload: never', codeql['analyze'])
         self.assertIn('upload-database: false', codeql['analyze'])
