@@ -1,45 +1,35 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # Queue runtime budget
 
-This proposal changes the checked-in ruleset template, not the live GitHub
-ruleset. Activate the queue response limit only through a separately approved
-settings update after review, and verify its readback. The live setting observed
-on 2026-11-09 was 180 minutes.
+The workflow and ruleset template share a bounded merge-queue budget.
+This refactor changes workflow scheduling, not the live ruleset.
 
-## Proposed limits
+## Current workflow limits
 
-Use a 360-minute merge-queue response deadline. GitHub's public REST schema
-allows 1–360 minutes; this is a bound, not a target runtime. Queue jobs use:
+The checked-in queue response deadline remains 360 minutes. The live setting was
+verified at 360 minutes during the 2026-11-24 CI review; this refactor changes no
+GitHub settings. Queue jobs use:
 
 | Job | Minutes |
 | --- | ---: |
 | Plan CI | 30 |
-| Execute repository validation | 90 |
-| Bind repository audit | 20 |
-| Equivalence | 30 |
-| Retained evidence | 30 |
-| Appliance | 120 |
-| Installer | 30 |
-| Inventory and scan | 60 |
-| Boot | 15 |
+| Repository checks, including audit binding | 90 |
+| Build, inventory, scan and boot | 225 |
 | Release evidence | 15 |
 | Verdict | 15 |
 
-The longest conservative dependency path is 315 minutes:
-plan → retained evidence → appliance → installer → inventory → boot → release
-evidence → verdict. This counts all of those jobs even when routing skips some.
-It leaves 45 minutes for runner queueing and scheduling between jobs. This margin
-cannot guarantee a deadline during a GitHub outage. Audit and equivalence execute
-in parallel; their completion remains required. The separate CodeQL and authority
-workflows have shorter timeouts. Protected-main signing does not run in the merge
-queue. Nothing is skipped or converted from failure to success to meet the budget.
+The conservative dependency path is 285 minutes: plan → qualification → release
+evidence → verdict. Repository checks execute in parallel with qualification.
+This leaves 75 minutes for runner queueing and scheduling inside the existing
+360-minute deadline; it cannot guarantee a deadline during a GitHub outage.
+CodeQL and authority workflows run independently. Signing runs only on protected
+main, outside the merge queue.
 
-The stage overrides apply only to merge-group runs. PR, dispatch and main retain
-existing longer limits, allowing expensive cold preparation before a queue entry.
-A stalled queue appliance now stops at two hours instead of running for four hours
-past the old three-hour queue response window. An actual workload exceeding this
-budget must be optimized or prebuilt with verified outputs, not granted an
-unbounded queue deadline.
+The qualification cap combines the previous 120-minute appliance, 30-minute ISO,
+60-minute inventory/scan and 15-minute boot limits. PR, dispatch and main get one
+360-minute qualification job, within GitHub's hosted-job limit. No checks are
+skipped to meet the budget. The consolidation removes intermediate NAR transport
+and runner startup but needs hosted measurements before claiming a speedup.
 
 ## Measurement basis and validation
 
@@ -59,7 +49,7 @@ Representative source runs:
 The contract test evaluates the workflow dependency graph and proposed queue
 limit. It rejects a growing critical path without scheduling margin, missing or
 unknown timeout expressions, changed signing exclusion, and cyclic dependencies.
-It also verifies that nonqueue build limits remain unchanged. Full hosted tests
+It also verifies the consolidated nonqueue hosted-job limit. Full hosted tests
 remain required; observe the first real cold queue build after activation and
 adjust measured caps rather than treating these estimates as a benchmark result.
 

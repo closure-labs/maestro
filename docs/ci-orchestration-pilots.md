@@ -1,5 +1,10 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
-# Maestro orchestration pilots
+# Maestro orchestration pilots (historical)
+
+The audit-overlap input and extra audit runner are retired. Ordinary CI now uses
+the fixed seven-job pipeline in [the maintainer guide](ci/README.md). The release
+continuation pilot described below is also retired; its description is retained
+as historical context. Do not use these inputs to operate current CI.
 
 Both pilots retain the single appliance and its authoritative schema-v3 route.
 They are opt-in and do not change required checks, vulnerability acceptance,

@@ -193,10 +193,7 @@ for workflow in "$TEST_ROOT"/.github/workflows/*.yml; do
       .key as $job | .value |
       if any(.steps[]?;
         ((.run // "") | test("(^|[[:space:]])nix[[:space:]]")))
-      then any(.steps[]?; .uses == "$/.github/actions/setup-nix") or
-        ($workflow == "ci.yml" and $job == "retained" and
-         any(.steps[]?; .uses == "./controller/.github/actions/setup-nix") and
-         (.if | contains("github.event.pull_request.base.ref")))
+      then any(.steps[]?; .uses == "$/.github/actions/setup-nix")
       else true end)
   ' >/dev/null || fail "Nix job bypasses shared hosted configuration: $workflow"
 done

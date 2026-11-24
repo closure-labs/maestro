@@ -72,8 +72,8 @@ class QueueTimeouts(unittest.TestCase):
     def test_bounded_queue_path_has_scheduling_margin(self):
         self.assertGreaterEqual(self.limit, 1)
         self.assertLessEqual(self.limit, 360)  # GitHub's documented API bound
-        self.assertEqual(longest_path(self.jobs, self.secret), 315)
-        self.assertGreaterEqual(self.limit - longest_path(self.jobs, self.secret), 45)
+        self.assertEqual(longest_path(self.jobs, self.secret), 285)
+        self.assertGreaterEqual(self.limit - longest_path(self.jobs, self.secret), 75)
         # Other required workflows run in parallel, not after the CI graph.
         for filename in ('codeql.yml', 'decision-authority.yml'):
             self.assertLessEqual(sum(minutes(j) for j in workflow(filename)['jobs'].values()), self.limit - 45)
@@ -84,13 +84,12 @@ class QueueTimeouts(unittest.TestCase):
                 self.assertGreater(minutes(job), 0)
                 self.assertLessEqual(minutes(job), self.limit)
 
-    def test_nonqueue_expensive_job_limits_are_not_reduced(self):
-        for name in ('appliance', 'installer', 'qualification', 'boot'):
-            self.assertTrue(self.jobs[name]['timeout-minutes'].endswith('|| 240 }}'))
+    def test_nonqueue_consolidated_job_fits_hosted_limit(self):
+        self.assertTrue(self.jobs['qualification']['timeout-minutes'].endswith('|| 360 }}'))
 
     def test_model_detects_future_budget_growth(self):
         changed = copy.deepcopy(self.jobs)
-        changed['appliance']['timeout-minutes'] = 240
+        changed['qualification']['timeout-minutes'] = 360
         self.assertGreater(longest_path(changed, self.secret), self.limit)
 
     def test_unknown_expression_or_cycle_rejects(self):
