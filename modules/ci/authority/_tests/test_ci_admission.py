@@ -148,10 +148,11 @@ class Admission(unittest.TestCase):
             original.replace('persist-credentials: false', 'persist-credentials: true'),
             original.replace('uses: $/.github/actions/setup-nix', 'uses: ./evil'),
             original + '\n  malicious:\n    uses: evil/reusable@main\n',
-            original.replace('permission-contents: read', 'permission-contents: write'),
+            original.replace('attestations: read', 'attestations: write', 1),
             original.replace('run: nix run', 'run: echo ${{ secrets.DECIDER_KEY }}; nix run', 1),
         ]
         for candidate in mutations:
+            self.assertNotEqual(candidate, original, 'Privilege mutation must change the current workflow')
             api = API(); api.dependency(); api.candidate = candidate
             self.assertEqual(api.approve(), 'unsafe-dependency-workflow'); self.assertFalse(api.posts)
         api = API(); api.dependency()
@@ -310,7 +311,7 @@ class Admission(unittest.TestCase):
         protected = "github.ref == 'refs/heads/main'"
         events = "contains(fromJSON('[\"push\",\"schedule\",\"workflow_dispatch\"]'), github.event_name)"
         ci = jobs('.github/workflows/ci.yml')
-        self.assertEqual(TEMPLATES['.github/workflows/ci.yml'].count('secrets.'), 1)
+        self.assertNotIn('secrets.', TEMPLATES['.github/workflows/ci.yml'])
         self.assertNotIn('secrets.', TEMPLATES['.github/workflows/codeql.yml'])
         self.assertNotIn('secrets.', TEMPLATES['.github/workflows/decision-events.yml'])
         for path in POLICY['workflows']:
@@ -324,10 +325,8 @@ class Admission(unittest.TestCase):
         self.assertNotIn('write', ci['security'].split('    outputs:', 1)[0])
         self.assertNotIn('actions/attest@', ci['security'])
         self.assertIn('Attest native evidence', ci['signing'])
-        mint = ci['retained'].split('      - name: Mint protected-main', 1)[1].split('        id:', 1)[0]
-        self.assertNotIn('pull_request', mint)
-        self.assertIn(protected, mint)
-        self.assertIn("github.event_name == 'push'", mint)
+        self.assertNotIn('retained', ci)
+        self.assertNotIn('create-github-app-token@', TEMPLATES['.github/workflows/ci.yml'])
         codeql = jobs('.github/workflows/codeql.yml')
         self.assertIn('upload: never', codeql['analyze'])
         self.assertIn('upload-database: false', codeql['analyze'])
@@ -355,19 +354,21 @@ class Admission(unittest.TestCase):
             api.changed = [{'filename': candidate_helper, 'status': 'modified'}]
             self.assertEqual(api.approve(), 'approved')
 
-    def test_required_codeql_context_is_pending_from_start_and_uses_native_verifier(self):
+    def test_required_codeql_context_verifies_completed_reports_without_human_wait(self):
         workflow = TEMPLATES['.github/workflows/codeql.yml']
         verifier = workflow.split('  findings_verdict:\n', 1)[1].split('  publish:', 1)[0]
         self.assertIn('name: Analyze (actions)', verifier)
-        self.assertNotIn('needs:', verifier)
-        self.assertIn('github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.sha', verifier)
+        self.assertIn('needs: analyze', verifier)
+        self.assertIn('if: always()', verifier)
+        self.assertIn('timeout-minutes: 30', verifier)
+        self.assertIn('github.event.pull_request.head.sha || github.sha', verifier)
         self.assertIn('uses: $/.github/actions/setup-nix', verifier)
         self.assertIn('ci:codeql:verdict', verifier)
         self.assertNotIn('secrets.', verifier)
         self.assertNotIn(': write', verifier)
         self.assertIn("'Scan (actions)'", workflow)
         authority = (ROOT / '.github/workflows/decision-authority.yml').read_text()
-        self.assertIn("github.event.action == 'in_progress'", authority)
+        self.assertIn('name == \'CodeQL Advanced\' && contains(fromJSON(\'["in_progress","completed"]\'), github.event.action) &&', authority)
         self.assertIn("github.event.workflow_run.name == 'CodeQL Advanced'", authority)
         self.assertIn("github.event.workflow_run.name == 'Collect maintainer decision events'", authority)
 

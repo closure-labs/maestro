@@ -78,10 +78,9 @@ class Checks(unittest.TestCase):
     def test_unmarked_codeql_wakeup_does_not_add_a_legacy_gate(self):
         api = GitHub(); api.collector['path'] = mod.codeql_findings.WORKFLOW
         with mock.patch.object(mod.codeql_findings, 'enabled', return_value=False), \
-             mock.patch.object(mod, 'post_check') as post, \
-             mock.patch.object(mod.codeql_findings, 'wait_for_analysis') as wait:
+             mock.patch.object(mod, 'post_check') as post:
             self.assertEqual(mod.run_checks(REPO, 1, BOT, 123, api)['checks'], [])
-        post.assert_not_called(); wait.assert_not_called()
+        post.assert_not_called()
 
     def test_regular_pr_passes_without_approval(self):
         api = GitHub()
@@ -89,9 +88,9 @@ class Checks(unittest.TestCase):
         api.reviews = []
         self.assertEqual(mod.check_pr(REPO, 7, BOT, github=api)['status'], 'not-required')
 
-    def test_scanning_queue_and_review_events_stay_pending_then_recheck(self):
+    def test_scanning_events_return_pending_and_completion_or_review_rechecks_once(self):
         for event in ('merge_group', 'pull_request_review', 'codeql'):
-            for outcome in ('approved', 'dismissed', 'failed', 'timeout'):
+            for outcome in ('approved', 'dismissed', 'failed'):
                 with self.subTest(event=event, outcome=outcome):
                     api = GitHub()
                     api.files = [{'filename': '.github/workflows/ci.yml', 'status': 'modified'}]
@@ -103,36 +102,27 @@ class Checks(unittest.TestCase):
                                            'object': {'type': 'commit', 'sha': MERGE}}]
                     if event == 'codeql':
                         api.collector['path'] = mod.codeql_findings.WORKFLOW
-                    calls, elapsed = [], [0]
-                    pending = mod.codeql_findings.AnalysisPending('CodeQL scanner jobs are still running')
-                    report = {'count': 0, 'digest': 'f' * 64, 'workflowChanged': False}
-                    def prepare(*args):
-                        if not elapsed[0] or outcome == 'timeout':
-                            raise pending
-                        if outcome == 'failed':
-                            raise mod.authority.AuthorityError('a current-attempt scanner failed')
-                        return report
-                    def sleep(seconds):
-                        elapsed[0] += seconds
-                        if outcome == 'dismissed':
-                            api.reviews.clear()
+                    calls = []
                     def post(endpoint, body):
                         calls.append(body)
                         return {'app': {'id': 123}}
-                    real_wait = mod.await_check
-                    def wait(*args, **kwargs):
-                        return real_wait(*args, **kwargs, seconds=30, sleep=sleep, clock=lambda: elapsed[0])
-                    with mock.patch.object(mod.codeql_findings, 'prepare', side_effect=prepare), \
-                         mock.patch.object(mod, 'await_check', side_effect=wait):
-                        mod.run_checks(REPO, 1, BOT, 123, api, post)
-                    self.assertEqual(calls[0]['status'], 'in_progress')
-                    self.assertNotIn('conclusion', calls[0])
-                    self.assertNotIn('maestro-codeql-receipt', calls[0]['output']['summary'])
-                    self.assertEqual(calls[-1]['conclusion'], 'success' if outcome == 'approved' else 'failure')
-                    if outcome == 'approved':
-                        self.assertTrue(all(c.get('conclusion') != 'failure' for c in calls))
-                    if outcome == 'timeout':
-                        self.assertIn('timed out', calls[-1]['output']['summary'])
+                    pending = mod.codeql_findings.AnalysisPending('CodeQL scanner jobs are still running')
+                    with mock.patch.object(mod.codeql_findings, 'prepare', side_effect=pending) as prepare:
+                        result = mod.run_checks(REPO, 1, BOT, 123, api, post)
+                    self.assertTrue(all(row['status'] == 'analysis-pending' for row in result['checks']))
+                    self.assertEqual(prepare.call_count, len(result['checks']))
+                    self.assertTrue(all(row['status'] == 'in_progress' and 'conclusion' not in row for row in calls))
+                    self.assertTrue(all('maestro-codeql-receipt' not in row['output']['summary'] for row in calls))
+                    calls.clear()
+                    report = {'count': 0, 'digest': 'f' * 64, 'workflowChanged': False}
+                    if outcome == 'dismissed':
+                        api.reviews.clear()
+                    error = mod.authority.AuthorityError('a current-attempt scanner failed') if outcome == 'failed' else None
+                    with mock.patch.object(mod.codeql_findings, 'prepare', side_effect=error, return_value=report) as prepare:
+                        result = mod.run_checks(REPO, 1, BOT, 123, api, post)
+                    self.assertEqual(prepare.call_count, len(result['checks']))
+                    self.assertTrue(all(row['conclusion'] == ('success' if outcome == 'approved' else 'failure')
+                                        for row in calls))
 
     def test_governance_requires_current_exact_human_review(self):
         api = GitHub()
@@ -413,8 +403,6 @@ class FindingsIntegration(unittest.TestCase):
         report = {'count': 1, 'digest': 'f' * 64, 'workflowChanged': False, 'run': 42, 'attempt': 1, 'artifacts': []}
         patcher = mock.patch.object(mod.codeql_findings, 'evidence', return_value=report)
         patcher.start(); self.addCleanup(patcher.stop)
-        patcher = mock.patch.object(mod.codeql_findings, 'wait_for_analysis', return_value={})
-        patcher.start(); self.addCleanup(patcher.stop)
         patcher = mock.patch.object(mod.codeql_findings, 'latest_run', return_value={'id': 42, 'run_attempt': 1})
         patcher.start(); self.addCleanup(patcher.stop)
         patcher = mock.patch.object(mod.codeql_findings, 'artifact_snapshot', return_value=[])
@@ -482,6 +470,16 @@ class FindingsIntegration(unittest.TestCase):
         with self.assertRaises(mod.authority.AuthorityError):
             mod.collector_targets(run, REPO, api)
 
+    def test_failed_and_cancelled_scan_completions_refresh_authority(self):
+        for conclusion in ('failure', 'cancelled', 'timed_out'):
+            api = self.api()
+            api.collector.update(path=mod.codeql_findings.WORKFLOW, conclusion=conclusion)
+            with mock.patch.object(mod.codeql_findings, 'prepare',
+                    side_effect=mod.authority.AuthorityError('latest exact-revision analysis is not viable')), \
+                    mock.patch.object(mod, 'post_check') as post:
+                mod.run_checks(REPO, 1, BOT, 5384448, api)
+            self.assertEqual(post.call_args.args[2], 'failure')
+
     def test_review_wakes_current_queue_and_ambiguous_refs_block(self):
         api = self.api()
         ref = {'ref': 'refs/heads/gh-readonly-queue/main/pr-7-abcdef0',
@@ -500,11 +498,9 @@ class FindingsIntegration(unittest.TestCase):
         results = [dict(target=target, head=HEAD, status='authorized', codeql=None,
                         reviewsSha256=None) for target in (HEAD, MERGE)]
         with mock.patch.object(mod, 'check_pr', side_effect=results) as check, \
-                mock.patch.object(mod, 'post_check'), \
-                mock.patch.object(mod.codeql_findings, 'wait_for_analysis') as wait:
+                mock.patch.object(mod, 'post_check'):
             mod.run_checks(REPO, 1, BOT, 5384448, api)
         self.assertEqual([call.args[3] for call in check.call_args_list], [None, MERGE])
-        wait.assert_not_called()  # All events now retry the complete live authority check.
 
     def test_findings_failure_posts_app_bound_failure(self):
         api = self.api()

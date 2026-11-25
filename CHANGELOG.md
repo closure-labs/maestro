@@ -11,19 +11,28 @@ correspond to published GitHub tags.
 
 ### Changed
 
+- Consolidate CI from thirteen jobs to seven. Build, inventory, scan and installer
+  boot share one Nix store with local digest-bound manifests; remove intermediate
+  closure uploads, the split audit runner, migration-equivalence gate and
+  decision-only shortcut. Keep all twenty audit obligations, native evidence,
+  protected-main signing and the stable required verdict. Allow 30 minutes for
+  cold evidence/verdict runners within the existing merge-queue budget.
+
 - Accept the scanner's bounded observation fingerprints during native health
   refreshes, and keep release credential-boundary fixtures compatible with
   SHA-pinned Dependabot action updates.
 
 - Keep maintainer authority pending while current CodeQL scanners run for queue,
   review and scanner events. Recheck live approval before granting authority and
-  fail closed on scan errors or the bounded wait deadline.
+  fail closed on scan errors or incomplete evidence.
 
 - Give cold qualification-output evaluation the same bounded 15-minute budget
   as graph equivalence, without extending authentication or transfer deadlines.
 
-- Gate all CodeQL findings through the existing protected-main maintainer
-  authority check. One exact-head human approval explicitly accepts the bound
+- Verify CodeQL reports once and reevaluate findings authority on scan and review
+  events, without keeping a runner waiting for human approval. Gate all CodeQL
+  findings through the existing protected-main maintainer authority check. One
+  exact-head human approval explicitly accepts the bound
   findings and scanner identity, and automatically resumes the PR and queue;
   preserve independent eligibility, fresh analysis and all release risk gates.
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Reject missing, interrupted or unjustifiably skipped split-job obligations."""
+"""Reject missing, interrupted or unjustifiably skipped consolidated-job obligations."""
 import hashlib
 import json
 import os
@@ -22,19 +22,14 @@ def route(mode):
 
 class VerdictTests(unittest.TestCase):
     def execute(self, mode='qualify-media', **changes):
-        env = dict(os.environ, INCOMING_SECRET_RESULT='success', ROUTE_RESULT='success', AUDIT_REQUIRED='true', AUDIT_RESULT='success',
-                   EQUIVALENCE_RESULT='success', SPLIT_QUALIFICATION='true', CI_PLAN=json.dumps(route(mode)),
+        env = dict(os.environ, INCOMING_SECRET_RESULT='success', ROUTE_RESULT='success', AUDIT_RESULT='success',
+                   CI_PLAN=json.dumps(route(mode)),
                    GITHUB_EVENT_NAME='pull_request', GITHUB_REF='refs/pull/1/merge', GITHUB_SHA='c' * 40,
-                   GITHUB_REPOSITORY='closure-labs/maestro', GITHUB_RUN_ID='1', GITHUB_RUN_ATTEMPT='1', MAESTRO_DECISION_ONLY_REUSE_ENABLED='false',
-                   APPLIANCE_RESULT='success', INSTALLER_RESULT='success', QUALIFICATION_RESULT='success',
-                   BOOT_RESULT='success', SCAN_RESULT='success', SECURITY_RESULT='success', SIGNING_RESULT='skipped',
+                   GITHUB_REPOSITORY='closure-labs/maestro', GITHUB_RUN_ID='1', GITHUB_RUN_ATTEMPT='1',
+                   QUALIFICATION_RESULT='success', SCAN_RESULT='success', SECURITY_RESULT='success', SIGNING_RESULT='skipped',
                    GRAPH_RESULT_REQUIRED='false')
-        if mode in ('reuse', 'skip'):
-            env.update(APPLIANCE_RESULT='skipped', INSTALLER_RESULT='skipped')
-        if mode == 'refresh-evidence':
-            env['INSTALLER_RESULT'] = 'skipped'
         if mode == 'skip':
-            env.update(QUALIFICATION_RESULT='skipped', BOOT_RESULT='skipped', SCAN_RESULT='skipped', SECURITY_RESULT='skipped',
+            env.update(QUALIFICATION_RESULT='skipped', SCAN_RESULT='skipped', SECURITY_RESULT='skipped',
                        GITHUB_EVENT_NAME='workflow_dispatch', VALIDATE_ONLY='true')
         env.update(changes)
         with tempfile.TemporaryDirectory() as work:
@@ -63,8 +58,7 @@ class VerdictTests(unittest.TestCase):
                 self.assertEqual(self.execute(mode), 0)
 
     def test_missing_interrupted_or_unjustified_skips_rejected(self):
-        for key in ('INCOMING_SECRET_RESULT', 'ROUTE_RESULT', 'AUDIT_RESULT', 'EQUIVALENCE_RESULT', 'APPLIANCE_RESULT', 'INSTALLER_RESULT',
-                    'QUALIFICATION_RESULT', 'BOOT_RESULT', 'SCAN_RESULT', 'SECURITY_RESULT'):
+        for key in ('INCOMING_SECRET_RESULT', 'ROUTE_RESULT', 'AUDIT_RESULT', 'QUALIFICATION_RESULT', 'SCAN_RESULT', 'SECURITY_RESULT'):
             for status in ('', 'failure', 'cancelled', 'skipped'):
                 with self.subTest(key=key, status=status):
                     self.assertNotEqual(self.execute(**{key: status}), 0)

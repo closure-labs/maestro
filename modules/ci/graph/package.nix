@@ -75,6 +75,7 @@
         export MAESTRO_DISTRIBUTION_CACHE_SOURCE=${./_source/distribution-cache.py}
         export MAESTRO_DECISION_CORE=${../authority/_source/decisions}
         export MAESTRO_TEST_MEASUREMENT_SOURCE=${../checks/_source/measure-phase.sh}
+        export MAESTRO_ASSEMBLY_SOURCE=${../inventory/_source/assets.sh}
         export MAESTRO_TEST_SCANNER_SOURCE=${../security/_source/security-scan.sh}
         python3 -m unittest discover -s "$source/_tests" -p 'test_*.py'
         ${lib.getExe config.packages.maestro-ci-job-transfer} --help >/dev/null

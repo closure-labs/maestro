@@ -53,37 +53,35 @@ def selected(expression, mode):
 class DownloadContract(unittest.TestCase):
     def test_all_modes_and_signing_keep_the_required_bytes(self):
         workflow = json.loads(subprocess.check_output(['yq', '-o=json', '.', str(WORKFLOW)], text=True))
-        steps = {step.get('name'): step for step in workflow['jobs']['boot']['steps']}
-        current = steps['Download maestro-installer']
-        retained = steps['Download original media for retained boot verification']
+        qualification = workflow['jobs']['qualification']
+        steps = {step.get('name'): step for step in qualification['steps']}
+        retained = steps['Download already-qualified media']
         execute = steps['Boot the installer ISO']
-        for mode, expected in {'qualify-media': (True, False, True),
-                               'qualify-media-reuse-evidence': (True, False, True),
-                               'refresh-evidence': (False, False, False),
-                               'reuse': (False, True, False), 'skip': (False, False, False)}.items():
-            observed = tuple(selected(step['if'], mode) for step in (current, retained, execute))
+        for mode, expected in {'qualify-media': (False, True),
+                               'qualify-media-reuse-evidence': (False, True),
+                               'refresh-evidence': (True, False),
+                               'reuse': (True, False), 'skip': (False, False)}.items():
+            observed = tuple(selected(step['if'], mode) for step in (retained, execute))
             self.assertEqual(observed, expected, mode)
-            self.assertLessEqual(sum(observed[:2]), 1)
-        self.assertEqual(current['with']['run-id'], '${{ github.run_id }}')
         self.assertEqual(retained['with']['run-id'], '${{ fromJSON(needs.route.outputs.plan).qualification.media_run_id }}')
         self.assertEqual(retained['with']['path'], 'reused-media')
-        qualification = workflow['jobs']['qualification']
-        local = next(s for s in qualification['steps'] if s.get('id') == 'local_boot')
-        self.assertIn('success()', local['if'])
-        self.assertTrue(local['if'].endswith("qualification.mode == 'refresh-evidence'"))
+        self.assertNotIn('boot', workflow['jobs'])
+        self.assertNotIn('appliance', workflow['jobs'])
+        self.assertNotIn('installer', workflow['jobs'])
+        for step in qualification['steps']:
+            self.assertNotIn('continue-on-error', step)
+        local = next(s for s in qualification['steps'] if s.get('id') == 'boot_evidence')
+        self.assertNotIn('if', local)
         self.assertTrue(local['run'].endswith('ci:boot:evidence'))
-        self.assertGreater(qualification['steps'].index(local), next(i for i,s in enumerate(qualification['steps']) if s.get('id') == 'native_scan'))
-        self.assertIn("needs.qualification.result == 'success'", workflow['jobs']['boot']['if'])
-        self.assertNotIn('continue-on-error', local)
-        scan = next(s for s in qualification['steps'] if s.get('id') == 'native_scan')
-        self.assertNotIn('continue-on-error', scan)
-        self.assertEqual(qualification['outputs']['local_boot_sha256'], '${{ steps.local_boot.outputs.manifest_sha256 }}')
-        small = steps['Download same-attempt local boot result']
-        self.assertEqual(small['with']['run-id'], '${{ github.run_id }}')
-        self.assertEqual(small['with']['name'], 'maestro-local-boot-result')
-        reused = next(s for s in qualification['steps'] if s.get('name') == 'Download already-qualified media')
-        self.assertTrue(selected(reused['if'], 'refresh-evidence'))
-        self.assertFalse(selected(retained['if'], 'refresh-evidence'))
+        self.assertGreater(qualification['steps'].index(local), qualification['steps'].index(execute))
+        self.assertGreater(qualification['steps'].index(local),
+                           next(i for i,s in enumerate(qualification['steps']) if s.get('id') == 'native_scan'))
+        self.assertEqual(qualification['outputs']['boot_sha256'], '${{ steps.boot_evidence.outputs.manifest_sha256 }}')
+        # The only installer download is authenticated reuse. Fresh media is
+        # built and booted directly in the job's Nix store.
+        downloads = [s for s in qualification['steps'] if 'download-artifact@' in s.get('uses', '')
+                     and s.get('with', {}).get('name') == 'maestro-installer']
+        self.assertEqual(downloads, [retained])
         signing = workflow['jobs']['signing']
         self.assertIn("github.ref == 'refs/heads/main'", signing['if'])
         inventory = next(s for s in signing['steps'] if s.get('name') == 'Download inventory to sign')

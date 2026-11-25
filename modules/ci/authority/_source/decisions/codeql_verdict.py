@@ -3,7 +3,6 @@
 import json
 import os
 import re
-import time
 
 import decision_authority as authority
 import codeql_findings as findings
@@ -124,37 +123,40 @@ def require_current_run(current, repository, sha, run_id, attempt, event):
                      f'verdict run lifecycle rejected: status={safe_status}; conclusion={safe_conclusion}')
 
 
-def wait(api, repository, sha, run_id, attempt, event, *, seconds=4800, clock=time.monotonic, sleep=time.sleep):
+def verify_scan(api, repository, sha, run_id, attempt, event, loader=findings.download):
+    """Finish native scan verification once; the App owns live human review."""
     findings.require(repository == 'closure-labs/maestro' and authority.SHA.fullmatch(sha)
                      and type(run_id) is int and run_id > 0 and type(attempt) is int and attempt > 0,
                      'invalid in-run verdict context')
     findings.require(event in ('pull_request', 'merge_group', 'push', 'schedule', 'workflow_dispatch'),
                      'unsupported verdict event')
-    if event not in ('pull_request', 'merge_group'):
-        # Protected-main scans publish SARIF, but do not invent a PR approval.
+    current = api(f'repos/{repository}/actions/runs/{run_id}')
+    require_current_run(current, repository, sha, run_id, attempt, event)
+    report = findings.evidence(api, repository, sha, event, loader)
+    findings.require((report['run'], report['attempt']) == (run_id, attempt), 'scan identity changed')
+    final = findings.latest_run(api, repository, sha, event)
+    findings.require((final['id'], final['run_attempt']) == (run_id, attempt), 'analysis changed before verdict')
+    findings.require(findings.artifact_snapshot(api, repository, run_id, attempt, sha) ==
+                     [list(row) for row in report['artifacts']], 'analysis reports changed before verdict')
+    if event in ('pull_request', 'merge_group'):
+        # An earlier same-SHA green receipt must be invalidated before this
+        # required Actions context can turn green. A blocking App check needs
+        # no runner waiting beside it; scan/review events will update it.
+        check = latest_check(api, repository, sha)
+        if check and check.get('status') == 'completed' and check.get('conclusion') in ('success', 'neutral', 'skipped'):
+            findings.require(verify(api, repository, sha, run_id, attempt, event),
+                             'stale authority success has not been invalidated for this scan attempt')
+    else:
         findings.require(os.environ.get('GITHUB_REF') == 'refs/heads/main', 'protected main required')
-        run = findings.wait_for_analysis(api, repository, sha, event)
-        findings.require((run['id'], run['run_attempt']) == (run_id, attempt), 'main scan identity changed')
-        return
-    deadline = clock() + seconds
-    while True:
-        current = api(f'repos/{repository}/actions/runs/{run_id}')
-        require_current_run(current, repository, sha, run_id, attempt, event)
-        try:
-            findings.scan_jobs(api, repository, current)
-        except findings.AnalysisPending:
-            pass
-        if verify(api, repository, sha, run_id, attempt, event):
-            return
-        findings.require(clock() < deadline, 'timed out awaiting exact findings approval; rerun all CodeQL jobs after approval')
-        sleep(min(30, max(0, deadline - clock())))
+    return report
 
 
 def main():
-    print('Waiting for this exact scan attempt and its Maintainer decision authority review; no earlier green check is reusable.', flush=True)
-    wait(authority.github_api, os.environ['GITHUB_REPOSITORY'], os.environ['CODEQL_TARGET_SHA'],
-         int(os.environ['GITHUB_RUN_ID']), int(os.environ['GITHUB_RUN_ATTEMPT']), os.environ['GITHUB_EVENT_NAME'])
-    print('Exact current-attempt CodeQL findings authority verified.')
+    report = verify_scan(authority.github_api, os.environ['GITHUB_REPOSITORY'], os.environ['CODEQL_TARGET_SHA'],
+                         int(os.environ['GITHUB_RUN_ID']), int(os.environ['GITHUB_RUN_ATTEMPT']), os.environ['GITHUB_EVENT_NAME'])
+    print(json.dumps({'status': 'verified', 'run': report['run'], 'attempt': report['attempt'],
+                      'findings': report['count'], 'digest': report['digest']}))
+    print('Native reports verified. Live findings acceptance is enforced by Maintainer decision authority.')
 
 
 if __name__ == '__main__':

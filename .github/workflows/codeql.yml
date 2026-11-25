@@ -78,25 +78,27 @@ jobs:
           retention-days: 30
 
   findings_verdict:
-    # Start immediately, not after scan completion: this existing required
-    # context must be pending throughout a same-SHA rerun.
+    # Verify completed reports once. The required App check independently
+    # resumes on scan/review events, without a runner waiting for a human.
+    needs: analyze
+    if: always()
     name: Analyze (actions)
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 30
     permissions:
       contents: read
       actions: read
       checks: read
       pull-requests: read
     steps:
-      - name: Checkout protected findings verifier
+      - name: Checkout read-only native report verifier
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Set up native verifier
         uses: $/.github/actions/setup-nix
-      - name: Require this scan attempt and current human findings decision
+      - name: Verify this exact scan attempt without waiting for review
         env:
           GH_TOKEN: ${{ github.token }}
           CODEQL_TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}

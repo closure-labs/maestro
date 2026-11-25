@@ -65,8 +65,7 @@
           ${lib.optionalString (lib.versionAtLeast pkgs.zizmor.version "1.29.0") "zizmor .github"}
           while IFS= read -r action; do
             case "$action" in
-              '$/'*) ;;
-              './controller/.github/actions/setup-nix') ;;
+              '$/'* | './controller/.github/actions/setup-nix') ;;
               *@????????????????????????????????????????) ;;
               *)
                 printf 'Action is not pinned to a full commit: %s\n' "$action" >&2
@@ -86,13 +85,11 @@
               .github/actions/*/action.yml |
               grep -v '^---$'
           )
-          # This exact local action belongs only to the isolated protected
-          # retained-evidence or CodeQL scanner controller. All other actions remain pinned.
+          # The scanner may use only the reviewed protected checkout setup.
           for workflow in .github/workflows/*.yml; do
             owners=$(yq -r '.jobs | to_entries | .[] | select(.value.steps[].uses == "./controller/.github/actions/setup-nix") | .key' "$workflow")
-            if [[ -n "$owners" && ! ( "$workflow" == .github/workflows/ci.yml && "$owners" == retained ) &&
-                  ! ( "$workflow" == .github/workflows/codeql.yml && "$owners" == analyze ) ]]; then
-              printf 'Local controller setup is outside its protected job: %s\n' "$workflow" >&2
+            if [[ -n "$owners" && ( "$workflow" != .github/workflows/codeql.yml || "$owners" != analyze ) ]]; then
+              printf 'Local controller setup is outside its protected scanner: %s\n' "$workflow" >&2
               exit 1
             fi
           done

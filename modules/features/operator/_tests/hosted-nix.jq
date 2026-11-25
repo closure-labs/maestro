@@ -4,6 +4,8 @@
 def protected_codeql_setup:
   $workflow == "codeql.yml" and .key == "analyze" and
   (.value.steps as $steps |
+    all($steps[]; (.uses // "") != "$/.github/actions/setup-nix") and
+    ([$steps[] | select((.uses // "" | startswith("actions/checkout@")) and .with.path == "controller")] | length == 1) and
     any($steps[];
       (.uses // "" | startswith("actions/checkout@")) and
       .with.path == "controller" and .with["persist-credentials"] == false and
@@ -18,9 +20,7 @@ def protected_codeql_setup:
 all(to_entries[];
   . as $entry | .key as $job | .value |
   if any(.steps[]?; ((.run // "") | test("(^|[[:space:]])nix[[:space:]]")))
-  then any(.steps[]?; .uses == "$/.github/actions/setup-nix") or
-    ($workflow == "ci.yml" and $job == "retained" and
-     any(.steps[]?; .uses == "./controller/.github/actions/setup-nix") and
-     (.if | contains("github.event.pull_request.base.ref"))) or
-    ($entry | protected_codeql_setup)
+  then if $workflow == "codeql.yml" and $job == "analyze"
+    then ($entry | protected_codeql_setup)
+    else any(.steps[]?; .uses == "$/.github/actions/setup-nix") end
   else true end)

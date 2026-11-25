@@ -199,15 +199,14 @@ for mutation in \
   '.analyze.steps |= map(if .with.path? == "controller" then .with.ref = "candidate" else . end)' \
   '.analyze.steps |= map(if .with.path? == "controller" then .with["persist-credentials"] = true else . end)' \
   '.analyze.steps |= map(if .uses? == "./controller/.github/actions/setup-nix" then .if = "always()" else . end)' \
-  '.analyze.steps |= map(if .["working-directory"]? == "controller" then .["working-directory"] = "candidate" else . end)'; do
+  '.analyze.steps |= map(if .["working-directory"]? == "controller" then .["working-directory"] = "candidate" else . end)' \
+  '.analyze.steps += [{"uses":"$/.github/actions/setup-nix"}]' \
+  '.analyze.steps += [{"uses":"actions/checkout@0000000000000000000000000000000000000000","with":{"path":"controller","ref":"candidate"}}]'; do
   if jq "$mutation" "$temporary/codeql-jobs.json" |
     jq -e --arg workflow codeql.yml -f "$hosted_nix_policy" >/dev/null; then
-    fail "Protected CodeQL shared-Nix boundary accepted a tampered scanner"
+    fail "hosted Nix policy accepted an unprotected CodeQL setup"
   fi
 done
-if jq -e --arg workflow other.yml -f "$hosted_nix_policy" "$temporary/codeql-jobs.json" >/dev/null; then
-  fail "Protected CodeQL shared-Nix exception accepted a different workflow"
-fi
 yq -e '.secretspec.enable == false and .secretspec.cachix_auth_token == false' \
   "$TEST_ROOT/devenv.yaml" >/dev/null || fail "public Devenv startup must be credential-free"
 yq -e '.secretspec.enable == true and .secretspec.provider == "keyring" and
@@ -223,19 +222,17 @@ grep -Fq "'' ci:verdict" \
 yq -e '.jobs.verdict.steps[] | select(.uses == "$/.github/actions/setup-nix")' \
   "$TEST_ROOT/.github/workflows/ci.yml" >/dev/null \
   || fail "required verdict must bootstrap its declared Nix task"
-# The exact queue override has two bounded outcomes: 15 minutes in the queue,
-# 20 elsewhere. Do not accept arbitrary expressions or unbounded defaults.
-verdict_timeout=$(yq -r '.jobs.verdict.timeout-minutes' "$TEST_ROOT/.github/workflows/ci.yml")
-[[ $verdict_timeout == "\${{ github.event_name == 'merge_group' && 15 || 20 }}" ]] \
-  || yq -e '.jobs.verdict.timeout-minutes > 0 and .jobs.verdict.timeout-minutes <= 20' "$TEST_ROOT/.github/workflows/ci.yml" >/dev/null \
+# Keep the final gate bounded while allowing the observed cold Nix bootstrap.
+yq -e '.jobs.verdict.timeout-minutes > 0 and .jobs.verdict.timeout-minutes <= 30' \
+  "$TEST_ROOT/.github/workflows/ci.yml" >/dev/null \
   || fail "required verdict timeout is not bounded"
 
 grep -Fq "fetch-depth: \${{ contains(fromJSON('[\"pull_request\",\"push\",\"merge_group\"]'), github.event_name) && '0' || '2' }}" \
   "$TEST_ROOT/.github/workflows/ci.yml" \
   || fail "route checkout lacks full event history or an immutable dispatch parent"
-route_outputs=$(yq -r '.jobs.route.outputs | keys | join(",")' \
+route_outputs=$(yq -r '.jobs.route.outputs | keys | sort | join(",")' \
   "$TEST_ROOT/.github/workflows/ci.yml")
-assert_eq "$route_outputs" plan,graph_jobs,graph_gating,graph_mode,graph_sha256
+assert_eq "$route_outputs" graph_mode,graph_sha256,plan
 # Use the reviewed queue definition rather than duplicating its expression.
 expected_publication_group=$(jq -er '
   [.[] | select(.kind == "contains" and .path == ".github/workflows/publication.yml"

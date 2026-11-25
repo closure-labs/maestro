@@ -25,8 +25,7 @@ class ReleaseGraph(unittest.TestCase):
         # Classify every job. A new environment-bearing job must be reviewed,
         # never silently skipped by a job-name-only exemption.
         known = {
-            'ci.yml': {'incoming_secret_scan', 'route', 'audit_checks', 'audit', 'equivalence', 'retained',
-                       'appliance', 'installer', 'qualification', 'boot', 'security',
+            'ci.yml': {'incoming_secret_scan', 'route', 'audit', 'qualification', 'security',
                        'signing', 'verdict'},
             'release.yml': {'native_review',
                             'native_finalize', 'native_qualification_review', 'native_qualification'},
