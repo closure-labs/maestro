@@ -187,7 +187,7 @@ def enabled(api, repository, target):
     return trusted or candidate
 
 
-def latest_run(api, repository, sha, event):
+def latest_attempt(api, repository, sha, event):
     value = api(f'repos/{repository}/actions/workflows/codeql.yml/runs?head_sha={sha}&event={event}&per_page=100')
     runs = value.get('workflow_runs') if isinstance(value, dict) else None
     require(isinstance(runs, list) and type(value.get('total_count')) is int
@@ -205,6 +205,11 @@ def latest_run(api, repository, sha, event):
     require(run.get('status') == 'in_progress' or
             (run.get('status') == 'completed' and run.get('conclusion') == 'success'),
             'latest exact-revision analysis is not viable')
+    return run
+
+
+def latest_run(api, repository, sha, event):
+    run = latest_attempt(api, repository, sha, event)
     scan_jobs(api, repository, run)
     return run
 

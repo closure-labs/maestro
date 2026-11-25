@@ -42,12 +42,12 @@ accept distribution vulnerability findings, authorize release/cache publication,
 or waive any other CI gate.
 
 The four scanner jobs retain fresh attempt-scoped reports. The Actions language
-extraction job is named `Scan (actions)`; the existing required `Analyze (actions)`
-context verifies all four completed native reports once, after the matrix finishes.
-Its read-only candidate checkout grants no review authority and holds no App secret.
-It authenticates artifact bytes, run/attempt and current scanner health. It rejects
-an earlier same-SHA green App receipt until that receipt has been invalidated or
-replaced by authority for the current attempt.
+extraction job is named `Scan (actions)`. The existing required `Analyze (actions)`
+context starts immediately on every attempt, including same-SHA reruns. Its
+read-only native task checks the attempt once and rejects an earlier green App
+receipt. It neither waits for scans/review nor grants findings acceptance. A
+missing or blocking App check remains a separate required gate. The task holds
+no App secret; complete report authentication belongs to the protected App.
 
 The protected App evaluates once per scan-start, scan-completion and review event.
 Incomplete scans leave its required check pending and release the runner. Failed
@@ -57,7 +57,7 @@ live approval and updates the same required authority check. No runner waits for
 human approval, and a late review does not require rerunning successful scans.
 Review edits and dismissals reevaluate authority as before.
 
-The in-run native verifier has a 30-minute startup/execution cap. The App evaluator
+The in-run attempt check has a 30-minute startup/execution cap. The App evaluator
 has no scanner or human polling deadline; each wakeup evaluates current evidence
 once. Its receipt still binds run, attempt, target, artifact IDs/digests and the
 complete live review snapshot. Failed/cancelled scanners, changed reports and
@@ -88,7 +88,7 @@ Normal approvals use a version-2 success receipt carrying the original report-re
 binding and accepting review ID. Explicit-command approvals retain version-1
 receipts. The protected producer and report parser are already prepared on main;
 this activation keeps their protocol, scanner job names and artifact names compatible.
-The read-only in-run verifier changes from a human wait to a one-shot report check.
+The read-only in-run task changes from a human wait to an immediate attempt check.
 The App evaluator changes from scanner polling to scan/review wakeups when this
 change lands on main; existing protected helpers can still validate this PR's reports
 before merge. No privileged candidate code is executed by the App.

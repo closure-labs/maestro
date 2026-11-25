@@ -78,10 +78,8 @@ jobs:
           retention-days: 30
 
   findings_verdict:
-    # Verify completed reports once. The required App check independently
-    # resumes on scan/review events, without a runner waiting for a human.
-    needs: analyze
-    if: always()
+    # Start this required context immediately, including same-SHA reruns.
+    # Check authority freshness once; the App verifies completed reports on events.
     name: Analyze (actions)
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -91,14 +89,14 @@ jobs:
       checks: read
       pull-requests: read
     steps:
-      - name: Checkout read-only native report verifier
+      - name: Checkout read-only attempt verifier
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - name: Set up native verifier
         uses: $/.github/actions/setup-nix
-      - name: Verify this exact scan attempt without waiting for review
+      - name: Check this attempt without waiting for scans or review
         env:
           GH_TOKEN: ${{ github.token }}
           CODEQL_TARGET_SHA: ${{ github.event.pull_request.head.sha || github.sha }}

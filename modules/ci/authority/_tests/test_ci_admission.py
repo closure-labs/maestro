@@ -354,12 +354,12 @@ class Admission(unittest.TestCase):
             api.changed = [{'filename': candidate_helper, 'status': 'modified'}]
             self.assertEqual(api.approve(), 'approved')
 
-    def test_required_codeql_context_verifies_completed_reports_without_human_wait(self):
+    def test_required_codeql_context_starts_immediately_without_scan_or_human_wait(self):
         workflow = TEMPLATES['.github/workflows/codeql.yml']
         verifier = workflow.split('  findings_verdict:\n', 1)[1].split('  publish:', 1)[0]
         self.assertIn('name: Analyze (actions)', verifier)
-        self.assertIn('needs: analyze', verifier)
-        self.assertIn('if: always()', verifier)
+        self.assertNotIn('needs:', verifier)
+        self.assertNotIn('if:', verifier)
         self.assertIn('timeout-minutes: 30', verifier)
         self.assertIn('github.event.pull_request.head.sha || github.sha', verifier)
         self.assertIn('uses: $/.github/actions/setup-nix', verifier)

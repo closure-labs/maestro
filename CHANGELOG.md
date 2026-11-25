@@ -29,7 +29,7 @@ correspond to published GitHub tags.
 - Give cold qualification-output evaluation the same bounded 15-minute budget
   as graph equivalence, without extending authentication or transfer deadlines.
 
-- Verify CodeQL reports once and reevaluate findings authority on scan and review
+- Check each CodeQL attempt once and reevaluate findings authority on scan and review
   events, without keeping a runner waiting for human approval. Gate all CodeQL
   findings through the existing protected-main maintainer authority check. One
   exact-head human approval explicitly accepts the bound

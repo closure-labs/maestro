@@ -205,53 +205,42 @@ class Verdict(unittest.TestCase):
             with self.subTest(change=change), self.assertRaises(findings.authority.AuthorityError):
                 api.verify()
 
-    def test_unreviewed_reports_finish_without_polling_or_granting_authority(self):
+    def test_incomplete_scans_release_the_runner_without_granting_app_authority(self):
         api = VerdictAPI(); api.checks = []
-        report = mod.verify_scan(api, REPO, HEAD, 42, 1, 'pull_request', api.load)
-        self.assertEqual(report['count'], 0)
+        for job in api.jobs:
+            job.update(status='in_progress', conclusion=None)
+        with mock.patch.object(findings, 'evidence', side_effect=AssertionError('reports belong to the App')):
+            result = mod.check_attempt(api, REPO, HEAD, 42, 1, 'pull_request')
+        self.assertEqual(result, {'run': 42, 'attempt': 1, 'authority': 'required'})
         self.assertEqual(api.checks, [])
 
     def test_stale_green_cannot_release_the_required_actions_check(self):
         api = VerdictAPI(); api.record['run'] = 41; api.publish()
         with self.assertRaisesRegex(findings.authority.AuthorityError, 'stale authority success'):
-            mod.verify_scan(api, REPO, HEAD, 42, 1, 'pull_request', api.load)
+            mod.check_attempt(api, REPO, HEAD, 42, 1, 'pull_request')
 
     def test_passing_app_conclusions_without_current_authority_are_rejected(self):
         for conclusion in ('success', 'neutral', 'skipped'):
             api = VerdictAPI(); api.record['run'] = 41; api.publish()
             api.checks[0]['conclusion'] = conclusion
             with self.subTest(conclusion=conclusion), self.assertRaises(findings.authority.AuthorityError):
-                mod.verify_scan(api, REPO, HEAD, 42, 1, 'pull_request', api.load)
-
-    def test_late_stale_success_after_report_verification_is_rejected(self):
-        api = VerdictAPI(); api.checks = []
-        def mutate(endpoint):
-            if '/actions/runs/42/artifacts?' in endpoint:
-                api.record['run'] = 41
-                api.publish()
-        api.mutate = mutate
-        with self.assertRaisesRegex(findings.authority.AuthorityError, 'stale authority success'):
-            mod.verify_scan(api, REPO, HEAD, 42, 1, 'pull_request', api.load)
+                mod.check_attempt(api, REPO, HEAD, 42, 1, 'pull_request')
 
     def test_blocking_app_check_finishes_without_waiting_for_review(self):
         for status, conclusion in [('in_progress', None), ('completed', 'failure')]:
             api = VerdictAPI(); api.checks[0].update(status=status, conclusion=conclusion)
-            self.assertEqual(mod.verify_scan(api, REPO, HEAD, 42, 1, 'pull_request', api.load)['run'], 42)
+            self.assertEqual(mod.check_attempt(api, REPO, HEAD, 42, 1, 'pull_request')['run'], 42)
 
-    def test_scan_verifier_authenticates_report_bytes_and_current_attempt(self):
-        for mutate in (lambda a: a.artifacts[0].update(digest='sha256:' + '0' * 64),
-                       lambda a: a.artifacts[0].update(expired=True),
-                       lambda a: a.artifacts.pop(),
-                       lambda a: a.jobs[0].update(run_attempt=2),
-                       lambda a: a.jobs[0].update(conclusion='cancelled')):
-            api = VerdictAPI(); api.checks = []; mutate(api)
-            with self.subTest(mutate=mutate), self.assertRaises(findings.authority.AuthorityError):
-                mod.verify_scan(api, REPO, HEAD, 42, 1, 'pull_request', api.load)
+    def test_newer_attempt_cannot_be_acknowledged_by_an_old_required_context(self):
+        api = VerdictAPI(); api.checks = []
+        api.runs.append(dict(api.runs[0], id=43))
+        with self.assertRaisesRegex(findings.authority.AuthorityError, 'scan identity changed'):
+            mod.check_attempt(api, REPO, HEAD, 42, 1, 'pull_request')
 
     def test_cancelled_source_does_not_wait_for_human_timeout(self):
         api = VerdictAPI(); api.runs[0].update(status='completed', conclusion='cancelled')
         with self.assertRaisesRegex(findings.authority.AuthorityError, 'cancelled'):
-            mod.verify_scan(api, REPO, HEAD, 42, 1, 'pull_request', api.load)
+            mod.check_attempt(api, REPO, HEAD, 42, 1, 'pull_request')
 
     def test_current_run_identity_reports_only_mismatched_fields(self):
         for field, value, label in (('id', 99, 'id'), ('run_attempt', 2, 'attempt'),
@@ -261,7 +250,7 @@ class Verdict(unittest.TestCase):
                 api = VerdictAPI(); api.runs[0][field] = value
                 with self.assertRaisesRegex(findings.authority.AuthorityError,
                                             'identity mismatch: ' + label + '$'):
-                    mod.verify_scan(api, REPO, HEAD, 42, 1, 'pull_request', api.load)
+                    mod.check_attempt(api, REPO, HEAD, 42, 1, 'pull_request')
 
     def test_lifecycle_diagnostics_preserve_rejected_states(self):
         for status, conclusion in [('queued', None), ('waiting', None), ('pending', None),
@@ -273,7 +262,7 @@ class Verdict(unittest.TestCase):
                 api = VerdictAPI(); api.runs[0].update(status=status, conclusion=conclusion)
                 with self.assertRaisesRegex(findings.authority.AuthorityError,
                                             'lifecycle rejected: status=' + status):
-                    mod.verify_scan(api, REPO, HEAD, 42, 1, 'pull_request', api.load)
+                    mod.check_attempt(api, REPO, HEAD, 42, 1, 'pull_request')
 
     def test_run_response_diagnostics_are_bounded_and_do_not_echo_data(self):
         api = VerdictAPI()
@@ -305,10 +294,10 @@ class Verdict(unittest.TestCase):
     def test_main_only_scans_do_not_invent_pr_authority(self):
         api = VerdictAPI(); api.runs[0]['event'] = 'push'
         with mock.patch.dict(os.environ, {'GITHUB_REF': 'refs/heads/main'}):
-            mod.verify_scan(api, REPO, HEAD, 42, 1, 'push', api.load)
+            mod.check_attempt(api, REPO, HEAD, 42, 1, 'push')
         with mock.patch.dict(os.environ, {'GITHUB_REF': 'refs/heads/untrusted'}):
             with self.assertRaises(findings.authority.AuthorityError):
-                mod.verify_scan(api, REPO, HEAD, 42, 1, 'push', api.load)
+                mod.check_attempt(api, REPO, HEAD, 42, 1, 'push')
 
 
 if __name__ == '__main__':
