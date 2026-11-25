@@ -49,101 +49,44 @@ The explicit validation-only dispatch remains available. Target equality describ
 cache reuse; authenticated producer bindings, verifier/policy identity, current
 databases and live review authority remain separate obligations.
 
-```mermaid
-flowchart TD
-  P[Plan CI] --> R[Repository checks: complete audit once]
-  P --> A[Build appliance]
-  P --> E[Appliance equivalence]
-  A --> I[Build installer ISO when required]
-  A --> N[Generate inventory and scan]
-  I --> N
-  N --> B[Verify executed or retained installer boot]
-  R --> V[Verify release evidence and complete-audit binding]
-  E --> V
-  B --> V
-  N --> V
-  V --> G[Sign release evidence on protected main]
-  G --> F[Required CI verdict]
-  V --> F
-  R --> F
-  E --> F
-```
+The current [CI maintainer guide](ci/README.md) describes the seven-job pipeline,
+manual controls and recovery. Complete audit and qualification execute in
+parallel after planning. Appliance and installer builds, inventory, fresh scan
+and boot verification share one runner and Nix store. Signing remains separate
+and protected-main only. **Required CI verdict** retains its existing name and
+App binding, alongside CodeQL and review requirements.
 
-The temporary parallel flake workflow and duplicate full graph realization are
-retired after recorded twenty-obligation parity. Version 2 native results bind
-the complete audit directly; historical version 1 proofs keep their strict
-comparison requirement. No skipped comparison is claimed as success.
+All twenty audit obligations remain required. The audit binds its completed
+manifest on the same runner; there is no raw-audit transfer or extra join job.
+Native version 2 results bind that audit directly. Historical version 1 readers
+retain their comparison-proof requirements. The migration equivalence job,
+comparison job and decision-only retained shortcut are retired; historical
+measurements remain in [migration evidence](maestroden-evidence.md).
 
-The existing verified retained-evidence path remains separate and keeps its
-fork restrictions and force-build controls. Same-attempt transfer manifests use version 2; existing release receipts and
-closure archive formats keep their historical readers. Every cross-job transfer binds an
-immutable workflow attempt, graph digest, derivations, output paths and NAR
-hashes to the producer job's manifest digest. Transport includes only the
-selected default outputs actually covered by native inventory; build-only
-secondary outputs are not assumed to exist after a signed cross-run restore. Native index files, inventory
-documents and the exact booted ISO bytes are bound as well. Consumers restore those exact
-bytes through the existing bounded closure transport; transfer verification
-never silently builds replacements. Boot results distinguish `executed` from
-`verified-retained`. Inventory covers installer boot content and distributed
-tools as well as the appliance. Scan freshness and live publication authority
-retain their existing native verifiers.
+Same-attempt version 2 manifests bind graph digest, derivations, output paths,
+NAR hashes, native index bytes and producer/run/attempt. Appliance and installer
+manifests use local verification without closure export/import. Inventory binds
+the SBOMs and exact ISO bytes. The final protected-main report retains the
+existing bounded distribution transport for publication and installer consumers;
+its readers continue verifying exact bytes and never silently build replacements.
+Boot results distinguish `executed` from `verified-retained`. Inventory covers
+installer boot content and distributed tools as well as the appliance. Scan
+freshness and live publication authority retain their native verifiers.
 
-The route plan and qualification artifacts retain their existing schemas and
-readers. The additional graph plan and `ci-result.json` use schema version 1;
-protected-main signing also attests the complete graph result. The required
-check remains **Required CI verdict**, alongside separate CodeQL and review
-requirements.
+The bound final native route owns step selection. Graph mode remains part of
+signed evidence compatibility, rather than a second set of workflow job guards.
+Unknown comparison inputs or legacy unbound routes require complete
+qualification. Native routing regenerates both route and producer state, rather
+than editing a mode over an older pointer. Explicit validation-only dispatch
+remains available; force-build controls override it. Ordinary PRs cannot select
+validation-only operation. A historical decision descriptor cannot waive any
+qualification step.
 
-The migration equivalence check requires unchanged effective settings and
-existing input pins when the immutable base predates the graph. Subsequent
-policy and dependency updates retain observed differences and run normal
-qualification; the migration does not freeze appliance policy forever.
-
-The hosted comparison job follows the complete audit on the same immutable
-candidate. A producer-bound reference authenticates the full audit and its raw
-per-target timings. On a separate runner, the comparison re-evaluates the graph,
-checks native derivation recipes and realizes every validation `.drv` directly
-in graph dependency order. It compares all 20 output identities and records
-native build/substitution observations and timings; no obligation is omitted.
-Missing results, conflicting outputs, changed producers and interrupted runs
-cannot produce a matching comparison receipt. The required verdict and release
-evidence require the successful, digest-bound receipt. Existing result readers
-remain compatible with the additive comparison binding.
-
-The qualification-input fixture uses only its own test source and packaged
-resolver. Operator fixtures copy their declared feature and workflow inputs;
-repository-wide identity checks belong to `repository-policy`. Hash-update and
-CI-runtime fixtures run once under `automation-fixtures`, and shell parsing
-belongs to `shell-lint`. The boot verifier imports only canonical binding
-helpers and transport validation. Scheduler changes leave retained-boot policy
-unchanged; binding-verifier changes invalidate it. Hosted mutation checks verify
-both sides of this dependency boundary.
-
-Graph scheduling is **active** after hosted complete qualification, all eight
-mutation/equivalence cases and a same-candidate comparison matched all twenty
-audit outputs. Exact protected-main forced and authenticated-reuse controls also
-passed. The graph translates authenticated native routing into bound per-job
-decisions; derivation equality supplies no evidence authority. All twenty audit
-obligations remain required. See [migration evidence](maestroden-evidence.md)
-for raw runs, durations and verification limits. No speedup is assumed.
-
-The native graph handoff exposes a bound final route, per-job decisions and a
-scheduling mode to CI. `activation.nix` explicitly enables the typed
-`maestro.ci.gatingEnabled` option, whose default remains false. Set that declaration
-to false to restore shadow scheduling. In active mode, unknown comparison
-inputs, legacy routes or retained controller evidence without graph bindings
-require complete qualification through the native router. That router regenerates
-both the route and current producer state; the planner never rewrites a mode
-string over an older producer pointer. Explicit validation-only dispatch remains
-available, while force-build controls override it. Signing and the required
-verdict check the exact planned mode as well as the producer and result digest.
-
-The appliance phase realizes appliance and standalone outputs. Installer image
-and copied/generated content origins belong to the installer phase; its bound
-transport carries all attributed content roots to inventory. Inventory can then
-construct its link farm from verified existing roots without rebuilding product
-content. Copied-origin metadata preserves every Nix source context rather than
-claiming an arbitrary first context is the sole producing derivation.
+The appliance phase realizes appliance and standalone outputs. The installer
+phase realizes ISO and copied/generated content origins. Inventory uses these
+verified local roots without restoring closures or rebuilding product content.
+Copied-origin metadata preserves every Nix source context rather than claiming
+an arbitrary first context is the sole producing derivation.
 
 Qualification fingerprints bind exact appliance/ISO and inventory-root producing
 derivations as well as their existing output paths and verifier identities.

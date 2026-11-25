@@ -62,7 +62,13 @@ if [[ $QUALIFICATION_MODE == refresh-evidence ]]; then
 else
   [[ $(sha256sum installer-transfer/manifest.json | cut -d' ' -f1) == "${INSTALLER_MANIFEST_SHA256:?}" ]]
   iso_out=$(jq -er '.targets | map(select(.attribute == "packages.x86_64-linux.installer-iso")) | map(.outputs.out) | unique | select(length == 1) | .[0]' installer-transfer/manifest.json)
-  ln -s "$iso_out" result-installer
+  # The preceding build creates this link when both phases share a runner.
+  # Accept only the exact planned output; never follow a destination directory.
+  if [[ -L result-installer ]]; then
+    [[ $(readlink -- result-installer) == "$iso_out" ]]
+  else
+    ln -sT -- "$iso_out" result-installer
+  fi
 fi
 printf '{}\n' >"$diagnostics/reuse.json"
 stage_begin inventory

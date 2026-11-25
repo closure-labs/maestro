@@ -284,7 +284,7 @@ class RetainedEvidence(unittest.TestCase):
 
 
 class Verdict(unittest.TestCase):
-    def test_only_successful_matching_v4_verification_can_skip_native_operations(self):
+    def test_historical_descriptor_cannot_skip_current_validation(self):
         descriptor = {'schema': 1, 'decisionHash': 'a' * 64}
         plan = {'schema_version': 4, 'publish_required': False, 'retained_evidence': descriptor,
                 'qualification': {'required': True, 'mode': 'qualify-media', 'artifact_run_id': 1, 'media_run_id': 1,
@@ -294,7 +294,7 @@ class Verdict(unittest.TestCase):
                            SIGNING_RESULT='skipped', RETAINED_RESULT='success', RETAINED_REUSE='true',
                            RETAINED_DESCRIPTOR_HASH=reuse.common.canonical_hash(descriptor), MAESTRO_DECISION_ONLY_REUSE_ENABLED='true')
         command = ['bash', str(ROOT / 'modules/ci/checks/_source/verdict.sh')]
-        self.assertEqual(subprocess.run(command, env=environment).returncode, 0)
+        self.assertNotEqual(subprocess.run(command, env=environment, capture_output=True).returncode, 0)
         for field, value in (('RETAINED_RESULT', 'failure'), ('RETAINED_DESCRIPTOR_HASH', 'f' * 64),
                              ('MAESTRO_DECISION_ONLY_REUSE_ENABLED', 'false'), ('SECURITY_RESULT', 'success')):
             with self.subTest(field=field):
@@ -305,28 +305,13 @@ class Verdict(unittest.TestCase):
 
 
 class Evaluation(unittest.TestCase):
-    def test_authority_reader_is_read_only_and_uses_protected_controller_for_pr_and_queue(self):
+    def test_ci_has_no_retained_shortcut_or_app_credentials(self):
+        text = (ROOT / '.github/workflows/ci.yml').read_text()
         workflow = json.loads(subprocess.check_output(['yq', '-o=json', '.', str(ROOT / '.github/workflows/ci.yml')], text=True))
-        job = workflow['jobs']['retained']
-        self.assertIn("github.event.pull_request.base.ref == 'main'", job['if'])
-        setup = next(step for step in job['steps'] if step.get('name') == 'Set up Nix')
-        self.assertEqual(setup['uses'], './controller/.github/actions/setup-nix')
-        checkout = next(step for step in job['steps'] if step.get('with', {}).get('path') == 'controller')
-        self.assertTrue(checkout['uses'].startswith('actions/checkout@'))
-        self.assertEqual(checkout['with']['ref'], '${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.sha }}')
-        self.assertFalse(checkout['with']['persist-credentials'])
-        mint = next(step for step in job['steps'] if step.get('id') == 'authority')
-        condition = mint['if']
-        self.assertIn("hashFiles('controller/.github/workflows/ci.yml') == hashFiles('candidate/.github/workflows/ci.yml')", condition)
-        self.assertNotIn('pull_request', condition)
-        self.assertIn("github.event_name == 'push'", condition)
-        self.assertIn("github.event_name == 'merge_group'", condition)
-        self.assertTrue(all(value == 'read' for key, value in mint['with'].items() if key.startswith('permission-')))
-        self.assertTrue(all(value == 'read' for value in job['permissions'].values()))
-        verify = next(step for step in job['steps'] if step.get('id') == 'verify')
-        self.assertEqual(verify['working-directory'], 'controller')
-        self.assertEqual(verify['env']['CI_CANDIDATE_ROOT'], '${{ github.workspace }}/candidate')
-        self.assertNotIn('secrets', verify['run'])
+        self.assertNotIn('retained', workflow['jobs'])
+        for forbidden in ('secrets.', 'create-github-app-token', 'ci:retained-evidence',
+                          'RETAINED_REUSE', 'MAESTRO_DECISION_ONLY_REUSE_ENABLED'):
+            self.assertNotIn(forbidden, text)
 
     def test_generator_evaluation_uses_complete_native_packages_and_sanitized_environment(self):
         expected = {name: '/nix/store/' + 'a' * 32 + '-' + name for name in reuse.GENERATOR_PACKAGES}

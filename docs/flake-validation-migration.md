@@ -7,7 +7,7 @@ runs full `nix flake check`, including checks outside the legacy twenty-target
 plan. The existing plan runner then records cached output identities for those
 twenty obligations in the same Nix store; it does not execute them again. Its
 per-target timings describe realization requests, not fresh test runtimes. Essential
-appliance/installer qualification, boot verification, equivalence, scanners,
+appliance/installer qualification, boot verification, scanners,
 CodeQL, incoming Gitleaks, signing and the stable `Required CI verdict` remain.
 No ruleset, review policy, publication flag, cache trust or findings acceptance
 changes here. The local `ci:flake:validate` task remains a developer convenience;
@@ -66,25 +66,16 @@ this change does not activate native publication or delete historical records.
 The obsolete comparison command can be removed with the remaining graph/controller
 consumers after their reference checks, rather than inventing another controller.
 
-## Planning overlap and profiling
+## Current scheduling
 
-The `audit_checks` job starts the complete repository audit at the same time as
-`route`. It never selects or skips obligations using planning output. The small
-`audit` join job requires both jobs to succeed, downloads the exact current-run
-and current-attempt raw audit, and uses the existing graph reference validator
-to bind all twenty obligations and output identities to the authoritative plan.
-Signing and verdict consumers still require `audit` and its bound reference.
-No cached test result or approval is introduced by this scheduling change.
+The `audit` job runs the complete repository audit and binds its reference on
+one runner after `route`. Failed validation retains diagnostics but cannot
+create a successful reference. The separate raw-audit runner and its artifact
+handoff are retired. Qualification runs concurrently with the audit and builds,
+inventories, scans and verifies boot in one Nix store. The migration-equivalence
+job and decision-only scheduling shortcut are retired as well.
 
-The raw audit survives failed validation for diagnosis. Its summary includes
-elapsed time for inventory preflight, full flake checks, and recording cached
-validation targets. The latter is not a second test execution. Resource limits
-remain unchanged: the real 15,983 MiB hosted runner currently permits one build
-job, protecting nested VM tests. Profile measured phase timings and VM memory
-before changing concurrency. A successful hosted comparison is needed before
-claiming a wall-clock saving; the extra binding runner startup and contention
-can offset some of the planning overlap.
-
-Artifact names include the run attempt, so partial reruns cannot silently bind
-previous-attempt audit bytes as fresh evidence. Rerun the complete workflow when
-an attempt changes. A failed planner or audit cannot authorize downstream gates.
+All twenty obligations and the version 2 signed evidence contract remain.
+See [the current CI guide](ci/README.md) for the seven-job graph, maintainer
+commands, retained-media behavior and validation limits. Historical comparison
+and timing measurements above describe the earlier pipeline.

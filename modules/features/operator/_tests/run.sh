@@ -193,10 +193,7 @@ for workflow in "$TEST_ROOT"/.github/workflows/*.yml; do
       .key as $job | .value |
       if any(.steps[]?;
         ((.run // "") | test("(^|[[:space:]])nix[[:space:]]")))
-      then any(.steps[]?; .uses == "$/.github/actions/setup-nix") or
-        ($workflow == "ci.yml" and $job == "retained" and
-         any(.steps[]?; .uses == "./controller/.github/actions/setup-nix") and
-         (.if | contains("github.event.pull_request.base.ref")))
+      then any(.steps[]?; .uses == "$/.github/actions/setup-nix")
       else true end)
   ' >/dev/null || fail "Nix job bypasses shared hosted configuration: $workflow"
 done
@@ -215,19 +212,17 @@ grep -Fq "'' ci:verdict" \
 yq -e '.jobs.verdict.steps[] | select(.uses == "$/.github/actions/setup-nix")' \
   "$TEST_ROOT/.github/workflows/ci.yml" >/dev/null \
   || fail "required verdict must bootstrap its declared Nix task"
-# The exact queue override has two bounded outcomes: 15 minutes in the queue,
-# 20 elsewhere. Do not accept arbitrary expressions or unbounded defaults.
-verdict_timeout=$(yq -r '.jobs.verdict.timeout-minutes' "$TEST_ROOT/.github/workflows/ci.yml")
-[[ $verdict_timeout == "\${{ github.event_name == 'merge_group' && 15 || 20 }}" ]] \
-  || yq -e '.jobs.verdict.timeout-minutes > 0 and .jobs.verdict.timeout-minutes <= 20' "$TEST_ROOT/.github/workflows/ci.yml" >/dev/null \
+# Keep the final gate bounded while allowing the observed cold Nix bootstrap.
+yq -e '.jobs.verdict.timeout-minutes > 0 and .jobs.verdict.timeout-minutes <= 30' \
+  "$TEST_ROOT/.github/workflows/ci.yml" >/dev/null \
   || fail "required verdict timeout is not bounded"
 
 grep -Fq "fetch-depth: \${{ contains(fromJSON('[\"pull_request\",\"push\",\"merge_group\"]'), github.event_name) && '0' || '2' }}" \
   "$TEST_ROOT/.github/workflows/ci.yml" \
   || fail "route checkout lacks full event history or an immutable dispatch parent"
-route_outputs=$(yq -r '.jobs.route.outputs | keys | join(",")' \
+route_outputs=$(yq -r '.jobs.route.outputs | keys | sort | join(",")' \
   "$TEST_ROOT/.github/workflows/ci.yml")
-assert_eq "$route_outputs" plan,graph_jobs,graph_gating,graph_mode,graph_sha256
+assert_eq "$route_outputs" graph_mode,graph_sha256,plan
 # Use the reviewed queue definition rather than duplicating its expression.
 expected_publication_group=$(jq -er '
   [.[] | select(.kind == "contains" and .path == ".github/workflows/publication.yml"
