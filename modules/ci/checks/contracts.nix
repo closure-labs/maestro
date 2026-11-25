@@ -65,7 +65,7 @@
           ${lib.optionalString (lib.versionAtLeast pkgs.zizmor.version "1.29.0") "zizmor .github"}
           while IFS= read -r action; do
             case "$action" in
-              '$/'*) ;;
+              '$/'* | './controller/.github/actions/setup-nix') ;;
               *@????????????????????????????????????????) ;;
               *)
                 printf 'Action is not pinned to a full commit: %s\n' "$action" >&2
@@ -73,7 +73,7 @@
                 ;;
             esac
             case "$action" in
-              '$/'* | actions/checkout@* | actions/upload-artifact@* | actions/download-artifact@* | actions/attest@* | actions/create-github-app-token@* | DeterminateSystems/determinate-nix-action@* | step-security/harden-runner@* | github/codeql-action/*@*) ;;
+              '$/'* | './controller/.github/actions/setup-nix' | actions/checkout@* | actions/upload-artifact@* | actions/download-artifact@* | actions/attest@* | actions/create-github-app-token@* | DeterminateSystems/determinate-nix-action@* | step-security/harden-runner@* | github/codeql-action/*@*) ;;
               *)
                 printf 'Action is not an approved GitHub-platform boundary: %s\n' "$action" >&2
                 exit 1
@@ -85,6 +85,14 @@
               .github/actions/*/action.yml |
               grep -v '^---$'
           )
+          # The scanner may use only the reviewed protected checkout setup.
+          for workflow in .github/workflows/*.yml; do
+            owners=$(yq -r '.jobs | to_entries | .[] | select(.value.steps[].uses == "./controller/.github/actions/setup-nix") | .key' "$workflow")
+            if [[ -n "$owners" && ( "$workflow" != .github/workflows/codeql.yml || "$owners" != analyze ) ]]; then
+              printf 'Local controller setup is outside its protected scanner: %s\n' "$workflow" >&2
+              exit 1
+            fi
+          done
           python3 modules/ci/authority/_source/decisions/signal_relay.py .github/workflows/decision-events.yml
           command_workflows=()
           for workflow in .github/workflows/*.yml; do

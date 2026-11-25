@@ -95,6 +95,39 @@ reject(lambda: health.check(missing, {}), 'runtime policy coverage')
 print('Identity-only candidate restore, authentication order and fresh native health fixtures passed.')
 
 
+class EvaluationBudget(unittest.TestCase):
+    def test_cold_nix_evaluation_has_bounded_budget_not_generic_timeout(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / '.git').mkdir()
+            calls = []
+            def command(args, **kwargs):
+                calls.append((args, kwargs))
+                if args[0] == 'git':
+                    return REVISION
+                if '--json' in args:
+                    return json.dumps({'roots': {'installer': ROOT + '-installer'}})
+                return ROOT
+            with patch.dict(os.environ, {'GITHUB_ACTIONS': 'true', 'GITHUB_SHA': REVISION}), \
+                    patch.object(restore.common, 'command', side_effect=command), \
+                    patch.object(restore.common, 'load_json', return_value={'publish': {'targets': [{'attribute': 'packages.x86_64-linux.fixture'}]}}):
+                self.assertEqual(restore.expected_paths(root), {ROOT, ROOT + '-installer'})
+            self.assertEqual(calls[0][0], ['git', '-C', str(root), 'rev-parse', 'HEAD'])
+            self.assertEqual(calls[0][1], {})
+            self.assertEqual(len(calls), 4)
+            for args, kwargs in calls[1:]:
+                self.assertEqual(args[:2], ['nix', 'eval'])
+                self.assertEqual(kwargs, {'timeout': 900})
+                self.assertIn('shallow=1&rev=' + REVISION, args[-1])
+
+    def test_evaluation_timeout_remains_fatal(self):
+        with tempfile.TemporaryDirectory() as temporary, \
+                patch.dict(os.environ, {'GITHUB_ACTIONS': 'false'}), \
+                patch.object(restore.common, 'command', side_effect=subprocess.TimeoutExpired('nix eval', 900)):
+            with self.assertRaises(subprocess.TimeoutExpired):
+                restore.expected_paths(Path(temporary))
+
+
 class CacheFirst(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()

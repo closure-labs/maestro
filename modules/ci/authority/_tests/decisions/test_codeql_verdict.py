@@ -116,7 +116,7 @@ class Verdict(unittest.TestCase):
         api = VerdictAPI()
         self.assertEqual(api.runs[0]['status'], 'in_progress')
         self.assertTrue(api.verify())
-        self.assertEqual(findings.wait_for_analysis(api, REPO, HEAD, 'pull_request')['id'], 42)
+        self.assertEqual(findings.latest_run(api, REPO, HEAD, 'pull_request')['id'], 42)
 
     def test_prior_same_sha_run_or_attempt_never_unblocks(self):
         for change in ({'run': 41}, {'attempt': 2}):
@@ -205,17 +205,42 @@ class Verdict(unittest.TestCase):
             with self.subTest(change=change), self.assertRaises(findings.authority.AuthorityError):
                 api.verify()
 
-    def test_missing_receipt_times_out_without_success(self):
+    def test_incomplete_scans_release_the_runner_without_granting_app_authority(self):
         api = VerdictAPI(); api.checks = []
-        ticks = iter([0, 1])
-        with self.assertRaisesRegex(findings.authority.AuthorityError, 'timed out'):
-            mod.wait(api, REPO, HEAD, 42, 1, 'pull_request', seconds=0,
-                     clock=lambda: next(ticks), sleep=lambda _: self.fail('unexpected sleep'))
+        for job in api.jobs:
+            job.update(status='in_progress', conclusion=None)
+        with mock.patch.object(findings, 'evidence', side_effect=AssertionError('reports belong to the App')):
+            result = mod.check_attempt(api, REPO, HEAD, 42, 1, 'pull_request')
+        self.assertEqual(result, {'run': 42, 'attempt': 1, 'authority': 'required'})
+        self.assertEqual(api.checks, [])
+
+    def test_stale_green_cannot_release_the_required_actions_check(self):
+        api = VerdictAPI(); api.record['run'] = 41; api.publish()
+        with self.assertRaisesRegex(findings.authority.AuthorityError, 'stale authority success'):
+            mod.check_attempt(api, REPO, HEAD, 42, 1, 'pull_request')
+
+    def test_passing_app_conclusions_without_current_authority_are_rejected(self):
+        for conclusion in ('success', 'neutral', 'skipped'):
+            api = VerdictAPI(); api.record['run'] = 41; api.publish()
+            api.checks[0]['conclusion'] = conclusion
+            with self.subTest(conclusion=conclusion), self.assertRaises(findings.authority.AuthorityError):
+                mod.check_attempt(api, REPO, HEAD, 42, 1, 'pull_request')
+
+    def test_blocking_app_check_finishes_without_waiting_for_review(self):
+        for status, conclusion in [('in_progress', None), ('completed', 'failure')]:
+            api = VerdictAPI(); api.checks[0].update(status=status, conclusion=conclusion)
+            self.assertEqual(mod.check_attempt(api, REPO, HEAD, 42, 1, 'pull_request')['run'], 42)
+
+    def test_newer_attempt_cannot_be_acknowledged_by_an_old_required_context(self):
+        api = VerdictAPI(); api.checks = []
+        api.runs.append(dict(api.runs[0], id=43))
+        with self.assertRaisesRegex(findings.authority.AuthorityError, 'scan identity changed'):
+            mod.check_attempt(api, REPO, HEAD, 42, 1, 'pull_request')
 
     def test_cancelled_source_does_not_wait_for_human_timeout(self):
         api = VerdictAPI(); api.runs[0].update(status='completed', conclusion='cancelled')
         with self.assertRaisesRegex(findings.authority.AuthorityError, 'cancelled'):
-            mod.wait(api, REPO, HEAD, 42, 1, 'pull_request', sleep=lambda _: self.fail('unexpected sleep'))
+            mod.check_attempt(api, REPO, HEAD, 42, 1, 'pull_request')
 
     def test_current_run_identity_reports_only_mismatched_fields(self):
         for field, value, label in (('id', 99, 'id'), ('run_attempt', 2, 'attempt'),
@@ -225,8 +250,7 @@ class Verdict(unittest.TestCase):
                 api = VerdictAPI(); api.runs[0][field] = value
                 with self.assertRaisesRegex(findings.authority.AuthorityError,
                                             'identity mismatch: ' + label + '$'):
-                    mod.wait(api, REPO, HEAD, 42, 1, 'pull_request',
-                             sleep=lambda _: self.fail('unexpected sleep'))
+                    mod.check_attempt(api, REPO, HEAD, 42, 1, 'pull_request')
 
     def test_lifecycle_diagnostics_preserve_rejected_states(self):
         for status, conclusion in [('queued', None), ('waiting', None), ('pending', None),
@@ -238,8 +262,7 @@ class Verdict(unittest.TestCase):
                 api = VerdictAPI(); api.runs[0].update(status=status, conclusion=conclusion)
                 with self.assertRaisesRegex(findings.authority.AuthorityError,
                                             'lifecycle rejected: status=' + status):
-                    mod.wait(api, REPO, HEAD, 42, 1, 'pull_request',
-                             sleep=lambda _: self.fail('unexpected sleep'))
+                    mod.check_attempt(api, REPO, HEAD, 42, 1, 'pull_request')
 
     def test_run_response_diagnostics_are_bounded_and_do_not_echo_data(self):
         api = VerdictAPI()
@@ -271,10 +294,10 @@ class Verdict(unittest.TestCase):
     def test_main_only_scans_do_not_invent_pr_authority(self):
         api = VerdictAPI(); api.runs[0]['event'] = 'push'
         with mock.patch.dict(os.environ, {'GITHUB_REF': 'refs/heads/main'}):
-            mod.wait(api, REPO, HEAD, 42, 1, 'push')
+            mod.check_attempt(api, REPO, HEAD, 42, 1, 'push')
         with mock.patch.dict(os.environ, {'GITHUB_REF': 'refs/heads/untrusted'}):
             with self.assertRaises(findings.authority.AuthorityError):
-                mod.wait(api, REPO, HEAD, 42, 1, 'push')
+                mod.check_attempt(api, REPO, HEAD, 42, 1, 'push')
 
 
 if __name__ == '__main__':

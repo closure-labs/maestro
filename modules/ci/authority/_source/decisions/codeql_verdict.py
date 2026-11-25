@@ -3,7 +3,6 @@
 import json
 import os
 import re
-import time
 
 import decision_authority as authority
 import codeql_findings as findings
@@ -124,37 +123,40 @@ def require_current_run(current, repository, sha, run_id, attempt, event):
                      f'verdict run lifecycle rejected: status={safe_status}; conclusion={safe_conclusion}')
 
 
-def wait(api, repository, sha, run_id, attempt, event, *, seconds=4800, clock=time.monotonic, sleep=time.sleep):
+def check_attempt(api, repository, sha, run_id, attempt, event):
+    """Retire stale green authority once, leaving report/review work to events."""
     findings.require(repository == 'closure-labs/maestro' and authority.SHA.fullmatch(sha)
                      and type(run_id) is int and run_id > 0 and type(attempt) is int and attempt > 0,
                      'invalid in-run verdict context')
     findings.require(event in ('pull_request', 'merge_group', 'push', 'schedule', 'workflow_dispatch'),
                      'unsupported verdict event')
-    if event not in ('pull_request', 'merge_group'):
-        # Protected-main scans publish SARIF, but do not invent a PR approval.
+    current = api(f'repos/{repository}/actions/runs/{run_id}')
+    require_current_run(current, repository, sha, run_id, attempt, event)
+    latest = findings.latest_attempt(api, repository, sha, event)
+    findings.require((latest['id'], latest['run_attempt']) == (run_id, attempt), 'scan identity changed')
+    status = 'not-applicable'
+    if event in ('pull_request', 'merge_group'):
+        # This required Actions job starts before scanner jobs can finish. It
+        # cannot release an earlier same-SHA green App receipt. A missing or
+        # blocking App check remains a required gate; this job never grants it.
+        check = latest_check(api, repository, sha)
+        passing = check and check.get('status') == 'completed' and check.get('conclusion') in ('success', 'neutral', 'skipped')
+        if passing:
+            findings.require(verify(api, repository, sha, run_id, attempt, event),
+                             'stale authority success has not been invalidated for this scan attempt')
+        status = 'current' if passing else 'required'
+    else:
         findings.require(os.environ.get('GITHUB_REF') == 'refs/heads/main', 'protected main required')
-        run = findings.wait_for_analysis(api, repository, sha, event)
-        findings.require((run['id'], run['run_attempt']) == (run_id, attempt), 'main scan identity changed')
-        return
-    deadline = clock() + seconds
-    while True:
-        current = api(f'repos/{repository}/actions/runs/{run_id}')
-        require_current_run(current, repository, sha, run_id, attempt, event)
-        try:
-            findings.scan_jobs(api, repository, current)
-        except findings.AnalysisPending:
-            pass
-        if verify(api, repository, sha, run_id, attempt, event):
-            return
-        findings.require(clock() < deadline, 'timed out awaiting exact findings approval; rerun all CodeQL jobs after approval')
-        sleep(min(30, max(0, deadline - clock())))
+    final = findings.latest_attempt(api, repository, sha, event)
+    findings.require((final['id'], final['run_attempt']) == (run_id, attempt), 'analysis changed before verdict')
+    return {'run': run_id, 'attempt': attempt, 'authority': status}
 
 
 def main():
-    print('Waiting for this exact scan attempt and its Maintainer decision authority review; no earlier green check is reusable.', flush=True)
-    wait(authority.github_api, os.environ['GITHUB_REPOSITORY'], os.environ['CODEQL_TARGET_SHA'],
-         int(os.environ['GITHUB_RUN_ID']), int(os.environ['GITHUB_RUN_ATTEMPT']), os.environ['GITHUB_EVENT_NAME'])
-    print('Exact current-attempt CodeQL findings authority verified.')
+    result = check_attempt(authority.github_api, os.environ['GITHUB_REPOSITORY'], os.environ['CODEQL_TARGET_SHA'],
+                           int(os.environ['GITHUB_RUN_ID']), int(os.environ['GITHUB_RUN_ATTEMPT']), os.environ['GITHUB_EVENT_NAME'])
+    print(json.dumps(result))
+    print('Attempt checked once. Native reports and live findings acceptance remain enforced by Maintainer decision authority.')
 
 
 if __name__ == '__main__':
