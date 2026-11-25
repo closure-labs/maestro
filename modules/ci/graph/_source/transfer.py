@@ -38,7 +38,6 @@ def validate(manifest, phase, expected, graph_hash):
     require(isinstance(manifest, dict) and set(manifest) == {'schemaVersion', 'phase', 'producer', 'graphSha256', 'targets', 'roots', 'transport', 'files', 'evidenceFiles', 'isoSha256'}, 'Incomplete transfer manifest')
     require(type(manifest['schemaVersion']) is int and manifest['schemaVersion'] == 2, 'Unknown transfer schema')
     require(manifest['phase'] == phase and manifest['producer'] == producer(), 'Changed transfer producer or attempt')
-    require(manifest['transport'] is not None or phase == 'inventory', 'Only inventory permits a local binding')
     require(manifest['graphSha256'] == graph_hash and manifest['targets'] == expected, 'Changed derivation binding')
     outputs = {value for target in expected for value in target['outputs'].values()}
     require(len({root['storePath'] for root in manifest['roots']}) == len(manifest['roots'])
@@ -105,7 +104,6 @@ def main():
     transfer = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(transfer)
     if args.action in ('bind', 'export'):
-        require(args.action != 'bind' or args.phase == 'inventory', 'Local binding is restricted to inventory')
         paths = sorted({value for target in expected for value in target['outputs'].values()})
         records = json.loads(command('nix', 'path-info', '--json', *paths))
         if isinstance(records, list):
@@ -141,8 +139,8 @@ def main():
         require(transfer.digest(path) == os.environ['TRANSFER_MANIFEST_SHA256'], 'Transfer manifest digest mismatch')
         manifest = validate(json.loads(path.read_text()), args.phase, expected, digest(graph))
         if manifest['transport'] is None:
-            require(args.phase == 'inventory' and args.action == 'verify',
-                    'Local inventory binding cannot restore a closure')
+            require(args.action == 'verify',
+                    'Local binding cannot restore a closure')
             transfer.verify_roots(manifest['roots'])
         else:
             transfer.validate_manifest(args.directory, manifest['transport'])

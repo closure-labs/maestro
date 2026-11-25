@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 set -euo pipefail
-export INCOMING_SECRET_RESULT=success
+export INCOMING_SECRET_RESULT=success AUDIT_RESULT=success SCAN_RESULT=success
 : "${MAESTRO_CI_CLASSIFY:?MAESTRO_CI_CLASSIFY must point to the packaged classifier}"
 : "${MAESTRO_CI_CLASSIFY_PATHS:?MAESTRO_CI_CLASSIFY_PATHS must point to the packaged path classifier}"
 : "${MAESTRO_CI_BOOT_MEDIA:?MAESTRO_CI_BOOT_MEDIA must point to the packaged media boot test}"
@@ -67,7 +67,8 @@ evidence_plan='{"schema_version":3,"qualification":{"required":true,"mode":"refr
 media_reuse_plan='{"schema_version":3,"qualification":{"required":true,"mode":"qualify-media-reuse-evidence","artifact_run_id":42,"media_run_id":42,"evidence_run_id":40,"media_input":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","evidence_input":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"publish_required":false}'
 media_plan='{"schema_version":3,"qualification":{"required":true,"mode":"qualify-media","artifact_run_id":42,"media_run_id":42,"evidence_run_id":42,"media_input":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","evidence_input":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},"publish_required":false}'
 env ROUTE_RESULT=success SECURITY_RESULT=skipped CI_PLAN="$skip_plan" \
-  QUALIFICATION_RESULT=skipped "$MAESTRO_CI_VERDICT"
+  QUALIFICATION_RESULT=skipped SCAN_RESULT=skipped GITHUB_EVENT_NAME=workflow_dispatch \
+  VALIDATE_ONLY=true "$MAESTRO_CI_VERDICT"
 env ROUTE_RESULT=success SECURITY_RESULT=success CI_PLAN="$reuse_plan" \
   QUALIFICATION_RESULT=success "$MAESTRO_CI_VERDICT"
 env ROUTE_RESULT=success SECURITY_RESULT=success CI_PLAN="$evidence_plan" \
@@ -100,25 +101,23 @@ for event in pull_request merge_group push schedule workflow_dispatch; do
   fi
 done
 
-# Speculative qualification must never turn a failed/cancelled overlapping
-# audit into a successful required verdict, even when every other job passed.
-env ROUTE_RESULT=success CI_PLAN="$media_plan" QUALIFICATION_RESULT=success \
-  SECURITY_RESULT=success SIGNING_RESULT=skipped GITHUB_EVENT_NAME=workflow_dispatch \
-  GITHUB_REF=refs/heads/pilot AUDIT_OVERLAP=true AUDIT_RESULT=success "$MAESTRO_CI_VERDICT"
-for audit_result in failure cancelled skipped; do
-  if env ROUTE_RESULT=success CI_PLAN="$media_plan" QUALIFICATION_RESULT=success \
-    SECURITY_RESULT=success SIGNING_RESULT=success GITHUB_EVENT_NAME=workflow_dispatch \
-    GITHUB_REF=refs/heads/main AUDIT_OVERLAP=true AUDIT_RESULT="$audit_result" \
-    "$MAESTRO_CI_VERDICT" >/dev/null 2>&1; then
-    printf 'CI verdict accepted missing or failed overlapping audit.\n' >&2; exit 1
-  fi
+# Every event requires a completed audit. Parallel qualification cannot turn a
+# failed, cancelled, missing or skipped audit into a successful required verdict.
+for event in pull_request merge_group push schedule workflow_dispatch; do
+  ref=refs/heads/main
+  signing=success
+  case $event in
+    pull_request) ref=refs/pull/1/merge; signing=skipped ;;
+    merge_group) ref=refs/heads/gh-readonly-queue/main/pr-1; signing=skipped ;;
+  esac
+  for audit_result in '' failure cancelled skipped; do
+    if env ROUTE_RESULT=success CI_PLAN="$media_plan" QUALIFICATION_RESULT=success \
+      SECURITY_RESULT=success SIGNING_RESULT="$signing" GITHUB_EVENT_NAME="$event" \
+      GITHUB_REF="$ref" AUDIT_RESULT="$audit_result" "$MAESTRO_CI_VERDICT" >/dev/null 2>&1; then
+      printf 'CI verdict accepted a missing or failed audit for %s.\n' "$event" >&2; exit 1
+    fi
+  done
 done
-if env ROUTE_RESULT=success CI_PLAN="$media_plan" QUALIFICATION_RESULT=success \
-  SECURITY_RESULT=success SIGNING_RESULT=success GITHUB_EVENT_NAME=push \
-  GITHUB_REF=refs/heads/main AUDIT_OVERLAP=true AUDIT_RESULT=success \
-  "$MAESTRO_CI_VERDICT" >/dev/null 2>&1; then
-  printf 'CI verdict accepted an unapproved overlap event.\n' >&2; exit 1
-fi
 
 invalid_publish_plan='{"schema_version":3,"qualification":{"required":false,"mode":"skip","artifact_run_id":null,"media_run_id":null,"evidence_run_id":null,"media_input":null,"evidence_input":null},"publish_required":true}'
 if env ROUTE_RESULT=success SECURITY_RESULT=success CI_PLAN="$invalid_publish_plan" \

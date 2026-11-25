@@ -11,6 +11,8 @@ SSH host identities.
 XCP-ng pool  →  Maestro virtual machine  →  Xen Orchestra web interface
 ```
 
+CI operation and recovery: [Maintaining CI](docs/ci/README.md).
+
 ## What you get
 
 - **Repeatable deployment:** a verified installer and a sealed XCP-ng template.

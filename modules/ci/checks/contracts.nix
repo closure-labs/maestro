@@ -66,7 +66,6 @@
           while IFS= read -r action; do
             case "$action" in
               '$/'*) ;;
-              './controller/.github/actions/setup-nix') ;;
               *@????????????????????????????????????????) ;;
               *)
                 printf 'Action is not pinned to a full commit: %s\n' "$action" >&2
@@ -74,7 +73,7 @@
                 ;;
             esac
             case "$action" in
-              '$/'* | './controller/.github/actions/setup-nix' | actions/checkout@* | actions/upload-artifact@* | actions/download-artifact@* | actions/attest@* | actions/create-github-app-token@* | DeterminateSystems/determinate-nix-action@* | step-security/harden-runner@* | github/codeql-action/*@*) ;;
+              '$/'* | actions/checkout@* | actions/upload-artifact@* | actions/download-artifact@* | actions/attest@* | actions/create-github-app-token@* | DeterminateSystems/determinate-nix-action@* | step-security/harden-runner@* | github/codeql-action/*@*) ;;
               *)
                 printf 'Action is not an approved GitHub-platform boundary: %s\n' "$action" >&2
                 exit 1
@@ -86,15 +85,6 @@
               .github/actions/*/action.yml |
               grep -v '^---$'
           )
-          # This exact local action belongs only to the isolated protected
-          # retained-evidence controller. All other actions remain pinned.
-          for workflow in .github/workflows/*.yml; do
-            owners=$(yq -r '.jobs | to_entries | .[] | select(.value.steps[].uses == "./controller/.github/actions/setup-nix") | .key' "$workflow")
-            if [[ -n "$owners" && ( "$workflow" != .github/workflows/ci.yml || "$owners" != retained ) ]]; then
-              printf 'Local controller setup is outside its protected job: %s\n' "$workflow" >&2
-              exit 1
-            fi
-          done
           python3 modules/ci/authority/_source/decisions/signal_relay.py .github/workflows/decision-events.yml
           command_workflows=()
           for workflow in .github/workflows/*.yml; do
