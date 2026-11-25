@@ -212,11 +212,9 @@ grep -Fq "'' ci:verdict" \
 yq -e '.jobs.verdict.steps[] | select(.uses == "$/.github/actions/setup-nix")' \
   "$TEST_ROOT/.github/workflows/ci.yml" >/dev/null \
   || fail "required verdict must bootstrap its declared Nix task"
-# The exact queue override has two bounded outcomes: 15 minutes in the queue,
-# 20 elsewhere. Do not accept arbitrary expressions or unbounded defaults.
-verdict_timeout=$(yq -r '.jobs.verdict.timeout-minutes' "$TEST_ROOT/.github/workflows/ci.yml")
-[[ $verdict_timeout == "\${{ github.event_name == 'merge_group' && 15 || 20 }}" ]] \
-  || yq -e '.jobs.verdict.timeout-minutes > 0 and .jobs.verdict.timeout-minutes <= 20' "$TEST_ROOT/.github/workflows/ci.yml" >/dev/null \
+# Keep the final gate bounded while allowing the observed cold Nix bootstrap.
+yq -e '.jobs.verdict.timeout-minutes > 0 and .jobs.verdict.timeout-minutes <= 30' \
+  "$TEST_ROOT/.github/workflows/ci.yml" >/dev/null \
   || fail "required verdict timeout is not bounded"
 
 grep -Fq "fetch-depth: \${{ contains(fromJSON('[\"pull_request\",\"push\",\"merge_group\"]'), github.event_name) && '0' || '2' }}" \

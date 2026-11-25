@@ -15,12 +15,12 @@ GitHub settings. Queue jobs use:
 | Plan CI | 30 |
 | Repository checks, including audit binding | 90 |
 | Build, inventory, scan and boot | 225 |
-| Release evidence | 15 |
-| Verdict | 15 |
+| Release evidence | 30 |
+| Verdict | 30 |
 
-The conservative dependency path is 285 minutes: plan → qualification → release
+The conservative dependency path is 315 minutes: plan → qualification → release
 evidence → verdict. Repository checks execute in parallel with qualification.
-This leaves 75 minutes for runner queueing and scheduling inside the existing
+This leaves 45 minutes for runner queueing and scheduling inside the existing
 360-minute deadline; it cannot guarantee a deadline during a GitHub outage.
 CodeQL and authority workflows run independently. Signing runs only on protected
 main, outside the merge queue.
@@ -31,7 +31,16 @@ The qualification cap combines the previous 120-minute appliance, 30-minute ISO,
 skipped to meet the budget. The consolidation removes intermediate NAR transport
 and runner startup but needs hosted measurements before claiming a speedup.
 
-## Measurement basis and validation
+## Cold-run verification
+
+The first completed [evidence verifier on PR #259](https://github.com/closure-labs/maestro/actions/runs/45508871793/job/138882433371) took about 21 minutes, including
+cold Nix/devenv bootstrap. The actual native verification task took 13 seconds.
+Keep both the evidence job and final verdict at 30 minutes on every event rather
+than giving fresh merge-queue runners a shorter 15-minute window. The resulting
+315-minute dependency cap retains 45 minutes of scheduling margin. The live
+360-minute queue policy is unchanged.
+
+## Earlier measurement basis and validation
 
 Nine successful merge-group runs sampled from November 4–9, 2026 had maxima:
 planning 7m05s, appliance 77m26s, installer 12m02s, inventory/scan 20m21s, boot

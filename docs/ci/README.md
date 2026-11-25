@@ -78,9 +78,11 @@ contracts would strand PRs or weaken publication controls. They are not extra
 appliance validation passes. The earlier authority-cutover designs are historical
 proposals, not instructions for normal CI operation.
 
-The queue path is bounded at 285 minutes, leaving 75 minutes inside the existing
+The queue path is bounded at 315 minutes, leaving 45 minutes inside the existing
 360-minute response budget. The consolidated build job has a 225-minute queue
-limit and a 360-minute nonqueue limit. These are caps, not measured runtimes;
+limit and a 360-minute nonqueue limit. Evidence verification and the final
+verdict each allow 30 minutes: the first cold evidence runner needed about 21 minutes, mostly before its 13-second native
+verification task. These are caps, not a speedup benchmark;
 observe hosted resource/disk use and cold-build duration before claiming a
 speedup. Full Nix/VM/ISO validation runs in hosted CI, not on the bounded local
 fixture runner.

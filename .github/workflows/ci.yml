@@ -428,7 +428,7 @@ jobs:
       needs.audit.result == 'success' && needs.qualification.result == 'success' &&
       needs.qualification.outputs.scan_result == 'success'
     runs-on: ubuntu-24.04
-    timeout-minutes: ${{ github.event_name == 'merge_group' && 15 || 30 }}
+    timeout-minutes: 30
     permissions:
       contents: read
       actions: read
@@ -598,7 +598,7 @@ jobs:
       contents: read
       actions: read
     runs-on: ubuntu-24.04
-    timeout-minutes: ${{ github.event_name == 'merge_group' && 15 || 20 }}
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

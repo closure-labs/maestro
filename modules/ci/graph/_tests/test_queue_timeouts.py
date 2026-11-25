@@ -72,8 +72,8 @@ class QueueTimeouts(unittest.TestCase):
     def test_bounded_queue_path_has_scheduling_margin(self):
         self.assertGreaterEqual(self.limit, 1)
         self.assertLessEqual(self.limit, 360)  # GitHub's documented API bound
-        self.assertEqual(longest_path(self.jobs, self.secret), 285)
-        self.assertGreaterEqual(self.limit - longest_path(self.jobs, self.secret), 75)
+        self.assertEqual(longest_path(self.jobs, self.secret), 315)
+        self.assertGreaterEqual(self.limit - longest_path(self.jobs, self.secret), 45)
         # Other required workflows run in parallel, not after the CI graph.
         for filename in ('codeql.yml', 'decision-authority.yml'):
             self.assertLessEqual(sum(minutes(j) for j in workflow(filename)['jobs'].values()), self.limit - 45)
