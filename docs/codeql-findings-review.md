@@ -1,16 +1,13 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # CodeQL findings review
 
-Preparation status: the legacy scanner workflow remains unmarked and unchanged.
-The protected producer and verifier below are available for the separately
-reviewed activation PR, which opts in with the exact protocol marker.
-
 `Maintainer decision authority` checks the complete CodeQL SARIF results for
 all four languages on the exact PR head and again on the exact merge-queue
 commit. The existing required analysis checks still enforce successful scans.
 The controller runs only protected-main code. Reports are data, never commands.
 Rust scanner setup runs from a separate protected base/main checkout, including
-its Nix dependency tree; candidate setup actions and toolchain helpers never run.
+its Nix dependency tree; candidate setup actions and toolchain helpers never run
+in the scanner.
 CodeQL receives only the candidate source root. Attempt-scoped artifact names
 prevent reports from an earlier attempt satisfying a later retry.
 
@@ -23,7 +20,8 @@ changing the analysis workflow, while allowing reviewed scanner upgrades.
 When findings need review, the protected App first publishes a separate neutral
 `CodeQL findings ready` check on the exact PR head. Its authenticated receipt binds
 the PR, findings and scanner digest, run attempt, and complete artifact identities.
-This check grants no authority and cannot release the required analysis verdict.
+This check grants no authority and cannot release the required
+maintainer-authority gate.
 Inspect the linked run's four CodeQL artifacts and the PR changes, then submit a
 normal GitHub **Approve** review. Its body may be blank; no command is required.
 
@@ -43,27 +41,30 @@ accepts only this PR's CodeQL findings and analysis-workflow revision. It cannot
 accept distribution vulnerability findings, authorize release/cache publication,
 or waive any other CI gate.
 
-The review event automatically reevaluates authority; no extra dispatch or rerun
-is needed while the current run remains waiting. The existing required
-`Analyze (actions)` context starts immediately and stays pending until one
-protected verifier has authenticated this run's exact App receipt. The Actions
-language extraction job is named `Scan (actions)`; the other three required
-analysis names remain unchanged. There is only one shared waiting verifier,
-not four duplicate polling jobs.
+The four scanner jobs retain fresh attempt-scoped reports. The Actions language
+extraction job is named `Scan (actions)`. The existing required `Analyze (actions)`
+context starts immediately on every attempt, including same-SHA reruns. Its
+read-only native task checks the attempt once and rejects an earlier green App
+receipt. It neither waits for scans/review nor grants findings acceptance. A
+missing or blocking App check remains a separate required gate. The task holds
+no App secret; complete report authentication belongs to the protected App.
 
-The App evaluator wakes when CodeQL starts, waits for the four scanner jobs
-(not workflow completion), and authenticates reports and human authority. Its
-receipt binds run, attempt, target, artifact IDs/digests and the complete live
-review snapshot. The in-run verifier rechecks those bindings, current review
-state and newer attempts before success. An earlier same-SHA green check cannot
-release a new attempt. Failed/cancelled scanners, changed reports and dismissed
-reviews stay blocked. This avoids a circular dependency on workflow completion.
+The protected App evaluates once per scan-start, scan-completion and review event.
+Incomplete scans leave its required check pending and release the runner. Failed
+or cancelled scans leave it blocked. Once reports are complete, the App authenticates
+them and publishes the findings-ready check. A later eligible review event verifies
+live approval and updates the same required authority check. No runner waits for
+human approval, and a late review does not require rerunning successful scans.
+Review edits and dismissals reevaluate authority as before.
 
-Scanner readiness is bounded to 45 minutes; authority has a 60-minute job limit.
-The required verdict waits up to 80 minutes inside a 90-minute job limit. These
-are bounds, not promised durations. If approval arrives after timeout, rerun all
-CodeQL jobs; failed-job-only reruns cannot reuse old-attempt reports. The authority also
-reevaluates the PR's current single-entry merge queue. The
+The in-run attempt check has a 30-minute startup/execution cap. The App evaluator
+has no scanner or human polling deadline; each wakeup evaluates current evidence
+once. Its receipt still binds run, attempt, target, artifact IDs/digests and the
+complete live review snapshot. Failed/cancelled scanners, changed reports and
+dismissed reviews remain blocked. Scanner completion can now wake authority because
+successful scanner execution no longer depends on human acceptance.
+
+The authority also reevaluates the PR's current single-entry merge queue. The
 same review applies there only when its findings and scanner identity are
 identical to the original PR-head report accepted by that review. A newer
 report-ready check posted after approval cannot substitute for the original
@@ -83,19 +84,14 @@ existing analysis artifacts directly.
 
 ## Validation and rollout
 
-Normal approvals use a version-2 success receipt that carries the original
-report-ready binding and accepting review ID through the in-run verifier. The
-verifier rechecks the original report and artifacts as well as the fresh attempt.
-Existing explicit-command approvals retain version-1 receipts. Land both updated
-protected helpers together, then rebase/update candidate PRs onto that base before
-using normal approval: an older verifier rejects version-2 receipts. Publish the
-report-ready check and obtain a new later approval; the change does not reinterpret
-an approval submitted before that report existed.
-
-Deploy in two reviewed PRs: first land the parser/verdict package, opt-in App
-receipt producer and its wakeup on main; then activate the CodeQL workflow
-against that protected producer/verifier. Preparation keeps existing authority
-semantics for unmarked legacy workflows and accepts no findings.
+Normal approvals use a version-2 success receipt carrying the original report-ready
+binding and accepting review ID. Explicit-command approvals retain version-1
+receipts. The protected producer and report parser are already prepared on main;
+this activation keeps their protocol, scanner job names and artifact names compatible.
+The read-only in-run task changes from a human wait to an immediate attempt check.
+The App evaluator changes from scanner polling to scan/review wakeups when this
+change lands on main; existing protected helpers can still validate this PR's reports
+before merge. No privileged candidate code is executed by the App.
 
 The exact workflow declaration `# maestro-codeql-findings-protocol: 1` opts a
 candidate into the complete findings gate before activation merges. Once that
@@ -103,8 +99,9 @@ marker is on protected main, enforcement is mandatory even if a candidate
 removes it. The trusted-main check cannot be disabled by a candidate. Unknown,
 ambiguous, unreadable or byte-inconsistent protocol declarations fail closed.
 This solves the producer/verifier bootstrap without a missing-helper fallback
-or weakening a currently active gate. Do not activate before both protected
-helpers are present on the PR base. Rebase older open branches after cutover so
+or weakening a currently active gate. Do not activate before the protected report
+producer and parser are present on the PR base. Rebase older open branches after
+cutover so
 their scanner workflow identity includes the activated protocol.
 
 

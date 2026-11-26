@@ -10,7 +10,6 @@ import resource
 import stat
 import subprocess
 import tempfile
-import time
 import zipfile
 
 import decision_authority as authority
@@ -134,7 +133,7 @@ def timestamp(value):
 
 
 class AnalysisPending(authority.AuthorityError):
-    """Only incomplete scanner work may be polled; errors fail closed."""
+    """Incomplete scanner work leaves authority pending until the next event."""
 
 
 def scan_jobs(api, repository, run):
@@ -160,16 +159,6 @@ def scan_jobs(api, repository, run):
                 'a current-attempt scanner failed, was cancelled or skipped')
     if pending:
         raise AnalysisPending('CodeQL scanner jobs are still running')
-
-
-def wait_for_analysis(api, repository, sha, event, *, seconds=2700, sleep=time.sleep, clock=time.monotonic):
-    deadline = clock() + seconds
-    while True:
-        try:
-            return latest_run(api, repository, sha, event)
-        except AnalysisPending:
-            require(clock() < deadline, 'timed out waiting for scanner jobs')
-            sleep(min(15, max(0, deadline - clock())))
 
 
 def workflow_protocol(api, repository, ref):
@@ -198,7 +187,7 @@ def enabled(api, repository, target):
     return trusted or candidate
 
 
-def latest_run(api, repository, sha, event):
+def latest_attempt(api, repository, sha, event):
     value = api(f'repos/{repository}/actions/workflows/codeql.yml/runs?head_sha={sha}&event={event}&per_page=100')
     runs = value.get('workflow_runs') if isinstance(value, dict) else None
     require(isinstance(runs, list) and type(value.get('total_count')) is int
@@ -216,6 +205,11 @@ def latest_run(api, repository, sha, event):
     require(run.get('status') == 'in_progress' or
             (run.get('status') == 'completed' and run.get('conclusion') == 'success'),
             'latest exact-revision analysis is not viable')
+    return run
+
+
+def latest_run(api, repository, sha, event):
+    run = latest_attempt(api, repository, sha, event)
     scan_jobs(api, repository, run)
     return run
 

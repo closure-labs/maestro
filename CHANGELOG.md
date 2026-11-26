@@ -24,7 +24,17 @@ correspond to published GitHub tags.
 
 - Keep maintainer authority pending while current CodeQL scanners run for queue,
   review and scanner events. Recheck live approval before granting authority and
-  fail closed on scan errors or the bounded wait deadline.
+  fail closed on scan errors or incomplete evidence.
+
+- Give cold qualification-output evaluation the same bounded 15-minute budget
+  as graph equivalence, without extending authentication or transfer deadlines.
+
+- Check each CodeQL attempt once and reevaluate findings authority on scan and review
+  events, without keeping a runner waiting for human approval. Gate all CodeQL
+  findings through the existing protected-main maintainer authority check. One
+  exact-head human approval explicitly accepts the bound
+  findings and scanner identity, and automatically resumes the PR and queue;
+  preserve independent eligibility, fresh analysis and all release risk gates.
 
 - Let a normal eligible GitHub Approve review accept CodeQL findings after the
   protected App has published the exact head-bound report. Keep approvals made

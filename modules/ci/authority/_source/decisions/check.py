@@ -8,7 +8,6 @@ from pathlib import Path
 import re
 import subprocess
 import sys
-import time
 
 from security_decisions import canonical_hash, load_json
 
@@ -311,7 +310,6 @@ def collector_targets(run, repository, github=None, *, collector_run_id=None):
 def codeql_targets(run, repository, api):
     if (run.get('repository', {}).get('full_name') != repository
             or run.get('status') not in ('in_progress', 'completed')
-            or (run.get('status') == 'completed' and run.get('conclusion') != 'success')
             or run.get('event') not in ('pull_request', 'merge_group')
             or not authority.SHA.fullmatch(run.get('head_sha', ''))):
         raise authority.AuthorityError('Untrusted CodeQL completion signal')
@@ -350,27 +348,6 @@ def with_live_queue_targets(targets, repository, api):
     return result
 
 
-def await_check(repository, number, expected_bot, target, api, app_id, api_post,
-                *, expected_head, seconds=2700, sleep=time.sleep, clock=time.monotonic):
-    """Keep incomplete scans pending for every event, then recheck live authority."""
-    deadline = clock() + seconds
-    pending_posted = False
-    while True:
-        try:
-            return check_pr(repository, number, expected_bot, target, api,
-                            expected_head=expected_head,
-                            report_ready=lambda number, head, report: announce_report(
-                                repository, number, head, report, app_id, api, api_post))
-        except codeql_findings.AnalysisPending:
-            if clock() >= deadline:
-                raise authority.AuthorityError('timed out waiting for scanner jobs')
-            if not pending_posted:
-                post_check(repository, target or expected_head, None,
-                           'Waiting for current CodeQL scanner jobs; no authority granted.', app_id, api_post)
-                pending_posted = True
-            sleep(min(15, max(0, deadline - clock())))
-
-
 def run_checks(repository, run_id, expected_bot, app_id, github=None, api_post=None):
     authority.validate_context(repository, expected_bot)
     if type(run_id) is not int or run_id < 1 or type(app_id) is not int or app_id < 1:
@@ -392,8 +369,10 @@ def run_checks(repository, run_id, expected_bot, app_id, github=None, api_post=N
                 continue  # Preparatory controller leaves legacy runs unchanged.
         receipt = None
         try:
-            result = await_check(repository, number, expected_bot, target, api, app_id, api_post,
-                                 expected_head=pull.get('head', {}).get('sha', ''))
+            result = check_pr(repository, number, expected_bot, target, api,
+                              expected_head=pull.get('head', {}).get('sha', ''),
+                              report_ready=lambda number, head, report: announce_report(
+                                  repository, number, head, report, app_id, api, api_post))
             sha = result['target']
             latest = api(f'repos/{repository}/pulls/{number}')
             if latest.get('head', {}).get('sha') != result['head'] or latest.get('state') != 'open':
@@ -409,6 +388,9 @@ def run_checks(repository, run_id, expected_bot, app_id, github=None, api_post=N
                                pullRequest=number, reviewsSha256=result['reviewsSha256'])
                 if 'acceptance' in report:
                     receipt.update(schema=2, acceptance=report['acceptance'])
+        except codeql_findings.AnalysisPending as error:
+            result = {'pullRequest': number, 'target': sha, 'status': 'analysis-pending', 'reason': str(error)}
+            summary, conclusion = 'Waiting for current CodeQL scanner jobs; no authority granted.', None
         except (authority.AuthorityError, ValueError, KeyError, TypeError) as error:
             result = {'pullRequest': number, 'target': sha, 'status': 'review-required', 'reason': str(error)}
             summary, conclusion = 'Maintainer decision required: ' + str(error), 'failure'
