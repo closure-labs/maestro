@@ -105,6 +105,12 @@ class HandoffCacheIdentity(unittest.TestCase):
     def test_conflicting_remote_hash_blocks_before_upstream_credentials_or_packets(self):
         policy = {'schema': 1, 'mode': 'official', 'repository': 'closure-labs/xo-nixpkg',
                   'revision': 'e' * 40, 'channel': 'xo-latest', 'storePath': STORE, 'narHash': HASH}
+        documents = {
+            'flake.lock': {'root': 'root', 'nodes': {'root': {'inputs': {}}}},
+            handoff.XO_PIN_LOCK: {'xo-nixpkg': {'type': 'github', 'owner': 'closure-labs',
+                                               'repo': 'xo-nixpkg', 'rev': policy['revision']}},
+            'modules/ci/security/_source/xo-handoff.json': policy,
+        }
         context = ({'runtime': {'xoPackage': STORE}},
                    [{'properties': [{'name': 'nix:storePath', 'value': STORE}]}])
         env = {'MAESTRO_SYSTEM_ROOT': '/fixture', 'DECISION_EVIDENCE_DIRECTORY': '/retained',
@@ -115,8 +121,8 @@ class HandoffCacheIdentity(unittest.TestCase):
                 patch.object(handoff.common, 'product', return_value={'revision': 'a' * 40}), \
                 patch.object(handoff.common, 'main_revision', return_value='c' * 40), \
                 patch.object(handoff, 'load_json', return_value=policy), \
-                patch.object(handoff, 'document_at', return_value=policy), \
-                patch.object(handoff, 'locked_revision', return_value='e' * 40), \
+                patch.object(handoff, 'document_at',
+                             side_effect=lambda api, repository, path, revision: documents[path]), \
                 patch.object(handoff, 'expected_channel', return_value='xo-latest'), \
                 patch.object(handoff, 'runtime_context', return_value=context), \
                 patch.object(handoff.Path, 'exists', return_value=False), \
