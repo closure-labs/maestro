@@ -140,40 +140,10 @@ load_network_state() {
   fi
 }
 
-lock_rev_for() {
-  local node_name="$1"
-
-  awk -v node_name="$node_name" '
-    BEGIN {
-      in_node = 0
-      in_locked = 0
-    }
-    $0 ~ "^[[:space:]]*\"" node_name "\"[[:space:]]*:[[:space:]]*\\{" {
-      in_node = 1
-      next
-    }
-    in_node && $0 ~ /^[[:space:]]*"locked"[[:space:]]*:[[:space:]]*\{/ {
-      in_locked = 1
-      next
-    }
-    in_node && in_locked && $0 ~ /^[[:space:]]*"rev"[[:space:]]*:/ {
-      line = $0
-      sub(/^[[:space:]]*"rev"[[:space:]]*:[[:space:]]*"/, "", line)
-      sub(/",?[[:space:]]*$/, "", line)
-      print line
-      exit
-    }
-    in_node && in_locked && $0 ~ /^[[:space:]]*}[,]?[[:space:]]*$/ {
-      in_locked = 0
-    }
-  ' "$MAESTRO_SYSTEM_ROOT/flake.lock"
-}
-
 load_xoa_state() {
   local working_dir=""
   local package_path=""
   local package_name=""
-  local locked_rev=""
   local scheme="http"
 
   xen_orchestra_version=""
@@ -187,10 +157,8 @@ load_xoa_state() {
   fi
 
   if [ -z "$xen_orchestra_version" ]; then
-    locked_rev="$(lock_rev_for xen-orchestra-ce)"
-    if [ -n "$locked_rev" ]; then
-      xen_orchestra_version="rev $(printf '%.8s' "$locked_rev")"
-    fi
+    xen_orchestra_version="$(jq -r '."xo-nixpkg" | .tag // (if .rev then "rev " + .rev[:8] else empty end)' \
+      "$MAESTRO_SYSTEM_ROOT/.tack/pins.lock.json" 2>/dev/null || true)"
   fi
 
   if maestro_tui_xo_tls_enabled /etc/xo-server/config.nixos-http.toml; then

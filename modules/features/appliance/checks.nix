@@ -10,7 +10,7 @@
   }: let
     packages = inputs.self.packages.${system};
     appliance = inputs.self.nixosConfigurations.maestro.config;
-    xoPackages = inputs.xen-orchestra-ce.packages.${system};
+    xoPackages = (import ../xo/_lib/package-input.nix).packages.${system};
     managementCIDRType = inputs.self.nixosConfigurations.maestro.options.maestro.operator.managementCIDRs.type.nestedTypes.elemType;
     xoConfigFeatures = ["http" "redis" "remotes" "web"];
     xoConfigFragments = appliance.maestro.xo.internal.configFragments;
@@ -35,7 +35,7 @@
       assert appliance.systemd.services.xo-server.environment.TMPDIR == appliance.maestro.xo.tempDir;
       assert appliance.maestro.xo.fileRestore.enable;
       assert appliance.systemd.services.xo-server.environment.XO_FILE_RESTORE_HELPER == lib.getExe appliance.maestro.xo.internal.fileRestorePackage;
-      assert appliance.maestro.xo.storage.libvhdiPackage == inputs.xen-orchestra-ce.packages.x86_64-linux.libvhdi;
+      assert appliance.maestro.xo.storage.libvhdiPackage == xoPackages.libvhdi;
       assert appliance.programs.fuse.userAllowOther;
       assert builtins.elem "fuse" appliance.users.users.${appliance.maestro.xo.user}.extraGroups;
       assert appliance.services.redis.servers.xo.enable;

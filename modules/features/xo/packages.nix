@@ -1,10 +1,12 @@
-{inputs, ...}: {
-  perSystem = {system, ...}: {
+{...}: {
+  perSystem = {system, ...}: let
+    xoPackages = (import ./_lib/package-input.nix).packages.${system};
+  in {
     packages = {
-      xen-orchestra-ce = inputs.xen-orchestra-ce.packages.${system}.latest;
-      xen-orchestra-supply-protector = inputs.xen-orchestra-ce.packages.${system}.supply-protector-latest;
-      libvhdi = inputs.xen-orchestra-ce.packages.${system}.libvhdi;
-      default = inputs.xen-orchestra-ce.packages.${system}.latest;
+      xen-orchestra-ce = xoPackages.latest;
+      xen-orchestra-supply-protector = xoPackages.supply-protector-latest;
+      inherit (xoPackages) libvhdi;
+      default = xoPackages.latest;
     };
   };
 }

@@ -6,11 +6,11 @@
         # SPDX-License-Identifier: Apache-2.0
         {
           config,
-          inputs,
           lib,
           ...
         }: let
           inherit (lib) mkOption types;
+          xoPackages = (import ./_lib/package-input.nix).packages.x86_64-linux;
         in {
           options.maestro.xo = {
             enable = lib.mkEnableOption "Xen Orchestra";
@@ -25,8 +25,8 @@
             };
             package = mkOption {
               type = types.package;
-              default = inputs.xen-orchestra-ce.packages.x86_64-linux.${config.maestro.xo.channel};
-              defaultText = lib.literalExpression "inputs.xen-orchestra-ce.packages.x86_64-linux.\${config.maestro.xo.channel}";
+              default = xoPackages.${config.maestro.xo.channel};
+              defaultText = lib.literalExpression "xoPackages.\${config.maestro.xo.channel}";
               description = "Xen Orchestra package to run.";
             };
             user = mkOption {
@@ -130,7 +130,7 @@
               };
               libvhdiPackage = mkOption {
                 type = types.package;
-                default = inputs.xen-orchestra-ce.packages.x86_64-linux.libvhdi;
+                default = xoPackages.libvhdi;
                 description = "libvhdi implementation used by XO.";
               };
             };

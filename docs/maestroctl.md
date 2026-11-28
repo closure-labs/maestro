@@ -56,9 +56,9 @@ before the appliance's declarative Nix configuration is active.
 
 ## Updates
 
-`update flake` updates all locked inputs. `update xoa` updates only Xen
-Orchestra. Add `--preview` to view the lock-file change without modifying the
-checkout.
+`update flake` refreshes `flake.lock`. `update xoa` uses Tack to refresh the
+xo-nixpkg release in `.tack/pins.lock.json`. Add `--preview` to see available
+updates without modifying the checkout.
 
 After an update, review the lock-file diff, apply the generation, and record it
 with `maestroctl commit`.

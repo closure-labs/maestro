@@ -390,15 +390,14 @@ run_apply_config() {
   fi
 }
 
-preview_update() {
+preview_flake_update() {
   local temporary
   temporary="$(mktemp)"
   cp "$MAESTRO_SYSTEM_ROOT/flake.lock" "$temporary"
-  if [ "$#" -gt 0 ]; then
-    nix flake update --output-lock-file "$temporary" "$@"
-  else
-    nix flake update --output-lock-file "$temporary"
-  fi
+  nix flake update --output-lock-file "$temporary" || {
+    rm -f "$temporary"
+    return 1
+  }
   if git diff --no-index --quiet -- flake.lock "$temporary"; then
     maestro_print_success "No lock-file changes found."
   else
@@ -408,8 +407,8 @@ preview_update() {
 }
 
 update_input() {
-  local input="${1:-}"
-  shift || true
+  local input="$1"
+  shift
   local preview=0 ask=0
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -427,20 +426,24 @@ update_input() {
     esac
   done
   maestro_cd_root
-  if [ "$ask" -eq 1 ] && ! maestro_confirm "Update ${input:-all flake inputs}"; then
+  if [ "$ask" -eq 1 ] && ! maestro_confirm "Update $input"; then
     maestro_print_warning "Update cancelled."
     return 1
   fi
-  if [ "$preview" -eq 1 ]; then
-    if [ -n "$input" ]; then preview_update "$input"; else preview_update; fi
+  if [ "$input" = xo-nixpkg ]; then
+    if [ "$preview" -eq 1 ]; then
+      maestro_tack look xo-nixpkg
+      return
+    fi
+    maestro_tack update xo-nixpkg || return
+    maestro_print_success "xo-nixpkg pin refreshed."
+  elif [ "$preview" -eq 1 ]; then
+    preview_flake_update
     return
-  fi
-  if [ -n "$input" ]; then
-    nix flake update "$input"
   else
-    nix flake update
+    nix flake update || return
+    maestro_print_success "Flake inputs updated."
   fi
-  maestro_print_success "Flake inputs updated."
   maestro_print_cli_command "Next:" apply
   maestro_print_cli_command "Safer path:" boot
 }
@@ -449,8 +452,8 @@ dispatch_update() {
   local subcommand="${1:-}"
   shift || true
   case "$subcommand" in
-    flake) update_input "" "$@" ;;
-    xoa) update_input xen-orchestra-ce "$@" ;;
+    flake) update_input "all flake inputs" "$@" ;;
+    xoa) update_input xo-nixpkg "$@" ;;
     help|--help|-h) show_update_help ;;
     *)
       maestro_print_error "Unknown update command: ${subcommand:-<missing>}"

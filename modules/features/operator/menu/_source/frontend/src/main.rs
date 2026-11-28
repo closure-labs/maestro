@@ -49,6 +49,7 @@ const COLOR_INFO: Color = Color::Rgb(0x6B, 0x6B, 0xD7);
 const PANEL_LABEL_WIDTH: usize = 18;
 const HEADER_LABEL_WIDTH: usize = 8;
 const TRACKED_PATHS: &[&str] = &[
+    ".tack",
     "AGENTS.md",
     "CHANGELOG.md",
     "README.md",
@@ -421,11 +422,11 @@ const UPDATE_ACTIONS: [UpdateItem; 5] = [
     },
     UpdateItem {
         title: "Update XOA",
-        detail: "Refresh the xo-nixpkg input and selected package channel, then choose whether to rebuild now or on reboot.",
+        detail: "Refresh the xo-nixpkg release pin, then choose whether to rebuild now or on reboot.",
         backend: "update-xoa",
     },
     UpdateItem {
-        title: "Update all",
+        title: "Update all flake inputs",
         detail: "Run a full nix flake update and then choose whether to rebuild now or on reboot.",
         backend: "update-all",
     },
@@ -3049,7 +3050,7 @@ fn render_updates(frame: &mut Frame, area: Rect, app: &App) {
         )),
         Line::from(update.detail),
         Line::from(""),
-        Line::from("Each update commits only flake.lock."),
+        Line::from("Each update commits its lock file."),
         Line::from(
             "After a lock change, the backend asks whether to rebuild now or on the next boot.",
         ),
@@ -3853,7 +3854,7 @@ mod tests {
         assert!(text.contains("Update nixpkgs"));
         assert!(text.contains("Update Home Manager"));
         assert!(text.contains("Selected Target"));
-        assert!(text.contains("Each update commits only flake.lock."));
+        assert!(text.contains("Each update commits its lock file."));
     }
 
     #[test]

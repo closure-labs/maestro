@@ -257,6 +257,20 @@ class Operations(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'typed runtime XO channel'):
                 handoff.expected_channel(Path('/retained'))
 
+    def test_handoff_reads_exact_official_tack_pin(self):
+        pin = {'type': 'github', 'owner': 'closure-labs', 'repo': 'xo-nixpkg',
+               'rev': 'e' * 40, 'tag': 'v0.10.2'}
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            lock = root / handoff.XO_PIN_LOCK
+            lock.parent.mkdir()
+            lock.write_text(json.dumps({'xo-nixpkg': pin}))
+            self.assertEqual(handoff.locked_revision(root), pin['rev'])
+            for invalid in ({}, {'xo-nixpkg': {**pin, 'owner': 'untrusted'}},
+                            {'xo-nixpkg': {**pin, 'rev': pin['tag']}}):
+                with self.subTest(lock=invalid), self.assertRaisesRegex(ValueError, 'official locked revision'):
+                    handoff.locked_revision(root, invalid)
+
     def test_historical_handoff_uses_candidate_binding_and_lock_with_current_live_gate(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

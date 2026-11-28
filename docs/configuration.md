@@ -60,6 +60,13 @@ use `"rolling"` temporarily when troubleshooting against an admitted upstream
 commit. An explicit `maestro.xo.package` still overrides the channel-derived
 package.
 
+Tack selects the newest xo-nixpkg project tag matching `v0.{version}` and
+records the exact revision in `.tack/pins.lock.json`. To stay on a specific
+tag, edit `.tack/pins.toml`, remove the `tag` selector, and set `url` to
+`github:closure-labs/xo-nixpkg?ref=refs/tags/v0.10.2` with the desired tag.
+Run `maestroctl update xoa` to refresh the lock. Restore the selector and
+repository URL to follow the latest project release again.
+
 Xen Orchestra first loads its immutable vendor `config.toml` from the
 `xo-nixpkg` package. The NixOS module maps one declarative attribute set into
 four focused system overrides under `/etc/xo-server/`:

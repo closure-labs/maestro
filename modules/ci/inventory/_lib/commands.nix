@@ -36,7 +36,10 @@ in {
         system = builtins.unsafeDiscardStringContext appliance.system.build.toplevel.outPath;
         distributionRoots = map builtins.unsafeDiscardStringContext distributionRoots;
         installerQualification = builtins.fromJSON (builtins.unsafeDiscardStringContext (builtins.toJSON installerQualification));
-        lockDigest = builtins.hashFile "sha256" lockFile;
+        lockDigest = builtins.hashString "sha256" (builtins.concatStringsSep "\n" [
+          (builtins.hashFile "sha256" lockFile)
+          (builtins.hashFile "sha256" ../../../../.tack/pins.lock.json)
+        ]);
         inherit packageSourceRoots;
         inventoryDigest = builtins.hashFile "sha256" ../_source/security-inventory.py;
         normalizerDigest = builtins.hashFile "sha256" ../../security/_source/security-normalize.py;

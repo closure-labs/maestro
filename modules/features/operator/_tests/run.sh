@@ -43,13 +43,14 @@ expected="$(
 assert_eq "$actual" "$expected"
 
 # Staging must work in the current feature layout without removed root directories.
-mkdir -p "$temporary/managed/host" "$temporary/managed/modules/features/operator" "$temporary/managed/docs"
+mkdir -p "$temporary/managed/host" "$temporary/managed/modules/features/operator" "$temporary/managed/docs" "$temporary/managed/.tack"
 for file in AGENTS.md CHANGELOG.md README.md flake.lock flake.nix; do
   touch "$temporary/managed/$file"
 done
 printf '{}\n' >"$temporary/managed/host/menu.nix"
 printf '{}\n' >"$temporary/managed/modules/features/operator/example.nix"
 printf 'fixture\n' >"$temporary/managed/docs/guide.md"
+printf '{}\n' >"$temporary/managed/.tack/pins.lock.json"
 git -C "$temporary/managed" init -q
 actual="$(MAESTRO_SYSTEM_ROOT="$temporary/managed" bash -c '
   source "$1"
@@ -57,6 +58,7 @@ actual="$(MAESTRO_SYSTEM_ROOT="$temporary/managed" bash -c '
 ' bash "$TEST_ROOT/modules/features/operator/cli/_source/lib/common.sh")"
 grep -Fxq 'host/menu.nix' <<<"$actual" || fail "current host configuration was not staged"
 grep -Fxq 'modules/features/operator/example.nix' <<<"$actual" || fail "feature implementation was not staged"
+grep -Fxq '.tack/pins.lock.json' <<<"$actual" || fail "Tack lock was not staged"
 
 # First-install builds use Determinate Systems' unauthenticated bootstrap cache
 # rather than the authenticated FlakeHub Cache endpoint.
@@ -105,7 +107,7 @@ grep -Fq 'default = "latest";' "$TEST_ROOT/modules/features/xo/options.nix" \
   || fail "Xen Orchestra does not select the latest package channel by default"
 # The interpolation must remain literal in the Nix module source.
 # shellcheck disable=SC2016
-grep -Fq 'packages.x86_64-linux.${config.maestro.xo.channel}' "$TEST_ROOT/modules/features/xo/options.nix" \
+grep -Fq 'xoPackages.${config.maestro.xo.channel}' "$TEST_ROOT/modules/features/xo/options.nix" \
   || fail "Xen Orchestra package does not follow the configured channel"
 if grep -Fq 'git ls-remote --tags' "$TEST_ROOT/modules/features/operator/menu/_source/backend/action.sh"; then
   fail "XOA update still depends on removed moving channel tags"

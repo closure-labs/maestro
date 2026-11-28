@@ -19,13 +19,26 @@ from decision_authority import github_api, document_at
 from security_decisions import load_json, canonical_hash
 
 
+XO_PIN_LOCK = '.tack/pins.lock.json'
+
+
+def historical_xo_input(lock):
+    return lock['nodes'][lock.get('root', 'root')]['inputs'].get('xen-orchestra-ce')
+
+
 def locked_revision(root, lock=None):
-    lock = lock if lock is not None else load_json(root / 'flake.lock')
-    reference = lock['nodes'][lock.get('root', 'root')]['inputs']['xen-orchestra-ce']
-    common.require(isinstance(reference, str), 'XO flake input must have one explicit locked node')
-    value = lock['nodes'][reference]['locked']
-    common.require(value.get('type') == 'github' and value.get('owner') == 'closure-labs'
-                   and value.get('repo') == 'xo-nixpkg' and common.SHA.fullmatch(value.get('rev', '')),
+    if lock is None:
+        tack_lock = root / XO_PIN_LOCK
+        lock = load_json(tack_lock if tack_lock.exists() else root / 'flake.lock')
+    if 'nodes' in lock:
+        reference = historical_xo_input(lock)
+        common.require(isinstance(reference, str), 'XO flake input must have one explicit locked node')
+        value = lock['nodes'][reference]['locked']
+    else:
+        value = lock.get('xo-nixpkg', {})
+    common.require(isinstance(value, dict) and value.get('type') == 'github'
+                   and value.get('owner') == 'closure-labs' and value.get('repo') == 'xo-nixpkg'
+                   and isinstance(value.get('rev'), str) and common.SHA.fullmatch(value['rev']),
                    'Appliance XO input is not an exact official locked revision')
     return value['rev']
 
@@ -197,6 +210,8 @@ def materialize():
     # Historical recovery uses the exact candidate-source lock as data; it
     # never checks out or evaluates historical workflow/package code.
     source_lock = document_at(github_api, cfg['repository'], 'flake.lock', product['revision'])
+    if historical_xo_input(source_lock) is None:
+        source_lock = document_at(github_api, cfg['repository'], XO_PIN_LOCK, product['revision'])
     revision = locked_revision(root, source_lock)
     profile = expected_channel(local)
     common.require(policy.get('repository') == 'closure-labs/xo-nixpkg' and policy.get('revision') == revision

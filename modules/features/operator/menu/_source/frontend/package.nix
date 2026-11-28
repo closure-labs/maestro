@@ -8,6 +8,7 @@
   gnused,
   nettools,
   iproute2,
+  jq,
   makeWrapper,
   nix,
   rustPlatform,
@@ -22,6 +23,7 @@
     gnused
     nettools
     iproute2
+    jq
     nix
   ];
   wrapperArgs =

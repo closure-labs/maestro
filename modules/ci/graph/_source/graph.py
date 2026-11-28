@@ -83,6 +83,8 @@ def plan(candidate, base, revision, base_revision, changed_inputs=None, force=Fa
              (prior['derivation'], prior['outputs'], prior['requirements']) else changed).append(key)
         if changed_inputs is None or any(not path.startswith(('modules/', 'host/', 'docs/', '.github/'))
                                         and path not in {'flake.nix', 'flake.lock', 'devenv.nix', 'devenv.lock', 'devenv.yaml',
+                                                         '.tack/default.nix', '.tack/pins.toml',
+                                                         '.tack/pins.lock.json', '.tack/.gitignore', '.tack/LICENSE',
                                                          'secretspec.toml', 'README.md', 'CHANGELOG.md', 'AGENTS.md', 'VERSION', 'LICENSE', '.gitignore'}
                                         for path in changed_inputs):
             reasons.append('unmapped-inputs')
